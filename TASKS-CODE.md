@@ -159,18 +159,20 @@
 > Doğrulananlar: aynı tohum → aynı sonuç · sur ↑ → savunan kaybı ↓ · gece → savunan kaybı ↓ · moral daima %30–%100 ·
 > ganimet ≤ kapasite ve ≤ hedef hammadde · Gizli Depo korur · min. birlik 3×Kışla · Kont fetih koşulu (Anıt 1750–2250, talanda fetih yok).
 
-## FAZ 8 — Casusluk / Fetih / Destek / Talan
+## FAZ 8 — Casusluk / Fetih / Destek / Talan — 🔄 Devam Ediyor (A-KESIF)
 
 | ID | Görev | Ajan | Durum |
 |---|---|---|---|
-| T-8.1 | Normal + gizli casus saldırısı (gizli = 3× yavaş) | A-KESIF | ⏳ Bekliyor |
-| T-8.2 | Casusluk raporu + bilgi kademeleri + Gizli Depo etkisi | A-KESIF | ⏳ Bekliyor |
-| T-8.3 | Destek (kendi/dost köye birlik gönderme) | A-KESIF | ⏳ Bekliyor |
-| T-8.4 | Talan (taşıma kapasitesi + gizli depo sınırı) | A-KESIF | ⏳ Bekliyor |
-| T-8.5 | Fetih (Kont + güç alanı 0) + fetih koruması | A-KESIF | ⏳ Bekliyor |
-| T-8.6 | Saldırı/destek/ticaret **iptal** kuralları + süreler | A-KESIF | ⏳ Bekliyor |
+| T-8.1 | Normal + gizli casus saldırısı (gizli = 3× yavaş) | A-KESIF | 🔄 Devam Ediyor |
+| T-8.2 | Casusluk raporu + bilgi kademeleri + Gizli Depo etkisi | A-KESIF | 🔄 Devam Ediyor |
+| T-8.3 | Destek (kendi/dost köye birlik gönderme) | A-KESIF | 🔄 Devam Ediyor |
+| T-8.4 | Talan (taşıma kapasitesi + gizli depo sınırı) | A-KESIF | 🔄 Devam Ediyor |
+| T-8.5 | Fetih (Kont + güç alanı 0) + fetih koruması | A-KESIF | 🔄 Devam Ediyor |
+| T-8.6 | Saldırı/destek/ticaret **iptal** kuralları (30/15 dk) | A-KESIF | 🔄 Devam Ediyor |
+| T-8.7 | **10:1 oran** → Kanun Kaçağı (ceza 2 ay) + min. birlik kapısı | A-KESIF | 🔄 Devam Ediyor |
+| T-8.8 | `ActionSimulator.gd` — **§7b** varış çözümleme + dönüş hareketleri | A-KESIF | 🔄 Devam Ediyor |
 
-## FAZ 9 — Dünya & Harita
+## FAZ 9 — Dünya & Harita ✅
 
 | ID | Görev | Ajan | Durum |
 |---|---|---|---|
