@@ -19,16 +19,12 @@ const START_RESOURCES := {"wood": 1000, "stone": 1000, "iron": 1000}
 const START_LEVEL := 1
 
 
-## GameData autoload düğümünü (yüklenmiş halde) döndürür; yoksa null.
+const GameDataScript := preload("res://autoload/GameData.gd")
+
+
+## GameData singleton'ını döndürür.
 static func _game_data() -> Node:
-	var loop := Engine.get_main_loop()
-	if loop is SceneTree:
-		var node: Node = (loop as SceneTree).root.get_node_or_null("GameData")
-		if node != null:
-			if not node.is_loaded():
-				node.load_all()
-			return node
-	return null
+	return GameDataScript.get_singleton()
 
 
 # =============================================================================

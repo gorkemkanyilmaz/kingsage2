@@ -22,18 +22,40 @@ var _village: Dictionary = {}
 @onready var extra_cost_label: Label = $VBox/MetaContainer/ExtraCostLabel
 
 @onready var upgrade_btn: Button = $VBox/UpgradeButton
-@onready var req_container: VBoxContainer = $VBox/RequirementSection/ReqList
+@onready var req_container: VBoxContainer = $VBox/RequirementSection/ReqScroll/ReqList
 @onready var req_section: VBoxContainer = $VBox/RequirementSection
 
 
+func _ensure_nodes() -> void:
+	if title_label == null:
+		title_label = $VBox/Header/TitleLabel
+		level_label = $VBox/Header/LevelLabel
+		close_btn = $VBox/Header/CloseButton
+		cost_wood = $VBox/CostContainer/WoodBox/Label
+		cost_stone = $VBox/CostContainer/StoneBox/Label
+		cost_iron = $VBox/CostContainer/IronBox/Label
+		time_label = $VBox/MetaContainer/TimeLabel
+		extra_cost_label = $VBox/MetaContainer/ExtraCostLabel
+		upgrade_btn = $VBox/UpgradeButton
+		req_container = $VBox/RequirementSection/ReqScroll/ReqList
+		req_section = $VBox/RequirementSection
+
+
 func _ready() -> void:
-	close_btn.pressed.connect(func():
-		hide()
-		closed.emit())
-	upgrade_btn.pressed.connect(_on_upgrade_pressed)
+	_ensure_nodes()
+	if not close_btn.pressed.is_connected(_on_close_pressed):
+		close_btn.pressed.connect(_on_close_pressed)
+	if not upgrade_btn.pressed.is_connected(_on_upgrade_pressed):
+		upgrade_btn.pressed.connect(_on_upgrade_pressed)
+
+
+func _on_close_pressed() -> void:
+	hide()
+	closed.emit()
 
 
 func show_building(village: Dictionary, key: String) -> void:
+	_ensure_nodes()
 	_village = village
 	_current_key = key
 	refresh()
@@ -41,6 +63,7 @@ func show_building(village: Dictionary, key: String) -> void:
 
 
 func refresh() -> void:
+	_ensure_nodes()
 	if _current_key.is_empty() or _village.is_empty():
 		return
 
@@ -79,6 +102,7 @@ func refresh() -> void:
 
 	# Gereksinim Zinciri Görünümü
 	for child in req_container.get_children():
+		req_container.remove_child(child)
 		child.queue_free()
 
 	var chain: Array = RulesEngineScript.requirement_chain(_village.get("buildings", {}), _current_key, tgt_lvl)

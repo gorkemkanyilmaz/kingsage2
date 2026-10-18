@@ -17,9 +17,9 @@ shadow_color = Color(0.231373, 0.14902, 0.0980392, 0.3)
 shadow_size = 12
 
 [node name="BuildingPanel" type="PanelContainer"]
-custom_minimum_size = Vector2(1040, 650)
+custom_minimum_size = Vector2(1040, 750)
 offset_left = 20.0
-offset_top = 1140.0
+offset_top = 1040.0
 offset_right = 1060.0
 offset_bottom = 1790.0
 theme = ExtResource("2_theme")
@@ -130,6 +130,7 @@ theme_override_font_sizes/font_size = 22
 text = "Önce şunlar gerekli (Gereksinim Zinciri):"
 
 [node name="ReqScroll" type="ScrollContainer" parent="VBox/RequirementSection"]
+custom_minimum_size = Vector2(0, 240)
 layout_mode = 2
 size_flags_vertical = 3
 
