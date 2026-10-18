@@ -193,7 +193,13 @@
 | T-8.7 | **10:1 oran** → Kanun Kaçağı (2 ay) + min. birlik kapısı | A-KESIF | ✅ Tamamlandı |
 | T-8.8 | `ActionSimulator.gd` — **§7b** varış çözümleme + dönüş hareketleri | A-KESIF | ✅ Tamamlandı |
 | T-8.9 | **Kaynak düzeltmeleri:** casuslukta Gizli Depo, görünürlük, bilgi kademeleri | A-KESIF | ✅ Tamamlandı |
-| T-8.10 | **Semantik hizalama:** casusluk Gizli Depo'yu **toplam havuz** saysın (yağma ile aynı) | A-KESIF | 🔄 Devam Ediyor |
+| T-8.10 | **Semantik hizalama:** casusluk Gizli Depo'yu **toplam havuz** saysın (yağma ile aynı) | A-KESIF | ✅ Tamamlandı |
+
+> **T-8.10 kanıtı (A-ŞEF bağımsız çalıştırdı):** `test_actions` → **105/105 PASS, EXIT=0**.
+> Somut: kaynak `{800,400,200}` (toplam 1400), Gizli Depo sv5 (kapasite 301) → görünür toplam **1099**,
+> dağıtım `{628,314,157}` → **`BattleSimulator._compute_loot` çıktısıyla birebir eşit** (çapraz doğrulama).
+> `toplam ≤ kapasite` → üç kaynak da **0**. Gizli Depo yoksa kaynak **aynen** görünür.
+> Diğer 5 test bozulmadı (159/152/50/66/126).
 
 > **T-8.9 kanıtı (A-ŞEF bağımsız çalıştırdı):** `test_actions` → **98/98 PASS, EXIT=0** (78 → 98).
 > Doğrulananlar: Gizli Depo sv5 (kapasite 301) → raporlanan odun 800→499 · normal casuslukta savunan rapor alır / gizlide **almaz** ·
@@ -372,3 +378,4 @@
 - **[Kod-31]** **A-EKONOMI T-5.9 ✅** — iade düzeltmesi: `test_economy` **126/126 PASS**. Kaynak (`buildings.txt`) artık kodda: **taban iade / ek maliyet iade değil**, iptal sonrası kalan işler yeniden zincirleniyor.
 - **[Kod-32]** **A-KESIF T-8.9 ✅** — `test_actions` **98/98 PASS**: Gizli Depo casuslukta, normal/gizli görünürlük, bilgi kademeleri, min. birlik kapsamı.
 - **[Kod-33]** ⚠️ **A-ŞEF tutarlılık düzeltmesi:** Gizli Depo kapasitesinin birimi `production.json`'da **`resource_total`** (kaynak başına değil). Yağma katmanı bunu zaten toplam havuz olarak uyguluyordu, casusluk katmanı ise kaynak başına → **çelişki**. Karar: **toplam havuz, oransal (en büyük kalan) dağıtım** — iki katman birebir aynı. `docs/07` §6 güncellendi; A-KESIF'e T-8.10 verildi.
+- **[Kod-34]** **FAZ 8 tamamen kapandı** — A-KESIF T-8.10 ✅, `test_actions` **105/105 PASS** (A-ŞEF doğruladı): casusluk gizli depo dağıtımı `BattleSimulator._compute_loot` ile **birebir aynı çıktı** (çapraz doğrulandı), `toplam ≤ kapasite` → **0 görünür**.

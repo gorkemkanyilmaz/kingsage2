@@ -64,9 +64,16 @@ Gönderimde `RulesEngine.min_attack_units(3 × Kışla)` uygulanır. Aynı eşik
   birliklerini + binalarını** içerir; **(hiçbir) açığa çıkarma (exposure)
   gösterilmez** — görev şartı.
 - **Gizli Depo casuslara karşı da korur** (kaynak: `buildings.txt`: "hırsızların
-  elinden **ve casusların gözlerinden** uzak yerlerdir"). Raporda kaynak, kaynak
-  başına `max(0, gerçek − gizli_depo_kapasitesi)` ile düşülür. Yağmada aynı koruma
-  zaten uygulanır.
+  elinden **ve casusların gözlerinden** uzak yerlerdir"). Korunan miktar **üç
+  hammaddenin toplamından** düşülür (`production.json` → `hideout_capacity.unit =
+  "resource_total"`), yani **toplam havuz** semantiği: `görünür_toplam = toplam −
+  min(kapasite, toplam)`; kalan, **en büyük kalan yöntemiyle** kaynaklara oransal
+  dağıtılır. `toplam ≤ kapasite` ise üç kaynak da **0** görünür. Bu, yağma
+  katmanıyla (`BattleSimulator._compute_loot`) **birebir aynı** semantiktir.
+  - **Kod tekrarı notu:** Dağıtım algoritması (`Arrival._visible_resources`)
+    `BattleSimulator`'ın gizli modül API'sine bağımlı olmamak için yeniden
+    yazılmıştır; **aynı çıktıyı** verdiği test ile (yağma `_compute_loot` çıktısıyla
+    birebir karşılaştırma) doğrulanır.
 - **Bilgi kademeleri** (kaynak: `units_espionage.txt`):
   - **Normal casusluk:** askerî birlikler + moral + hammaddeler + binalar/kademeleri
     + **dışarıdaki birlikler** (`outside_units`).
@@ -77,10 +84,6 @@ Gönderimde `RulesEngine.min_attack_units(3 × Kışla)` uygulanır. Aynı eşik
     **savunan da rapor alır** (`type = "spy_incoming"`, `defender_notified = true`).
   - **Gizli** casusluk **savunana görünmez** (`visible_to_defender = false`),
     savunan **rapor ALMAZ**; saldıran kendi raporunu yine alır; hız **×3 yavaş**.
-
-`AÇIK SORU:` Gizli Depo'nun casusluk raporunda **kaynak başına** mı (uygulanan:
-`max(0, r − kapasite)`) yoksa yağmadaki gibi **toplam havuz** (`Σ − kapasite`) olarak
-mı düşüldüğü; resmî istemci doğrulaması bekler.
 
 ## 4. Katır (ticaret) yolculuk hızı (`docs/14` §6.3, bilinmeyen #3)
 
@@ -208,19 +211,18 @@ EN 100) mesafesinden uzak olamaz; aşılırsa `count_too_far`. Ölçüm
 ## 14. Tüm AÇIK SORULAR (özet)
 
 1. `AÇIK SORU:` Kanun Kaçağı işaretlemesi gönderimde mi varışta mı; puan türü (köy/toplam).
-2. `AÇIK SORU:` Casusluk raporunda Gizli Depo **kaynak başına** mı yoksa **toplam havuz** olarak mı düşülür (uygulanan: kaynak başına `max(0, r − kapasite)`).
-3. `AÇIK SORU:` Katır (ticaret) yolculuk hızı (alan/dakika).
-4. `AÇIK SORU:` Ticaret için Market zorunluluğunun uygulama noktası.
-5. `AÇIK SORU:` Sunucu saat dilimi ve gece bonusu penceresi.
-6. `AÇIK SORU:` Destek birliklerinin geri çağrılma/otomatik dönüş davranışı.
-7. `AÇIK SORU:` Bonus köylerde korumanın kapsamı.
-8. `AÇIK SORU:` Kont mesafesinin alan/kıta ölçeği.
-9. `AÇIK SORU:` `send_*` araştırma kontrolü yapmalı mı.
+2. `AÇIK SORU:` Katır (ticaret) yolculuk hızı (alan/dakika).
+3. `AÇIK SORU:` Ticaret için Market zorunluluğunun uygulama noktası.
+4. `AÇIK SORU:` Sunucu saat dilimi ve gece bonusu penceresi.
+5. `AÇIK SORU:` Destek birliklerinin geri çağrılma/otomatik dönüş davranışı.
+6. `AÇIK SORU:` Bonus köylerde korumanın kapsamı.
+7. `AÇIK SORU:` Kont mesafesinin alan/kıta ölçeği.
+8. `AÇIK SORU:` `send_*` araştırma kontrolü yapmalı mı.
 
-> **Kapanan sorular (resmî kaynakla çözüldü):** min. saldırı birimi kapsamı
-> (yalnızca saldırı/talan — bkz. §2); casusluk raporunda Gizli Depo koruması
-> (uygulanıyor — bkz. §3); normal/gizli casusluk görünürlüğü ve bilgi kademeleri
-> (bkz. §3).
+> **Kapanan sorular (resmî kaynakla çözüldü):**
+> - Min. saldırı birimi kapsamı → yalnızca saldırı/talan (§2).
+> - Casusluk raporunda Gizli Depo koruması → **toplam havuz**, yağma ile aynı (§3).
+> - Normal/gizli casusluk görünürlüğü ve bilgi kademeleri (§3).
 
 ---
 
@@ -233,7 +235,7 @@ EN 100) mesafesinden uzak olamaz; aşılırsa `count_too_far`. Ölçüm
 - Maks. oran 10:1, Kanun Kaçağı cezası 60 gün (`GameConfig`, `battle.json`).
 - Kont max mesafesi 80 alan (`GameConfig.count_max_distance`, `docs/08` §4).
 - Min. saldırı birimi 3 × Kışla, **yalnızca saldırı/talan** (`RulesEngine.min_attack_units`, `worldinfo`).
-- Gizli Depo casuslara karşı da korur (`buildings.txt`); kapasite `RulesEngine.hideout_capacity(sv)`.
+- Gizli Depo casuslara karşı da korur (`buildings.txt`); kapasite `RulesEngine.hideout_capacity(sv)`, korunan miktar **toplam havuz** (`production.json` → `hideout_capacity.unit = "resource_total"`).
 - Normal casusluk görünür + savunan rapor alır; gizli casusluk görünmez + savunan rapor almaz (`units_espionage.txt`).
 - Dönüş süresi = gidiş süresi (`docs/19` §6).
 - Katır hedefe ulaşınca kaybolur (`docs/14` §5).

@@ -22,6 +22,7 @@ const ActionSimulatorScript := preload("res://scripts/sim/actions/ActionSimulato
 const ArrivalScript := preload("res://scripts/sim/actions/Arrival.gd")
 const ProtectionScript := preload("res://scripts/sim/actions/Protection.gd")
 const RE := preload("res://scripts/rules/RulesEngine.gd")
+const BS := preload("res://scripts/sim/battle/BattleSimulator.gd")
 
 const BUILDING_KEYS := [
 	"barracks", "farm", "garage", "hide", "iron", "main", "market", "smith",
@@ -417,29 +418,67 @@ func _test_spy_creeping() -> void:
 # ============================================================================
 
 func _test_spy_hideout() -> void:
-	_section("(a) Gizli Depo casusluk raporunda kaynağı gizler")
+	_section("(a) Gizli Depo casusluk raporunda kaynağı (toplam havuz) gizler")
 
+	# Somut örnek: 800/400/200 (toplam 1400), Gizli Depo sv5 (kapasite 301) → görünür 1099.
 	var s := _state_two()
 	_find_village(s, 1)["units"]["spy"] = 20
 	var target := _find_village(s, 2)
 	target["units"]["spear"] = 5
-	target["resources"] = {"wood": 800, "stone": 600, "iron": 400}
+	target["resources"] = {"wood": 800, "stone": 400, "iron": 200}
 	target["buildings"]["hide"] = 5  # Gizli Depo sv5
 
 	var cap := RE.hideout_capacity(5)
-	_check(cap > 0, "Gizli Depo kapasitesi > 0 (%d)" % cap)
+	_check(cap == 301, "Gizli Depo sv5 kapasitesi 301 (%d)" % cap)
 
 	var sent := MovementScript.send_spy(s, 1, 2, {"spy": 10}, NOW)
 	ActionSimulatorScript.process_tick(s, int(sent["movement"]["arrive_unix"]), 1.0)
 	var data: Dictionary = _report_of_type(s, "spy").get("data", {})
 	var shown: Dictionary = data.get("resources", {})
-	_check(int(shown.get("wood", -1)) == maxi(0, 800 - cap),
-		"raporlanan odun Gizli Depo kadar azaldı (%d)" % int(shown.get("wood", -1)))
-	_check(int(shown.get("stone", -1)) == maxi(0, 600 - cap), "raporlanan taş azaldı")
-	_check(int(shown.get("iron", -1)) == maxi(0, 400 - cap), "raporlanan demir azaldı")
-	_check(int(shown.get("wood", 0)) < 800, "kaynak gerçek değerinden az görünüyor")
-	_check(int(data.get("hidden_amount", 0)) > 0, "gizlenen miktar > 0")
-	_check(int(data.get("actual_resources_total", 0)) == 1800, "gizli olmayan toplam da raporda")
+	_check(int(data.get("actual_resources_total", 0)) == 1400, "gerçek toplam 1400")
+	_check(int(data.get("visible_resources_total", 0)) == 1099, "görünür toplam 1099 (1400 − 301)")
+	_check(int(data.get("hidden_amount", 0)) == 301, "gizlenen 301")
+	_check(int(shown.get("wood", -1)) == 628, "görünür odun 628 (%d)" % int(shown.get("wood", -1)))
+	_check(int(shown.get("stone", -1)) == 314, "görünür taş 314")
+	_check(int(shown.get("iron", -1)) == 157, "görünür demir 157")
+	_check(int(shown.get("wood", 0)) + int(shown.get("stone", 0)) + int(shown.get("iron", 0)) == 1099,
+		"görünür kaynak toplamı korunuyor")
+
+	# Yağma katmanıyla birebir aynı semantik: aynı toplamı dağıtan _compute_loot çıktısıyla eşit.
+	# (Yağmada taşıma kapasitesi = görünür toplam alınırsa aynı dağıtım çıkar.)
+	var loot_ref: Dictionary = BS._compute_loot(1099, {"wood": 800, "stone": 400, "iron": 200}, 301)
+	_check(int(loot_ref.get("wood", -1)) == 628 and int(loot_ref.get("stone", -1)) == 314 and int(loot_ref.get("iron", -1)) == 157,
+		"yağma dağıtımıyla aynı oran mantığı")
+	_check(int(loot_ref.get("wood", 0)) == int(shown.get("wood", 0))
+		and int(loot_ref.get("stone", 0)) == int(shown.get("stone", 0))
+		and int(loot_ref.get("iron", 0)) == int(shown.get("iron", 0)),
+		"casusluk raporu = yağma dağıtımı (birebir)")
+
+	# Gizli Depo sonrası kaynak 0 ise (toplam ≤ kapasite) → üçü de 0 görünür.
+	var z := _state_two()
+	_find_village(z, 1)["units"]["spy"] = 20
+	var z_target := _find_village(z, 2)
+	z_target["units"]["spear"] = 5
+	z_target["resources"] = {"wood": 120, "stone": 100, "iron": 50}  # toplam 270 ≤ 301
+	z_target["buildings"]["hide"] = 5
+	var z_sent := MovementScript.send_spy(z, 1, 2, {"spy": 10}, NOW)
+	ActionSimulatorScript.process_tick(z, int(z_sent["movement"]["arrive_unix"]), 1.0)
+	var z_data: Dictionary = _report_of_type(z, "spy").get("data", {})
+	var z_shown: Dictionary = z_data.get("resources", {})
+	_check(int(z_shown.get("wood", -1)) == 0 and int(z_shown.get("stone", -1)) == 0 and int(z_shown.get("iron", -1)) == 0,
+		"toplam ≤ kapasite → üç kaynak da 0 görünür")
+	_check(int(z_data.get("visible_resources_total", -1)) == 0, "görünür toplam 0")
+	_check(int(z_data.get("hidden_amount", 0)) == 270, "gizlenen = gerçek toplam (270)")
+
+	# Gizli Depo yoksa kaynak aynen görünür.
+	var n := _state_two()
+	_find_village(n, 1)["units"]["spy"] = 20
+	_find_village(n, 2)["resources"] = {"wood": 800, "stone": 400, "iron": 200}
+	var n_sent := MovementScript.send_spy(n, 1, 2, {"spy": 10}, NOW)
+	ActionSimulatorScript.process_tick(n, int(n_sent["movement"]["arrive_unix"]), 1.0)
+	var n_data: Dictionary = _report_of_type(n, "spy").get("data", {})
+	_check(int((n_data.get("resources", {}) as Dictionary).get("wood", -1)) == 800,
+		"Gizli Depo yoksa kaynak aynen görünür")
 
 
 # ============================================================================
