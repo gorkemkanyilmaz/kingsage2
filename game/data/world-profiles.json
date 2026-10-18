@@ -3,8 +3,8 @@
 	"profiles": {
 		"tr": {
 			"label": "Türkiye — s59-tr",
-			"speed": 4,
-			"unit_speed": 4,
+			"speed": 1,
+			"unit_speed": 1,
 			"night_bonus_enabled": true,
 			"night_bonus_window": {"start_hour": 0, "end_hour": 6},
 			"night_bonus_multiplier": 2,
@@ -27,8 +27,8 @@
 		},
 		"en": {
 			"label": "İngilizce — s59-en",
-			"speed": 4,
-			"unit_speed": 4,
+			"speed": 1,
+			"unit_speed": 1,
 			"night_bonus_enabled": false,
 			"night_bonus_window": {"start_hour": 0, "end_hour": 6},
 			"night_bonus_multiplier": 2,

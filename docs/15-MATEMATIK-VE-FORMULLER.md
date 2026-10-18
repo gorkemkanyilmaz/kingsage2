@@ -18,13 +18,19 @@ maliyet(sv) = round( maliyet(sv=1) × faktör^(sv − 1) )
 
 | Bina grubu | Odun | Taş | Demir |
 |---|---:|---:|---:|
-| **Standart** (Kale, Taş ocağı, Oduncu Kampı, Maden ocağı, Depo, Gizli Depo, Değirmen, Sur, Market, Katır çiftliği, Simyager) | **1,165** | **1,170** | **1,160** |
+| **Çekirdek** (Kale, Taş ocağı, Oduncu Kampı, Maden ocağı, Depo, Gizli Depo) | **1,165** | **1,170** | **1,165** |
+| **Standart** (Değirmen, Sur, Market, Katır çiftliği, Simyager) | **1,165** | **1,170** | **1,160** |
 | **Kışla** | **1,21** | **1,23** | **1,22** |
 | **Köşk** | **1,30** | **1,30** | **1,30** |
 | **Kuyumcu** | **1,40** | **1,40** | **1,40** |
 | **Anıt** | (tek seviye) | | |
 
-> Simyager (garage) standart oranlara uyar (ölçülen: 1,1649 / 1,1702 / 1,1599).
+> ⚠️ **Düzeltme (A-KURAL doğrulaması):** Demir faktörü tüm binalarda **tek değildir**.
+> Kale, Taş ocağı, Oduncu Kampı, Maden ocağı, Depo ve Gizli Depo'da demir **1,165**;
+> Değirmen, Sur, Market, Katır çiftliği ve Simyager'de demir **1,160**'tır.
+> Tek faktör (1,160) kullanılırsa bu 6 binada seviye 50'de **%28'e varan** sapma oluşur.
+> İki grupla `data/buildings.json` tabloları **maks. hata = 0** ile üretilir (bkz. `tools/validate_rules.py`).
+> Ölçülen: `main` 1,1650/1,1701/**1,1649** · `farm` 1,1650/1,1700/**1,1598** · `garage` 1,1649/1,1702/**1,1599**.
 
 ### Başlangıç (Seviye 1) maliyetleri
 

@@ -18,10 +18,10 @@ const PROFILES_PATH := "res://data/world-profiles.json"
 # --- Hız / üretim -----------------------------------------------------------
 
 ## Dünya hızı (üretim, inşaat süreleri vb. için çarpan). "Hız".
-var speed: float = 4.0
+var speed: float = 1.0
 
 ## Birim hızı (orduların harita üzerinde ilerleme hızı). "Birim hızı".
-var unit_speed: float = 4.0
+var unit_speed: float = 1.0
 
 # --- Gece bonusu ------------------------------------------------------------
 

@@ -28,6 +28,7 @@
 |---|---|---|
 | **A-HALKA** | Foundation | `game/project.godot`, `game/autoload/**`, `game/scripts/core/**`, `game/scenes/boot/**`, `game/icon.svg` |
 | **A-KURAL** | Kural Motoru Verisi | `game/data/rules/**`, `tools/validate_rules.py` |
+| **A-MOTOR** | Kural Motoru (kod) + köy modeli | `game/scripts/rules/**`, `game/scripts/model/**` |
 | **A-VARLIK** | Varlık (Asset) | `game/assets/**` (+ `ASSET-MANIFEST.md`) |
 | **A-EKONOMI** | Ekonomi & Binalar | `game/scripts/sim/economy/**`, `game/scripts/sim/buildings/**` |
 | **A-ORDU** | Ordu & Eğitim | `game/scripts/sim/army/**` |
@@ -65,34 +66,53 @@
 | T-2.8 | `scenes/boot/Boot.tscn` + `Boot.gd` | A-HALKA | ✅ Tamamlandı |
 | T-2.9 | `icon.svg` (özgün, pastel) | A-HALKA | ✅ Tamamlandı |
 | T-2.10 | **Doğrulama:** `godot --headless` → hata yok | A-HALKA + A-ŞEF | ✅ Tamamlandı |
-| T-2.11 | `GameData` sayısal alanları yüklerken **int'e çevir** (KingsAge tamsayı matematiği) | A-HALKA | ⏳ Bekliyor |
-| T-2.12 | `GameClock` yalnızca **aktif köy varsa** tick ilerletsin | A-HALKA | ⏳ Bekliyor |
+| T-2.11 | `GameData` sayısal alanları yüklerken **int'e çevir** (KingsAge tamsayı matematiği) | A-HALKA | ✅ Tamamlandı |
+| T-2.12 | `GameClock` yalnızca **aktif köy varsa** tick ilerletsin | A-HALKA | ✅ Tamamlandı |
+| T-2.13 | `world-profiles.json` (tr/en) + `GameConfig.apply_profile()` | A-HALKA | ✅ Tamamlandı |
+| T-2.14 | Varsayılan hızı **1**'e çek (kullanıcı kararı) + doğrula | A-ŞEF | ✅ Tamamlandı |
 
 > **Kanıt (A-ŞEF bağımsız doğrulaması):**
 > `Godot_v4.7.2-stable_win64_console.exe --headless --path .\game --quit-after 5` → `EXIT=0`
 > `[Boot] Veri katmanı hazır — 15 bina yüklendi.` / `Bina: 15 · Birim: 11 · Puan tablosu: 50 seviye · Kural dosyası: 6`
 
-## FAZ 3 — Kural Motoru (Rules Engine) — *gereksinim zinciri burada*
+## FAZ 3 — Kural Motoru (Rules Engine) ✅ — *gereksinim zinciri burada*
 
 | ID | Görev | Ajan | Durum |
 |---|---|---|---|
-| T-3.1 | `game/data/rules/requirements.json`: **gereksinim DAG'ı** (bina → gereksinimler zinciri) | A-KURAL | ⏳ Bekliyor |
-| T-3.2 | `game/data/rules/costs.json`: maliyet büyüme faktörleri + tam maliyet fonksiyonları | A-KURAL | ⏳ Bekliyor |
-| T-3.3 | `game/data/rules/production.json`: üretim/depo/gizli depo/değirmen/katır/sur eğrileri | A-KURAL | ⏳ Bekliyor |
-| T-3.4 | `game/data/rules/time-factors.json`: zaman faktörü serileri (Kale, Kışla, Simyager, Köşk) + inşa kuyruğu ek maliyeti | A-KURAL | ⏳ Bekliyor |
-| T-3.5 | `game/data/rules/battle.json`: savaş sabitleri (duvar %, gece ×2, moral aralığı, şans ±%25, oranlar, fazlar) | A-KURAL | ⏳ Bekliyor |
-| T-3.6 | `game/data/rules/units.json`: birim araştırma/eğitim gereksinimleri (Kışla seviyeleri) | A-KURAL | ⏳ Bekliyor |
-| T-3.7 | `tools/validate_rules.py`: DAG asiklik + tüm referanslar geçerli + tablolar tutarlı → rapor | A-KURAL | ⏳ Bekliyor |
-| T-3.8 | `game/data/rules/README.md`: şema açıklaması (A-HALKA'nın okuyacağı sözleşme) | A-KURAL | ⏳ Bekliyor |
+| T-3.1 | `game/data/rules/requirements.json`: **gereksinim DAG'ı** | A-KURAL | ✅ Tamamlandı |
+| T-3.2 | `game/data/rules/costs.json`: büyüme faktörleri + temel maliyetler | A-KURAL | ✅ Tamamlandı |
+| T-3.3 | `game/data/rules/production.json`: üretim/depo/gizli depo/değirmen/katır/sur eğrileri | A-KURAL | ✅ Tamamlandı |
+| T-3.4 | `game/data/rules/time-factors.json`: zaman faktörü serileri + kuyruk ek maliyeti | A-KURAL | ✅ Tamamlandı |
+| T-3.5 | `game/data/rules/battle.json`: savaş sabitleri + 5 faz | A-KURAL | ✅ Tamamlandı |
+| T-3.6 | `game/data/rules/units.json`: birim araştırma/eğitim gereksinimleri | A-KURAL | ✅ Tamamlandı |
+| T-3.7 | `tools/validate_rules.py`: DAG + referans + tablo doğrulaması | A-KURAL | ✅ Tamamlandı |
+| T-3.8 | `game/data/rules/README.md`: şema sözleşmesi | A-KURAL | ✅ Tamamlandı |
 
-## FAZ 4 — Varlıklar (Assets)
+> **Kanıt:** `python tools/validate_rules.py` → **117 kontrol / 117 başarılı / 0 hata, exit 0** (A-ŞEF bağımsız çalıştırdı).
+> **Negatif testler:** 7 kusur enjekte edildi (döngü, yanlış faktör, seviye>maks, bozuk tablo, …) → hepsi `exit 1` (doğrulayıcı gerçekten yakalıyor).
+> **🔎 Yeni bulgu:** Demir büyüme faktörü iki gruptur → **çekirdek binalar 1,165 / diğer standart binalar 1,160**. `docs/15` düzeltildi.
+
+## FAZ 3b — Kural Motoru (kod) + Köy Modeli — A-MOTOR
+
+| ID | Görev | Durum |
+|---|---|---|
+| T-3b.1 | `game/scripts/rules/RulesEngine.gd` — maliyet + gereksinim sorguları (`docs/19` §4.1) | ⏳ Bekliyor |
+| T-3b.2 | `RulesEngine` — üretim/kapasite/nüfus/sur/puan (`docs/19` §4.3–§4.4) | ⏳ Bekliyor |
+| T-3b.3 | `RulesEngine` — birim sorguları (`docs/19` §4.5) | ⏳ Bekliyor |
+| T-3b.4 | `game/scripts/rules/ASSUMPTIONS.md` — bilinmeyen formüller tek yerde | ⏳ Bekliyor |
+| T-3b.5 | `game/scripts/model/VillageModel.gd` (`docs/19` §5) | ⏳ Bekliyor |
+| T-3b.6 | `game/tests/test_rules.gd` — maliyetler `data/buildings.json` ile birebir | ⏳ Bekliyor |
+
+## FAZ 4 — Varlıklar (Assets) ✅
 
 | ID | Görev | Ajan | Durum |
 |---|---|---|---|
-| T-4.1 | CC0/OFL **pastel & canlı** izometrik bina, birim, harita, UI paketleri indir | A-VARLIK | ⏳ Bekliyor |
-| T-4.2 | Türkçe destekleyen ücretsiz font(lar) (OFL) | A-VARLIK | ⏳ Bekliyor |
-| T-4.3 | `game/assets/` altında düzenle + `ASSET-MANIFEST.md` (kaynak URL + lisans) | A-VARLIK | ⏳ Bekliyor |
-| T-4.4 | **Palet rehberi** (`assets/PALET.md`): pastel & canlı renk kodu listesi | A-VARLIK | ⏳ Bekliyor |
+| T-4.1 | CC0/OFL pastel & canlı paketler (18 Kenney + 8 font ailesi) | A-VARLIK | ✅ Tamamlandı |
+| T-4.2 | Türkçe destekleyen ücretsiz fontlar (OFL) — 19/19 font `ç ğ ı İ ö ş ü` doğrulandı | A-VARLIK | ✅ Tamamlandı |
+| T-4.3 | `game/assets/` düzeni + `ASSET-MANIFEST.md` + `licenses/` (29 lisans metni) | A-VARLIK | ✅ Tamamlandı |
+| T-4.4 | `game/assets/PALET.md` (pastel & canlı palet) | A-VARLIK | ✅ Tamamlandı |
+
+> **Kanıt (A-ŞEF doğrulaması):** 9.494 dosya / **50,4 MB**; `licenses/KENNEY` 21 + `licenses/FONTS-OFL` 8 lisans metni; tüm dosya adları ASCII; Gameforge kaynaklı 0 dosya.
 
 ## FAZ 5 — Ekonomi & Bina Simülasyonu
 
@@ -193,6 +213,25 @@
 
 ---
 
+## 🔬 Açık Araştırma Soruları (kural setinde `known:false`)
+
+| # | Bilinmeyen | Nerede işaretli |
+|---|---|---|
+| 1 | İnşaat/araştırma/eğitim **süre formülü** (zaman faktörü × taban) | `time-factors.json#unresolved` |
+| 2 | **Simyager zaman faktörü** (kaynakta tüm seviyeler %0 — veri anomalisi) | `time-factors.garage.known=false` |
+| 3 | **Moral eğrisi** (puan oranı → moral %) | `battle.json#morale` |
+| 4 | **Casus sağkalım formülü** + gizli casusluk hız çarpanı | `battle.json#spy` |
+| 5 | **Şahmerdan duvar hasarı** + **Mancınık bina hasarı** | `battle.json#siege` |
+| 6 | **Kayıp dağıtım eğrisi** (oran → kayıplar) | `battle.json#loss_distribution` |
+| 7 | **Katır taşıma kapasitesi** + katır yolculuk süresi | `production.json#unresolved` |
+| 8 | Üretim **bina başına mı, vatandaş başına mı?** (şimdilik "bina başına" varsayıldı) | `production.json#unresolved` |
+| 9 | **Simyager teknik listesi** + **Altın Zırh maliyet artışı** | `battle.json#count`, `docs/15` §7 |
+| 10 | **Kanun Kaçağı 10:1 kaybı** kesin muhasebesi (ceza 60 gün sabitlendi; metinde "2 ay") | `battle.json` |
+
+> Karar: MVP'de **parametrik** tutulur; oyun oynanarak/veri kazınarak doğrulanacak. Hiçbiri **uydurulmadı**.
+
+---
+
 ## ❓ Karar Bekleyen Sorular (kullanıcıya)
 
 | # | Soru | Durum |
@@ -206,6 +245,10 @@
 | S-7 | Varsayılan oyun hızı | ✅ **1× birebir** (KingsAge süreleri aynen) |
 | S-8 | Dünya ölçeği | ✅ **~200×200, ~100 bot köyü** |
 | S-9 | İlerleme yapısı | ✅ **Sonsuz kum havuzu** (kazanma koşulu yok) |
+| S-10 | Varsayılan oyun hızı (netleştirme) | ✅ **1** (temel/yavaş). ⚠️ Gerçek KingsAge sunucuları **4**; `apply_profile()` ile değiştirilebilir. |
+| S-11 | Birim sprite'ları | ✅ **Baştan özgün üretim** (11 birim; CC0 setlerde asker ayrımı yok) |
+| S-12 | Arka plan müziği | ✅ **Şimdilik müziksiz** (yalnız CC0 efekt + jingle) |
+| S-13 | Ana marka rengi | ✅ **Safir mavisi `#6E9BE8`** |
 
 ---
 
@@ -223,3 +266,13 @@
   A-HALKA'nın 6 sorusu teknik karara bağlandı (autoload adları, int dönüşümü, dosya yolları, saat başlangıcı, dünya profilleri, EventBus sözleşmesi). → küçük iyileştirmeler T-2.11/T-2.12 olarak A-HALKA'ya verildi.
 - **[Kod-5]** Kullanıcı ürün kararları: **oyun hızı 1× birebir**, **dünya ~200×200 / ~100 bot köyü**, **sonsuz kum havuzu**.
 - **[Kod-6]** `docs/16-GODOT-MOBIL-PLANI.md` gerçek autoload adlarına ve klasör yapısına hizalandı (ConfigService/DataService/SaveService adları geçersiz kılındı).
+- **[Kod-7]** **FAZ 3 (Kural Motoru) ✅ tamamlandı.** A-KURAL 6 kural JSON + `README.md` (şema sözleşmesi) + `tools/validate_rules.py` üretti.
+  Doğrulayıcı: **117/117 başarılı**. Negatif testlerle doğrulayıcının gerçekten hata yakaladığı kanıtlandı.
+  **🔎 Yeni bulgu:** demir faktörü çekirdek binalarda 1,165 / diğer standart binalarda 1,160 → `docs/15` düzeltildi.
+  Kalan bilinmeyenler `known:false` + `assumption` ile işaretlendi (10 madde; aşağıda ❓ bölümünde).
+- **[Kod-8]** **FAZ 4 (Varlıklar) ✅** A-VARLIK 18 CC0 paket + 8 OFL font ailesi indirdi ve düzenledi: **9.494 dosya / 50,4 MB**, 29 lisans metni, `ASSET-MANIFEST.md`, `PALET.md`. 19/19 font Türkçe glifleri doğrulandı.
+- **[Kod-9]** **T-2.11/T-2.12/T-2.13 ✅** A-HALKA: int normalizasyonu, saat kapısı (aktif köy şartı), dünya profilleri (`apply_profile`). Self-test ile doğrulandı.
+  A-HALKA'nın 4 ek sorusu karara bağlandı: (1) int normalizasyonu onay, (2) **tek doğruluk kaynağı `world-profiles.json`** (`rules/battle.json#config_defaults` yalnız açıklama, çalışma zamanında okunmaz), (3) profil değişimi geriye dönük hesaplanmaz, (4) ilk köy otomatik aktif — doğru davranış.
+- **[Kod-10]** Kullanıcı kararları uygulandı: **hız 1**, **özgün birim sprite'ları**, **müziksiz**, **Safir `#6E9BE8`**. `world-profiles.json` + `GameConfig` hız 1'e çekildi.
+- **[Kod-11]** **`docs/19-MOTOR-API-SOZLESMESI.md`** yazıldı — tüm kod ajanları için bağlayıcı arayüz (veri şekilleri, `RulesEngine`/`VillageModel`/`WorldModel`/`BattleSimulator` imzaları, determinizm kuralları).
+- **[Kod-12]** 2. ajan dalgası başlatıldı: **A-MOTOR** (kural motoru kodu + köy modeli), **A-DUNYA** (dünya/harita), **A-SAVAS** (savaş simülatörü).

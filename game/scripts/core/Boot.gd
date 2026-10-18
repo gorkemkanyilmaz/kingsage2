@@ -19,48 +19,6 @@ func _ready() -> void:
 	_load_and_report()
 	# Oyun döngüsünü başlat (tick + offline telafi kancası hazır).
 	GameClock.start()
-	if "--selftest" in OS.get_cmdline_user_args():
-		_selftest()
-
-
-func _selftest() -> void:
-	GameClock.stop()
-	print("[SELFTEST] baslangic")
-	var atk = GameData.get_unit("bow").get("attack")
-	var mainwood = GameData.get_building_level("main", 1).get("wood")
-	var base = GameData.get_rule("costs").get("base_level1_cost", {}).get("main", {}).get("wood")
-	var gf = GameData.get_rule("costs").get("growth_factor_groups", {}).get("standard", {}).get("wood")
-	var pts = GameData.points_for("main", 1)
-	print("  TYPE_INT=", TYPE_INT, " TYPE_FLOAT=", TYPE_FLOAT)
-	print("  attack = ", atk, " tip=", typeof(atk), " int mi=", typeof(atk) == TYPE_INT, " 150 mi=", atk == 150)
-	print("  main.wood = ", mainwood, " tip=", typeof(mainwood))
-	print("  costs.base main.wood = ", base, " tip=", typeof(base))
-	print("  costs.growth standard.wood = ", gf, " tip=", typeof(gf), " float mi=", typeof(gf) == TYPE_FLOAT)
-	print("  points_for = ", pts, " int mi=", typeof(pts) == TYPE_INT)
-	print("  rules int alan=", GameData.get_rule("battle").get("known"), " tip=", typeof(GameData.get_rule("battle").get("known")))
-	print("  profil listesi = ", GameConfig.get_profile_names())
-	print("  EN uygula=", GameConfig.apply_profile("en"), " kont=", GameConfig.count_max_distance, " gece=", GameConfig.night_bonus_enabled)
-	print("  TR uygula=", GameConfig.apply_profile("tr"), " kont=", GameConfig.count_max_distance, " gece=", GameConfig.night_bonus_enabled)
-	print("  bilinmeyen profil=", GameConfig.apply_profile("zz"), " (beklenen false)")
-	print("  aktif profil=", GameConfig.describe_profile())
-	GameState.reset()
-	GameClock.reset()
-	var ticks := [0]
-	var cb := func(_d): ticks[0] += 1
-	GameClock.tick.connect(cb)
-	GameClock.fast_forward(60.0)
-	print("  aktif koy YOK -> elapsed=", GameClock.elapsed_seconds, " tick=", ticks[0], " (beklenen 0/0)")
-	GameState.add_village({"id": 7, "name": "Başkent", "resources": {}})
-	print("  aktif koy id=", GameState.active_village_id, " var mi=", GameState.has_active_village())
-	GameClock.fast_forward(60.0)
-	print("  aktif koy VAR -> elapsed=", GameClock.elapsed_seconds, " tick=", ticks[0], " (beklenen 60/60)")
-	GameClock.tick.disconnect(cb)
-	var d := GameState.to_dict()
-	GameState.reset()
-	GameState.from_dict(d)
-	print("  state aktif koy=", GameState.active_village_id, " koy sayisi=", GameState.get_village_count())
-	print("  state anahtarlari=", d.keys())
-	print("[SELFTEST] bitti")
 
 
 func _load_and_report() -> void:
