@@ -43,10 +43,40 @@ func _ready() -> void:
 		reset()
 
 
-## Yeni/boş bir oyuna döner.
+func _event_bus() -> Node:
+	var loop := Engine.get_main_loop()
+	if loop is SceneTree:
+		return (loop as SceneTree).root.get_node_or_null("EventBus")
+	return null
+
+
+func _emit_state_changed() -> void:
+	var eb := _event_bus()
+	if eb != null and eb.has_signal("state_changed"):
+		eb.state_changed.emit()
+
+
+func _emit_resources_changed(vid: int) -> void:
+	var eb := _event_bus()
+	if eb != null and eb.has_signal("resources_changed"):
+		eb.resources_changed.emit(vid)
+
+
+func _emit_report_created(report) -> void:
+	var eb := _event_bus()
+	if eb != null and eb.has_signal("report_created"):
+		eb.report_created.emit(report)
+
+
+func _emit_message_created(message) -> void:
+	var eb := _event_bus()
+	if eb != null and eb.has_signal("message_created"):
+		eb.message_created.emit(message)
+
+
 func reset() -> void:
 	player = {
-		"id": 0,
+		"id": 1,
 		"name": "Kral",
 		"points": 0,
 		"protection_until_unix": 0,
@@ -64,7 +94,7 @@ func reset() -> void:
 		"sim_time_seconds": 0.0,
 		"last_saved_unix": int(Time.get_unix_time_from_system()),
 	}
-	EventBus.state_changed.emit()
+	_emit_state_changed()
 
 
 # --- Yardımcılar: köy -------------------------------------------------------
@@ -88,7 +118,7 @@ func add_village(village: Dictionary) -> void:
 	# İlk köy eklendiğinde onu otomatik aktif yap.
 	if active_village_id < 0:
 		active_village_id = int(village.get("id", -1))
-	EventBus.state_changed.emit()
+	_emit_state_changed()
 
 
 func get_village_count() -> int:
@@ -110,7 +140,7 @@ func has_active_village() -> bool:
 ## Aktif köyü seçer.
 func set_active_village(village_id: int) -> void:
 	active_village_id = village_id
-	EventBus.state_changed.emit()
+	_emit_state_changed()
 
 
 # --- Yardımcılar: kaynak / vatandaş ----------------------------------------
@@ -126,32 +156,32 @@ func set_resources(village_id: int, resources: Dictionary) -> void:
 	if village.is_empty():
 		return
 	village["resources"] = resources
-	EventBus.resources_changed.emit(village_id)
-	EventBus.state_changed.emit()
+	_emit_resources_changed(village_id)
+	_emit_state_changed()
 
 
 # --- Yardımcılar: kuyruk / hareket / rapor ---------------------------------
 
 func add_queue_item(item: Dictionary) -> void:
 	queues.append(item)
-	EventBus.state_changed.emit()
+	_emit_state_changed()
 
 
 func add_movement(movement: Dictionary) -> void:
 	movements.append(movement)
-	EventBus.state_changed.emit()
+	_emit_state_changed()
 
 
 func add_report(report) -> void:
 	reports.append(report)
-	EventBus.report_created.emit(report)
-	EventBus.state_changed.emit()
+	_emit_report_created(report)
+	_emit_state_changed()
 
 
 func add_message(message) -> void:
 	messages.append(message)
-	EventBus.message_created.emit(message)
-	EventBus.state_changed.emit()
+	_emit_message_created(message)
+	_emit_state_changed()
 
 
 # --- Serileştirme -----------------------------------------------------------
@@ -184,7 +214,7 @@ func from_dict(data: Dictionary) -> bool:
 	messages = _as_array(data.get("messages", []))
 	alliances = _as_array(data.get("alliances", []))
 	world = _as_dict(data.get("world", {}))
-	EventBus.state_changed.emit()
+	_emit_state_changed()
 	return true
 
 

@@ -39,10 +39,13 @@ func _process(delta: float) -> void:
 ## **Aktif köy yoksa hiçbir şey yapmaz** (süre de ilerlemez, `tick` de yayınlanmaz)
 ## — bkz. T-2.12 kararı.
 func _step(delta_seconds: float) -> void:
-	if not GameState.has_active_village():
+	var gs = Engine.get_main_loop().root.get_node_or_null("GameState") if Engine.get_main_loop() is SceneTree else null
+	if gs == null or not gs.has_active_village():
 		return
 	elapsed_seconds += delta_seconds
-	EventBus.tick.emit(delta_seconds)
+	var bus = Engine.get_main_loop().root.get_node_or_null("EventBus") if Engine.get_main_loop() is SceneTree else null
+	if bus != null and bus.has_signal("tick"):
+		bus.tick.emit(delta_seconds)
 	tick.emit(delta_seconds)
 
 
@@ -99,4 +102,6 @@ func fast_forward(seconds: float) -> void:
 	if remaining > 0.0:
 		_step(remaining)
 	fast_forward_finished.emit(seconds)
-	EventBus.fast_forward_finished.emit(seconds)
+	var bus = Engine.get_main_loop().root.get_node_or_null("EventBus") if Engine.get_main_loop() is SceneTree else null
+	if bus != null and bus.has_signal("fast_forward_finished"):
+		bus.fast_forward_finished.emit(seconds)

@@ -16,7 +16,21 @@ const VillageModelScript := preload("res://scripts/model/VillageModel.gd")
 @onready var realm_label: Label = $HBox/RealmBox/RealmLabel
 
 
+func _ensure_nodes() -> void:
+	if wood_label == null and has_node("HBox/Resources/WoodBox/WoodLabel"):
+		village_name_label = $HBox/VillageInfo/VillageName
+		points_label = $HBox/VillageInfo/Points
+		wood_label = $HBox/Resources/WoodBox/WoodLabel
+		stone_label = $HBox/Resources/StoneBox/StoneLabel
+		iron_label = $HBox/Resources/IronBox/IronLabel
+		storage_bar = $HBox/StorageBox/StorageBar
+		storage_label = $HBox/StorageBox/StorageLabel
+		citizens_label = $HBox/CitizensBox/CitizensLabel
+		realm_label = $HBox/RealmBox/RealmLabel
+
+
 func _ready() -> void:
+	_ensure_nodes()
 	var bus = Engine.get_main_loop().root.get_node_or_null("EventBus") if Engine.get_main_loop() is SceneTree else null
 	if bus != null:
 		if bus.has_signal("resources_changed") and not bus.resources_changed.is_connected(_on_resources_changed):
@@ -41,6 +55,7 @@ func _on_realm_changed(_village_id: int, _val: int) -> void:
 
 
 func refresh() -> void:
+	_ensure_nodes()
 	var gs = Engine.get_main_loop().root.get_node_or_null("GameState") if Engine.get_main_loop() is SceneTree else null
 	if gs == null or not gs.has_active_village():
 		return

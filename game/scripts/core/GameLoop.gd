@@ -117,6 +117,8 @@ func simulate(delta_seconds: float) -> Array:
 	if _modules.is_empty():
 		_load_modules()
 
+	if _now_unix <= 0.0:
+		_now_unix = float(_initial_now())
 	_now_unix += delta_seconds
 	var now := int(floor(_now_unix + 0.5))
 

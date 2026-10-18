@@ -39,32 +39,61 @@ func get_save_meta() -> Dictionary:
 	}
 
 
+func _game_state() -> Node:
+	var loop = Engine.get_main_loop()
+	return loop.root.get_node_or_null("GameState") if loop is SceneTree else null
+
+
+func _game_clock() -> Node:
+	var loop = Engine.get_main_loop()
+	return loop.root.get_node_or_null("GameClock") if loop is SceneTree else null
+
+
+func _game_config() -> Node:
+	var loop = Engine.get_main_loop()
+	return loop.root.get_node_or_null("GameConfig") if loop is SceneTree else null
+
+
+func _event_bus() -> Node:
+	var loop = Engine.get_main_loop()
+	return loop.root.get_node_or_null("EventBus") if loop is SceneTree else null
+
+
 # --- Kaydet -----------------------------------------------------------------
 
 ## Oyun durumunu ve ayarları kaydeder.
 func save_game() -> bool:
+	var gs := _game_state()
+	var gc := _game_clock()
+	var cfg := _game_config()
+	var bus := _event_bus()
+
 	var now := int(Time.get_unix_time_from_system())
-	# Offline telafi damgasını güncelle.
-	GameState.world["last_saved_unix"] = now
-	GameState.world["sim_time_seconds"] = GameClock.elapsed_seconds
+	if gs != null:
+		# Offline telafi damgasını güncelle.
+		gs.world["last_saved_unix"] = now
+		if gc != null:
+			gs.world["sim_time_seconds"] = gc.elapsed_seconds
 
 	var payload := {
 		"saveVersion": SAVE_VERSION,
 		"savedAtUnix": now,
 		"savedAtIso": Time.get_datetime_string_from_system(),
-		"state": GameState.to_dict(),
-		"config": GameConfig.to_dict(),
+		"state": gs.to_dict() if gs != null else {},
+		"config": cfg.to_dict() if cfg != null else {},
 	}
 
 	var file := FileAccess.open(SAVE_PATH, FileAccess.WRITE)
 	if file == null:
 		push_error("SaveManager: kayıt dosyası açılamadı -> " + SAVE_PATH)
-		EventBus.error_occurred.emit("save_failed", "Kayıt dosyası yazılamadı.")
+		if bus != null and bus.has_signal("error_occurred"):
+			bus.error_occurred.emit("save_failed", "Kayıt dosyası yazılamadı.")
 		return false
 	file.store_string(JSON.stringify(payload, "\t"))
 	file.close()
 
-	EventBus.game_saved.emit()
+	if bus != null and bus.has_signal("game_saved"):
+		bus.game_saved.emit()
 	return true
 
 
@@ -75,10 +104,12 @@ func load_game() -> bool:
 	if not has_save():
 		return false
 
+	var bus := _event_bus()
 	var parsed = JSON.parse_string(FileAccess.get_file_as_string(SAVE_PATH))
 	if typeof(parsed) != TYPE_DICTIONARY:
 		push_error("SaveManager: kayıt dosyası bozuk -> " + SAVE_PATH)
-		EventBus.error_occurred.emit("load_failed", "Kayıt dosyası okunamadı.")
+		if bus != null and bus.has_signal("error_occurred"):
+			bus.error_occurred.emit("load_failed", "Kayıt dosyası okunamadı.")
 		return false
 
 	var version := int(parsed.get("saveVersion", 0))
@@ -86,12 +117,15 @@ func load_game() -> bool:
 		push_warning("SaveManager: kayıt sürümü (%d) oyundan yeni (%d)." % [version, SAVE_VERSION])
 	parsed = _migrate(parsed, version)
 
-	if typeof(parsed.get("state", {})) == TYPE_DICTIONARY:
-		GameState.from_dict(parsed["state"])
-	if typeof(parsed.get("config", {})) == TYPE_DICTIONARY:
-		GameConfig.from_dict(parsed["config"])
+	var gs := _game_state()
+	var cfg := _game_config()
+	if gs != null and typeof(parsed.get("state", {})) == TYPE_DICTIONARY:
+		gs.from_dict(parsed["state"])
+	if cfg != null and typeof(parsed.get("config", {})) == TYPE_DICTIONARY:
+		cfg.from_dict(parsed["config"])
 
-	EventBus.game_loaded.emit()
+	if bus != null and bus.has_signal("game_loaded"):
+		bus.game_loaded.emit()
 	return true
 
 
