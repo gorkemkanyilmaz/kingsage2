@@ -175,18 +175,28 @@
 > Doğrulananlar: aynı tohum → aynı sonuç · sur ↑ → savunan kaybı ↓ · gece → savunan kaybı ↓ · moral daima %30–%100 ·
 > ganimet ≤ kapasite ve ≤ hedef hammadde · Gizli Depo korur · min. birlik 3×Kışla · Kont fetih koşulu (Anıt 1750–2250, talanda fetih yok).
 
-## FAZ 8 — Casusluk / Fetih / Destek / Talan — 🔄 Devam Ediyor (A-KESIF)
+## FAZ 8 — Casusluk / Fetih / Destek / Talan — ✅ Tamamlandı (A-KESIF)
 
 | ID | Görev | Ajan | Durum |
 |---|---|---|---|
-| T-8.1 | Normal + gizli casus saldırısı (gizli = 3× yavaş) | A-KESIF | 🔄 Devam Ediyor |
-| T-8.2 | Casusluk raporu + bilgi kademeleri + Gizli Depo etkisi | A-KESIF | 🔄 Devam Ediyor |
-| T-8.3 | Destek (kendi/dost köye birlik gönderme) | A-KESIF | 🔄 Devam Ediyor |
-| T-8.4 | Talan (taşıma kapasitesi + gizli depo sınırı) | A-KESIF | 🔄 Devam Ediyor |
-| T-8.5 | Fetih (Kont + güç alanı 0) + fetih koruması | A-KESIF | 🔄 Devam Ediyor |
-| T-8.6 | Saldırı/destek/ticaret **iptal** kuralları (30/15 dk) | A-KESIF | 🔄 Devam Ediyor |
-| T-8.7 | **10:1 oran** → Kanun Kaçağı (ceza 2 ay) + min. birlik kapısı | A-KESIF | 🔄 Devam Ediyor |
-| T-8.8 | `ActionSimulator.gd` — **§7b** varış çözümleme + dönüş hareketleri | A-KESIF | 🔄 Devam Ediyor |
+| T-8.1 | Normal + gizli casus saldırısı (gizli = 3× yavaş, görünmez) | A-KESIF | ✅ Tamamlandı |
+| T-8.2 | Casusluk raporu + bilgi kademeleri + **Gizli Depo etkisi** | A-KESIF | ✅ Tamamlandı |
+| T-8.3 | Destek (kendi/dost köye birlik gönderme) | A-KESIF | ✅ Tamamlandı |
+| T-8.4 | Talan (taşıma kapasitesi + gizli depo sınırı) | A-KESIF | ✅ Tamamlandı |
+| T-8.5 | Fetih (Kont + güç alanı 0) + fetih koruması | A-KESIF | ✅ Tamamlandı |
+| T-8.6 | Saldırı/destek/ticaret **iptal** kuralları (30/15 dk) | A-KESIF | ✅ Tamamlandı |
+| T-8.7 | **10:1 oran** → Kanun Kaçağı (2 ay) + min. birlik kapısı | A-KESIF | ✅ Tamamlandı |
+| T-8.8 | `ActionSimulator.gd` — **§7b** varış çözümleme + dönüş hareketleri | A-KESIF | ✅ Tamamlandı |
+| T-8.9 | **Kaynak düzeltmeleri:** casuslukta Gizli Depo, görünürlük, bilgi kademeleri | A-KESIF | 🔄 Devam Ediyor |
+
+> **Kanıt (A-ŞEF bağımsız çalıştırdı):** `godot --headless --script res://tests/test_actions.gd` → **78/78 PASS, EXIT=0**.
+> Doğrulananlar: min. birlik 3×Kışla (59/60 sınırı) · korumalı köye red, soyguncu/bonus serbest · Kont 127 alan red / 20 kabul ·
+> iptal 29↔31 dk ve 14↔16 dk sınırı · varışta savaş + dönüş üretimi + ganimetle eve dönüş · 10:1 → Kanun Kaçağı ·
+> destek hedefte görünür · casusluk raporu (savunan kayıpsız) · gizli casusluk 3× yavaş · ticaret teslimi ·
+> fetih + fetih koruması · **determinizm** (aynı tohum → aynı olaylar).
+>
+> ⚠️ **Kaynak bulgusu (düzeltiliyor):** Gizli Depo **casuslara karşı da** korur
+> (*"hırsızların elinden ve casusların gözünden uzak"*) → raporda `max(0, kaynak − gizli_depo)`. `docs/07` §6 güncellendi.
 
 ## FAZ 9 — Dünya & Harita ✅
 
@@ -344,3 +354,6 @@
 - **[Kod-24]** **Doküman indeksi notu:** `docs/07` = **casusluk** (araştırma değil); araştırma/eğitim içeriği `docs/05-ASKERLER.md`'de; kaynak/nüfus `docs/03-KAYNAKLAR-VE-SETTLER.md`'de. Ajan brieflerinde dosya adları buna göre düzeltilmeli.
 - **[Kod-25]** **FAZ 5 (Ekonomi & Bina Simülasyonu) ✅** A-EKONOMI tamamladı: **108/108 test PASS** (A-ŞEF doğruladı). Üretim + depo tavanı, kuyruk ek maliyeti, sıralı ilerleme, gereksinim ihlali reddi, **30 gün offline hızlı-ileri çökme yok**, Güç Alanı, `GameLoop` (§7b) + EventBus köprüsü.
 - **[Kod-26]** ⚠️ **A-ŞEF sadakat düzeltmesi:** Görev metnimde "iptalde iade yok" **yanlıştı**. Kaynak (`buildings.txt`): **taban maliyet İADE EDİLİR**, kuyruk ek maliyeti **iade EDİLMEZ**. `docs/19` §3.2 güncellendi (`cost_paid` / `extra_paid` ayrımı) → A-EKONOMI'ye T-5.9 düzeltmesi verildi.
+- **[Kod-27]** **FAZ 8 (Casusluk / Fetih / Destek / Talan) ✅** A-KESIF tamamladı: **78/78 test PASS** (A-ŞEF doğruladı). Hareket oluşturma/iptal (30/15 dk), varışta çözümleme + dönüş, destek/ticaret/casusluk, 10:1 Kanun Kaçağı (2 ay), fetih + fetih koruması, determinizm.
+- **[Kod-28]** ⚠️ **Kaynak düzeltmesi:** Gizli Depo **casuslara karşı da** korur (*"hırsızların elinden ve casusların gözünden uzak"*) → casusluk raporunda `max(0, kaynak − gizli_depo)`. Ayrıca: **normal casusluk görünür** (savunan rapor alır), **gizli görünmez** (rapor yok) ve gizli raporda "dışarıdaki birlikler" alanı **yok**. `docs/07` §6 güncellendi; A-KESIF'e T-8.9 verildi.
+- **[Kod-29]** **Kanun Kaçağı kuralı teyit edildi** (`worldinfo`): Kanun Kaçağı = **tüm köylerin kalıcı saldırı koruması**; senden **10× yüksek puanlı oyuncular saldıramaz**. Bu korumayı kırarsan → **2 ay** boyunca 10:1 korumanı kaybedersin.

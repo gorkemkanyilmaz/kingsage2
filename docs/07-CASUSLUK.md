@@ -45,6 +45,8 @@ Bilgi, **casusluk türüne** ve **hayatta kalan saldıran casus sayısına** ba�
 ## 6. Gizli Depo (Hideout) Etkisi
 
 - **Gizli Depo**, hammaddeleri **casusların gözlerinden** ve hırsızlardan korur.
-  casusluk raporunda **gizli depo ile korunan hammadde miktarı** etkilenebilir.
-  (Yardım: *"Bu gizli depolar hırsızların elinden ve casusların gözünden korur."*)
-- Ayrıca **talandan sonra**, köyde kalan hammadde **gizli depo kapasitesinin altına inmez**.
+  (Yardım: *"Bu gizli depolar, hırsızların elinden ve casusların gözünden uzak yerlerdir."*)
+- **Casusluk raporunda gösterilen kaynak:** `raporlanan = max(0, gerçek − gizli_depo_kapasitesi)`
+  (kaynak başına). Kapasite = `hideout_capacity(Gizli Depo seviyesi)` = `150 × 1,19^(sv−1)`.
+  Aynı kural **yağmada** da geçerlidir (hedefte korunan miktar alınamaz).
+- Yani **Gizli Depo seviyesi yükseldikçe casusluk da daha az bilgi verir**.
