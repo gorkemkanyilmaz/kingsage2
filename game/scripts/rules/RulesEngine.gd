@@ -86,6 +86,18 @@ static func _max_level(key: String) -> int:
 	return int(gd.get_max_level(key))
 
 
+## Binanın metadata/tanım sözlüğünü döndürür (GameData.get_building sarmalayıcısı).
+static func building_data(key: String) -> Dictionary:
+	var gd := _game_data()
+	return gd.get_building(key) if gd != null else {}
+
+
+## Birimin metadata/tanım sözlüğünü döndürür (GameData.get_unit sarmalayıcısı).
+static func unit_data(key: String) -> Dictionary:
+	var gd := _game_data()
+	return gd.get_unit(key) if gd != null else {}
+
+
 # =============================================================================
 #  4.1  Maliyet ve gereksinim
 # =============================================================================

@@ -146,4 +146,6 @@ func _on_upgrade_pressed() -> void:
 	var res := EconomyAPI.start_build(_village, _current_key, state)
 	if bool(res.get("ok", false)) and gs != null:
 		gs.from_dict(state)
+		if gs.has_active_village():
+			_village = gs.get_active_village()
 	refresh()

@@ -33,7 +33,8 @@ func _start_game(target_x: int, target_y: int) -> void:
 	if free_spot.x < 0:
 		free_spot = Vector2i(target_x, target_y)
 
-	var player_vid := world["villages"].size() + 1
+	var villages_list: Array = world.get("villages", [])
+	var player_vid: int = villages_list.size() + 1
 	var player_v: Dictionary = VillageModelScript.create(player_vid, "Başkent", free_spot.x, free_spot.y, "Oyuncu", false)
 	player_v["is_bot"] = false
 

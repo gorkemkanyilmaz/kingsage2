@@ -73,21 +73,21 @@ func _setup_village_nodes() -> void:
 		var icon_lbl := Label.new()
 		icon_lbl.text = _get_building_icon(b_key)
 		icon_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		icon_lbl.theme_override_font_sizes/font_size = 40
+		icon_lbl.add_theme_font_size_override("font_size", 40)
 		vbox.add_child(icon_lbl)
 
 		var name_lbl := Label.new()
 		name_lbl.text = b_name
 		name_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		name_lbl.theme_override_font_sizes/font_size = 18
-		name_lbl.theme_override_colors/font_color = Palette.c("murekkep")
+		name_lbl.add_theme_font_size_override("font_size", 18)
+		name_lbl.add_theme_color_override("font_color", Palette.c("murekkep"))
 		vbox.add_child(name_lbl)
 
 		var lvl_lbl := Label.new()
 		lvl_lbl.text = "Sv. 0"
 		lvl_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		lvl_lbl.theme_override_font_sizes/font_size = 16
-		lvl_lbl.theme_override_colors/font_color = Palette.c("safir")
+		lvl_lbl.add_theme_font_size_override("font_size", 16)
+		lvl_lbl.add_theme_color_override("font_color", Palette.c("safir"))
 		vbox.add_child(lvl_lbl)
 
 		btn.add_child(vbox)
