@@ -1,0 +1,50 @@
+# name|query
+# --- buildings details (17) ---
+buildings_details|m=buildings&sub=details
+buildings_details_main|m=buildings&sub=details&build=main
+buildings_details_wood|m=buildings&sub=details&build=wood
+buildings_details_stone|m=buildings&sub=details&build=stone
+buildings_details_iron|m=buildings&sub=details&build=iron
+buildings_details_farm|m=buildings&sub=details&build=farm
+buildings_details_storage|m=buildings&sub=details&build=storage
+buildings_details_hide|m=buildings&sub=details&build=hide
+buildings_details_market|m=buildings&sub=details&build=market
+buildings_details_stable|m=buildings&sub=details&build=stable
+buildings_details_barracks|m=buildings&sub=details&build=barracks
+buildings_details_smith|m=buildings&sub=details&build=smith
+buildings_details_garage|m=buildings&sub=details&build=garage
+buildings_details_wall|m=buildings&sub=details&build=wall
+buildings_details_statue|m=buildings&sub=details&build=statue
+buildings_details_city|m=buildings&sub=details&build=city
+buildings_details_snob|m=buildings&sub=details&build=snob
+# --- units details (11) ---
+units_details_spear|m=units&sub=details&unit=spear
+units_details_sword|m=units&sub=details&unit=sword
+units_details_axe|m=units&sub=details&unit=axe
+units_details_bow|m=units&sub=details&unit=bow
+units_details_farmer|m=units&sub=details&unit=farmer
+units_details_spy|m=units&sub=details&unit=spy
+units_details_light|m=units&sub=details&unit=light
+units_details_heavy|m=units&sub=details&unit=heavy
+units_details_ram|m=units&sub=details&unit=ram
+units_details_kata|m=units&sub=details&unit=kata
+units_details_snob|m=units&sub=details&unit=snob
+# --- units sub (6) ---
+units_attack|m=units&sub=attack
+units_battle|m=units&sub=battle
+units_conquer|m=units&sub=conquer
+units_espionage|m=units&sub=espionage
+units_snob|m=units&sub=snob
+units_support|m=units&sub=support
+# --- player sub (6) ---
+player_player|m=player&sub=player
+player_points|m=player&sub=points
+player_ranking|m=player&sub=ranking
+player_friends|m=player&sub=friends
+player_messages|m=player&sub=messages
+player_trade|m=player&sub=trade
+# --- villages sub (2) ---
+villages_resources|m=villages&sub=resources
+villages_favorites|m=villages&sub=favorites
+# --- rules (1) ---
+rules|m=rules

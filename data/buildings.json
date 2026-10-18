@@ -1,0 +1,4414 @@
+﻿[
+    {
+        "key":  "barracks",
+        "name":  "Kışla",
+        "maxLevel":  30,
+        "lastColumn":  "Zaman faktörü",
+        "description":  "Kışlada, disiplin ve taktik öğretimi için, katı kurallar ve acımasız bir davranış biçimi hüküm sürer. Savaşçılar, krallarına sadakatle hizmet etmek için burada yetiştirilirler. Siz onları,bütün cesaretleriyle sizin saflarınızda olmaktan gurur duyup, mutlu oldukları savaşlara gönderebilirsiniz. Kışlanı geliştirerek, daha modern birimlere sahip olabilirsin.",
+        "requirements":  [
+                             {
+                                 "name":  "Depo",
+                                 "level":  3
+                             },
+                             {
+                                 "name":  "Değirmen",
+                                 "level":  3
+                             }
+                         ],
+        "levels":  [
+                       {
+                           "level":  1,
+                           "wood":  180,
+                           "stone":  180,
+                           "iron":  120,
+                           "workersLevel":  6,
+                           "workersTotal":  6,
+                           "lastColumn":  "80%"
+                       },
+                       {
+                           "level":  2,
+                           "wood":  218,
+                           "stone":  221,
+                           "iron":  146,
+                           "workersLevel":  1,
+                           "workersTotal":  7,
+                           "lastColumn":  "74%"
+                       },
+                       {
+                           "level":  3,
+                           "wood":  264,
+                           "stone":  272,
+                           "iron":  179,
+                           "workersLevel":  1,
+                           "workersTotal":  8,
+                           "lastColumn":  "69%"
+                       },
+                       {
+                           "level":  4,
+                           "wood":  319,
+                           "stone":  335,
+                           "iron":  218,
+                           "workersLevel":  2,
+                           "workersTotal":  10,
+                           "lastColumn":  "65%"
+                       },
+                       {
+                           "level":  5,
+                           "wood":  386,
+                           "stone":  412,
+                           "iron":  266,
+                           "workersLevel":  1,
+                           "workersTotal":  11,
+                           "lastColumn":  "60%"
+                       },
+                       {
+                           "level":  6,
+                           "wood":  467,
+                           "stone":  507,
+                           "iron":  324,
+                           "workersLevel":  2,
+                           "workersTotal":  13,
+                           "lastColumn":  "56%"
+                       },
+                       {
+                           "level":  7,
+                           "wood":  565,
+                           "stone":  623,
+                           "iron":  396,
+                           "workersLevel":  2,
+                           "workersTotal":  15,
+                           "lastColumn":  "52%"
+                       },
+                       {
+                           "level":  8,
+                           "wood":  684,
+                           "stone":  767,
+                           "iron":  483,
+                           "workersLevel":  3,
+                           "workersTotal":  18,
+                           "lastColumn":  "48%"
+                       },
+                       {
+                           "level":  9,
+                           "wood":  827,
+                           "stone":  943,
+                           "iron":  589,
+                           "workersLevel":  3,
+                           "workersTotal":  21,
+                           "lastColumn":  "45%"
+                       },
+                       {
+                           "level":  10,
+                           "wood":  1001,
+                           "stone":  1160,
+                           "iron":  718,
+                           "workersLevel":  4,
+                           "workersTotal":  25,
+                           "lastColumn":  "42%"
+                       },
+                       {
+                           "level":  11,
+                           "wood":  1211,
+                           "stone":  1427,
+                           "iron":  877,
+                           "workersLevel":  4,
+                           "workersTotal":  29,
+                           "lastColumn":  "39%"
+                       },
+                       {
+                           "level":  12,
+                           "wood":  1465,
+                           "stone":  1755,
+                           "iron":  1069,
+                           "workersLevel":  5,
+                           "workersTotal":  34,
+                           "lastColumn":  "36%"
+                       },
+                       {
+                           "level":  13,
+                           "wood":  1773,
+                           "stone":  2158,
+                           "iron":  1305,
+                           "workersLevel":  5,
+                           "workersTotal":  39,
+                           "lastColumn":  "34%"
+                       },
+                       {
+                           "level":  14,
+                           "wood":  2145,
+                           "stone":  2655,
+                           "iron":  1592,
+                           "workersLevel":  7,
+                           "workersTotal":  46,
+                           "lastColumn":  "31%"
+                       },
+                       {
+                           "level":  15,
+                           "wood":  2596,
+                           "stone":  3265,
+                           "iron":  1942,
+                           "workersLevel":  8,
+                           "workersTotal":  54,
+                           "lastColumn":  "29%"
+                       },
+                       {
+                           "level":  16,
+                           "wood":  3141,
+                           "stone":  4017,
+                           "iron":  2369,
+                           "workersLevel":  9,
+                           "workersTotal":  63,
+                           "lastColumn":  "27%"
+                       },
+                       {
+                           "level":  17,
+                           "wood":  3800,
+                           "stone":  4940,
+                           "iron":  2890,
+                           "workersLevel":  11,
+                           "workersTotal":  74,
+                           "lastColumn":  "25%"
+                       },
+                       {
+                           "level":  18,
+                           "wood":  4599,
+                           "stone":  6077,
+                           "iron":  3526,
+                           "workersLevel":  13,
+                           "workersTotal":  87,
+                           "lastColumn":  "24%"
+                       },
+                       {
+                           "level":  19,
+                           "wood":  5564,
+                           "stone":  7474,
+                           "iron":  4302,
+                           "workersLevel":  14,
+                           "workersTotal":  101,
+                           "lastColumn":  "22%"
+                       },
+                       {
+                           "level":  20,
+                           "wood":  6733,
+                           "stone":  9193,
+                           "iron":  5248,
+                           "workersLevel":  17,
+                           "workersTotal":  118,
+                           "lastColumn":  "20%"
+                       },
+                       {
+                           "level":  21,
+                           "wood":  8147,
+                           "stone":  11308,
+                           "iron":  6403,
+                           "workersLevel":  21,
+                           "workersTotal":  139,
+                           "lastColumn":  "19%"
+                       },
+                       {
+                           "level":  22,
+                           "wood":  9857,
+                           "stone":  13908,
+                           "iron":  7812,
+                           "workersLevel":  23,
+                           "workersTotal":  162,
+                           "lastColumn":  "18%"
+                       },
+                       {
+                           "level":  23,
+                           "wood":  11928,
+                           "stone":  17107,
+                           "iron":  9530,
+                           "workersLevel":  28,
+                           "workersTotal":  190,
+                           "lastColumn":  "17%"
+                       },
+                       {
+                           "level":  24,
+                           "wood":  14432,
+                           "stone":  21042,
+                           "iron":  11627,
+                           "workersLevel":  32,
+                           "workersTotal":  222,
+                           "lastColumn":  "15%"
+                       },
+                       {
+                           "level":  25,
+                           "wood":  17463,
+                           "stone":  25882,
+                           "iron":  14185,
+                           "workersLevel":  38,
+                           "workersTotal":  260,
+                           "lastColumn":  "14%"
+                       },
+                       {
+                           "level":  26,
+                           "wood":  21130,
+                           "stone":  31835,
+                           "iron":  17305,
+                           "workersLevel":  44,
+                           "workersTotal":  304,
+                           "lastColumn":  "13%"
+                       },
+                       {
+                           "level":  27,
+                           "wood":  25568,
+                           "stone":  39157,
+                           "iron":  21112,
+                           "workersLevel":  52,
+                           "workersTotal":  356,
+                           "lastColumn":  "12%"
+                       },
+                       {
+                           "level":  28,
+                           "wood":  30937,
+                           "stone":  48163,
+                           "iron":  25757,
+                           "workersLevel":  60,
+                           "workersTotal":  416,
+                           "lastColumn":  "12%"
+                       },
+                       {
+                           "level":  29,
+                           "wood":  37434,
+                           "stone":  59240,
+                           "iron":  31424,
+                           "workersLevel":  71,
+                           "workersTotal":  487,
+                           "lastColumn":  "11%"
+                       },
+                       {
+                           "level":  30,
+                           "wood":  45295,
+                           "stone":  72865,
+                           "iron":  38337,
+                           "workersLevel":  83,
+                           "workersTotal":  570,
+                           "lastColumn":  "10%"
+                       }
+                   ]
+    },
+    {
+        "key":  "farm",
+        "name":  "Değirmen",
+        "maxLevel":  50,
+        "lastColumn":  "Maksimum vatandaş",
+        "description":  "Alanın verimliliği değirmene bağlıdır. Un, değirmencinin vatandaşlarınızı beslemesini sağlar, öyle ki, krallıkta hiç kimse açlıktan ölmek zorunda kalmaz. Tüm işçileriniz ve askerleriniz beslenmek zorundadır. Bu nedenle sadece besleyebildiğiniz kadar kişi çalıştırabilirsiniz.",
+        "requirements":  [
+
+                         ],
+        "levels":  [
+                       {
+                           "level":  1,
+                           "wood":  50,
+                           "stone":  65,
+                           "iron":  50,
+                           "workersLevel":  0,
+                           "workersTotal":  0,
+                           "lastColumn":  "250"
+                       },
+                       {
+                           "level":  2,
+                           "wood":  58,
+                           "stone":  76,
+                           "iron":  58,
+                           "workersLevel":  0,
+                           "workersTotal":  0,
+                           "lastColumn":  "279"
+                       },
+                       {
+                           "level":  3,
+                           "wood":  68,
+                           "stone":  89,
+                           "iron":  67,
+                           "workersLevel":  0,
+                           "workersTotal":  0,
+                           "lastColumn":  "310"
+                       },
+                       {
+                           "level":  4,
+                           "wood":  79,
+                           "stone":  104,
+                           "iron":  78,
+                           "workersLevel":  0,
+                           "workersTotal":  0,
+                           "lastColumn":  "346"
+                       },
+                       {
+                           "level":  5,
+                           "wood":  92,
+                           "stone":  122,
+                           "iron":  91,
+                           "workersLevel":  0,
+                           "workersTotal":  0,
+                           "lastColumn":  "385"
+                       },
+                       {
+                           "level":  6,
+                           "wood":  107,
+                           "stone":  143,
+                           "iron":  105,
+                           "workersLevel":  0,
+                           "workersTotal":  0,
+                           "lastColumn":  "429"
+                       },
+                       {
+                           "level":  7,
+                           "wood":  125,
+                           "stone":  167,
+                           "iron":  122,
+                           "workersLevel":  0,
+                           "workersTotal":  0,
+                           "lastColumn":  "478"
+                       },
+                       {
+                           "level":  8,
+                           "wood":  146,
+                           "stone":  195,
+                           "iron":  141,
+                           "workersLevel":  0,
+                           "workersTotal":  0,
+                           "lastColumn":  "533"
+                       },
+                       {
+                           "level":  9,
+                           "wood":  170,
+                           "stone":  228,
+                           "iron":  164,
+                           "workersLevel":  0,
+                           "workersTotal":  0,
+                           "lastColumn":  "594"
+                       },
+                       {
+                           "level":  10,
+                           "wood":  198,
+                           "stone":  267,
+                           "iron":  190,
+                           "workersLevel":  0,
+                           "workersTotal":  0,
+                           "lastColumn":  "662"
+                       },
+                       {
+                           "level":  11,
+                           "wood":  230,
+                           "stone":  312,
+                           "iron":  221,
+                           "workersLevel":  0,
+                           "workersTotal":  0,
+                           "lastColumn":  "737"
+                       },
+                       {
+                           "level":  12,
+                           "wood":  268,
+                           "stone":  366,
+                           "iron":  256,
+                           "workersLevel":  0,
+                           "workersTotal":  0,
+                           "lastColumn":  "821"
+                       },
+                       {
+                           "level":  13,
+                           "wood":  313,
+                           "stone":  428,
+                           "iron":  297,
+                           "workersLevel":  0,
+                           "workersTotal":  0,
+                           "lastColumn":  "915"
+                       },
+                       {
+                           "level":  14,
+                           "wood":  364,
+                           "stone":  500,
+                           "iron":  344,
+                           "workersLevel":  0,
+                           "workersTotal":  0,
+                           "lastColumn":  "1.020"
+                       },
+                       {
+                           "level":  15,
+                           "wood":  424,
+                           "stone":  585,
+                           "iron":  399,
+                           "workersLevel":  0,
+                           "workersTotal":  0,
+                           "lastColumn":  "1.136"
+                       },
+                       {
+                           "level":  16,
+                           "wood":  494,
+                           "stone":  685,
+                           "iron":  463,
+                           "workersLevel":  0,
+                           "workersTotal":  0,
+                           "lastColumn":  "1.266"
+                       },
+                       {
+                           "level":  17,
+                           "wood":  576,
+                           "stone":  801,
+                           "iron":  537,
+                           "workersLevel":  0,
+                           "workersTotal":  0,
+                           "lastColumn":  "1.410"
+                       },
+                       {
+                           "level":  18,
+                           "wood":  671,
+                           "stone":  938,
+                           "iron":  623,
+                           "workersLevel":  0,
+                           "workersTotal":  0,
+                           "lastColumn":  "1.571"
+                       },
+                       {
+                           "level":  19,
+                           "wood":  781,
+                           "stone":  1097,
+                           "iron":  723,
+                           "workersLevel":  0,
+                           "workersTotal":  0,
+                           "lastColumn":  "1.751"
+                       },
+                       {
+                           "level":  20,
+                           "wood":  910,
+                           "stone":  1284,
+                           "iron":  839,
+                           "workersLevel":  0,
+                           "workersTotal":  0,
+                           "lastColumn":  "1.951"
+                       },
+                       {
+                           "level":  21,
+                           "wood":  1060,
+                           "stone":  1502,
+                           "iron":  973,
+                           "workersLevel":  0,
+                           "workersTotal":  0,
+                           "lastColumn":  "2.173"
+                       },
+                       {
+                           "level":  22,
+                           "wood":  1235,
+                           "stone":  1757,
+                           "iron":  1129,
+                           "workersLevel":  0,
+                           "workersTotal":  0,
+                           "lastColumn":  "2.422"
+                       },
+                       {
+                           "level":  23,
+                           "wood":  1439,
+                           "stone":  2056,
+                           "iron":  1309,
+                           "workersLevel":  0,
+                           "workersTotal":  0,
+                           "lastColumn":  "2.698"
+                       },
+                       {
+                           "level":  24,
+                           "wood":  1677,
+                           "stone":  2405,
+                           "iron":  1519,
+                           "workersLevel":  0,
+                           "workersTotal":  0,
+                           "lastColumn":  "3.006"
+                       },
+                       {
+                           "level":  25,
+                           "wood":  1953,
+                           "stone":  2814,
+                           "iron":  1762,
+                           "workersLevel":  0,
+                           "workersTotal":  0,
+                           "lastColumn":  "3.349"
+                       },
+                       {
+                           "level":  26,
+                           "wood":  2276,
+                           "stone":  3293,
+                           "iron":  2044,
+                           "workersLevel":  0,
+                           "workersTotal":  0,
+                           "lastColumn":  "3.732"
+                       },
+                       {
+                           "level":  27,
+                           "wood":  2651,
+                           "stone":  3853,
+                           "iron":  2371,
+                           "workersLevel":  0,
+                           "workersTotal":  0,
+                           "lastColumn":  "4.158"
+                       },
+                       {
+                           "level":  28,
+                           "wood":  3089,
+                           "stone":  4507,
+                           "iron":  2750,
+                           "workersLevel":  0,
+                           "workersTotal":  0,
+                           "lastColumn":  "4.633"
+                       },
+                       {
+                           "level":  29,
+                           "wood":  3598,
+                           "stone":  5274,
+                           "iron":  3190,
+                           "workersLevel":  0,
+                           "workersTotal":  0,
+                           "lastColumn":  "5.162"
+                       },
+                       {
+                           "level":  30,
+                           "wood":  4192,
+                           "stone":  6170,
+                           "iron":  3700,
+                           "workersLevel":  0,
+                           "workersTotal":  0,
+                           "lastColumn":  "5.751"
+                       },
+                       {
+                           "level":  31,
+                           "wood":  4884,
+                           "stone":  7219,
+                           "iron":  4292,
+                           "workersLevel":  0,
+                           "workersTotal":  0,
+                           "lastColumn":  "6.408"
+                       },
+                       {
+                           "level":  32,
+                           "wood":  5689,
+                           "stone":  8446,
+                           "iron":  4979,
+                           "workersLevel":  0,
+                           "workersTotal":  0,
+                           "lastColumn":  "7.140"
+                       },
+                       {
+                           "level":  33,
+                           "wood":  6628,
+                           "stone":  9882,
+                           "iron":  5776,
+                           "workersLevel":  0,
+                           "workersTotal":  0,
+                           "lastColumn":  "7.955"
+                       },
+                       {
+                           "level":  34,
+                           "wood":  7722,
+                           "stone":  11562,
+                           "iron":  6700,
+                           "workersLevel":  0,
+                           "workersTotal":  0,
+                           "lastColumn":  "8.864"
+                       },
+                       {
+                           "level":  35,
+                           "wood":  8996,
+                           "stone":  13528,
+                           "iron":  7772,
+                           "workersLevel":  0,
+                           "workersTotal":  0,
+                           "lastColumn":  "9.876"
+                       },
+                       {
+                           "level":  36,
+                           "wood":  10480,
+                           "stone":  15828,
+                           "iron":  9016,
+                           "workersLevel":  0,
+                           "workersTotal":  0,
+                           "lastColumn":  "11.004"
+                       },
+                       {
+                           "level":  37,
+                           "wood":  12210,
+                           "stone":  18518,
+                           "iron":  10458,
+                           "workersLevel":  0,
+                           "workersTotal":  0,
+                           "lastColumn":  "12.260"
+                       },
+                       {
+                           "level":  38,
+                           "wood":  14224,
+                           "stone":  21667,
+                           "iron":  12132,
+                           "workersLevel":  0,
+                           "workersTotal":  0,
+                           "lastColumn":  "13.660"
+                       },
+                       {
+                           "level":  39,
+                           "wood":  16571,
+                           "stone":  25350,
+                           "iron":  14073,
+                           "workersLevel":  0,
+                           "workersTotal":  0,
+                           "lastColumn":  "15.220"
+                       },
+                       {
+                           "level":  40,
+                           "wood":  19306,
+                           "stone":  29659,
+                           "iron":  16324,
+                           "workersLevel":  0,
+                           "workersTotal":  0,
+                           "lastColumn":  "16.958"
+                       },
+                       {
+                           "level":  41,
+                           "wood":  22491,
+                           "stone":  34701,
+                           "iron":  18936,
+                           "workersLevel":  0,
+                           "workersTotal":  0,
+                           "lastColumn":  "18.894"
+                       },
+                       {
+                           "level":  42,
+                           "wood":  26202,
+                           "stone":  40601,
+                           "iron":  21966,
+                           "workersLevel":  0,
+                           "workersTotal":  0,
+                           "lastColumn":  "21.052"
+                       },
+                       {
+                           "level":  43,
+                           "wood":  30525,
+                           "stone":  47503,
+                           "iron":  25480,
+                           "workersLevel":  0,
+                           "workersTotal":  0,
+                           "lastColumn":  "23.456"
+                       },
+                       {
+                           "level":  44,
+                           "wood":  35562,
+                           "stone":  55578,
+                           "iron":  29557,
+                           "workersLevel":  0,
+                           "workersTotal":  0,
+                           "lastColumn":  "26.134"
+                       },
+                       {
+                           "level":  45,
+                           "wood":  41430,
+                           "stone":  65027,
+                           "iron":  34286,
+                           "workersLevel":  0,
+                           "workersTotal":  0,
+                           "lastColumn":  "29.119"
+                       },
+                       {
+                           "level":  46,
+                           "wood":  48265,
+                           "stone":  76081,
+                           "iron":  39772,
+                           "workersLevel":  0,
+                           "workersTotal":  0,
+                           "lastColumn":  "32.444"
+                       },
+                       {
+                           "level":  47,
+                           "wood":  56229,
+                           "stone":  89015,
+                           "iron":  46136,
+                           "workersLevel":  0,
+                           "workersTotal":  0,
+                           "lastColumn":  "36.149"
+                       },
+                       {
+                           "level":  48,
+                           "wood":  65507,
+                           "stone":  104148,
+                           "iron":  53517,
+                           "workersLevel":  0,
+                           "workersTotal":  0,
+                           "lastColumn":  "40.276"
+                       },
+                       {
+                           "level":  49,
+                           "wood":  76316,
+                           "stone":  121853,
+                           "iron":  62080,
+                           "workersLevel":  0,
+                           "workersTotal":  0,
+                           "lastColumn":  "44.876"
+                       },
+                       {
+                           "level":  50,
+                           "wood":  88908,
+                           "stone":  142568,
+                           "iron":  72013,
+                           "workersLevel":  0,
+                           "workersTotal":  0,
+                           "lastColumn":  "50.000"
+                       }
+                   ]
+    },
+    {
+        "key":  "garage",
+        "name":  "Simyager",
+        "maxLevel":  5,
+        "lastColumn":  "Zaman faktörü",
+        "description":  "Simyagerin mutfağında harikulade şeyler üretilir. Bilgi mücevherini araştırırken, kötü kokulu karışımların yanında, bir çok faydalı şey de bulacaksınız. Laboratuvarınız büyüdükçe, araştırmalarınız daha başarılı olacak.",
+        "requirements":  [
+                             {
+                                 "name":  "Kışla",
+                                 "level":  5
+                             }
+                         ],
+        "levels":  [
+                       {
+                           "level":  1,
+                           "wood":  600,
+                           "stone":  400,
+                           "iron":  500,
+                           "workersLevel":  50,
+                           "workersTotal":  50,
+                           "lastColumn":  "0%"
+                       },
+                       {
+                           "level":  2,
+                           "wood":  699,
+                           "stone":  468,
+                           "iron":  580,
+                           "workersLevel":  20,
+                           "workersTotal":  70,
+                           "lastColumn":  "0%"
+                       },
+                       {
+                           "level":  3,
+                           "wood":  814,
+                           "stone":  548,
+                           "iron":  673,
+                           "workersLevel":  28,
+                           "workersTotal":  98,
+                           "lastColumn":  "0%"
+                       },
+                       {
+                           "level":  4,
+                           "wood":  949,
+                           "stone":  641,
+                           "iron":  780,
+                           "workersLevel":  39,
+                           "workersTotal":  137,
+                           "lastColumn":  "0%"
+                       },
+                       {
+                           "level":  5,
+                           "wood":  1105,
+                           "stone":  750,
+                           "iron":  905,
+                           "workersLevel":  55,
+                           "workersTotal":  192,
+                           "lastColumn":  "0%"
+                       }
+                   ]
+    },
+    {
+        "key":  "hide",
+        "name":  "Gizli Depo",
+        "maxLevel":  30,
+        "lastColumn":  "Kapasite",
+        "description":  "Köylerindeki vatandaşlar her zaman kendi evlerini savunamazlar. Hazinelerini gizli depolarda saklamalarının nedeni budur. Bu gizli depolar, hırsızların ellerinden ve casusların gözlerinden uzak yerlerdir.",
+        "requirements":  [
+                             {
+                                 "name":  "Değirmen",
+                                 "level":  3
+                             }
+                         ],
+        "levels":  [
+                       {
+                           "level":  1,
+                           "wood":  40,
+                           "stone":  50,
+                           "iron":  40,
+                           "workersLevel":  1,
+                           "workersTotal":  1,
+                           "lastColumn":  "150"
+                       },
+                       {
+                           "level":  2,
+                           "wood":  47,
+                           "stone":  59,
+                           "iron":  47,
+                           "workersLevel":  0,
+                           "workersTotal":  1,
+                           "lastColumn":  "179"
+                       },
+                       {
+                           "level":  3,
+                           "wood":  54,
+                           "stone":  68,
+                           "iron":  54,
+                           "workersLevel":  0,
+                           "workersTotal":  1,
+                           "lastColumn":  "212"
+                       },
+                       {
+                           "level":  4,
+                           "wood":  63,
+                           "stone":  80,
+                           "iron":  63,
+                           "workersLevel":  1,
+                           "workersTotal":  2,
+                           "lastColumn":  "253"
+                       },
+                       {
+                           "level":  5,
+                           "wood":  74,
+                           "stone":  94,
+                           "iron":  74,
+                           "workersLevel":  0,
+                           "workersTotal":  2,
+                           "lastColumn":  "301"
+                       },
+                       {
+                           "level":  6,
+                           "wood":  86,
+                           "stone":  110,
+                           "iron":  86,
+                           "workersLevel":  0,
+                           "workersTotal":  2,
+                           "lastColumn":  "358"
+                       },
+                       {
+                           "level":  7,
+                           "wood":  100,
+                           "stone":  128,
+                           "iron":  100,
+                           "workersLevel":  0,
+                           "workersTotal":  2,
+                           "lastColumn":  "426"
+                       },
+                       {
+                           "level":  8,
+                           "wood":  117,
+                           "stone":  150,
+                           "iron":  117,
+                           "workersLevel":  1,
+                           "workersTotal":  3,
+                           "lastColumn":  "507"
+                       },
+                       {
+                           "level":  9,
+                           "wood":  136,
+                           "stone":  176,
+                           "iron":  136,
+                           "workersLevel":  0,
+                           "workersTotal":  3,
+                           "lastColumn":  "603"
+                       },
+                       {
+                           "level":  10,
+                           "wood":  158,
+                           "stone":  205,
+                           "iron":  158,
+                           "workersLevel":  1,
+                           "workersTotal":  4,
+                           "lastColumn":  "718"
+                       },
+                       {
+                           "level":  11,
+                           "wood":  184,
+                           "stone":  240,
+                           "iron":  184,
+                           "workersLevel":  0,
+                           "workersTotal":  4,
+                           "lastColumn":  "854"
+                       },
+                       {
+                           "level":  12,
+                           "wood":  215,
+                           "stone":  281,
+                           "iron":  215,
+                           "workersLevel":  1,
+                           "workersTotal":  5,
+                           "lastColumn":  "1.017"
+                       },
+                       {
+                           "level":  13,
+                           "wood":  250,
+                           "stone":  329,
+                           "iron":  250,
+                           "workersLevel":  0,
+                           "workersTotal":  5,
+                           "lastColumn":  "1.210"
+                       },
+                       {
+                           "level":  14,
+                           "wood":  291,
+                           "stone":  385,
+                           "iron":  291,
+                           "workersLevel":  1,
+                           "workersTotal":  6,
+                           "lastColumn":  "1.439"
+                       },
+                       {
+                           "level":  15,
+                           "wood":  339,
+                           "stone":  450,
+                           "iron":  339,
+                           "workersLevel":  1,
+                           "workersTotal":  7,
+                           "lastColumn":  "1.713"
+                       },
+                       {
+                           "level":  16,
+                           "wood":  395,
+                           "stone":  527,
+                           "iron":  395,
+                           "workersLevel":  1,
+                           "workersTotal":  8,
+                           "lastColumn":  "2.038"
+                       },
+                       {
+                           "level":  17,
+                           "wood":  461,
+                           "stone":  617,
+                           "iron":  461,
+                           "workersLevel":  1,
+                           "workersTotal":  9,
+                           "lastColumn":  "2.426"
+                       },
+                       {
+                           "level":  18,
+                           "wood":  537,
+                           "stone":  721,
+                           "iron":  537,
+                           "workersLevel":  2,
+                           "workersTotal":  11,
+                           "lastColumn":  "2.887"
+                       },
+                       {
+                           "level":  19,
+                           "wood":  625,
+                           "stone":  844,
+                           "iron":  625,
+                           "workersLevel":  1,
+                           "workersTotal":  12,
+                           "lastColumn":  "3.435"
+                       },
+                       {
+                           "level":  20,
+                           "wood":  728,
+                           "stone":  987,
+                           "iron":  728,
+                           "workersLevel":  2,
+                           "workersTotal":  14,
+                           "lastColumn":  "4.088"
+                       },
+                       {
+                           "level":  21,
+                           "wood":  848,
+                           "stone":  1155,
+                           "iron":  848,
+                           "workersLevel":  2,
+                           "workersTotal":  16,
+                           "lastColumn":  "4.864"
+                       },
+                       {
+                           "level":  22,
+                           "wood":  988,
+                           "stone":  1352,
+                           "iron":  988,
+                           "workersLevel":  3,
+                           "workersTotal":  19,
+                           "lastColumn":  "5.789"
+                       },
+                       {
+                           "level":  23,
+                           "wood":  1151,
+                           "stone":  1581,
+                           "iron":  1151,
+                           "workersLevel":  3,
+                           "workersTotal":  22,
+                           "lastColumn":  "6.888"
+                       },
+                       {
+                           "level":  24,
+                           "wood":  1341,
+                           "stone":  1850,
+                           "iron":  1341,
+                           "workersLevel":  3,
+                           "workersTotal":  25,
+                           "lastColumn":  "8.197"
+                       },
+                       {
+                           "level":  25,
+                           "wood":  1563,
+                           "stone":  2165,
+                           "iron":  1563,
+                           "workersLevel":  4,
+                           "workersTotal":  29,
+                           "lastColumn":  "9.755"
+                       },
+                       {
+                           "level":  26,
+                           "wood":  1821,
+                           "stone":  2533,
+                           "iron":  1821,
+                           "workersLevel":  4,
+                           "workersTotal":  33,
+                           "lastColumn":  "11.608"
+                       },
+                       {
+                           "level":  27,
+                           "wood":  2121,
+                           "stone":  2963,
+                           "iron":  2121,
+                           "workersLevel":  5,
+                           "workersTotal":  38,
+                           "lastColumn":  "13.814"
+                       },
+                       {
+                           "level":  28,
+                           "wood":  2471,
+                           "stone":  3467,
+                           "iron":  2471,
+                           "workersLevel":  6,
+                           "workersTotal":  44,
+                           "lastColumn":  "16.438"
+                       },
+                       {
+                           "level":  29,
+                           "wood":  2879,
+                           "stone":  4057,
+                           "iron":  2879,
+                           "workersLevel":  6,
+                           "workersTotal":  50,
+                           "lastColumn":  "19.562"
+                       },
+                       {
+                           "level":  30,
+                           "wood":  3354,
+                           "stone":  4746,
+                           "iron":  3354,
+                           "workersLevel":  8,
+                           "workersTotal":  58,
+                           "lastColumn":  "23.278"
+                       }
+                   ]
+    },
+    {
+        "key":  "iron",
+        "name":  "Maden ocağı",
+        "maxLevel":  50,
+        "lastColumn":  "Saatlik üretim",
+        "description":  "En iyi savaşçılar bile, iyi zırhları ve keskin kılıçları olmadan bir savaşa dayanamazlar. Maden ocağında demir filizi çıkarılarak işlenir. Eğer madeninizi geliştirirseniz, daha fazla işçi çalıştırabilir ve daha hızlı üretim yapabilirsiniz.",
+        "requirements":  [
+
+                         ],
+        "levels":  [
+                       {
+                           "level":  1,
+                           "wood":  40,
+                           "stone":  55,
+                           "iron":  30,
+                           "workersLevel":  5,
+                           "workersTotal":  5,
+                           "lastColumn":  "120"
+                       },
+                       {
+                           "level":  2,
+                           "wood":  47,
+                           "stone":  64,
+                           "iron":  35,
+                           "workersLevel":  1,
+                           "workersTotal":  6,
+                           "lastColumn":  "134"
+                       },
+                       {
+                           "level":  3,
+                           "wood":  54,
+                           "stone":  75,
+                           "iron":  41,
+                           "workersLevel":  0,
+                           "workersTotal":  6,
+                           "lastColumn":  "149"
+                       },
+                       {
+                           "level":  4,
+                           "wood":  63,
+                           "stone":  88,
+                           "iron":  47,
+                           "workersLevel":  1,
+                           "workersTotal":  7,
+                           "lastColumn":  "166"
+                       },
+                       {
+                           "level":  5,
+                           "wood":  74,
+                           "stone":  103,
+                           "iron":  55,
+                           "workersLevel":  0,
+                           "workersTotal":  7,
+                           "lastColumn":  "185"
+                       },
+                       {
+                           "level":  6,
+                           "wood":  86,
+                           "stone":  121,
+                           "iron":  64,
+                           "workersLevel":  1,
+                           "workersTotal":  8,
+                           "lastColumn":  "207"
+                       },
+                       {
+                           "level":  7,
+                           "wood":  100,
+                           "stone":  141,
+                           "iron":  75,
+                           "workersLevel":  1,
+                           "workersTotal":  9,
+                           "lastColumn":  "231"
+                       },
+                       {
+                           "level":  8,
+                           "wood":  117,
+                           "stone":  165,
+                           "iron":  87,
+                           "workersLevel":  1,
+                           "workersTotal":  10,
+                           "lastColumn":  "257"
+                       },
+                       {
+                           "level":  9,
+                           "wood":  136,
+                           "stone":  193,
+                           "iron":  102,
+                           "workersLevel":  1,
+                           "workersTotal":  11,
+                           "lastColumn":  "287"
+                       },
+                       {
+                           "level":  10,
+                           "wood":  158,
+                           "stone":  226,
+                           "iron":  119,
+                           "workersLevel":  1,
+                           "workersTotal":  12,
+                           "lastColumn":  "319"
+                       },
+                       {
+                           "level":  11,
+                           "wood":  184,
+                           "stone":  264,
+                           "iron":  138,
+                           "workersLevel":  1,
+                           "workersTotal":  13,
+                           "lastColumn":  "356"
+                       },
+                       {
+                           "level":  12,
+                           "wood":  215,
+                           "stone":  309,
+                           "iron":  161,
+                           "workersLevel":  1,
+                           "workersTotal":  14,
+                           "lastColumn":  "397"
+                       },
+                       {
+                           "level":  13,
+                           "wood":  250,
+                           "stone":  362,
+                           "iron":  188,
+                           "workersLevel":  2,
+                           "workersTotal":  16,
+                           "lastColumn":  "443"
+                       },
+                       {
+                           "level":  14,
+                           "wood":  291,
+                           "stone":  423,
+                           "iron":  218,
+                           "workersLevel":  1,
+                           "workersTotal":  17,
+                           "lastColumn":  "494"
+                       },
+                       {
+                           "level":  15,
+                           "wood":  339,
+                           "stone":  495,
+                           "iron":  254,
+                           "workersLevel":  2,
+                           "workersTotal":  19,
+                           "lastColumn":  "550"
+                       },
+                       {
+                           "level":  16,
+                           "wood":  395,
+                           "stone":  580,
+                           "iron":  296,
+                           "workersLevel":  2,
+                           "workersTotal":  21,
+                           "lastColumn":  "614"
+                       },
+                       {
+                           "level":  17,
+                           "wood":  461,
+                           "stone":  678,
+                           "iron":  345,
+                           "workersLevel":  2,
+                           "workersTotal":  23,
+                           "lastColumn":  "684"
+                       },
+                       {
+                           "level":  18,
+                           "wood":  537,
+                           "stone":  793,
+                           "iron":  402,
+                           "workersLevel":  2,
+                           "workersTotal":  25,
+                           "lastColumn":  "763"
+                       },
+                       {
+                           "level":  19,
+                           "wood":  625,
+                           "stone":  928,
+                           "iron":  469,
+                           "workersLevel":  3,
+                           "workersTotal":  28,
+                           "lastColumn":  "851"
+                       },
+                       {
+                           "level":  20,
+                           "wood":  728,
+                           "stone":  1086,
+                           "iron":  546,
+                           "workersLevel":  3,
+                           "workersTotal":  31,
+                           "lastColumn":  "948"
+                       },
+                       {
+                           "level":  21,
+                           "wood":  848,
+                           "stone":  1271,
+                           "iron":  636,
+                           "workersLevel":  3,
+                           "workersTotal":  34,
+                           "lastColumn":  "1.057"
+                       },
+                       {
+                           "level":  22,
+                           "wood":  988,
+                           "stone":  1487,
+                           "iron":  741,
+                           "workersLevel":  3,
+                           "workersTotal":  37,
+                           "lastColumn":  "1.179"
+                       },
+                       {
+                           "level":  23,
+                           "wood":  1151,
+                           "stone":  1740,
+                           "iron":  864,
+                           "workersLevel":  4,
+                           "workersTotal":  41,
+                           "lastColumn":  "1.314"
+                       },
+                       {
+                           "level":  24,
+                           "wood":  1341,
+                           "stone":  2035,
+                           "iron":  1006,
+                           "workersLevel":  4,
+                           "workersTotal":  45,
+                           "lastColumn":  "1.465"
+                       },
+                       {
+                           "level":  25,
+                           "wood":  1563,
+                           "stone":  2381,
+                           "iron":  1172,
+                           "workersLevel":  4,
+                           "workersTotal":  49,
+                           "lastColumn":  "1.634"
+                       },
+                       {
+                           "level":  26,
+                           "wood":  1821,
+                           "stone":  2786,
+                           "iron":  1365,
+                           "workersLevel":  5,
+                           "workersTotal":  54,
+                           "lastColumn":  "1.822"
+                       },
+                       {
+                           "level":  27,
+                           "wood":  2121,
+                           "stone":  3260,
+                           "iron":  1591,
+                           "workersLevel":  6,
+                           "workersTotal":  60,
+                           "lastColumn":  "2.031"
+                       },
+                       {
+                           "level":  28,
+                           "wood":  2471,
+                           "stone":  3814,
+                           "iron":  1853,
+                           "workersLevel":  6,
+                           "workersTotal":  66,
+                           "lastColumn":  "2.264"
+                       },
+                       {
+                           "level":  29,
+                           "wood":  2879,
+                           "stone":  4462,
+                           "iron":  2159,
+                           "workersLevel":  6,
+                           "workersTotal":  72,
+                           "lastColumn":  "2.525"
+                       },
+                       {
+                           "level":  30,
+                           "wood":  3354,
+                           "stone":  5221,
+                           "iron":  2515,
+                           "workersLevel":  7,
+                           "workersTotal":  79,
+                           "lastColumn":  "2.815"
+                       },
+                       {
+                           "level":  31,
+                           "wood":  3907,
+                           "stone":  6109,
+                           "iron":  2930,
+                           "workersLevel":  8,
+                           "workersTotal":  87,
+                           "lastColumn":  "3.138"
+                       },
+                       {
+                           "level":  32,
+                           "wood":  4552,
+                           "stone":  7147,
+                           "iron":  3414,
+                           "workersLevel":  9,
+                           "workersTotal":  96,
+                           "lastColumn":  "3.499"
+                       },
+                       {
+                           "level":  33,
+                           "wood":  5303,
+                           "stone":  8362,
+                           "iron":  3977,
+                           "workersLevel":  10,
+                           "workersTotal":  106,
+                           "lastColumn":  "3.901"
+                       },
+                       {
+                           "level":  34,
+                           "wood":  6178,
+                           "stone":  9784,
+                           "iron":  4633,
+                           "workersLevel":  10,
+                           "workersTotal":  116,
+                           "lastColumn":  "4.350"
+                       },
+                       {
+                           "level":  35,
+                           "wood":  7197,
+                           "stone":  11447,
+                           "iron":  5398,
+                           "workersLevel":  12,
+                           "workersTotal":  128,
+                           "lastColumn":  "4.849"
+                       },
+                       {
+                           "level":  36,
+                           "wood":  8384,
+                           "stone":  13393,
+                           "iron":  6288,
+                           "workersLevel":  13,
+                           "workersTotal":  141,
+                           "lastColumn":  "5.407"
+                       },
+                       {
+                           "level":  37,
+                           "wood":  9768,
+                           "stone":  15669,
+                           "iron":  7326,
+                           "workersLevel":  14,
+                           "workersTotal":  155,
+                           "lastColumn":  "6.028"
+                       },
+                       {
+                           "level":  38,
+                           "wood":  11379,
+                           "stone":  18333,
+                           "iron":  8535,
+                           "workersLevel":  15,
+                           "workersTotal":  170,
+                           "lastColumn":  "6.721"
+                       },
+                       {
+                           "level":  39,
+                           "wood":  13257,
+                           "stone":  21450,
+                           "iron":  9943,
+                           "workersLevel":  17,
+                           "workersTotal":  187,
+                           "lastColumn":  "7.494"
+                       },
+                       {
+                           "level":  40,
+                           "wood":  15444,
+                           "stone":  25096,
+                           "iron":  11583,
+                           "workersLevel":  19,
+                           "workersTotal":  206,
+                           "lastColumn":  "8.355"
+                       },
+                       {
+                           "level":  41,
+                           "wood":  17993,
+                           "stone":  29363,
+                           "iron":  13495,
+                           "workersLevel":  20,
+                           "workersTotal":  226,
+                           "lastColumn":  "9.315"
+                       },
+                       {
+                           "level":  42,
+                           "wood":  20962,
+                           "stone":  34354,
+                           "iron":  15721,
+                           "workersLevel":  23,
+                           "workersTotal":  249,
+                           "lastColumn":  "10.386"
+                       },
+                       {
+                           "level":  43,
+                           "wood":  24420,
+                           "stone":  40195,
+                           "iron":  18315,
+                           "workersLevel":  25,
+                           "workersTotal":  274,
+                           "lastColumn":  "11.580"
+                       },
+                       {
+                           "level":  44,
+                           "wood":  28450,
+                           "stone":  47028,
+                           "iron":  21337,
+                           "workersLevel":  27,
+                           "workersTotal":  301,
+                           "lastColumn":  "12.911"
+                       },
+                       {
+                           "level":  45,
+                           "wood":  33144,
+                           "stone":  55023,
+                           "iron":  24858,
+                           "workersLevel":  30,
+                           "workersTotal":  331,
+                           "lastColumn":  "14.395"
+                       },
+                       {
+                           "level":  46,
+                           "wood":  38612,
+                           "stone":  64376,
+                           "iron":  28959,
+                           "workersLevel":  33,
+                           "workersTotal":  364,
+                           "lastColumn":  "16.049"
+                       },
+                       {
+                           "level":  47,
+                           "wood":  44983,
+                           "stone":  75320,
+                           "iron":  33738,
+                           "workersLevel":  37,
+                           "workersTotal":  401,
+                           "lastColumn":  "17.894"
+                       },
+                       {
+                           "level":  48,
+                           "wood":  52406,
+                           "stone":  88125,
+                           "iron":  39304,
+                           "workersLevel":  40,
+                           "workersTotal":  441,
+                           "lastColumn":  "19.950"
+                       },
+                       {
+                           "level":  49,
+                           "wood":  61053,
+                           "stone":  103106,
+                           "iron":  45789,
+                           "workersLevel":  44,
+                           "workersTotal":  485,
+                           "lastColumn":  "22.243"
+                       },
+                       {
+                           "level":  50,
+                           "wood":  71126,
+                           "stone":  120634,
+                           "iron":  53345,
+                           "workersLevel":  49,
+                           "workersTotal":  534,
+                           "lastColumn":  "24.800"
+                       }
+                   ]
+    },
+    {
+        "key":  "main",
+        "name":  "Kale",
+        "maxLevel":  50,
+        "lastColumn":  "Zaman faktörü",
+        "description":  "Kale, köyün kalbidir. Savaşlar sırasında vatandaşların güvenliğini sağlamasının yanında, usta ve inşaatçıların yeni binaları yapmak ve var olanları geliştirmek için hep birlikte çalıştığı yerdir. Daha büyük kale, daha fazla inşaatçının burada çalışabilmesini sağlar. Bunun anlamı binaların daha hızlı inşa edilebilmesidir. Kale 15. seviyeye ulaştığında, binaları yıkabilirsiniz.",
+        "requirements":  [
+
+                         ],
+        "levels":  [
+                       {
+                           "level":  1,
+                           "wood":  70,
+                           "stone":  85,
+                           "iron":  65,
+                           "workersLevel":  2,
+                           "workersTotal":  2,
+                           "lastColumn":  "100%"
+                       },
+                       {
+                           "level":  2,
+                           "wood":  82,
+                           "stone":  99,
+                           "iron":  76,
+                           "workersLevel":  0,
+                           "workersTotal":  2,
+                           "lastColumn":  "96%"
+                       },
+                       {
+                           "level":  3,
+                           "wood":  95,
+                           "stone":  116,
+                           "iron":  88,
+                           "workersLevel":  1,
+                           "workersTotal":  3,
+                           "lastColumn":  "93%"
+                       },
+                       {
+                           "level":  4,
+                           "wood":  111,
+                           "stone":  136,
+                           "iron":  103,
+                           "workersLevel":  0,
+                           "workersTotal":  3,
+                           "lastColumn":  "89%"
+                       },
+                       {
+                           "level":  5,
+                           "wood":  129,
+                           "stone":  159,
+                           "iron":  120,
+                           "workersLevel":  0,
+                           "workersTotal":  3,
+                           "lastColumn":  "86%"
+                       },
+                       {
+                           "level":  6,
+                           "wood":  150,
+                           "stone":  186,
+                           "iron":  139,
+                           "workersLevel":  1,
+                           "workersTotal":  4,
+                           "lastColumn":  "82%"
+                       },
+                       {
+                           "level":  7,
+                           "wood":  175,
+                           "stone":  218,
+                           "iron":  163,
+                           "workersLevel":  0,
+                           "workersTotal":  4,
+                           "lastColumn":  "79%"
+                       },
+                       {
+                           "level":  8,
+                           "wood":  204,
+                           "stone":  255,
+                           "iron":  189,
+                           "workersLevel":  0,
+                           "workersTotal":  4,
+                           "lastColumn":  "76%"
+                       },
+                       {
+                           "level":  9,
+                           "wood":  238,
+                           "stone":  298,
+                           "iron":  221,
+                           "workersLevel":  1,
+                           "workersTotal":  5,
+                           "lastColumn":  "73%"
+                       },
+                       {
+                           "level":  10,
+                           "wood":  277,
+                           "stone":  349,
+                           "iron":  257,
+                           "workersLevel":  1,
+                           "workersTotal":  6,
+                           "lastColumn":  "71%"
+                       },
+                       {
+                           "level":  11,
+                           "wood":  322,
+                           "stone":  409,
+                           "iron":  299,
+                           "workersLevel":  0,
+                           "workersTotal":  6,
+                           "lastColumn":  "68%"
+                       },
+                       {
+                           "level":  12,
+                           "wood":  376,
+                           "stone":  478,
+                           "iron":  349,
+                           "workersLevel":  1,
+                           "workersTotal":  7,
+                           "lastColumn":  "65%"
+                       },
+                       {
+                           "level":  13,
+                           "wood":  438,
+                           "stone":  559,
+                           "iron":  406,
+                           "workersLevel":  1,
+                           "workersTotal":  8,
+                           "lastColumn":  "63%"
+                       },
+                       {
+                           "level":  14,
+                           "wood":  510,
+                           "stone":  654,
+                           "iron":  473,
+                           "workersLevel":  1,
+                           "workersTotal":  9,
+                           "lastColumn":  "60%"
+                       },
+                       {
+                           "level":  15,
+                           "wood":  594,
+                           "stone":  766,
+                           "iron":  551,
+                           "workersLevel":  1,
+                           "workersTotal":  10,
+                           "lastColumn":  "58%"
+                       },
+                       {
+                           "level":  16,
+                           "wood":  692,
+                           "stone":  896,
+                           "iron":  642,
+                           "workersLevel":  1,
+                           "workersTotal":  11,
+                           "lastColumn":  "56%"
+                       },
+                       {
+                           "level":  17,
+                           "wood":  806,
+                           "stone":  1048,
+                           "iron":  748,
+                           "workersLevel":  1,
+                           "workersTotal":  12,
+                           "lastColumn":  "54%"
+                       },
+                       {
+                           "level":  18,
+                           "wood":  939,
+                           "stone":  1226,
+                           "iron":  872,
+                           "workersLevel":  2,
+                           "workersTotal":  14,
+                           "lastColumn":  "52%"
+                       },
+                       {
+                           "level":  19,
+                           "wood":  1094,
+                           "stone":  1435,
+                           "iron":  1016,
+                           "workersLevel":  1,
+                           "workersTotal":  15,
+                           "lastColumn":  "50%"
+                       },
+                       {
+                           "level":  20,
+                           "wood":  1274,
+                           "stone":  1679,
+                           "iron":  1183,
+                           "workersLevel":  2,
+                           "workersTotal":  17,
+                           "lastColumn":  "48%"
+                       },
+                       {
+                           "level":  21,
+                           "wood":  1485,
+                           "stone":  1964,
+                           "iron":  1379,
+                           "workersLevel":  2,
+                           "workersTotal":  19,
+                           "lastColumn":  "46%"
+                       },
+                       {
+                           "level":  22,
+                           "wood":  1730,
+                           "stone":  2298,
+                           "iron":  1606,
+                           "workersLevel":  3,
+                           "workersTotal":  22,
+                           "lastColumn":  "44%"
+                       },
+                       {
+                           "level":  23,
+                           "wood":  2015,
+                           "stone":  2688,
+                           "iron":  1871,
+                           "workersLevel":  2,
+                           "workersTotal":  24,
+                           "lastColumn":  "43%"
+                       },
+                       {
+                           "level":  24,
+                           "wood":  2347,
+                           "stone":  3146,
+                           "iron":  2180,
+                           "workersLevel":  3,
+                           "workersTotal":  27,
+                           "lastColumn":  "41%"
+                       },
+                       {
+                           "level":  25,
+                           "wood":  2735,
+                           "stone":  3680,
+                           "iron":  2539,
+                           "workersLevel":  3,
+                           "workersTotal":  30,
+                           "lastColumn":  "39%"
+                       },
+                       {
+                           "level":  26,
+                           "wood":  3186,
+                           "stone":  4306,
+                           "iron":  2958,
+                           "workersLevel":  4,
+                           "workersTotal":  34,
+                           "lastColumn":  "38%"
+                       },
+                       {
+                           "level":  27,
+                           "wood":  3712,
+                           "stone":  5038,
+                           "iron":  3447,
+                           "workersLevel":  4,
+                           "workersTotal":  38,
+                           "lastColumn":  "37%"
+                       },
+                       {
+                           "level":  28,
+                           "wood":  4324,
+                           "stone":  5894,
+                           "iron":  4015,
+                           "workersLevel":  5,
+                           "workersTotal":  43,
+                           "lastColumn":  "35%"
+                       },
+                       {
+                           "level":  29,
+                           "wood":  5038,
+                           "stone":  6896,
+                           "iron":  4678,
+                           "workersLevel":  5,
+                           "workersTotal":  48,
+                           "lastColumn":  "34%"
+                       },
+                       {
+                           "level":  30,
+                           "wood":  5869,
+                           "stone":  8069,
+                           "iron":  5450,
+                           "workersLevel":  5,
+                           "workersTotal":  53,
+                           "lastColumn":  "33%"
+                       },
+                       {
+                           "level":  31,
+                           "wood":  6837,
+                           "stone":  9440,
+                           "iron":  6349,
+                           "workersLevel":  7,
+                           "workersTotal":  60,
+                           "lastColumn":  "31%"
+                       },
+                       {
+                           "level":  32,
+                           "wood":  7965,
+                           "stone":  11045,
+                           "iron":  7396,
+                           "workersLevel":  7,
+                           "workersTotal":  67,
+                           "lastColumn":  "30%"
+                       },
+                       {
+                           "level":  33,
+                           "wood":  9280,
+                           "stone":  12923,
+                           "iron":  8617,
+                           "workersLevel":  8,
+                           "workersTotal":  75,
+                           "lastColumn":  "29%"
+                       },
+                       {
+                           "level":  34,
+                           "wood":  10811,
+                           "stone":  15120,
+                           "iron":  10039,
+                           "workersLevel":  9,
+                           "workersTotal":  84,
+                           "lastColumn":  "28%"
+                       },
+                       {
+                           "level":  35,
+                           "wood":  12594,
+                           "stone":  17690,
+                           "iron":  11695,
+                           "workersLevel":  10,
+                           "workersTotal":  94,
+                           "lastColumn":  "27%"
+                       },
+                       {
+                           "level":  36,
+                           "wood":  14673,
+                           "stone":  20698,
+                           "iron":  13625,
+                           "workersLevel":  12,
+                           "workersTotal":  106,
+                           "lastColumn":  "26%"
+                       },
+                       {
+                           "level":  37,
+                           "wood":  17094,
+                           "stone":  24216,
+                           "iron":  15873,
+                           "workersLevel":  12,
+                           "workersTotal":  118,
+                           "lastColumn":  "25%"
+                       },
+                       {
+                           "level":  38,
+                           "wood":  19914,
+                           "stone":  28333,
+                           "iron":  18492,
+                           "workersLevel":  14,
+                           "workersTotal":  132,
+                           "lastColumn":  "24%"
+                       },
+                       {
+                           "level":  39,
+                           "wood":  23200,
+                           "stone":  33150,
+                           "iron":  21543,
+                           "workersLevel":  16,
+                           "workersTotal":  148,
+                           "lastColumn":  "23%"
+                       },
+                       {
+                           "level":  40,
+                           "wood":  27028,
+                           "stone":  38785,
+                           "iron":  25097,
+                           "workersLevel":  18,
+                           "workersTotal":  166,
+                           "lastColumn":  "22%"
+                       },
+                       {
+                           "level":  41,
+                           "wood":  31487,
+                           "stone":  45379,
+                           "iron":  29238,
+                           "workersLevel":  20,
+                           "workersTotal":  186,
+                           "lastColumn":  "21%"
+                       },
+                       {
+                           "level":  42,
+                           "wood":  36683,
+                           "stone":  53093,
+                           "iron":  34062,
+                           "workersLevel":  22,
+                           "workersTotal":  208,
+                           "lastColumn":  "20%"
+                       },
+                       {
+                           "level":  43,
+                           "wood":  42735,
+                           "stone":  62119,
+                           "iron":  39683,
+                           "workersLevel":  25,
+                           "workersTotal":  233,
+                           "lastColumn":  "20%"
+                       },
+                       {
+                           "level":  44,
+                           "wood":  49787,
+                           "stone":  72679,
+                           "iron":  46230,
+                           "workersLevel":  28,
+                           "workersTotal":  261,
+                           "lastColumn":  "19%"
+                       },
+                       {
+                           "level":  45,
+                           "wood":  58001,
+                           "stone":  85035,
+                           "iron":  53858,
+                           "workersLevel":  32,
+                           "workersTotal":  293,
+                           "lastColumn":  "18%"
+                       },
+                       {
+                           "level":  46,
+                           "wood":  67572,
+                           "stone":  99491,
+                           "iron":  62745,
+                           "workersLevel":  35,
+                           "workersTotal":  328,
+                           "lastColumn":  "18%"
+                       },
+                       {
+                           "level":  47,
+                           "wood":  78721,
+                           "stone":  116404,
+                           "iron":  73098,
+                           "workersLevel":  39,
+                           "workersTotal":  367,
+                           "lastColumn":  "17%"
+                       },
+                       {
+                           "level":  48,
+                           "wood":  91710,
+                           "stone":  136193,
+                           "iron":  85159,
+                           "workersLevel":  44,
+                           "workersTotal":  411,
+                           "lastColumn":  "16%"
+                       },
+                       {
+                           "level":  49,
+                           "wood":  106842,
+                           "stone":  159346,
+                           "iron":  99211,
+                           "workersLevel":  50,
+                           "workersTotal":  461,
+                           "lastColumn":  "16%"
+                       },
+                       {
+                           "level":  50,
+                           "wood":  124471,
+                           "stone":  186434,
+                           "iron":  115580,
+                           "workersLevel":  55,
+                           "workersTotal":  516,
+                           "lastColumn":  "15%"
+                       }
+                   ]
+    },
+    {
+        "key":  "market",
+        "name":  "Market",
+        "maxLevel":  30,
+        "lastColumn":  "Katır miktarı",
+        "description":  "Market renkli hareketliliklerin yaşandığı yerdir. Uzaklarda ve yakın yerlerde olan satıcılar buraya ticaret yapmaya gelirler. Ana maddeler buradan alınır ve uzun mesafelere gönderilirler. Eşyalar biryerden biryere katırlarla taşınırlar. Katırları ise katır çiftliğinden temin edebilirsin. Marketin ne kadar genişlerse; yapabilceğin ticaret oranı, depolayabileceğin eşyalar artacağından, doğru orantıda artacaktır.",
+        "requirements":  [
+                             {
+                                 "name":  "Depo",
+                                 "level":  5
+                             }
+                         ],
+        "levels":  [
+                       {
+                           "level":  1,
+                           "wood":  80,
+                           "stone":  100,
+                           "iron":  70,
+                           "workersLevel":  10,
+                           "workersTotal":  10,
+                           "lastColumn":  "1"
+                       },
+                       {
+                           "level":  2,
+                           "wood":  93,
+                           "stone":  117,
+                           "iron":  81,
+                           "workersLevel":  2,
+                           "workersTotal":  12,
+                           "lastColumn":  "2"
+                       },
+                       {
+                           "level":  3,
+                           "wood":  109,
+                           "stone":  137,
+                           "iron":  94,
+                           "workersLevel":  2,
+                           "workersTotal":  14,
+                           "lastColumn":  "3"
+                       },
+                       {
+                           "level":  4,
+                           "wood":  126,
+                           "stone":  160,
+                           "iron":  109,
+                           "workersLevel":  2,
+                           "workersTotal":  16,
+                           "lastColumn":  "4"
+                       },
+                       {
+                           "level":  5,
+                           "wood":  147,
+                           "stone":  187,
+                           "iron":  127,
+                           "workersLevel":  3,
+                           "workersTotal":  19,
+                           "lastColumn":  "5"
+                       },
+                       {
+                           "level":  6,
+                           "wood":  172,
+                           "stone":  219,
+                           "iron":  147,
+                           "workersLevel":  3,
+                           "workersTotal":  22,
+                           "lastColumn":  "6"
+                       },
+                       {
+                           "level":  7,
+                           "wood":  200,
+                           "stone":  257,
+                           "iron":  171,
+                           "workersLevel":  4,
+                           "workersTotal":  26,
+                           "lastColumn":  "7"
+                       },
+                       {
+                           "level":  8,
+                           "wood":  233,
+                           "stone":  300,
+                           "iron":  198,
+                           "workersLevel":  4,
+                           "workersTotal":  30,
+                           "lastColumn":  "8"
+                       },
+                       {
+                           "level":  9,
+                           "wood":  271,
+                           "stone":  351,
+                           "iron":  229,
+                           "workersLevel":  5,
+                           "workersTotal":  35,
+                           "lastColumn":  "9"
+                       },
+                       {
+                           "level":  10,
+                           "wood":  316,
+                           "stone":  411,
+                           "iron":  266,
+                           "workersLevel":  6,
+                           "workersTotal":  41,
+                           "lastColumn":  "10"
+                       },
+                       {
+                           "level":  11,
+                           "wood":  368,
+                           "stone":  481,
+                           "iron":  309,
+                           "workersLevel":  7,
+                           "workersTotal":  48,
+                           "lastColumn":  "12"
+                       },
+                       {
+                           "level":  12,
+                           "wood":  429,
+                           "stone":  562,
+                           "iron":  358,
+                           "workersLevel":  8,
+                           "workersTotal":  56,
+                           "lastColumn":  "15"
+                       },
+                       {
+                           "level":  13,
+                           "wood":  500,
+                           "stone":  658,
+                           "iron":  416,
+                           "workersLevel":  10,
+                           "workersTotal":  66,
+                           "lastColumn":  "18"
+                       },
+                       {
+                           "level":  14,
+                           "wood":  583,
+                           "stone":  770,
+                           "iron":  482,
+                           "workersLevel":  11,
+                           "workersTotal":  77,
+                           "lastColumn":  "23"
+                       },
+                       {
+                           "level":  15,
+                           "wood":  679,
+                           "stone":  901,
+                           "iron":  559,
+                           "workersLevel":  13,
+                           "workersTotal":  90,
+                           "lastColumn":  "28"
+                       },
+                       {
+                           "level":  16,
+                           "wood":  791,
+                           "stone":  1054,
+                           "iron":  649,
+                           "workersLevel":  15,
+                           "workersTotal":  105,
+                           "lastColumn":  "34"
+                       },
+                       {
+                           "level":  17,
+                           "wood":  921,
+                           "stone":  1233,
+                           "iron":  752,
+                           "workersLevel":  18,
+                           "workersTotal":  123,
+                           "lastColumn":  "42"
+                       },
+                       {
+                           "level":  18,
+                           "wood":  1073,
+                           "stone":  1443,
+                           "iron":  873,
+                           "workersLevel":  21,
+                           "workersTotal":  144,
+                           "lastColumn":  "51"
+                       },
+                       {
+                           "level":  19,
+                           "wood":  1250,
+                           "stone":  1688,
+                           "iron":  1012,
+                           "workersLevel":  25,
+                           "workersTotal":  169,
+                           "lastColumn":  "63"
+                       },
+                       {
+                           "level":  20,
+                           "wood":  1456,
+                           "stone":  1975,
+                           "iron":  1174,
+                           "workersLevel":  28,
+                           "workersTotal":  197,
+                           "lastColumn":  "77"
+                       },
+                       {
+                           "level":  21,
+                           "wood":  1697,
+                           "stone":  2311,
+                           "iron":  1362,
+                           "workersLevel":  34,
+                           "workersTotal":  231,
+                           "lastColumn":  "95"
+                       },
+                       {
+                           "level":  22,
+                           "wood":  1977,
+                           "stone":  2703,
+                           "iron":  1580,
+                           "workersLevel":  39,
+                           "workersTotal":  270,
+                           "lastColumn":  "117"
+                       },
+                       {
+                           "level":  23,
+                           "wood":  2303,
+                           "stone":  3163,
+                           "iron":  1833,
+                           "workersLevel":  46,
+                           "workersTotal":  316,
+                           "lastColumn":  "143"
+                       },
+                       {
+                           "level":  24,
+                           "wood":  2683,
+                           "stone":  3701,
+                           "iron":  2126,
+                           "workersLevel":  54,
+                           "workersTotal":  370,
+                           "lastColumn":  "176"
+                       },
+                       {
+                           "level":  25,
+                           "wood":  3125,
+                           "stone":  4330,
+                           "iron":  2467,
+                           "workersLevel":  63,
+                           "workersTotal":  433,
+                           "lastColumn":  "216"
+                       },
+                       {
+                           "level":  26,
+                           "wood":  3641,
+                           "stone":  5066,
+                           "iron":  2861,
+                           "workersLevel":  74,
+                           "workersTotal":  507,
+                           "lastColumn":  "265"
+                       },
+                       {
+                           "level":  27,
+                           "wood":  4242,
+                           "stone":  5927,
+                           "iron":  3319,
+                           "workersLevel":  86,
+                           "workersTotal":  593,
+                           "lastColumn":  "325"
+                       },
+                       {
+                           "level":  28,
+                           "wood":  4942,
+                           "stone":  6935,
+                           "iron":  3850,
+                           "workersLevel":  100,
+                           "workersTotal":  693,
+                           "lastColumn":  "398"
+                       },
+                       {
+                           "level":  29,
+                           "wood":  5757,
+                           "stone":  8113,
+                           "iron":  4466,
+                           "workersLevel":  118,
+                           "workersTotal":  811,
+                           "lastColumn":  "489"
+                       },
+                       {
+                           "level":  30,
+                           "wood":  6707,
+                           "stone":  9493,
+                           "iron":  5181,
+                           "workersLevel":  138,
+                           "workersTotal":  949,
+                           "lastColumn":  "600"
+                       }
+                   ]
+    },
+    {
+        "key":  "smith",
+        "name":  "Kuyumcu",
+        "maxLevel":  5,
+        "lastColumn":  "",
+        "description":  "Kuyumcuda yeni Kontları göreve atamak için gerekli altın zırhları üretebilirsin. Tabii Kontun görevi yükseldikçe daha gösterişli altın zırhlar istemeye başlayacağından her seviyedeki altın zırhında maliyeti ona göre artar.",
+        "requirements":  [
+                             {
+                                 "name":  "Köşk",
+                                 "level":  1
+                             }
+                         ],
+        "levels":  [
+                       {
+                           "level":  1,
+                           "wood":  3000,
+                           "stone":  4000,
+                           "iron":  2500,
+                           "workersLevel":  25,
+                           "workersTotal":  25,
+                           "lastColumn":  ""
+                       },
+                       {
+                           "level":  2,
+                           "wood":  4200,
+                           "stone":  5600,
+                           "iron":  3500,
+                           "workersLevel":  5,
+                           "workersTotal":  30,
+                           "lastColumn":  ""
+                       },
+                       {
+                           "level":  3,
+                           "wood":  5880,
+                           "stone":  7840,
+                           "iron":  4900,
+                           "workersLevel":  6,
+                           "workersTotal":  36,
+                           "lastColumn":  ""
+                       },
+                       {
+                           "level":  4,
+                           "wood":  8232,
+                           "stone":  10976,
+                           "iron":  6860,
+                           "workersLevel":  7,
+                           "workersTotal":  43,
+                           "lastColumn":  ""
+                       },
+                       {
+                           "level":  5,
+                           "wood":  11525,
+                           "stone":  15366,
+                           "iron":  9604,
+                           "workersLevel":  9,
+                           "workersTotal":  52,
+                           "lastColumn":  ""
+                       }
+                   ]
+    },
+    {
+        "key":  "snob",
+        "name":  "Köşk",
+        "maxLevel":  10,
+        "lastColumn":  "Zaman faktörü",
+        "description":  "Kontlar, krallığının gündelik işlerini senin adına yoluna koyan sadık vatandaşlarındırlar. Eğer yeni bir şehrin işlerini de üstlenecek olurlarsa devlet erkini layıkıyla temsil edebilmek için altından zırh isterler. Bu altın zırhları kuyumcuda imal edebilirsin.",
+        "requirements":  [
+                             {
+                                 "name":  "Simyager",
+                                 "level":  5
+                             }
+                         ],
+        "levels":  [
+                       {
+                           "level":  1,
+                           "wood":  25000,
+                           "stone":  30000,
+                           "iron":  25000,
+                           "workersLevel":  100,
+                           "workersTotal":  100,
+                           "lastColumn":  "80%"
+                       },
+                       {
+                           "level":  2,
+                           "wood":  32500,
+                           "stone":  39000,
+                           "iron":  32500,
+                           "workersLevel":  20,
+                           "workersTotal":  120,
+                           "lastColumn":  "72%"
+                       },
+                       {
+                           "level":  3,
+                           "wood":  42250,
+                           "stone":  50700,
+                           "iron":  42250,
+                           "workersLevel":  24,
+                           "workersTotal":  144,
+                           "lastColumn":  "64%"
+                       },
+                       {
+                           "level":  4,
+                           "wood":  54925,
+                           "stone":  65910,
+                           "iron":  54925,
+                           "workersLevel":  29,
+                           "workersTotal":  173,
+                           "lastColumn":  "58%"
+                       },
+                       {
+                           "level":  5,
+                           "wood":  71403,
+                           "stone":  85683,
+                           "iron":  71403,
+                           "workersLevel":  34,
+                           "workersTotal":  207,
+                           "lastColumn":  "52%"
+                       },
+                       {
+                           "level":  6,
+                           "wood":  92823,
+                           "stone":  111388,
+                           "iron":  92823,
+                           "workersLevel":  42,
+                           "workersTotal":  249,
+                           "lastColumn":  "46%"
+                       },
+                       {
+                           "level":  7,
+                           "wood":  120670,
+                           "stone":  144804,
+                           "iron":  120670,
+                           "workersLevel":  50,
+                           "workersTotal":  299,
+                           "lastColumn":  "42%"
+                       },
+                       {
+                           "level":  8,
+                           "wood":  156871,
+                           "stone":  188246,
+                           "iron":  156871,
+                           "workersLevel":  59,
+                           "workersTotal":  358,
+                           "lastColumn":  "37%"
+                       },
+                       {
+                           "level":  9,
+                           "wood":  203933,
+                           "stone":  244719,
+                           "iron":  203933,
+                           "workersLevel":  72,
+                           "workersTotal":  430,
+                           "lastColumn":  "33%"
+                       },
+                       {
+                           "level":  10,
+                           "wood":  265112,
+                           "stone":  318135,
+                           "iron":  265112,
+                           "workersLevel":  86,
+                           "workersTotal":  516,
+                           "lastColumn":  "30%"
+                       }
+                   ]
+    },
+    {
+        "key":  "stable",
+        "name":  "Katır çiftliği",
+        "maxLevel":  30,
+        "lastColumn":  "Saatlik üretim",
+        "description":  "Katır çiftliğinde, senin için birçok eşya taşıyabilecek yeni hayvanlar yetişti. Daha büyük çiftlik yaparsan, daha çok katır yetiştirebilirsin.",
+        "requirements":  [
+                             {
+                                 "name":  "Market",
+                                 "level":  1
+                             }
+                         ],
+        "levels":  [
+                       {
+                           "level":  1,
+                           "wood":  200,
+                           "stone":  240,
+                           "iron":  220,
+                           "workersLevel":  10,
+                           "workersTotal":  10,
+                           "lastColumn":  "16"
+                       },
+                       {
+                           "level":  2,
+                           "wood":  233,
+                           "stone":  281,
+                           "iron":  255,
+                           "workersLevel":  1,
+                           "workersTotal":  11,
+                           "lastColumn":  "19"
+                       },
+                       {
+                           "level":  3,
+                           "wood":  271,
+                           "stone":  329,
+                           "iron":  296,
+                           "workersLevel":  1,
+                           "workersTotal":  12,
+                           "lastColumn":  "22"
+                       },
+                       {
+                           "level":  4,
+                           "wood":  316,
+                           "stone":  384,
+                           "iron":  343,
+                           "workersLevel":  1,
+                           "workersTotal":  13,
+                           "lastColumn":  "26"
+                       },
+                       {
+                           "level":  5,
+                           "wood":  368,
+                           "stone":  450,
+                           "iron":  398,
+                           "workersLevel":  2,
+                           "workersTotal":  15,
+                           "lastColumn":  "31"
+                       },
+                       {
+                           "level":  6,
+                           "wood":  429,
+                           "stone":  526,
+                           "iron":  462,
+                           "workersLevel":  1,
+                           "workersTotal":  16,
+                           "lastColumn":  "37"
+                       },
+                       {
+                           "level":  7,
+                           "wood":  500,
+                           "stone":  616,
+                           "iron":  536,
+                           "workersLevel":  2,
+                           "workersTotal":  18,
+                           "lastColumn":  "43"
+                       },
+                       {
+                           "level":  8,
+                           "wood":  583,
+                           "stone":  720,
+                           "iron":  622,
+                           "workersLevel":  1,
+                           "workersTotal":  19,
+                           "lastColumn":  "51"
+                       },
+                       {
+                           "level":  9,
+                           "wood":  679,
+                           "stone":  843,
+                           "iron":  721,
+                           "workersLevel":  2,
+                           "workersTotal":  21,
+                           "lastColumn":  "61"
+                       },
+                       {
+                           "level":  10,
+                           "wood":  791,
+                           "stone":  986,
+                           "iron":  837,
+                           "workersLevel":  3,
+                           "workersTotal":  24,
+                           "lastColumn":  "72"
+                       },
+                       {
+                           "level":  11,
+                           "wood":  921,
+                           "stone":  1154,
+                           "iron":  971,
+                           "workersLevel":  2,
+                           "workersTotal":  26,
+                           "lastColumn":  "85"
+                       },
+                       {
+                           "level":  12,
+                           "wood":  1073,
+                           "stone":  1350,
+                           "iron":  1126,
+                           "workersLevel":  3,
+                           "workersTotal":  29,
+                           "lastColumn":  "100"
+                       },
+                       {
+                           "level":  13,
+                           "wood":  1250,
+                           "stone":  1579,
+                           "iron":  1306,
+                           "workersLevel":  2,
+                           "workersTotal":  31,
+                           "lastColumn":  "118"
+                       },
+                       {
+                           "level":  14,
+                           "wood":  1456,
+                           "stone":  1848,
+                           "iron":  1515,
+                           "workersLevel":  4,
+                           "workersTotal":  35,
+                           "lastColumn":  "139"
+                       },
+                       {
+                           "level":  15,
+                           "wood":  1697,
+                           "stone":  2162,
+                           "iron":  1757,
+                           "workersLevel":  3,
+                           "workersTotal":  38,
+                           "lastColumn":  "165"
+                       },
+                       {
+                           "level":  16,
+                           "wood":  1977,
+                           "stone":  2529,
+                           "iron":  2038,
+                           "workersLevel":  4,
+                           "workersTotal":  42,
+                           "lastColumn":  "194"
+                       },
+                       {
+                           "level":  17,
+                           "wood":  2303,
+                           "stone":  2959,
+                           "iron":  2365,
+                           "workersLevel":  4,
+                           "workersTotal":  46,
+                           "lastColumn":  "230"
+                       },
+                       {
+                           "level":  18,
+                           "wood":  2683,
+                           "stone":  3462,
+                           "iron":  2743,
+                           "workersLevel":  5,
+                           "workersTotal":  51,
+                           "lastColumn":  "271"
+                       },
+                       {
+                           "level":  19,
+                           "wood":  3125,
+                           "stone":  4051,
+                           "iron":  3182,
+                           "workersLevel":  5,
+                           "workersTotal":  56,
+                           "lastColumn":  "320"
+                       },
+                       {
+                           "level":  20,
+                           "wood":  3641,
+                           "stone":  4740,
+                           "iron":  3691,
+                           "workersLevel":  5,
+                           "workersTotal":  61,
+                           "lastColumn":  "378"
+                       },
+                       {
+                           "level":  21,
+                           "wood":  4242,
+                           "stone":  5545,
+                           "iron":  4281,
+                           "workersLevel":  6,
+                           "workersTotal":  67,
+                           "lastColumn":  "447"
+                       },
+                       {
+                           "level":  22,
+                           "wood":  4942,
+                           "stone":  6488,
+                           "iron":  4966,
+                           "workersLevel":  7,
+                           "workersTotal":  74,
+                           "lastColumn":  "528"
+                       },
+                       {
+                           "level":  23,
+                           "wood":  5757,
+                           "stone":  7591,
+                           "iron":  5761,
+                           "workersLevel":  7,
+                           "workersTotal":  81,
+                           "lastColumn":  "624"
+                       },
+                       {
+                           "level":  24,
+                           "wood":  6707,
+                           "stone":  8881,
+                           "iron":  6683,
+                           "workersLevel":  9,
+                           "workersTotal":  90,
+                           "lastColumn":  "737"
+                       },
+                       {
+                           "level":  25,
+                           "wood":  7814,
+                           "stone":  10391,
+                           "iron":  7752,
+                           "workersLevel":  8,
+                           "workersTotal":  98,
+                           "lastColumn":  "870"
+                       },
+                       {
+                           "level":  26,
+                           "wood":  9103,
+                           "stone":  12158,
+                           "iron":  8992,
+                           "workersLevel":  10,
+                           "workersTotal":  108,
+                           "lastColumn":  "1.028"
+                       },
+                       {
+                           "level":  27,
+                           "wood":  10605,
+                           "stone":  14225,
+                           "iron":  10431,
+                           "workersLevel":  11,
+                           "workersTotal":  119,
+                           "lastColumn":  "1.214"
+                       },
+                       {
+                           "level":  28,
+                           "wood":  12355,
+                           "stone":  16643,
+                           "iron":  12100,
+                           "workersLevel":  12,
+                           "workersTotal":  131,
+                           "lastColumn":  "1.434"
+                       },
+                       {
+                           "level":  29,
+                           "wood":  14393,
+                           "stone":  19472,
+                           "iron":  14036,
+                           "workersLevel":  13,
+                           "workersTotal":  144,
+                           "lastColumn":  "1.693"
+                       },
+                       {
+                           "level":  30,
+                           "wood":  16768,
+                           "stone":  22782,
+                           "iron":  16282,
+                           "workersLevel":  15,
+                           "workersTotal":  159,
+                           "lastColumn":  "2.000"
+                       }
+                   ]
+    },
+    {
+        "key":  "statue",
+        "name":  "Anıt",
+        "maxLevel":  1,
+        "lastColumn":  "",
+        "description":  "Muhteşem bir heykel, şehrin merkezindeki meydanda durur ve şehir halkına sürekli sizin muazzam büyüklüğünüzü hatırlatır. O heykel savaşçılarınızı onurlandırır. Heykel sayesinde sur %50 güçlenir. Ancak bütün diğer binalar tamamen geliştirildiğinde inşa edilebilir.",
+        "requirements":  [
+                             {
+                                 "name":  "Kale",
+                                 "level":  50
+                             },
+                             {
+                                 "name":  "Değirmen",
+                                 "level":  50
+                             },
+                             {
+                                 "name":  "Oduncu Kampı",
+                                 "level":  50
+                             },
+                             {
+                                 "name":  "Taş ocağı",
+                                 "level":  50
+                             },
+                             {
+                                 "name":  "Maden ocağı",
+                                 "level":  50
+                             },
+                             {
+                                 "name":  "Depo",
+                                 "level":  50
+                             },
+                             {
+                                 "name":  "Gizli Depo",
+                                 "level":  30
+                             },
+                             {
+                                 "name":  "Market",
+                                 "level":  30
+                             },
+                             {
+                                 "name":  "Kışla",
+                                 "level":  30
+                             },
+                             {
+                                 "name":  "Katır çiftliği",
+                                 "level":  30
+                             },
+                             {
+                                 "name":  "Simyager",
+                                 "level":  5
+                             },
+                             {
+                                 "name":  "Köşk",
+                                 "level":  10
+                             },
+                             {
+                                 "name":  "Kuyumcu",
+                                 "level":  5
+                             },
+                             {
+                                 "name":  "Sur",
+                                 "level":  20
+                             }
+                         ],
+        "levels":  [
+                       {
+                           "level":  1,
+                           "wood":  400000,
+                           "stone":  400000,
+                           "iron":  400000,
+                           "workersLevel":  0,
+                           "workersTotal":  0,
+                           "lastColumn":  ""
+                       }
+                   ]
+    },
+    {
+        "key":  "stone",
+        "name":  "Taş ocağı",
+        "maxLevel":  50,
+        "lastColumn":  "Saatlik üretim",
+        "description":  "Taş ocağında, devasa kaya parçaları parçalanıp işlenerek taş bloklara dönüştürülür. Bu taş bloklar, bina inşasında veya kışlalarda asker üretiminde kullanılır. Taş ocağını geliştirdiğin ölçüde daha çok taş işçisi çalıştırabilir ve daha hızlı taş blok üretebilirsin.",
+        "requirements":  [
+
+                         ],
+        "levels":  [
+                       {
+                           "level":  1,
+                           "wood":  30,
+                           "stone":  40,
+                           "iron":  55,
+                           "workersLevel":  5,
+                           "workersTotal":  5,
+                           "lastColumn":  "120"
+                       },
+                       {
+                           "level":  2,
+                           "wood":  35,
+                           "stone":  47,
+                           "iron":  64,
+                           "workersLevel":  1,
+                           "workersTotal":  6,
+                           "lastColumn":  "134"
+                       },
+                       {
+                           "level":  3,
+                           "wood":  41,
+                           "stone":  55,
+                           "iron":  75,
+                           "workersLevel":  0,
+                           "workersTotal":  6,
+                           "lastColumn":  "149"
+                       },
+                       {
+                           "level":  4,
+                           "wood":  47,
+                           "stone":  64,
+                           "iron":  87,
+                           "workersLevel":  1,
+                           "workersTotal":  7,
+                           "lastColumn":  "166"
+                       },
+                       {
+                           "level":  5,
+                           "wood":  55,
+                           "stone":  75,
+                           "iron":  101,
+                           "workersLevel":  0,
+                           "workersTotal":  7,
+                           "lastColumn":  "185"
+                       },
+                       {
+                           "level":  6,
+                           "wood":  64,
+                           "stone":  88,
+                           "iron":  118,
+                           "workersLevel":  1,
+                           "workersTotal":  8,
+                           "lastColumn":  "207"
+                       },
+                       {
+                           "level":  7,
+                           "wood":  75,
+                           "stone":  103,
+                           "iron":  138,
+                           "workersLevel":  1,
+                           "workersTotal":  9,
+                           "lastColumn":  "231"
+                       },
+                       {
+                           "level":  8,
+                           "wood":  87,
+                           "stone":  120,
+                           "iron":  160,
+                           "workersLevel":  1,
+                           "workersTotal":  10,
+                           "lastColumn":  "257"
+                       },
+                       {
+                           "level":  9,
+                           "wood":  102,
+                           "stone":  140,
+                           "iron":  187,
+                           "workersLevel":  1,
+                           "workersTotal":  11,
+                           "lastColumn":  "287"
+                       },
+                       {
+                           "level":  10,
+                           "wood":  119,
+                           "stone":  164,
+                           "iron":  217,
+                           "workersLevel":  1,
+                           "workersTotal":  12,
+                           "lastColumn":  "319"
+                       },
+                       {
+                           "level":  11,
+                           "wood":  138,
+                           "stone":  192,
+                           "iron":  253,
+                           "workersLevel":  1,
+                           "workersTotal":  13,
+                           "lastColumn":  "356"
+                       },
+                       {
+                           "level":  12,
+                           "wood":  161,
+                           "stone":  225,
+                           "iron":  295,
+                           "workersLevel":  1,
+                           "workersTotal":  14,
+                           "lastColumn":  "397"
+                       },
+                       {
+                           "level":  13,
+                           "wood":  188,
+                           "stone":  263,
+                           "iron":  344,
+                           "workersLevel":  2,
+                           "workersTotal":  16,
+                           "lastColumn":  "443"
+                       },
+                       {
+                           "level":  14,
+                           "wood":  218,
+                           "stone":  308,
+                           "iron":  400,
+                           "workersLevel":  1,
+                           "workersTotal":  17,
+                           "lastColumn":  "494"
+                       },
+                       {
+                           "level":  15,
+                           "wood":  254,
+                           "stone":  360,
+                           "iron":  467,
+                           "workersLevel":  2,
+                           "workersTotal":  19,
+                           "lastColumn":  "550"
+                       },
+                       {
+                           "level":  16,
+                           "wood":  296,
+                           "stone":  422,
+                           "iron":  544,
+                           "workersLevel":  2,
+                           "workersTotal":  21,
+                           "lastColumn":  "614"
+                       },
+                       {
+                           "level":  17,
+                           "wood":  345,
+                           "stone":  493,
+                           "iron":  633,
+                           "workersLevel":  2,
+                           "workersTotal":  23,
+                           "lastColumn":  "684"
+                       },
+                       {
+                           "level":  18,
+                           "wood":  402,
+                           "stone":  577,
+                           "iron":  738,
+                           "workersLevel":  2,
+                           "workersTotal":  25,
+                           "lastColumn":  "763"
+                       },
+                       {
+                           "level":  19,
+                           "wood":  469,
+                           "stone":  675,
+                           "iron":  859,
+                           "workersLevel":  3,
+                           "workersTotal":  28,
+                           "lastColumn":  "851"
+                       },
+                       {
+                           "level":  20,
+                           "wood":  546,
+                           "stone":  790,
+                           "iron":  1001,
+                           "workersLevel":  3,
+                           "workersTotal":  31,
+                           "lastColumn":  "948"
+                       },
+                       {
+                           "level":  21,
+                           "wood":  636,
+                           "stone":  924,
+                           "iron":  1166,
+                           "workersLevel":  3,
+                           "workersTotal":  34,
+                           "lastColumn":  "1.057"
+                       },
+                       {
+                           "level":  22,
+                           "wood":  741,
+                           "stone":  1081,
+                           "iron":  1359,
+                           "workersLevel":  3,
+                           "workersTotal":  37,
+                           "lastColumn":  "1.179"
+                       },
+                       {
+                           "level":  23,
+                           "wood":  864,
+                           "stone":  1265,
+                           "iron":  1583,
+                           "workersLevel":  4,
+                           "workersTotal":  41,
+                           "lastColumn":  "1.314"
+                       },
+                       {
+                           "level":  24,
+                           "wood":  1006,
+                           "stone":  1480,
+                           "iron":  1844,
+                           "workersLevel":  4,
+                           "workersTotal":  45,
+                           "lastColumn":  "1.465"
+                       },
+                       {
+                           "level":  25,
+                           "wood":  1172,
+                           "stone":  1732,
+                           "iron":  2149,
+                           "workersLevel":  4,
+                           "workersTotal":  49,
+                           "lastColumn":  "1.634"
+                       },
+                       {
+                           "level":  26,
+                           "wood":  1365,
+                           "stone":  2026,
+                           "iron":  2503,
+                           "workersLevel":  5,
+                           "workersTotal":  54,
+                           "lastColumn":  "1.822"
+                       },
+                       {
+                           "level":  27,
+                           "wood":  1591,
+                           "stone":  2371,
+                           "iron":  2916,
+                           "workersLevel":  6,
+                           "workersTotal":  60,
+                           "lastColumn":  "2.031"
+                       },
+                       {
+                           "level":  28,
+                           "wood":  1853,
+                           "stone":  2774,
+                           "iron":  3398,
+                           "workersLevel":  6,
+                           "workersTotal":  66,
+                           "lastColumn":  "2.264"
+                       },
+                       {
+                           "level":  29,
+                           "wood":  2159,
+                           "stone":  3245,
+                           "iron":  3958,
+                           "workersLevel":  6,
+                           "workersTotal":  72,
+                           "lastColumn":  "2.525"
+                       },
+                       {
+                           "level":  30,
+                           "wood":  2515,
+                           "stone":  3797,
+                           "iron":  4611,
+                           "workersLevel":  7,
+                           "workersTotal":  79,
+                           "lastColumn":  "2.815"
+                       },
+                       {
+                           "level":  31,
+                           "wood":  2930,
+                           "stone":  4443,
+                           "iron":  5372,
+                           "workersLevel":  8,
+                           "workersTotal":  87,
+                           "lastColumn":  "3.138"
+                       },
+                       {
+                           "level":  32,
+                           "wood":  3414,
+                           "stone":  5198,
+                           "iron":  6258,
+                           "workersLevel":  9,
+                           "workersTotal":  96,
+                           "lastColumn":  "3.499"
+                       },
+                       {
+                           "level":  33,
+                           "wood":  3977,
+                           "stone":  6081,
+                           "iron":  7291,
+                           "workersLevel":  10,
+                           "workersTotal":  106,
+                           "lastColumn":  "3.901"
+                       },
+                       {
+                           "level":  34,
+                           "wood":  4633,
+                           "stone":  7115,
+                           "iron":  8494,
+                           "workersLevel":  10,
+                           "workersTotal":  116,
+                           "lastColumn":  "4.350"
+                       },
+                       {
+                           "level":  35,
+                           "wood":  5398,
+                           "stone":  8325,
+                           "iron":  9896,
+                           "workersLevel":  12,
+                           "workersTotal":  128,
+                           "lastColumn":  "4.849"
+                       },
+                       {
+                           "level":  36,
+                           "wood":  6288,
+                           "stone":  9740,
+                           "iron":  11528,
+                           "workersLevel":  13,
+                           "workersTotal":  141,
+                           "lastColumn":  "5.407"
+                       },
+                       {
+                           "level":  37,
+                           "wood":  7326,
+                           "stone":  11396,
+                           "iron":  13431,
+                           "workersLevel":  14,
+                           "workersTotal":  155,
+                           "lastColumn":  "6.028"
+                       },
+                       {
+                           "level":  38,
+                           "wood":  8535,
+                           "stone":  13333,
+                           "iron":  15647,
+                           "workersLevel":  15,
+                           "workersTotal":  170,
+                           "lastColumn":  "6.721"
+                       },
+                       {
+                           "level":  39,
+                           "wood":  9943,
+                           "stone":  15600,
+                           "iron":  18228,
+                           "workersLevel":  17,
+                           "workersTotal":  187,
+                           "lastColumn":  "7.494"
+                       },
+                       {
+                           "level":  40,
+                           "wood":  11583,
+                           "stone":  18252,
+                           "iron":  21236,
+                           "workersLevel":  19,
+                           "workersTotal":  206,
+                           "lastColumn":  "8.355"
+                       },
+                       {
+                           "level":  41,
+                           "wood":  13495,
+                           "stone":  21355,
+                           "iron":  24740,
+                           "workersLevel":  20,
+                           "workersTotal":  226,
+                           "lastColumn":  "9.315"
+                       },
+                       {
+                           "level":  42,
+                           "wood":  15721,
+                           "stone":  24985,
+                           "iron":  28822,
+                           "workersLevel":  23,
+                           "workersTotal":  249,
+                           "lastColumn":  "10.386"
+                       },
+                       {
+                           "level":  43,
+                           "wood":  18315,
+                           "stone":  29233,
+                           "iron":  33578,
+                           "workersLevel":  25,
+                           "workersTotal":  274,
+                           "lastColumn":  "11.580"
+                       },
+                       {
+                           "level":  44,
+                           "wood":  21337,
+                           "stone":  34202,
+                           "iron":  39118,
+                           "workersLevel":  27,
+                           "workersTotal":  301,
+                           "lastColumn":  "12.911"
+                       },
+                       {
+                           "level":  45,
+                           "wood":  24858,
+                           "stone":  40016,
+                           "iron":  45573,
+                           "workersLevel":  30,
+                           "workersTotal":  331,
+                           "lastColumn":  "14.395"
+                       },
+                       {
+                           "level":  46,
+                           "wood":  28959,
+                           "stone":  46819,
+                           "iron":  53092,
+                           "workersLevel":  33,
+                           "workersTotal":  364,
+                           "lastColumn":  "16.049"
+                       },
+                       {
+                           "level":  47,
+                           "wood":  33738,
+                           "stone":  54778,
+                           "iron":  61852,
+                           "workersLevel":  37,
+                           "workersTotal":  401,
+                           "lastColumn":  "17.894"
+                       },
+                       {
+                           "level":  48,
+                           "wood":  39304,
+                           "stone":  64091,
+                           "iron":  72058,
+                           "workersLevel":  40,
+                           "workersTotal":  441,
+                           "lastColumn":  "19.950"
+                       },
+                       {
+                           "level":  49,
+                           "wood":  45789,
+                           "stone":  74986,
+                           "iron":  83947,
+                           "workersLevel":  44,
+                           "workersTotal":  485,
+                           "lastColumn":  "22.243"
+                       },
+                       {
+                           "level":  50,
+                           "wood":  53345,
+                           "stone":  87734,
+                           "iron":  97799,
+                           "workersLevel":  49,
+                           "workersTotal":  534,
+                           "lastColumn":  "24.800"
+                       }
+                   ]
+    },
+    {
+        "key":  "storage",
+        "name":  "Depo",
+        "maxLevel":  50,
+        "lastColumn":  "Kapasite",
+        "description":  "Hammadeler; rüzgar ve kötü hava şartlarından korunmaları için depoya saklanırlar. Depoda herzaman yeterince yer olduğu kontrol edilmelidir, aksi halde önemli hammadeler kaybolabilirler. Maalesef hammaddeleriniz yağmacılara karşı güvende değiller. Onları saklamak için ayrıca Gizli Depo yapmalısınız.",
+        "requirements":  [
+
+                         ],
+        "levels":  [
+                       {
+                           "level":  1,
+                           "wood":  40,
+                           "stone":  43,
+                           "iron":  35,
+                           "workersLevel":  0,
+                           "workersTotal":  0,
+                           "lastColumn":  "1.000"
+                       },
+                       {
+                           "level":  2,
+                           "wood":  47,
+                           "stone":  50,
+                           "iron":  41,
+                           "workersLevel":  0,
+                           "workersTotal":  0,
+                           "lastColumn":  "1.150"
+                       },
+                       {
+                           "level":  3,
+                           "wood":  54,
+                           "stone":  59,
+                           "iron":  48,
+                           "workersLevel":  0,
+                           "workersTotal":  0,
+                           "lastColumn":  "1.323"
+                       },
+                       {
+                           "level":  4,
+                           "wood":  63,
+                           "stone":  69,
+                           "iron":  55,
+                           "workersLevel":  0,
+                           "workersTotal":  0,
+                           "lastColumn":  "1.522"
+                       },
+                       {
+                           "level":  5,
+                           "wood":  74,
+                           "stone":  81,
+                           "iron":  64,
+                           "workersLevel":  0,
+                           "workersTotal":  0,
+                           "lastColumn":  "1.750"
+                       },
+                       {
+                           "level":  6,
+                           "wood":  86,
+                           "stone":  94,
+                           "iron":  75,
+                           "workersLevel":  0,
+                           "workersTotal":  0,
+                           "lastColumn":  "2.013"
+                       },
+                       {
+                           "level":  7,
+                           "wood":  100,
+                           "stone":  110,
+                           "iron":  88,
+                           "workersLevel":  0,
+                           "workersTotal":  0,
+                           "lastColumn":  "2.315"
+                       },
+                       {
+                           "level":  8,
+                           "wood":  117,
+                           "stone":  129,
+                           "iron":  102,
+                           "workersLevel":  0,
+                           "workersTotal":  0,
+                           "lastColumn":  "2.663"
+                       },
+                       {
+                           "level":  9,
+                           "wood":  136,
+                           "stone":  151,
+                           "iron":  119,
+                           "workersLevel":  0,
+                           "workersTotal":  0,
+                           "lastColumn":  "3.063"
+                       },
+                       {
+                           "level":  10,
+                           "wood":  158,
+                           "stone":  177,
+                           "iron":  138,
+                           "workersLevel":  0,
+                           "workersTotal":  0,
+                           "lastColumn":  "3.523"
+                       },
+                       {
+                           "level":  11,
+                           "wood":  184,
+                           "stone":  207,
+                           "iron":  161,
+                           "workersLevel":  0,
+                           "workersTotal":  0,
+                           "lastColumn":  "4.052"
+                       },
+                       {
+                           "level":  12,
+                           "wood":  215,
+                           "stone":  242,
+                           "iron":  188,
+                           "workersLevel":  0,
+                           "workersTotal":  0,
+                           "lastColumn":  "4.661"
+                       },
+                       {
+                           "level":  13,
+                           "wood":  250,
+                           "stone":  283,
+                           "iron":  219,
+                           "workersLevel":  0,
+                           "workersTotal":  0,
+                           "lastColumn":  "5.361"
+                       },
+                       {
+                           "level":  14,
+                           "wood":  291,
+                           "stone":  331,
+                           "iron":  255,
+                           "workersLevel":  0,
+                           "workersTotal":  0,
+                           "lastColumn":  "6.166"
+                       },
+                       {
+                           "level":  15,
+                           "wood":  339,
+                           "stone":  387,
+                           "iron":  297,
+                           "workersLevel":  0,
+                           "workersTotal":  0,
+                           "lastColumn":  "7.092"
+                       },
+                       {
+                           "level":  16,
+                           "wood":  395,
+                           "stone":  453,
+                           "iron":  346,
+                           "workersLevel":  0,
+                           "workersTotal":  0,
+                           "lastColumn":  "8.157"
+                       },
+                       {
+                           "level":  17,
+                           "wood":  461,
+                           "stone":  530,
+                           "iron":  403,
+                           "workersLevel":  0,
+                           "workersTotal":  0,
+                           "lastColumn":  "9.382"
+                       },
+                       {
+                           "level":  18,
+                           "wood":  537,
+                           "stone":  620,
+                           "iron":  469,
+                           "workersLevel":  1,
+                           "workersTotal":  1,
+                           "lastColumn":  "10.792"
+                       },
+                       {
+                           "level":  19,
+                           "wood":  625,
+                           "stone":  726,
+                           "iron":  547,
+                           "workersLevel":  0,
+                           "workersTotal":  1,
+                           "lastColumn":  "12.412"
+                       },
+                       {
+                           "level":  20,
+                           "wood":  728,
+                           "stone":  849,
+                           "iron":  637,
+                           "workersLevel":  0,
+                           "workersTotal":  1,
+                           "lastColumn":  "14.277"
+                       },
+                       {
+                           "level":  21,
+                           "wood":  848,
+                           "stone":  994,
+                           "iron":  742,
+                           "workersLevel":  0,
+                           "workersTotal":  1,
+                           "lastColumn":  "16.421"
+                       },
+                       {
+                           "level":  22,
+                           "wood":  988,
+                           "stone":  1162,
+                           "iron":  865,
+                           "workersLevel":  0,
+                           "workersTotal":  1,
+                           "lastColumn":  "18.887"
+                       },
+                       {
+                           "level":  23,
+                           "wood":  1151,
+                           "stone":  1360,
+                           "iron":  1007,
+                           "workersLevel":  0,
+                           "workersTotal":  1,
+                           "lastColumn":  "21.724"
+                       },
+                       {
+                           "level":  24,
+                           "wood":  1341,
+                           "stone":  1591,
+                           "iron":  1174,
+                           "workersLevel":  0,
+                           "workersTotal":  1,
+                           "lastColumn":  "24.987"
+                       },
+                       {
+                           "level":  25,
+                           "wood":  1563,
+                           "stone":  1862,
+                           "iron":  1367,
+                           "workersLevel":  0,
+                           "workersTotal":  1,
+                           "lastColumn":  "28.739"
+                       },
+                       {
+                           "level":  26,
+                           "wood":  1821,
+                           "stone":  2178,
+                           "iron":  1593,
+                           "workersLevel":  0,
+                           "workersTotal":  1,
+                           "lastColumn":  "33.056"
+                       },
+                       {
+                           "level":  27,
+                           "wood":  2121,
+                           "stone":  2549,
+                           "iron":  1856,
+                           "workersLevel":  0,
+                           "workersTotal":  1,
+                           "lastColumn":  "38.020"
+                       },
+                       {
+                           "level":  28,
+                           "wood":  2471,
+                           "stone":  2982,
+                           "iron":  2162,
+                           "workersLevel":  0,
+                           "workersTotal":  1,
+                           "lastColumn":  "43.731"
+                       },
+                       {
+                           "level":  29,
+                           "wood":  2879,
+                           "stone":  3489,
+                           "iron":  2519,
+                           "workersLevel":  0,
+                           "workersTotal":  1,
+                           "lastColumn":  "50.299"
+                       },
+                       {
+                           "level":  30,
+                           "wood":  3354,
+                           "stone":  4082,
+                           "iron":  2934,
+                           "workersLevel":  1,
+                           "workersTotal":  2,
+                           "lastColumn":  "57.853"
+                       },
+                       {
+                           "level":  31,
+                           "wood":  3907,
+                           "stone":  4776,
+                           "iron":  3419,
+                           "workersLevel":  0,
+                           "workersTotal":  2,
+                           "lastColumn":  "66.542"
+                       },
+                       {
+                           "level":  32,
+                           "wood":  4552,
+                           "stone":  5588,
+                           "iron":  3983,
+                           "workersLevel":  0,
+                           "workersTotal":  2,
+                           "lastColumn":  "76.536"
+                       },
+                       {
+                           "level":  33,
+                           "wood":  5303,
+                           "stone":  6538,
+                           "iron":  4640,
+                           "workersLevel":  0,
+                           "workersTotal":  2,
+                           "lastColumn":  "88.031"
+                       },
+                       {
+                           "level":  34,
+                           "wood":  6178,
+                           "stone":  7649,
+                           "iron":  5405,
+                           "workersLevel":  0,
+                           "workersTotal":  2,
+                           "lastColumn":  "101.252"
+                       },
+                       {
+                           "level":  35,
+                           "wood":  7197,
+                           "stone":  8949,
+                           "iron":  6297,
+                           "workersLevel":  1,
+                           "workersTotal":  3,
+                           "lastColumn":  "116.460"
+                       },
+                       {
+                           "level":  36,
+                           "wood":  8384,
+                           "stone":  10471,
+                           "iron":  7336,
+                           "workersLevel":  0,
+                           "workersTotal":  3,
+                           "lastColumn":  "133.951"
+                       },
+                       {
+                           "level":  37,
+                           "wood":  9768,
+                           "stone":  12251,
+                           "iron":  8547,
+                           "workersLevel":  0,
+                           "workersTotal":  3,
+                           "lastColumn":  "154.069"
+                       },
+                       {
+                           "level":  38,
+                           "wood":  11379,
+                           "stone":  14333,
+                           "iron":  9957,
+                           "workersLevel":  0,
+                           "workersTotal":  3,
+                           "lastColumn":  "177.209"
+                       },
+                       {
+                           "level":  39,
+                           "wood":  13257,
+                           "stone":  16770,
+                           "iron":  11600,
+                           "workersLevel":  1,
+                           "workersTotal":  4,
+                           "lastColumn":  "203.824"
+                       },
+                       {
+                           "level":  40,
+                           "wood":  15444,
+                           "stone":  19621,
+                           "iron":  13514,
+                           "workersLevel":  0,
+                           "workersTotal":  4,
+                           "lastColumn":  "234.436"
+                       },
+                       {
+                           "level":  41,
+                           "wood":  17993,
+                           "stone":  22956,
+                           "iron":  15744,
+                           "workersLevel":  1,
+                           "workersTotal":  5,
+                           "lastColumn":  "269.646"
+                       },
+                       {
+                           "level":  42,
+                           "wood":  20962,
+                           "stone":  26859,
+                           "iron":  18341,
+                           "workersLevel":  0,
+                           "workersTotal":  5,
+                           "lastColumn":  "310.145"
+                       },
+                       {
+                           "level":  43,
+                           "wood":  24420,
+                           "stone":  31425,
+                           "iron":  21368,
+                           "workersLevel":  0,
+                           "workersTotal":  5,
+                           "lastColumn":  "356.726"
+                       },
+                       {
+                           "level":  44,
+                           "wood":  28450,
+                           "stone":  36767,
+                           "iron":  24893,
+                           "workersLevel":  1,
+                           "workersTotal":  6,
+                           "lastColumn":  "410.303"
+                       },
+                       {
+                           "level":  45,
+                           "wood":  33144,
+                           "stone":  43018,
+                           "iron":  29001,
+                           "workersLevel":  1,
+                           "workersTotal":  7,
+                           "lastColumn":  "471.926"
+                       },
+                       {
+                           "level":  46,
+                           "wood":  38612,
+                           "stone":  50331,
+                           "iron":  33786,
+                           "workersLevel":  0,
+                           "workersTotal":  7,
+                           "lastColumn":  "542.805"
+                       },
+                       {
+                           "level":  47,
+                           "wood":  44983,
+                           "stone":  58887,
+                           "iron":  39361,
+                           "workersLevel":  1,
+                           "workersTotal":  8,
+                           "lastColumn":  "624.330"
+                       },
+                       {
+                           "level":  48,
+                           "wood":  52406,
+                           "stone":  68898,
+                           "iron":  45855,
+                           "workersLevel":  1,
+                           "workersTotal":  9,
+                           "lastColumn":  "718.098"
+                       },
+                       {
+                           "level":  49,
+                           "wood":  61053,
+                           "stone":  80610,
+                           "iron":  53421,
+                           "workersLevel":  1,
+                           "workersTotal":  10,
+                           "lastColumn":  "825.950"
+                       },
+                       {
+                           "level":  50,
+                           "wood":  71126,
+                           "stone":  94314,
+                           "iron":  62236,
+                           "workersLevel":  1,
+                           "workersTotal":  11,
+                           "lastColumn":  "950.000"
+                       }
+                   ]
+    },
+    {
+        "key":  "wall",
+        "name":  "Sur",
+        "maxLevel":  20,
+        "lastColumn":  "Savunma üniteleri için takviye",
+        "description":  "Güçlü surlar sayesinde vatandaşlarınız aç kurtlardan ve saldıran diğer düşmanlardan korunurlar. Köy savunulacağı zaman surun gücü (kademesine bağlı olarak), köydeki birliklerinizin de gücünü etkiler.",
+        "requirements":  [
+                             {
+                                 "name":  "Kışla",
+                                 "level":  1
+                             }
+                         ],
+        "levels":  [
+                       {
+                           "level":  1,
+                           "wood":  40,
+                           "stone":  60,
+                           "iron":  30,
+                           "workersLevel":  4,
+                           "workersTotal":  4,
+                           "lastColumn":  "105%"
+                       },
+                       {
+                           "level":  2,
+                           "wood":  47,
+                           "stone":  70,
+                           "iron":  35,
+                           "workersLevel":  1,
+                           "workersTotal":  5,
+                           "lastColumn":  "109%"
+                       },
+                       {
+                           "level":  3,
+                           "wood":  54,
+                           "stone":  82,
+                           "iron":  40,
+                           "workersLevel":  1,
+                           "workersTotal":  6,
+                           "lastColumn":  "114%"
+                       },
+                       {
+                           "level":  4,
+                           "wood":  63,
+                           "stone":  96,
+                           "iron":  47,
+                           "workersLevel":  1,
+                           "workersTotal":  7,
+                           "lastColumn":  "118%"
+                       },
+                       {
+                           "level":  5,
+                           "wood":  74,
+                           "stone":  112,
+                           "iron":  54,
+                           "workersLevel":  1,
+                           "workersTotal":  8,
+                           "lastColumn":  "123%"
+                       },
+                       {
+                           "level":  6,
+                           "wood":  86,
+                           "stone":  132,
+                           "iron":  63,
+                           "workersLevel":  2,
+                           "workersTotal":  10,
+                           "lastColumn":  "128%"
+                       },
+                       {
+                           "level":  7,
+                           "wood":  100,
+                           "stone":  154,
+                           "iron":  73,
+                           "workersLevel":  2,
+                           "workersTotal":  12,
+                           "lastColumn":  "133%"
+                       },
+                       {
+                           "level":  8,
+                           "wood":  117,
+                           "stone":  180,
+                           "iron":  85,
+                           "workersLevel":  2,
+                           "workersTotal":  14,
+                           "lastColumn":  "138%"
+                       },
+                       {
+                           "level":  9,
+                           "wood":  136,
+                           "stone":  211,
+                           "iron":  98,
+                           "workersLevel":  3,
+                           "workersTotal":  17,
+                           "lastColumn":  "143%"
+                       },
+                       {
+                           "level":  10,
+                           "wood":  158,
+                           "stone":  247,
+                           "iron":  114,
+                           "workersLevel":  4,
+                           "workersTotal":  21,
+                           "lastColumn":  "149%"
+                       },
+                       {
+                           "level":  11,
+                           "wood":  184,
+                           "stone":  288,
+                           "iron":  132,
+                           "workersLevel":  4,
+                           "workersTotal":  25,
+                           "lastColumn":  "155%"
+                       },
+                       {
+                           "level":  12,
+                           "wood":  215,
+                           "stone":  337,
+                           "iron":  154,
+                           "workersLevel":  5,
+                           "workersTotal":  30,
+                           "lastColumn":  "161%"
+                       },
+                       {
+                           "level":  13,
+                           "wood":  250,
+                           "stone":  395,
+                           "iron":  178,
+                           "workersLevel":  6,
+                           "workersTotal":  36,
+                           "lastColumn":  "168%"
+                       },
+                       {
+                           "level":  14,
+                           "wood":  291,
+                           "stone":  462,
+                           "iron":  207,
+                           "workersLevel":  7,
+                           "workersTotal":  43,
+                           "lastColumn":  "174%"
+                       },
+                       {
+                           "level":  15,
+                           "wood":  339,
+                           "stone":  540,
+                           "iron":  240,
+                           "workersLevel":  8,
+                           "workersTotal":  51,
+                           "lastColumn":  "181%"
+                       },
+                       {
+                           "level":  16,
+                           "wood":  395,
+                           "stone":  632,
+                           "iron":  278,
+                           "workersLevel":  11,
+                           "workersTotal":  62,
+                           "lastColumn":  "188%"
+                       },
+                       {
+                           "level":  17,
+                           "wood":  461,
+                           "stone":  740,
+                           "iron":  322,
+                           "workersLevel":  12,
+                           "workersTotal":  74,
+                           "lastColumn":  "196%"
+                       },
+                       {
+                           "level":  18,
+                           "wood":  537,
+                           "stone":  866,
+                           "iron":  374,
+                           "workersLevel":  15,
+                           "workersTotal":  89,
+                           "lastColumn":  "204%"
+                       },
+                       {
+                           "level":  19,
+                           "wood":  625,
+                           "stone":  1013,
+                           "iron":  434,
+                           "workersLevel":  17,
+                           "workersTotal":  106,
+                           "lastColumn":  "212%"
+                       },
+                       {
+                           "level":  20,
+                           "wood":  728,
+                           "stone":  1185,
+                           "iron":  503,
+                           "workersLevel":  22,
+                           "workersTotal":  128,
+                           "lastColumn":  "220%"
+                       }
+                   ]
+    },
+    {
+        "key":  "wood",
+        "name":  "Oduncu Kampı",
+        "maxLevel":  50,
+        "lastColumn":  "Saatlik üretim",
+        "description":  "Zırhlar ve silahlar için bir yapı malzemesi olarak ihtiyaç duyulsa da: Odun köylerinizin en fazla ihtiyaç duyduğu hammaddedir. Oduncu kampında, çevredeki ağaçlar işlenerek inşaatçıların ve demircinin kullanabileceği hale getirilir. Oduncu kampının geliştirilmesi, odun kesmek için daha fazla işçi çalıştırabilmenizi sağlar.",
+        "requirements":  [
+
+                         ],
+        "levels":  [
+                       {
+                           "level":  1,
+                           "wood":  30,
+                           "stone":  55,
+                           "iron":  40,
+                           "workersLevel":  5,
+                           "workersTotal":  5,
+                           "lastColumn":  "120"
+                       },
+                       {
+                           "level":  2,
+                           "wood":  35,
+                           "stone":  64,
+                           "iron":  47,
+                           "workersLevel":  1,
+                           "workersTotal":  6,
+                           "lastColumn":  "134"
+                       },
+                       {
+                           "level":  3,
+                           "wood":  41,
+                           "stone":  75,
+                           "iron":  54,
+                           "workersLevel":  0,
+                           "workersTotal":  6,
+                           "lastColumn":  "149"
+                       },
+                       {
+                           "level":  4,
+                           "wood":  47,
+                           "stone":  88,
+                           "iron":  63,
+                           "workersLevel":  1,
+                           "workersTotal":  7,
+                           "lastColumn":  "166"
+                       },
+                       {
+                           "level":  5,
+                           "wood":  55,
+                           "stone":  103,
+                           "iron":  74,
+                           "workersLevel":  0,
+                           "workersTotal":  7,
+                           "lastColumn":  "185"
+                       },
+                       {
+                           "level":  6,
+                           "wood":  64,
+                           "stone":  121,
+                           "iron":  86,
+                           "workersLevel":  1,
+                           "workersTotal":  8,
+                           "lastColumn":  "207"
+                       },
+                       {
+                           "level":  7,
+                           "wood":  75,
+                           "stone":  141,
+                           "iron":  100,
+                           "workersLevel":  1,
+                           "workersTotal":  9,
+                           "lastColumn":  "231"
+                       },
+                       {
+                           "level":  8,
+                           "wood":  87,
+                           "stone":  165,
+                           "iron":  117,
+                           "workersLevel":  1,
+                           "workersTotal":  10,
+                           "lastColumn":  "257"
+                       },
+                       {
+                           "level":  9,
+                           "wood":  102,
+                           "stone":  193,
+                           "iron":  136,
+                           "workersLevel":  1,
+                           "workersTotal":  11,
+                           "lastColumn":  "287"
+                       },
+                       {
+                           "level":  10,
+                           "wood":  119,
+                           "stone":  226,
+                           "iron":  158,
+                           "workersLevel":  1,
+                           "workersTotal":  12,
+                           "lastColumn":  "319"
+                       },
+                       {
+                           "level":  11,
+                           "wood":  138,
+                           "stone":  264,
+                           "iron":  184,
+                           "workersLevel":  1,
+                           "workersTotal":  13,
+                           "lastColumn":  "356"
+                       },
+                       {
+                           "level":  12,
+                           "wood":  161,
+                           "stone":  309,
+                           "iron":  215,
+                           "workersLevel":  1,
+                           "workersTotal":  14,
+                           "lastColumn":  "397"
+                       },
+                       {
+                           "level":  13,
+                           "wood":  188,
+                           "stone":  362,
+                           "iron":  250,
+                           "workersLevel":  2,
+                           "workersTotal":  16,
+                           "lastColumn":  "443"
+                       },
+                       {
+                           "level":  14,
+                           "wood":  218,
+                           "stone":  423,
+                           "iron":  291,
+                           "workersLevel":  1,
+                           "workersTotal":  17,
+                           "lastColumn":  "494"
+                       },
+                       {
+                           "level":  15,
+                           "wood":  254,
+                           "stone":  495,
+                           "iron":  339,
+                           "workersLevel":  2,
+                           "workersTotal":  19,
+                           "lastColumn":  "550"
+                       },
+                       {
+                           "level":  16,
+                           "wood":  296,
+                           "stone":  580,
+                           "iron":  395,
+                           "workersLevel":  2,
+                           "workersTotal":  21,
+                           "lastColumn":  "614"
+                       },
+                       {
+                           "level":  17,
+                           "wood":  345,
+                           "stone":  678,
+                           "iron":  461,
+                           "workersLevel":  2,
+                           "workersTotal":  23,
+                           "lastColumn":  "684"
+                       },
+                       {
+                           "level":  18,
+                           "wood":  402,
+                           "stone":  793,
+                           "iron":  537,
+                           "workersLevel":  2,
+                           "workersTotal":  25,
+                           "lastColumn":  "763"
+                       },
+                       {
+                           "level":  19,
+                           "wood":  469,
+                           "stone":  928,
+                           "iron":  625,
+                           "workersLevel":  3,
+                           "workersTotal":  28,
+                           "lastColumn":  "851"
+                       },
+                       {
+                           "level":  20,
+                           "wood":  546,
+                           "stone":  1086,
+                           "iron":  728,
+                           "workersLevel":  3,
+                           "workersTotal":  31,
+                           "lastColumn":  "948"
+                       },
+                       {
+                           "level":  21,
+                           "wood":  636,
+                           "stone":  1271,
+                           "iron":  848,
+                           "workersLevel":  3,
+                           "workersTotal":  34,
+                           "lastColumn":  "1.057"
+                       },
+                       {
+                           "level":  22,
+                           "wood":  741,
+                           "stone":  1487,
+                           "iron":  988,
+                           "workersLevel":  3,
+                           "workersTotal":  37,
+                           "lastColumn":  "1.179"
+                       },
+                       {
+                           "level":  23,
+                           "wood":  864,
+                           "stone":  1740,
+                           "iron":  1151,
+                           "workersLevel":  4,
+                           "workersTotal":  41,
+                           "lastColumn":  "1.314"
+                       },
+                       {
+                           "level":  24,
+                           "wood":  1006,
+                           "stone":  2035,
+                           "iron":  1341,
+                           "workersLevel":  4,
+                           "workersTotal":  45,
+                           "lastColumn":  "1.465"
+                       },
+                       {
+                           "level":  25,
+                           "wood":  1172,
+                           "stone":  2381,
+                           "iron":  1563,
+                           "workersLevel":  4,
+                           "workersTotal":  49,
+                           "lastColumn":  "1.634"
+                       },
+                       {
+                           "level":  26,
+                           "wood":  1365,
+                           "stone":  2786,
+                           "iron":  1821,
+                           "workersLevel":  5,
+                           "workersTotal":  54,
+                           "lastColumn":  "1.822"
+                       },
+                       {
+                           "level":  27,
+                           "wood":  1591,
+                           "stone":  3260,
+                           "iron":  2121,
+                           "workersLevel":  6,
+                           "workersTotal":  60,
+                           "lastColumn":  "2.031"
+                       },
+                       {
+                           "level":  28,
+                           "wood":  1853,
+                           "stone":  3814,
+                           "iron":  2471,
+                           "workersLevel":  6,
+                           "workersTotal":  66,
+                           "lastColumn":  "2.264"
+                       },
+                       {
+                           "level":  29,
+                           "wood":  2159,
+                           "stone":  4462,
+                           "iron":  2879,
+                           "workersLevel":  6,
+                           "workersTotal":  72,
+                           "lastColumn":  "2.525"
+                       },
+                       {
+                           "level":  30,
+                           "wood":  2515,
+                           "stone":  5221,
+                           "iron":  3354,
+                           "workersLevel":  7,
+                           "workersTotal":  79,
+                           "lastColumn":  "2.815"
+                       },
+                       {
+                           "level":  31,
+                           "wood":  2930,
+                           "stone":  6109,
+                           "iron":  3907,
+                           "workersLevel":  8,
+                           "workersTotal":  87,
+                           "lastColumn":  "3.138"
+                       },
+                       {
+                           "level":  32,
+                           "wood":  3414,
+                           "stone":  7147,
+                           "iron":  4552,
+                           "workersLevel":  9,
+                           "workersTotal":  96,
+                           "lastColumn":  "3.499"
+                       },
+                       {
+                           "level":  33,
+                           "wood":  3977,
+                           "stone":  8362,
+                           "iron":  5303,
+                           "workersLevel":  10,
+                           "workersTotal":  106,
+                           "lastColumn":  "3.901"
+                       },
+                       {
+                           "level":  34,
+                           "wood":  4633,
+                           "stone":  9784,
+                           "iron":  6178,
+                           "workersLevel":  10,
+                           "workersTotal":  116,
+                           "lastColumn":  "4.350"
+                       },
+                       {
+                           "level":  35,
+                           "wood":  5398,
+                           "stone":  11447,
+                           "iron":  7197,
+                           "workersLevel":  12,
+                           "workersTotal":  128,
+                           "lastColumn":  "4.849"
+                       },
+                       {
+                           "level":  36,
+                           "wood":  6288,
+                           "stone":  13393,
+                           "iron":  8384,
+                           "workersLevel":  13,
+                           "workersTotal":  141,
+                           "lastColumn":  "5.407"
+                       },
+                       {
+                           "level":  37,
+                           "wood":  7326,
+                           "stone":  15669,
+                           "iron":  9768,
+                           "workersLevel":  14,
+                           "workersTotal":  155,
+                           "lastColumn":  "6.028"
+                       },
+                       {
+                           "level":  38,
+                           "wood":  8535,
+                           "stone":  18333,
+                           "iron":  11379,
+                           "workersLevel":  15,
+                           "workersTotal":  170,
+                           "lastColumn":  "6.721"
+                       },
+                       {
+                           "level":  39,
+                           "wood":  9943,
+                           "stone":  21450,
+                           "iron":  13257,
+                           "workersLevel":  17,
+                           "workersTotal":  187,
+                           "lastColumn":  "7.494"
+                       },
+                       {
+                           "level":  40,
+                           "wood":  11583,
+                           "stone":  25096,
+                           "iron":  15444,
+                           "workersLevel":  19,
+                           "workersTotal":  206,
+                           "lastColumn":  "8.355"
+                       },
+                       {
+                           "level":  41,
+                           "wood":  13495,
+                           "stone":  29363,
+                           "iron":  17993,
+                           "workersLevel":  20,
+                           "workersTotal":  226,
+                           "lastColumn":  "9.315"
+                       },
+                       {
+                           "level":  42,
+                           "wood":  15721,
+                           "stone":  34354,
+                           "iron":  20962,
+                           "workersLevel":  23,
+                           "workersTotal":  249,
+                           "lastColumn":  "10.386"
+                       },
+                       {
+                           "level":  43,
+                           "wood":  18315,
+                           "stone":  40195,
+                           "iron":  24420,
+                           "workersLevel":  25,
+                           "workersTotal":  274,
+                           "lastColumn":  "11.580"
+                       },
+                       {
+                           "level":  44,
+                           "wood":  21337,
+                           "stone":  47028,
+                           "iron":  28450,
+                           "workersLevel":  27,
+                           "workersTotal":  301,
+                           "lastColumn":  "12.911"
+                       },
+                       {
+                           "level":  45,
+                           "wood":  24858,
+                           "stone":  55023,
+                           "iron":  33144,
+                           "workersLevel":  30,
+                           "workersTotal":  331,
+                           "lastColumn":  "14.395"
+                       },
+                       {
+                           "level":  46,
+                           "wood":  28959,
+                           "stone":  64376,
+                           "iron":  38612,
+                           "workersLevel":  33,
+                           "workersTotal":  364,
+                           "lastColumn":  "16.049"
+                       },
+                       {
+                           "level":  47,
+                           "wood":  33738,
+                           "stone":  75320,
+                           "iron":  44983,
+                           "workersLevel":  37,
+                           "workersTotal":  401,
+                           "lastColumn":  "17.894"
+                       },
+                       {
+                           "level":  48,
+                           "wood":  39304,
+                           "stone":  88125,
+                           "iron":  52406,
+                           "workersLevel":  40,
+                           "workersTotal":  441,
+                           "lastColumn":  "19.950"
+                       },
+                       {
+                           "level":  49,
+                           "wood":  45789,
+                           "stone":  103106,
+                           "iron":  61053,
+                           "workersLevel":  44,
+                           "workersTotal":  485,
+                           "lastColumn":  "22.243"
+                       },
+                       {
+                           "level":  50,
+                           "wood":  53345,
+                           "stone":  120634,
+                           "iron":  71126,
+                           "workersLevel":  49,
+                           "workersTotal":  534,
+                           "lastColumn":  "24.800"
+                       }
+                   ]
+    }
+]

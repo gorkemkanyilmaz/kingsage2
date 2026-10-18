@@ -1,0 +1,24 @@
+# ---------- Godot ----------
+game/.godot/
+game/android/
+game/.import/
+export_presets.cfg
+*.translation
+.mono/
+
+# ---------- Araclar (indirilen Godot vb.) ----------
+tools/
+
+# ---------- Arastirma: ham ve turetilmis yardim icerigi ----------
+# NOT: Bunlar Gameforge'a ait telifli yardim metinleridir; surum kontrolunde TUTULMAZ.
+# Indirme betikleri + URL listeleri repoda kalir -> tek komutla yeniden uretilebilir:
+#   research/fetch-pages.ps1  /  research/fetch-tr.ps1  +  research/html2text.ps1
+research/raw/
+research/raw-tr/
+research/text/
+research/text-tr/
+
+# ---------- Isletim sistemi ----------
+Thumbs.db
+Desktop.ini
+.DS_Store

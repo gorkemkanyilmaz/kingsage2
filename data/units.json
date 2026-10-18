@@ -1,0 +1,527 @@
+﻿{
+    "units":  [
+                  {
+                      "key":  "axe",
+                      "name":  "Baltacı",
+                      "description":  "Baltacılar savaş alanında savaş çığlıklarını atıp, düşmanlarıyla daha çarpışmadan korku salarak, baltaları deli gibi sallamaya başlarlar. Birkez kendilerini kaptırdıklarında, onları durdurmak mümkün değildir ve saldırma arzuları onları bilinen en dehşet saçan birimlerden biri haline getirir.",
+                      "costWood":  50,
+                      "costStone":  40,
+                      "costIron":  50,
+                      "settlers":  1,
+                      "speed":  "4.5 Alan başına dakika",
+                      "carryBooty":  10,
+                      "attack":  350,
+                      "defenceInf":  70,
+                      "defenceCav":  50,
+                      "defenceArch":  50,
+                      "requirements":  [
+                                           {
+                                               "name":  "Kışla",
+                                               "level":  2
+                                           }
+                                       ]
+                  },
+                  {
+                      "key":  "bow",
+                      "name":  "Okçu",
+                      "description":  "Kartal kadar keskin gözleri ve sivri uçlu oklarıyla, uzak mesafeden ölümcüldürler. Onlar, saldırı veya savunma ordunuzda sizi destekleyebilirler.",
+                      "costWood":  160,
+                      "costStone":  80,
+                      "costIron":  80,
+                      "settlers":  1,
+                      "speed":  "4.5 Alan başına dakika",
+                      "carryBooty":  10,
+                      "attack":  150,
+                      "defenceInf":  400,
+                      "defenceCav":  150,
+                      "defenceArch":  100,
+                      "requirements":  [
+                                           {
+                                               "name":  "Kışla",
+                                               "level":  5
+                                           }
+                                       ]
+                  },
+                  {
+                      "key":  "farmer",
+                      "name":  "Köy Koruyucusu",
+                      "description":  "Asker eğitmeye para ve zamanın yoksa, çiftçiler kendilerini sivri ve keskin aletleriyle koruyacak. Tek başlarına ciddiye alınacak bir rakip olmasalar da büyük gruplar halinde saldırdıklarında piyade ve süvarilere önemli zararlar verebilirler.",
+                      "costWood":  10,
+                      "costStone":  3,
+                      "costIron":  7,
+                      "settlers":  1,
+                      "speed":  "5 Alan başına dakika",
+                      "carryBooty":  5,
+                      "attack":  20,
+                      "defenceInf":  40,
+                      "defenceCav":  30,
+                      "defenceArch":  5,
+                      "requirements":  [
+                                           {
+                                               "name":  "Kışla",
+                                               "level":  1
+                                           }
+                                       ]
+                  },
+                  {
+                      "key":  "heavy",
+                      "name":  "Kara Şövalye",
+                      "description":  "Kara Şovalyelerin çevresini kötülüğün kokusu sarmıştır. Gören herkese korku ve dehşet saçarlar. Onların tek kelime ettiğini veya isimlerinin zikredildiğini kimse duymamıştır. Hiç bir zaafları yoktur. Ancak maliyetleri aşırı derecede fazladır.",
+                      "costWood":  300,
+                      "costStone":  100,
+                      "costIron":  500,
+                      "settlers":  6,
+                      "speed":  "2.75 Alan başına dakika",
+                      "carryBooty":  50,
+                      "attack":  600,
+                      "defenceInf":  1500,
+                      "defenceCav":  1000,
+                      "defenceArch":  1000,
+                      "requirements":  [
+                                           {
+                                               "name":  "Kışla",
+                                               "level":  16
+                                           }
+                                       ]
+                  },
+                  {
+                      "key":  "kata",
+                      "name":  "Mancınık",
+                      "description":  "Mancınık ölümcül bir tekniğe sahip: Sapanları düşmanlarına en ağır kayaları fırlatabilecek şekilde tasarlanmış. Aynı zamanda binaları da bombalayabilir. Buna rağmen kendini savunamadığı için muhafıza ihtiyaç duyar.",
+                      "costWood":  600,
+                      "costStone":  200,
+                      "costIron":  200,
+                      "settlers":  8,
+                      "speed":  "7.5 Alan başına dakika",
+                      "carryBooty":  0,
+                      "attack":  500,
+                      "defenceInf":  400,
+                      "defenceCav":  100,
+                      "defenceArch":  200,
+                      "requirements":  [
+                                           {
+                                               "name":  "Kışla",
+                                               "level":  25
+                                           }
+                                       ]
+                  },
+                  {
+                      "key":  "light",
+                      "name":  "Akıncı",
+                      "description":  "Çok uzak mesafelerden dahi düşmanlar akıncıların dalgalanan sancaklarını görürler. Bu hızlı savaşçılar oldukça deneyimlidirler. Hızlı ve güçlü bir şekilde savaşın ortasına sürebilirler. Eğer hızlı bir şekilde kuşatmalar ve akınlar icra etmek istiyorsanız bu savaşçıları kullanmanız kaçınılmaz olur.",
+                      "costWood":  100,
+                      "costStone":  100,
+                      "costIron":  300,
+                      "settlers":  4,
+                      "speed":  "2.5 Alan başına dakika",
+                      "carryBooty":  80,
+                      "attack":  900,
+                      "defenceInf":  200,
+                      "defenceCav":  300,
+                      "defenceArch":  300,
+                      "requirements":  [
+                                           {
+                                               "name":  "Kışla",
+                                               "level":  7
+                                           }
+                                       ]
+                  },
+                  {
+                      "key":  "ram",
+                      "name":  "Şahmerdan",
+                      "description":  "On adamın gücüyle çelik alnını vuracak bir şahmerdana uzun süre dayanacabilecek sur yoktur. Fakat ağırlığı çok fazla olduğundan, çok yavaş hareket edebilir.",
+                      "costWood":  500,
+                      "costStone":  100,
+                      "costIron":  200,
+                      "settlers":  5,
+                      "speed":  "7.5 Alan başına dakika",
+                      "carryBooty":  0,
+                      "attack":  100,
+                      "defenceInf":  100,
+                      "defenceCav":  200,
+                      "defenceArch":  20,
+                      "requirements":  [
+                                           {
+                                               "name":  "Kışla",
+                                               "level":  20
+                                           }
+                                       ]
+                  },
+                  {
+                      "key":  "snob",
+                      "name":  "Kont",
+                      "description":  "Uzaktan kraliyet bandosunun sesini duyabilir, adınıza köyün yönetimini devralacak kontun işaretini alabilirsiniz. Majestelerinin adıyla tüm köyleri krallığınıza katılmaya ikna eder.",
+                      "costWood":  120000,
+                      "costStone":  100000,
+                      "costIron":  80000,
+                      "settlers":  100,
+                      "speed":  "8.75 Alan başına dakika",
+                      "carryBooty":  0,
+                      "attack":  100,
+                      "defenceInf":  300,
+                      "defenceCav":  100,
+                      "defenceArch":  200,
+                      "requirements":  [
+
+                                       ]
+                  },
+                  {
+                      "key":  "spear",
+                      "name":  "Silahtar",
+                      "description":  "Bir şovalye silahtarı olmadan ne yapar! Fakat silahtarlar, şovalyeleri olmadan da çok faydalı destek birimleridir. Atlarla araları iyidir, çok fazla silahları olmamasına rağmen, atlı birliklere karşı kendilerini koruma becerisine sahiptirler.",
+                      "costWood":  20,
+                      "costStone":  10,
+                      "costIron":  30,
+                      "settlers":  1,
+                      "speed":  "4.5 Alan başına dakika",
+                      "carryBooty":  25,
+                      "attack":  50,
+                      "defenceInf":  100,
+                      "defenceCav":  200,
+                      "defenceArch":  300,
+                      "requirements":  [
+                                           {
+                                               "name":  "Kışla",
+                                               "level":  1
+                                           }
+                                       ]
+                  },
+                  {
+                      "key":  "spy",
+                      "name":  "Casus",
+                      "description":  "Casusların gücü, savaşta yalan söylememeleridir. Ayrıca gecenin karanlığında düşman köylerini gözetlemek için sokulurlar. Daha fazla casus, daha detaylı casusluk raporu hazırlayacaktır.",
+                      "costWood":  60,
+                      "costStone":  40,
+                      "costIron":  60,
+                      "settlers":  2,
+                      "speed":  "2.25 Alan başına dakika",
+                      "carryBooty":  0,
+                      "attack":  1,
+                      "defenceInf":  10,
+                      "defenceCav":  5,
+                      "defenceArch":  7,
+                      "requirements":  [
+                                           {
+                                               "name":  "Kışla",
+                                               "level":  4
+                                           }
+                                       ]
+                  },
+                  {
+                      "key":  "sword",
+                      "name":  "Muhafız",
+                      "description":  "Muhafızlar sağlam kalkanları ve sarsılmak bilmez onurlarıyla tanınırlar. Krallarını ve insanlarını korumak için korkusuzca bütün düşmanların karşılarında (güçlerine bakmaksızın) dururlar. Muhafızlar yürüyen askerlere karşı uyguladıkları iyi savunmalarıyla bilinirler.",
+                      "costWood":  10,
+                      "costStone":  30,
+                      "costIron":  80,
+                      "settlers":  1,
+                      "speed":  "5.5 Alan başına dakika",
+                      "carryBooty":  15,
+                      "attack":  100,
+                      "defenceInf":  300,
+                      "defenceCav":  100,
+                      "defenceArch":  200,
+                      "requirements":  [
+                                           {
+                                               "name":  "Kışla",
+                                               "level":  1
+                                           }
+                                       ]
+                  }
+              ],
+    "training":  [
+                     {
+                         "key":  "farmer",
+                         "name":  "Köy Koruyucusu",
+                         "stone":  3,
+                         "wood":  10,
+                         "iron":  7,
+                         "settlers":  1,
+                         "time":  "0:00:14"
+                     },
+                     {
+                         "key":  "sword",
+                         "name":  "Muhafız",
+                         "stone":  30,
+                         "wood":  10,
+                         "iron":  80,
+                         "settlers":  1,
+                         "time":  "0:01:08"
+                     },
+                     {
+                         "key":  "spear",
+                         "name":  "Silahtar",
+                         "stone":  10,
+                         "wood":  20,
+                         "iron":  30,
+                         "settlers":  1,
+                         "time":  "0:00:53"
+                     },
+                     {
+                         "key":  "axe",
+                         "name":  "Baltacı",
+                         "stone":  40,
+                         "wood":  50,
+                         "iron":  50,
+                         "settlers":  1,
+                         "time":  "0:01:00"
+                     },
+                     {
+                         "key":  "bow",
+                         "name":  "Okçu",
+                         "stone":  80,
+                         "wood":  160,
+                         "iron":  80,
+                         "settlers":  1,
+                         "time":  "0:01:15"
+                     },
+                     {
+                         "key":  "spy",
+                         "name":  "Casus",
+                         "stone":  40,
+                         "wood":  60,
+                         "iron":  60,
+                         "settlers":  2,
+                         "time":  "0:02:15"
+                     },
+                     {
+                         "key":  "light",
+                         "name":  "Akıncı",
+                         "stone":  100,
+                         "wood":  100,
+                         "iron":  300,
+                         "settlers":  4,
+                         "time":  "0:05:15"
+                     },
+                     {
+                         "key":  "heavy",
+                         "name":  "Kara Şövalye",
+                         "stone":  100,
+                         "wood":  300,
+                         "iron":  500,
+                         "settlers":  6,
+                         "time":  "0:07:30"
+                     },
+                     {
+                         "key":  "ram",
+                         "name":  "Şahmerdan",
+                         "stone":  100,
+                         "wood":  500,
+                         "iron":  200,
+                         "settlers":  5,
+                         "time":  "0:17:30"
+                     },
+                     {
+                         "key":  "kata",
+                         "name":  "Mancınık",
+                         "stone":  200,
+                         "wood":  600,
+                         "iron":  200,
+                         "settlers":  8,
+                         "time":  "0:25:00"
+                     },
+                     {
+                         "key":  "snob",
+                         "name":  "Kont",
+                         "stone":  100000,
+                         "wood":  120000,
+                         "iron":  80000,
+                         "settlers":  100,
+                         "time":  "2:30:00"
+                     }
+                 ],
+    "combat":  [
+                   {
+                       "key":  "farmer",
+                       "name":  "Köy Koruyucusu",
+                       "attack":  20,
+                       "defenceInf":  40,
+                       "defenceCav":  30,
+                       "defenceArch":  5,
+                       "mobility":  5,
+                       "loadCapacity":  5
+                   },
+                   {
+                       "key":  "sword",
+                       "name":  "Muhafız",
+                       "attack":  100,
+                       "defenceInf":  300,
+                       "defenceCav":  100,
+                       "defenceArch":  200,
+                       "mobility":  6,
+                       "loadCapacity":  15
+                   },
+                   {
+                       "key":  "spear",
+                       "name":  "Silahtar",
+                       "attack":  50,
+                       "defenceInf":  100,
+                       "defenceCav":  200,
+                       "defenceArch":  300,
+                       "mobility":  5,
+                       "loadCapacity":  25
+                   },
+                   {
+                       "key":  "axe",
+                       "name":  "Baltacı",
+                       "attack":  350,
+                       "defenceInf":  70,
+                       "defenceCav":  50,
+                       "defenceArch":  50,
+                       "mobility":  5,
+                       "loadCapacity":  10
+                   },
+                   {
+                       "key":  "bow",
+                       "name":  "Okçu",
+                       "attack":  150,
+                       "defenceInf":  400,
+                       "defenceCav":  150,
+                       "defenceArch":  100,
+                       "mobility":  5,
+                       "loadCapacity":  10
+                   },
+                   {
+                       "key":  "spy",
+                       "name":  "Casus",
+                       "attack":  1,
+                       "defenceInf":  10,
+                       "defenceCav":  5,
+                       "defenceArch":  7,
+                       "mobility":  2,
+                       "loadCapacity":  0
+                   },
+                   {
+                       "key":  "light",
+                       "name":  "Akıncı",
+                       "attack":  900,
+                       "defenceInf":  200,
+                       "defenceCav":  300,
+                       "defenceArch":  300,
+                       "mobility":  3,
+                       "loadCapacity":  80
+                   },
+                   {
+                       "key":  "heavy",
+                       "name":  "Kara Şövalye",
+                       "attack":  600,
+                       "defenceInf":  1500,
+                       "defenceCav":  1000,
+                       "defenceArch":  1000,
+                       "mobility":  3,
+                       "loadCapacity":  50
+                   },
+                   {
+                       "key":  "ram",
+                       "name":  "Şahmerdan",
+                       "attack":  100,
+                       "defenceInf":  100,
+                       "defenceCav":  200,
+                       "defenceArch":  20,
+                       "mobility":  8,
+                       "loadCapacity":  0
+                   },
+                   {
+                       "key":  "kata",
+                       "name":  "Mancınık",
+                       "attack":  500,
+                       "defenceInf":  400,
+                       "defenceCav":  100,
+                       "defenceArch":  200,
+                       "mobility":  8,
+                       "loadCapacity":  0
+                   },
+                   {
+                       "key":  "snob",
+                       "name":  "Kont",
+                       "attack":  100,
+                       "defenceInf":  300,
+                       "defenceCav":  100,
+                       "defenceArch":  200,
+                       "mobility":  9,
+                       "loadCapacity":  0
+                   }
+               ],
+    "research":  [
+                     {
+                         "key":  "farmer",
+                         "name":  "Köy Koruyucusu",
+                         "stone":  10,
+                         "wood":  10,
+                         "iron":  10,
+                         "time":  "0:00:10"
+                     },
+                     {
+                         "key":  "sword",
+                         "name":  "Muhafız",
+                         "stone":  40,
+                         "wood":  40,
+                         "iron":  60,
+                         "time":  "0:02:00"
+                     },
+                     {
+                         "key":  "spear",
+                         "name":  "Silahtar",
+                         "stone":  20,
+                         "wood":  20,
+                         "iron":  30,
+                         "time":  "0:01:00"
+                     },
+                     {
+                         "key":  "axe",
+                         "name":  "Baltacı",
+                         "stone":  720,
+                         "wood":  500,
+                         "iron":  630,
+                         "time":  "1:18:40"
+                     },
+                     {
+                         "key":  "bow",
+                         "name":  "Okçu",
+                         "stone":  480,
+                         "wood":  570,
+                         "iron":  630,
+                         "time":  "2:21:36"
+                     },
+                     {
+                         "key":  "spy",
+                         "name":  "Casus",
+                         "stone":  570,
+                         "wood":  630,
+                         "iron":  610,
+                         "time":  "1:25:30"
+                     },
+                     {
+                         "key":  "light",
+                         "name":  "Akıncı",
+                         "stone":  2100,
+                         "wood":  1800,
+                         "iron":  2400,
+                         "time":  "2:33:54"
+                     },
+                     {
+                         "key":  "heavy",
+                         "name":  "Kara Şövalye",
+                         "stone":  3500,
+                         "wood":  3600,
+                         "iron":  3700,
+                         "time":  "4:37:01"
+                     },
+                     {
+                         "key":  "ram",
+                         "name":  "Şahmerdan",
+                         "stone":  1800,
+                         "wood":  1400,
+                         "iron":  1200,
+                         "time":  "1:48:20"
+                     },
+                     {
+                         "key":  "kata",
+                         "name":  "Mancınık",
+                         "stone":  3000,
+                         "wood":  2500,
+                         "iron":  1600,
+                         "time":  "3:36:40"
+                     }
+                 ]
+}
