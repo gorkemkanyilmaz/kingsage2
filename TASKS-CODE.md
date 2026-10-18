@@ -131,7 +131,12 @@
 | T-5.6 | Puan hesaplama + Köy Puanı + Toplam Puan (2.500/ek köy) | A-EKONOMI | ✅ Tamamlandı |
 | T-5.7 | Güç Alanı döngüsü (saatlik %1 artış, saldırı düşüşü, fetih %30) | A-EKONOMI | ✅ Tamamlandı |
 | T-5.8 | `GameLoop.gd` — **§7b sim modül protokolü** (tick → olaylar → EventBus) | A-EKONOMI | ✅ Tamamlandı |
-| T-5.9 | **İptalde iade düzeltmesi:** taban maliyet iade, **ek maliyet iade DEĞİL** | A-EKONOMI | 🔄 Devam Ediyor |
+| T-5.9 | **İptalde iade düzeltmesi:** taban maliyet iade, **ek maliyet iade DEĞİL** | A-EKONOMI | ✅ Tamamlandı |
+
+> **T-5.9 kanıtı (A-ŞEF bağımsız çalıştırdı):** `test_economy` → **126/126 PASS, EXIT=0**.
+> 5 komutluk kuyrukta 4. iş (+%25) iptali: `cost_paid + extra_paid = 510` · **iade 408 (yalnız taban)** ·
+> **ek maliyet iadesi 0** · kayıp = 102 · **diğer işlerin (id, hedef) bilgisi bozulmadı** · `refund=false` → hiç iade yok.
+> Diğer 5 test bozulmadı (159/152/50/66/98).
 
 > **Kanıt (A-ŞEF bağımsız çalıştırdı):** `godot --headless --script res://tests/test_economy.gd` → **108/108 PASS, EXIT=0**.
 > Doğrulananlar: 1 saat üretim + depo tavanı · 100 küçük tick ≈ 120 (kayan-nokta telafisi) · kuyruk ek maliyeti %25/%56/%95 ·
@@ -187,7 +192,13 @@
 | T-8.6 | Saldırı/destek/ticaret **iptal** kuralları (30/15 dk) | A-KESIF | ✅ Tamamlandı |
 | T-8.7 | **10:1 oran** → Kanun Kaçağı (2 ay) + min. birlik kapısı | A-KESIF | ✅ Tamamlandı |
 | T-8.8 | `ActionSimulator.gd` — **§7b** varış çözümleme + dönüş hareketleri | A-KESIF | ✅ Tamamlandı |
-| T-8.9 | **Kaynak düzeltmeleri:** casuslukta Gizli Depo, görünürlük, bilgi kademeleri | A-KESIF | 🔄 Devam Ediyor |
+| T-8.9 | **Kaynak düzeltmeleri:** casuslukta Gizli Depo, görünürlük, bilgi kademeleri | A-KESIF | ✅ Tamamlandı |
+| T-8.10 | **Semantik hizalama:** casusluk Gizli Depo'yu **toplam havuz** saysın (yağma ile aynı) | A-KESIF | 🔄 Devam Ediyor |
+
+> **T-8.9 kanıtı (A-ŞEF bağımsız çalıştırdı):** `test_actions` → **98/98 PASS, EXIT=0** (78 → 98).
+> Doğrulananlar: Gizli Depo sv5 (kapasite 301) → raporlanan odun 800→499 · normal casuslukta savunan rapor alır / gizlide **almaz** ·
+> normal raporda `outside_units` = 7 Baltacı / gizlide **alan yok** · min. birlik yalnız saldırı/talanda (destek/ticaret/casusluk serbest).
+> Diğer 5 test bozulmadı.
 
 > **Kanıt (A-ŞEF bağımsız çalıştırdı):** `godot --headless --script res://tests/test_actions.gd` → **78/78 PASS, EXIT=0**.
 > Doğrulananlar: min. birlik 3×Kışla (59/60 sınırı) · korumalı köye red, soyguncu/bonus serbest · Kont 127 alan red / 20 kabul ·
@@ -358,3 +369,6 @@
 - **[Kod-28]** ⚠️ **Kaynak düzeltmesi:** Gizli Depo **casuslara karşı da** korur (*"hırsızların elinden ve casusların gözünden uzak"*) → casusluk raporunda `max(0, kaynak − gizli_depo)`. Ayrıca: **normal casusluk görünür** (savunan rapor alır), **gizli görünmez** (rapor yok) ve gizli raporda "dışarıdaki birlikler" alanı **yok**. `docs/07` §6 güncellendi; A-KESIF'e T-8.9 verildi.
 - **[Kod-29]** **Kanun Kaçağı kuralı teyit edildi** (`worldinfo`): Kanun Kaçağı = **tüm köylerin kalıcı saldırı koruması**; senden **10× yüksek puanlı oyuncular saldıramaz**. Bu korumayı kırarsan → **2 ay** boyunca 10:1 korumanı kaybedersin.
 - **[Kod-30]** **4. ajan dalgası başlatıldı:** **A-ARAYUZ** (`game/themes/**`, `game/ui/**`, `game/scenes/**` → 2.5D köy ekranı + tüm paneller + gereksinim zinciri görünümü), **A-QA** (`game/tests/test_save.gd`, `test_integration.gd`, `QA-RAPORU.md` → kaydet/yükle, offline telafi, uçtan uca entegrasyon, değişmezler, determinizm). A-QA **kod düzeltmez**, yalnız bulgu raporlar.
+- **[Kod-31]** **A-EKONOMI T-5.9 ✅** — iade düzeltmesi: `test_economy` **126/126 PASS**. Kaynak (`buildings.txt`) artık kodda: **taban iade / ek maliyet iade değil**, iptal sonrası kalan işler yeniden zincirleniyor.
+- **[Kod-32]** **A-KESIF T-8.9 ✅** — `test_actions` **98/98 PASS**: Gizli Depo casuslukta, normal/gizli görünürlük, bilgi kademeleri, min. birlik kapsamı.
+- **[Kod-33]** ⚠️ **A-ŞEF tutarlılık düzeltmesi:** Gizli Depo kapasitesinin birimi `production.json`'da **`resource_total`** (kaynak başına değil). Yağma katmanı bunu zaten toplam havuz olarak uyguluyordu, casusluk katmanı ise kaynak başına → **çelişki**. Karar: **toplam havuz, oransal (en büyük kalan) dağıtım** — iki katman birebir aynı. `docs/07` §6 güncellendi; A-KESIF'e T-8.10 verildi.

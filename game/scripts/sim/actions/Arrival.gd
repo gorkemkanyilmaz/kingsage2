@@ -391,8 +391,9 @@ static func _battle_report_data(
 
 
 ## Casusluk raporu — hedefin **kaynakları + birlikleri** (açığa çıkarma yok).
-## Gizli Depo **casuslara karşı da** korur (kaynak: `buildings.txt`); görünen kaynak
-## kaynak başına `max(0, gerçek − gizli_depo_kapasitesi)` ile düşülür.
+## Gizli Depo **casuslara karşı da** korur (kaynak: `buildings.txt`); korunan miktar
+## **üç hammaddenin toplamından** düşülür (`production.json` → `hideout_capacity.unit
+## = "resource_total"`), yağma ile **birebir aynı** semantik (bkz. `_visible_resources`).
 ## Bilgi kademesi: **normal** raporda **dışarıdaki birlikler** vardır, **gizli**de yoktur
 ## (kaynak: `units_espionage.txt`).
 static func _spy_report_data(
@@ -402,23 +403,19 @@ static func _spy_report_data(
 	var actual := _normalize_resources(target.get("resources", {}))
 	var units := _normalize_units(target.get("units", {}))
 	var hideout := _hideout_capacity(defender, target)
-	var visible := {}
-	var hidden := 0
-	for r in RESOURCES:
-		var real := int(actual.get(r, 0))
-		var shown := maxi(0, real - hideout)
-		visible[r] = shown
-		hidden += real - shown
+	var visible := _visible_resources(actual, hideout)
+	var actual_total := _sum(actual)
+	var visible_total := _sum(visible)
 	var data := {
 		"type": "spy",
 		"target_village_id": int(target.get("id", 0)),
 		"target_name": str(target.get("name", "")),
 		"target_owner": str(target.get("owner", "")),
 		"resources": visible,
-		"actual_resources_total": _sum(actual),
-		"hidden_amount": hidden,
+		"actual_resources_total": actual_total,
+		"hidden_amount": actual_total - visible_total,
 		"hideout_capacity": hideout,
-		"visible_resources_total": _sum(visible),
+		"visible_resources_total": visible_total,
 		"units": units,
 		"buildings": (target.get("buildings", {}) as Dictionary).duplicate(true) if typeof(target.get("buildings")) == TYPE_DICTIONARY else {},
 		"spy_survivors": int(spy_data.get("spy_survivors", 0)),
@@ -430,6 +427,47 @@ static func _spy_report_data(
 	if not creeping:
 		data["outside_units"] = _collect_outside_units(state, int(target.get("id", 0)))
 	return data
+
+
+## Gizli Depo'nun casusluk raporunda **görünen** kaynakları: korunan miktar üç
+## hammaddenin **toplamından** düşülür, kalan **en büyük kalan yöntemiyle** oransal
+## dağıtılır. `toplam ≤ kapasite` ise üç kaynak da 0 görünür.
+##
+## NOT (kod tekrarı): Algoritma `BattleSimulator._compute_loot` ile **aynı çıktıyı**
+## verecek şekilde burada yeniden yazılmıştır (bkz. ASSUMPTIONS.md §3) — gizli
+## modül API'sine bağımlı olmamak için kasıtlı; test bunu yağma çıktısıyla doğrular.
+static func _visible_resources(resources: Dictionary, capacity: int) -> Dictionary:
+	var out := {"wood": 0, "stone": 0, "iron": 0}
+	var total := int(resources.get("wood", 0)) + int(resources.get("stone", 0)) + int(resources.get("iron", 0))
+	if total <= 0:
+		return out
+	var take := total - clampi(capacity, 0, total)
+	if take <= 0:
+		return out
+	var types := ["wood", "stone", "iron"]
+	var remainders := {}
+	var allocated := 0
+	for t in types:
+		var raw := float(take) * float(int(resources.get(t, 0))) / float(total)
+		var base := int(floor(raw))
+		base = mini(base, int(resources.get(t, 0)))
+		out[t] = base
+		remainders[t] = raw - float(base)
+		allocated += base
+	while allocated < take:
+		var best := ""
+		var best_rem := -1.0
+		for t in types:
+			var rem := float(remainders.get(t, 0.0))
+			if rem > best_rem and int(out[t]) < int(resources.get(t, 0)):
+				best_rem = rem
+				best = t
+		if best == "":
+			break
+		out[best] = int(out[best]) + 1
+		remainders[best] = -1.0
+		allocated += 1
+	return out
 
 
 ## Normal casuslukta **savunanın** aldığı rapor (saldırı görünür — `units_espionage.txt`).

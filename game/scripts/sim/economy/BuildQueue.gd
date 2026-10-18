@@ -16,8 +16,12 @@ extends RefCounted
 ##  • **Kuyruk:** ilk **3 iş ücretsiz**; 4.+ iş için ek maliyet
 ##    `time-factors.json#build_queue_extra_cost` (`[0,0,0,25,56,95,144,205,281,376]`).
 ##  • **Zaman:** işler **sırayla** tamamlanır. Süre `RulesEngine.build_seconds(key, level)`.
-##  • **İptal:** görev talimatına göre **geri ödeme YOK** (`cancel_build(..., refund=false)`).
-##    ⚠️ `docs/04` §3.4 iade olduğunu söyler — **AÇIK SORU** (bkz. ASSUMPTIONS.md §3).
+##    Aynı anda **yalnızca 1 bina** inşa halindedir; en fazla **3 komut** kuyruğa alınır ve **art
+##    arda** tamamlanır (premium → sınırsız, sonraki faz). `docs/19` §3.2.
+##  • **İptal (kaynak `buildings.txt` — kesin):** inşaat **her an** iptal edilebilir →
+##    **taban maliyet (`cost_paid`) İADE EDİLİR**, **kuyruk ek maliyeti (`extra_paid`) İADE EDİLMEZ**
+##    (`docs/19` §3.2). İptal sonrası kalan işler **yeniden zincirlenir** (`reschedule`); diğer
+##    komutların kimlik/hedef bilgisi **bozulmaz**.
 ##  • **Yıkım:** Kale Lv15 + Simyager tekniği; hammadde iadesi **yok**, vatandaş geri gelir.
 ##
 ## ## Zaman modeli
@@ -245,6 +249,15 @@ static func start_build(state: Dictionary, village: Dictionary, key: String, now
 	if not PROD.spend(village, cost):
 		return {"ok": false, "reason": "resources", "check": check}
 
+	# Maliyeti **taban** (`cost_paid` → iade edilir) ve **kuyruk ek maliyeti**
+	# (`extra_paid` → iade edilmez) olarak ayır (`docs/19` §3.2).
+	var base_cost: Dictionary = check.get("base_cost", {})
+	if base_cost.is_empty():
+		base_cost = RE.cost(key, tgt)
+	var extra_cost := {}
+	for r in RESOURCES:
+		extra_cost[r] = int(cost.get(r, 0)) - int(base_cost.get(r, 0))
+
 	var vid := int(village.get("id", -1))
 	var q := queues(state)
 	var start := maxi(now_unix, _last_finish(state, vid))
@@ -260,7 +273,8 @@ static func start_build(state: Dictionary, village: Dictionary, key: String, now
 		"count": 0,
 		"start_unix": start,
 		"finish_unix": finish,
-		"cost_paid": cost.duplicate(true),
+		"cost_paid": base_cost.duplicate(true),
+		"extra_paid": extra_cost,
 	}
 	q.append(item)
 
@@ -269,6 +283,8 @@ static func start_build(state: Dictionary, village: Dictionary, key: String, now
 		"reason": "ok",
 		"item": item,
 		"cost": cost,
+		"base_cost": base_cost,
+		"extra_paid": extra_cost,
 		"extra_percent": int(check.get("extra_percent", 0)),
 		"target_level": tgt,
 		"start_unix": start,
@@ -375,12 +391,19 @@ static func _next_id(q: Array) -> int:
 
 
 # =============================================================================
-#  İptal (geri ödeme YOK — AÇIK SORU; bkz. ASSUMPTIONS.md §3)
+#  İptal — taban maliyet İADE, kuyruk ek maliyeti İADE DEĞİL (`docs/19` §3.2)
 # =============================================================================
 
-## Kuyruk öğesini iptal eder. **Varsayılan: geri ödeme YOK.**
-## Dönüş: `{ ok, reason, item?, refunded }`
-static func cancel_build(state: Dictionary, village_id: int, item_id: int, refund: bool = false, now_unix: int = 0) -> Dictionary:
+## Kuyruk öğesini iptal eder. Kaynak `buildings.txt` (kesin):
+##  • **taban maliyet (`cost_paid`) İADE EDİLİR** (`refund_base=true`),
+##  • **kuyruk ek maliyeti (`extra_paid`) İADE EDİLMEZ** (`refund_extra=false`).
+##
+## Eski `refund` parametresi **taban iadeyi** denetler (varsayılan `true`).
+## Dönüş: `{ ok, reason, item?, refunded, refunded_base, refunded_extra, forfeited }`
+##   • `refunded`       → köy kaynaklarına **gerçekten eklenen** toplam (Depo tavanı kırpması dahil).
+##   • `forfeited`      → iade edilmeyen kayıp (varsayılan: `extra_paid`).
+static func cancel_build(state: Dictionary, village_id: int, item_id: int, refund: bool = true,
+		now_unix: int = 0, refund_extra: bool = false) -> Dictionary:
 	var q := queues(state)
 	var idx := -1
 	for i in range(q.size()):
@@ -390,18 +413,42 @@ static func cancel_build(state: Dictionary, village_id: int, item_id: int, refun
 			idx = i
 			break
 	if idx < 0:
-		return {"ok": false, "reason": "not_found", "refunded": {"wood": 0, "stone": 0, "iron": 0}}
+		return {
+			"ok": false, "reason": "not_found",
+			"refunded": {"wood": 0, "stone": 0, "iron": 0},
+			"refunded_base": {"wood": 0, "stone": 0, "iron": 0},
+			"refunded_extra": {"wood": 0, "stone": 0, "iron": 0},
+			"forfeited": {"wood": 0, "stone": 0, "iron": 0},
+		}
 
 	var item: Dictionary = q[idx]
+	var base_paid: Dictionary = item.get("cost_paid", {})
+	var extra_paid: Dictionary = item.get("extra_paid", {})
+
+	var village := _village_of(state, village_id)
+	var refunded_base := {"wood": 0, "stone": 0, "iron": 0}
+	var refunded_extra := {"wood": 0, "stone": 0, "iron": 0}
+	if not village.is_empty():
+		if refund:
+			refunded_base = PROD.add(village, base_paid)
+		if refund_extra:
+			refunded_extra = PROD.add(village, extra_paid)
+
 	var refunded := {"wood": 0, "stone": 0, "iron": 0}
-	if refund:
-		var village := _village_of(state, village_id)
-		if not village.is_empty():
-			refunded = PROD.add(village, item.get("cost_paid", {}))
+	var forfeited := {"wood": 0, "stone": 0, "iron": 0}
+	for r in RESOURCES:
+		refunded[r] = int(refunded_base.get(r, 0)) + int(refunded_extra.get(r, 0))
+		forfeited[r] = int(base_paid.get(r, 0)) + int(extra_paid.get(r, 0)) - int(refunded[r])
 
 	q.remove_at(idx)
 	reschedule(state, village_id, now_unix)
-	return {"ok": true, "reason": "ok", "item": item, "refunded": refunded}
+	return {
+		"ok": true, "reason": "ok", "item": item,
+		"refunded": refunded,
+		"refunded_base": refunded_base,
+		"refunded_extra": refunded_extra,
+		"forfeited": forfeited,
+	}
 
 
 # =============================================================================

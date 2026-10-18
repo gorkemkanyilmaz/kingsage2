@@ -46,7 +46,13 @@ Bilgi, **casusluk türüne** ve **hayatta kalan saldıran casus sayısına** ba�
 
 - **Gizli Depo**, hammaddeleri **casusların gözlerinden** ve hırsızlardan korur.
   (Yardım: *"Bu gizli depolar, hırsızların elinden ve casusların gözünden uzak yerlerdir."*)
-- **Casusluk raporunda gösterilen kaynak:** `raporlanan = max(0, gerçek − gizli_depo_kapasitesi)`
-  (kaynak başına). Kapasite = `hideout_capacity(Gizli Depo seviyesi)` = `150 × 1,19^(sv−1)`.
-  Aynı kural **yağmada** da geçerlidir (hedefte korunan miktar alınamaz).
-- Yani **Gizli Depo seviyesi yükseldikçe casusluk da daha az bilgi verir**.
+- **Kapasite birimi = TOPLAM hammadde** (`production.json` → `unit: "resource_total"`),
+  kaynak başına **değil**: `kapasite = 150 × 1,19^(sv−1)` (sv 30 → 23.278).
+  Yani kapasite, üç hammaddenin **toplamından** korunan miktardır.
+- **Yağmada:** `korumalı = min(kapasite, toplam)` → `alınabilir = toplam − korumalı`;
+  ganimet taşıma kapasitesine kadar **oransal** (en büyük kalan) dağıtılır.
+- **Casuslukta:** aynı kural uygulanır → `görünür_toplam = max(0, toplam − korumalı)`,
+  kaynak başına dağıtım **oransal (en büyük kalan)** — **yağma ile birebir aynı** algoritma.
+  Toplam ≤ kapasite ise casus **hiç hammadde göremez**.
+- Yani **Gizli Depo yükseldikçe casusluk da daha az bilgi verir** ve iki katman
+  (yağma ↔ casusluk) **aynı semantiği** kullanır.

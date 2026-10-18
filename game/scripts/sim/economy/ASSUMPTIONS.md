@@ -11,21 +11,33 @@
 > `game/scripts/rules/ASSUMPTIONS.md`); bu dosya yalnızca **A-EKONOMI'ye özgü** bilinmeyenleri,
 > seçilen modeli ve **karar noktalarını** belgeler.
 
-İlgili belirsiz/`known:false` kaynaklar: `docs/04-BINALAR.md` §3.4 (iptal iadesi),
+İlgili kaynaklar: `research/text-tr/buildings.txt` (iptal iadesi — **kesin**; `docs/19` §3.2),
 `docs/04-BINALAR.md` §3.7 (kuyruk ek maliyeti), `docs/04-BINALAR.md` (Yıkım / Simyager),
 `docs/08-GUC-ALANI.md` §1–§2 (Güç Alanı), `time-factors.json#unresolved.construction_time_formula`.
 
 ---
 
-## 1. İptal (cancel) davranışı — hammadde iadesi YOK
+## 1. İptal (cancel) iadesi — taban maliyet İADE, kuyruk ek maliyeti İADE DEĞİL
 
-- **Görev talimatı:** "İnşa iptalinde **geri ödeme yok**." → `BuildQueue.cancel_build(..., refund=false)`
-  varsayılanı ve `EconomyAPI.cancel_build` bu davranışı kullanır.
-- **Çelişki:** `docs/04-BINALAR.md` §3.4, iptalde hammaddenin **iade edildiğini** söyler.
-- **Karar:** Görev talimatı üstün tutuldu → **iade yok**. Kod `refund` parametresini **destekler**
-  (`cancel_build(..., refund=true)` hammaddeyi iade eder), böylece doküman doğrulanınca **tek çağrı**
-  değişir. Test, iadenin yapılmadığını doğrular ("İptal → geri ödeme YOK").
-- **`AÇIK SORU:`** İnşaat iptalinde hammadde iade edilir mi? (`docs/04` §3.4 = evet, görev = hayır).
+- **Kaynak (kesin, `research/text-tr/buildings.txt` → `docs/19` §3.2):**
+  "İnşaat süreci devam eden herhangi bir anda iptal edilebilir ve böylece **kullanılmış kaynaklar
+  iade edilecektir**." + "Komut girildikten sonra iptal edilmek istenirse **bu fazla maliyet geri
+  iade edilmeyecektir**."
+- **Uygulama:** Kuyruk öğesi iki ayrı maliyet alanı taşır (`docs/19` §3.2):
+  `cost_paid` = **taban maliyet** (iptalde **İADE EDİLİR**), `extra_paid` = **kuyruk ek maliyeti**
+  (iptalde **İADE EDİLMEZ**).
+- `BuildQueue.cancel_build(..., refund := true, now_unix := 0, refund_extra := false)`:
+  eski `refund` parametresi **taban iadeyi** denetler; **varsayılan davranış yukarıdaki kuraldır**.
+  `refund=false` yalnızca eski/özel kullanım içindir. Dönüş:
+  `{ ok, reason, item, refunded, refunded_base, refunded_extra, forfeited }`.
+- `EconomyAPI.cancel_build(..., refund := true, refund_extra := false)` aynı kuralı kullanır.
+- İptal sonrası kalan işler `reschedule` ile yeniden zincirlenir; **diğer komutların kimlik/hedef
+  bilgisi bozulmaz**. (Test: taban iade, ek maliyet iade yok, kalan `(id, hedef)` çiftleri korunur.)
+- **Bina yıkımında** (Kale Lv15 + Simyager) hammadde iadesi **yoktur** (§2) — bu ayrım korunur.
+- **`AÇIK SORU:`** Kuyruğun **ortasından/başından** iptal edildiğinde sonraki komutların
+  `target_level`'ı yeniden numaralanmalı mı? Şu an sipariş anındaki projeksiyon korunur (boşluk
+  oluşabilir; ör. baş komut iptalinde kalan komut atlanan seviyeyi hedefler). Bu, §4'teki sıralı
+  ilerleme modelinin bir uzantısıdır.
 
 ## 2. Bina yıkımı (tear down) — Simyager "teknik" kapısı
 
@@ -58,6 +70,9 @@
   işler kuyruğa sırayla L+1, L+2, … eklenir.
 - `RulesEngine.can_upgrade_now` **projeksiyon** sözlüğü üzerinden ikinci kez doğrulanır
   (`reason="locked"` kapısı).
+- **İptal sonrası:** kalan işlerin `target_level`'ı **sipariş anındaki projeksiyon olarak korunur**
+  (yeniden numaralanmaz) — bkz. §1'deki `AÇIK SORU`. Böylece ödenen maliyet ile hedef tutarlı kalır;
+  kuyruk `reschedule` ile yeniden zincirlenir.
 - **`AÇIK SORU:`** KingsAge'de aynı binaya paralel/atlamalı yükseltme kuyruğu var mı? Sıralı model
   seçildi.
 
@@ -147,7 +162,8 @@
 
 ## Tüm AÇIK SORULAR (özet)
 
-1. `AÇIK SORU:` İnşaat iptalinde hammadde iadesi var mı? (§1 — görev: hayır, `docs/04` §3.4: evet).
+1. `AÇIK SORU:` Kuyruğun ortasından/başından iptalde sonraki komutların `target_level`'ı yeniden
+   numaralanmalı mı? (§1 — şu an sipariş anındaki projeksiyon korunur).
 2. `AÇIK SORU:` Simyager tekniğinin kesin maliyeti/süresi ve yıkımın ek koşulları (§2).
 3. `AÇIK SORU:` Premium hesapta kuyruk sınırı ve ek maliyet muafiyetinin bağlanacağı yer (§3).
 4. `AÇIK SORU:` Aynı binaya paralel/atlamalı yükseltme mümkün mü? (§4 — sıralı seçildi).

@@ -115,10 +115,13 @@ static func tick_eta(item: Dictionary, now_unix: int = -1) -> int:
 	return maxi(0, int(item.get("finish_unix", 0)) - now)
 
 
-## Kuyruk öğesini iptal eder (varsayılan: **geri ödeme YOK**, bkz. ASSUMPTIONS.md §3).
-static func cancel_build(village: Dictionary, item_id: int, state: Dictionary = {}, refund: bool = false) -> Dictionary:
+## Kuyruk öğesini iptal eder. **Taban maliyet (`cost_paid`) iade edilir; kuyruk ek maliyeti
+## (`extra_paid`) iade edilmez** (kaynak `buildings.txt`, `docs/19` §3.2).
+## `refund` **taban** iadeyi denetler (varsayılan `true`); `refund_extra` yalnızca test/özel
+## durum içindir (varsayılan `false`).
+static func cancel_build(village: Dictionary, item_id: int, state: Dictionary = {}, refund: bool = true, refund_extra: bool = false) -> Dictionary:
 	var st := resolve_state(state)
-	return BQ.cancel_build(st, int(village.get("id", -1)), item_id, refund, sim_now(st))
+	return BQ.cancel_build(st, int(village.get("id", -1)), item_id, refund, sim_now(st), refund_extra)
 
 
 ## Değirmen tavanı / boş vatandaş özeti.

@@ -133,6 +133,7 @@ func _initialize() -> void:
 	_test_realm(gd)
 	_test_points(gd)
 	_test_tear_down(gd)
+	_test_cancel_refund(gd)
 	_test_economy_api(gd)
 	_test_game_loop(gd)
 
@@ -502,6 +503,84 @@ func _test_tear_down(gd: Node) -> void:
 
 
 # =============================================================================
+#  İptal iadesi (taban iade / ek maliyet iade değil)
+# =============================================================================
+
+func _test_cancel_refund(gd: Node) -> void:
+	print("\n-- İptal iadesi: taban iade, ek maliyet iade değil --")
+	var v := _rich_village(1)
+	VM.set_building_level(v, "main", 1)
+	var st := _state(v)
+
+	# 5 iş kuyruğa al: 4. iş +%25, 5. iş +%56 ek maliyet taşır.
+	var results := []
+	for i in range(5):
+		results.append(BQ.start_build(st, v, "main", T0))
+	_check_eq(BQ.pending_count(st, 1), 5, "Kuyrukta 5 iş var")
+
+	# İptal edilecek iş: 4. iş (ek maliyetli, aradaki komut → diğerleri korunmalı).
+	var victim_result: Dictionary = results[3]
+	var victim: Dictionary = victim_result.get("item", {})
+	var victim_id := int(victim.get("id", -1))
+	var base_paid: Dictionary = victim.get("cost_paid", {})
+	var extra_paid: Dictionary = victim.get("extra_paid", {})
+	_check(int(victim_result.get("extra_percent", -1)) == 25, "İptal edilecek iş ek maliyet = +25")
+	_check(_sum(extra_paid) > 0, "İptal edilecek işin extra_paid > 0")
+	_check_eq(_sum(base_paid) + _sum(extra_paid), _sum(victim_result.get("cost", {})), "cost_paid + extra_paid = toplam maliyet")
+
+	# İptal öncesi diğer işlerin (id, hedef) çiftleri.
+	var before := []
+	for it in BQ.items(st, 1):
+		before.append([int(it.get("id", -1)), int(it.get("target_level", 0))])
+
+	var res_before := _sum(v["resources"])
+	var cancel := BQ.cancel_build(st, 1, victim_id, true, T0)
+	_check(bool(cancel.get("ok", false)), "İptal başarılı")
+	_check_eq(_sum(cancel.get("refunded", {})), _sum(base_paid), "Yalnız taban maliyet iade edildi")
+	_check_eq(_sum(cancel.get("refunded_extra", {})), 0, "Ek maliyet iade edilmedi")
+	_check_eq(_sum(cancel.get("forfeited", {})), _sum(extra_paid), "Kayıp = ek maliyet")
+	_check_eq(_sum(v["resources"]), res_before + _sum(base_paid), "Kaynak yalnız taban kadar arttı")
+
+	# Diğer işler bozulmadı: kimlik/hedef bilgisi korunur, kuyruk yeniden zincirlenir.
+	_check_eq(BQ.pending_count(st, 1), 4, "Kuyrukta 4 iş kaldı")
+	var after := []
+	for it in BQ.items(st, 1):
+		after.append([int(it.get("id", -1)), int(it.get("target_level", 0))])
+	var expected := []
+	for pair in before:
+		if int(pair[0]) != victim_id:
+			expected.append(pair)
+	_check_eq(after, expected, "Diğer işlerin (id, hedef) bilgisi bozulmadı")
+
+	var chain_ok := true
+	var prev := -1
+	for it in BQ.items(st, 1):
+		var s := int(it.get("start_unix", -1))
+		var f := int(it.get("finish_unix", -1))
+		if s < prev or f <= s:
+			chain_ok = false
+		prev = f
+	_check(chain_ok, "Kalan işler yeniden zincirlendi (start/finish artan)")
+
+	# Ek maliyetsiz işte kayıp 0, iade = tam taban.
+	var head: Dictionary = BQ.items(st, 1)[0]
+	var c2 := BQ.cancel_build(st, 1, int(head.get("id", -1)), true, T0)
+	_check_eq(_sum(c2.get("forfeited", {})), 0, "Ek maliyetsiz işte kayıp = 0")
+	_check_eq(_sum(c2.get("refunded", {})), _sum(head.get("cost_paid", {})), "İade = cost_paid (tam taban)")
+
+	# `refund=false` (eski davranış) → hiçbir şey iade edilmez.
+	var v2 := _rich_village(2)
+	VM.set_building_level(v2, "main", 1)
+	var st2 := _state(v2)
+	var r2 := BQ.start_build(st2, v2, "wood", T0)
+	var it2: Dictionary = r2.get("item", {})
+	var b2 := _sum(v2["resources"])
+	var c3 := BQ.cancel_build(st2, 2, int(it2.get("id", -1)), false, T0)
+	_check_eq(_sum(c3.get("refunded", {})), 0, "refund=false → iade yok")
+	_check_eq(_sum(v2["resources"]), b2, "refund=false → kaynak değişmedi")
+
+
+# =============================================================================
 #  EconomyAPI dış arayüz
 # =============================================================================
 
@@ -529,10 +608,14 @@ func _test_economy_api(gd: Node) -> void:
 	var realm := API.realm_summary(v)
 	_check_eq(int(realm.get("cap", -1)), int(v.get("points", 0)), "realm_summary.cap = köy puanı")
 
-	# İptal (geri ödeme YOK — varsayılan).
+	# İptal: taban maliyet İADE, ek maliyet İADE DEĞİL (`docs/19` §3.2).
+	var cost_paid_api: Dictionary = item.get("cost_paid", {})
+	var res_before_cancel := _sum(v["resources"])
 	var cancel := API.cancel_build(v, int(item.get("id", -1)), st)
 	_check(bool(cancel.get("ok", false)), "İptal başarılı")
-	_check_eq(_sum(cancel.get("refunded", {})), 0, "İptal → geri ödeme YOK")
+	_check_eq(_sum(cancel.get("refunded", {})), _sum(cost_paid_api), "İptal → taban maliyet iade edildi")
+	_check_eq(_sum(cancel.get("refunded_extra", {})), 0, "İptal → ek maliyet iade edilmedi")
+	_check_eq(_sum(v["resources"]), res_before_cancel + _sum(cost_paid_api), "Kaynak taban maliyet kadar arttı")
 	_check_eq(API.queued_items(v, st).size(), 0, "İptal sonrası kuyruk boş")
 
 

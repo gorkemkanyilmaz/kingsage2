@@ -42,17 +42,19 @@ belirsizlik yaratırdı.
 `AÇIK SORU:` Oran ihlalinin oyun istemcisinde tam olarak hangi anda uygulandığı
 (gönderim / varış) ve puan oranının **toplam puan mı köy puanı mı** olduğu.
 
-## 2. Min. saldırı birimi kontrolü — çift kontrol (`docs/06` §3)
+## 2. Min. saldırı birimi kontrolü — kapsam ve çift kontrol (`docs/06` §3, `worldinfo`)
 
-Gönderimde `RulesEngine.min_attack_units(3 × Kışla)` uygulanır (`Movement.can_send`).
-Aynı eşik `BattleSimulator` içinde de vardır ve sonuç `min_attack_ok` ile döner.
-İki katman **aynı sabiti** (`battle.json#min_attack_units.barracks_factor = 3`)
-kullanır; çelişki oluşmaz.
+**Kapsam (doğrulanmış):** `worldinfo` "**Saldırı** için gereken en az birim | 3 ×
+Kışla kademesi" der → kural **yalnızca `attack` ve `raid`** için geçerlidir.
+**Destek / ticaret / casusluk** bu eşiğe **takılmaz** (`Movement.can_send`'de
+yalnızca `_validate_attack` uygular).
 
-`AÇIK SORU:` Min. birim eşiğinin yalnızca "fetih" saldırılarına mı yoksa tüm
-saldırı/talan emirlerine mi uygulandığı (bizde **tüm** askerî emirlerde).
+Gönderimde `RulesEngine.min_attack_units(3 × Kışla)` uygulanır. Aynı eşik
+`BattleSimulator` içinde de vardır ve sonuç `min_attack_ok` ile döner. İki katman
+**aynı sabiti** (`battle.json#min_attack_units.barracks_factor = 3`) kullanır;
+çelişki oluşmaz.
 
-## 3. Casus sağkalımı ve rapor içeriği (`docs/07` §3–§4)
+## 3. Casus sağkalımı, rapor içeriği ve bilgi kademeleri (`docs/07` §3–§4)
 
 - Sağkalım **A-SAVAS'ın casus fazından** alınır (`phases[key="spy_attack"].data`),
   burada **yeniden hesaplanmaz** (`spy_survivors`, `spy_losses`, `defence_spies`).
@@ -61,13 +63,24 @@ saldırı/talan emirlerine mi uygulandığı (bizde **tüm** askerî emirlerde).
 - **Rapor** yalnızca `spy_survivors > 0` ise üretilir ve hedefin **kaynaklarını +
   birliklerini + binalarını** içerir; **(hiçbir) açığa çıkarma (exposure)
   gösterilmez** — görev şartı.
-- **Gizli Depo etkisi:** raporda `hidden_amount = min(gizli_depo_kapasitesi, toplam
-  kaynak)` ve `visible_resources_total = toplam − hidden_amount` sunulur. A-SAVAS
-  gizli depoyu **yağmadan** düşer; casusluk "görünen" kaynağı yansıtır.
+- **Gizli Depo casuslara karşı da korur** (kaynak: `buildings.txt`: "hırsızların
+  elinden **ve casusların gözlerinden** uzak yerlerdir"). Raporda kaynak, kaynak
+  başına `max(0, gerçek − gizli_depo_kapasitesi)` ile düşülür. Yağmada aynı koruma
+  zaten uygulanır.
+- **Bilgi kademeleri** (kaynak: `units_espionage.txt`):
+  - **Normal casusluk:** askerî birlikler + moral + hammaddeler + binalar/kademeleri
+    + **dışarıdaki birlikler** (`outside_units`).
+  - **Gizli casusluk:** askerî birlikler + hammaddeler + binalar/kademeleri —
+    **dışarıdaki birlikler YOK** (`outside_units` alanı eklenmez).
+- **Görünürlük** (kaynak: `units_espionage.txt`):
+  - **Normal** casusluk **savunana görünür** (`visible_to_defender = true`) ve
+    **savunan da rapor alır** (`type = "spy_incoming"`, `defender_notified = true`).
+  - **Gizli** casusluk **savunana görünmez** (`visible_to_defender = false`),
+    savunan **rapor ALMAZ**; saldıran kendi raporunu yine alır; hız **×3 yavaş**.
 
-`AÇIK SORU:` Casusluk raporunda gizli deponun kaynağı tamamen mi gizlediği yoksa
-kısmen mi gösterdiği; raporda `visible_resources_total` alanı istemci doğrulaması
-bekler.
+`AÇIK SORU:` Gizli Depo'nun casusluk raporunda **kaynak başına** mı (uygulanan:
+`max(0, r − kapasite)`) yoksa yağmadaki gibi **toplam havuz** (`Σ − kapasite`) olarak
+mı düşüldüğü; resmî istemci doğrulaması bekler.
 
 ## 4. Katır (ticaret) yolculuk hızı (`docs/14` §6.3, bilinmeyen #3)
 
@@ -194,16 +207,20 @@ EN 100) mesafesinden uzak olamaz; aşılırsa `count_too_far`. Ölçüm
 
 ## 14. Tüm AÇIK SORULAR (özet)
 
-1. `AÇIK SORU:` Kanun Kaçağı işaretlemesi gönderimde mi varışta mı; puan türü (kök/toplam).
-2. `AÇIK SORU:` Min. saldırı birimi eşiği tüm askerî emirlerde mi geçerli.
-3. `AÇIK SORU:` Casusluk raporunda gizli depo kaynağının görünürlüğü.
-4. `AÇIK SORU:` Katır (ticaret) yolculuk hızı (alan/dakika).
-5. `AÇIK SORU:` Ticaret için Market zorunluluğunun uygulama noktası.
-6. `AÇIK SORU:` Sunucu saat dilimi ve gece bonusu penceresi.
-7. `AÇIK SORU:` Destek birliklerinin geri çağrılma/otomatik dönüş davranışı.
-8. `AÇIK SORU:` Bonus köylerde korumanın kapsamı.
-9. `AÇIK SORU:` Kont mesafesinin alan/kıta ölçeği.
-10. `AÇIK SORU:` `send_*` araştırma kontrolü yapmalı mı.
+1. `AÇIK SORU:` Kanun Kaçağı işaretlemesi gönderimde mi varışta mı; puan türü (köy/toplam).
+2. `AÇIK SORU:` Casusluk raporunda Gizli Depo **kaynak başına** mı yoksa **toplam havuz** olarak mı düşülür (uygulanan: kaynak başına `max(0, r − kapasite)`).
+3. `AÇIK SORU:` Katır (ticaret) yolculuk hızı (alan/dakika).
+4. `AÇIK SORU:` Ticaret için Market zorunluluğunun uygulama noktası.
+5. `AÇIK SORU:` Sunucu saat dilimi ve gece bonusu penceresi.
+6. `AÇIK SORU:` Destek birliklerinin geri çağrılma/otomatik dönüş davranışı.
+7. `AÇIK SORU:` Bonus köylerde korumanın kapsamı.
+8. `AÇIK SORU:` Kont mesafesinin alan/kıta ölçeği.
+9. `AÇIK SORU:` `send_*` araştırma kontrolü yapmalı mı.
+
+> **Kapanan sorular (resmî kaynakla çözüldü):** min. saldırı birimi kapsamı
+> (yalnızca saldırı/talan — bkz. §2); casusluk raporunda Gizli Depo koruması
+> (uygulanıyor — bkz. §3); normal/gizli casusluk görünürlüğü ve bilgi kademeleri
+> (bkz. §3).
 
 ---
 
@@ -215,7 +232,9 @@ EN 100) mesafesinden uzak olamaz; aşılırsa `count_too_far`. Ölçüm
 - Yeni oyuncu koruması 5 gün, fetih koruması 7 gün (`GameConfig`, `docs/11` §10).
 - Maks. oran 10:1, Kanun Kaçağı cezası 60 gün (`GameConfig`, `battle.json`).
 - Kont max mesafesi 80 alan (`GameConfig.count_max_distance`, `docs/08` §4).
-- Min. saldırı birimi 3 × Kışla (`RulesEngine.min_attack_units`, `battle.json`).
+- Min. saldırı birimi 3 × Kışla, **yalnızca saldırı/talan** (`RulesEngine.min_attack_units`, `worldinfo`).
+- Gizli Depo casuslara karşı da korur (`buildings.txt`); kapasite `RulesEngine.hideout_capacity(sv)`.
+- Normal casusluk görünür + savunan rapor alır; gizli casusluk görünmez + savunan rapor almaz (`units_espionage.txt`).
 - Dönüş süresi = gidiş süresi (`docs/19` §6).
 - Katır hedefe ulaşınca kaybolur (`docs/14` §5).
 - Terkedilmiş/bonus köyler korumasız (`docs/11` §10.5).

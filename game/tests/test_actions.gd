@@ -51,6 +51,10 @@ func _initialize() -> void:
 	_test_support()
 	_test_spy()
 	_test_spy_creeping()
+	_test_spy_hideout()
+	_test_spy_visibility()
+	_test_spy_outside_units()
+	_test_min_units_scope()
 	_test_trade()
 	_test_conquest()
 	_test_conquest_protection()
@@ -376,15 +380,16 @@ func _test_spy() -> void:
 	_check(_event_types(events).has("spy_resolved"), "casusluk çözümlendi")
 
 	var reports: Array = s["reports"]
-	_check(reports.size() == 1 and str((reports[0] as Dictionary).get("type", "")) == "spy",
-		"casusluk raporu üretildi")
-	if reports.size() == 1:
-		var data: Dictionary = (reports[0] as Dictionary).get("data", {})
+	var spy_report := _report_of_type(s, "spy")
+	_check(not spy_report.is_empty(), "casusluk raporu (saldıran) üretildi")
+	if not spy_report.is_empty():
+		var data: Dictionary = spy_report.get("data", {})
 		_check(data.has("resources") and int((data["resources"] as Dictionary).get("wood", 0)) == 800,
 			"rapor hedefin kaynaklarını içeriyor")
 		_check(data.has("units") and int((data["units"] as Dictionary).get("spear", 0)) == 5,
 			"rapor hedefin birliklerini içeriyor")
 		_check(int(data.get("spy_survivors", 0)) == 10, "savunan casus yok → tüm casuslar hayatta")
+	_check(reports.size() >= 1, "en az bir rapor var")
 
 	_check(int(target["units"]["spear"]) == 5, "casuslukta savunan birim kaybetmez")
 	_check(_movements_of_type(s, "return").size() == 1, "casuslar döner (dönüş hareketi)")
@@ -405,6 +410,136 @@ func _test_spy_creeping() -> void:
 	var n_travel := int(normal["movement"]["arrive_unix"]) - int(normal["movement"]["depart_unix"])
 	var c_travel := int(creeping["movement"]["arrive_unix"]) - int(creeping["movement"]["depart_unix"])
 	_check(c_travel == 3 * n_travel, "gizli casusluk gidişi 3× uzun (%d → %d)" % [n_travel, c_travel])
+
+
+# ============================================================================
+#  (a-2) Gizli Depo casusluk raporunda kaynağı gizler
+# ============================================================================
+
+func _test_spy_hideout() -> void:
+	_section("(a) Gizli Depo casusluk raporunda kaynağı gizler")
+
+	var s := _state_two()
+	_find_village(s, 1)["units"]["spy"] = 20
+	var target := _find_village(s, 2)
+	target["units"]["spear"] = 5
+	target["resources"] = {"wood": 800, "stone": 600, "iron": 400}
+	target["buildings"]["hide"] = 5  # Gizli Depo sv5
+
+	var cap := RE.hideout_capacity(5)
+	_check(cap > 0, "Gizli Depo kapasitesi > 0 (%d)" % cap)
+
+	var sent := MovementScript.send_spy(s, 1, 2, {"spy": 10}, NOW)
+	ActionSimulatorScript.process_tick(s, int(sent["movement"]["arrive_unix"]), 1.0)
+	var data: Dictionary = _report_of_type(s, "spy").get("data", {})
+	var shown: Dictionary = data.get("resources", {})
+	_check(int(shown.get("wood", -1)) == maxi(0, 800 - cap),
+		"raporlanan odun Gizli Depo kadar azaldı (%d)" % int(shown.get("wood", -1)))
+	_check(int(shown.get("stone", -1)) == maxi(0, 600 - cap), "raporlanan taş azaldı")
+	_check(int(shown.get("iron", -1)) == maxi(0, 400 - cap), "raporlanan demir azaldı")
+	_check(int(shown.get("wood", 0)) < 800, "kaynak gerçek değerinden az görünüyor")
+	_check(int(data.get("hidden_amount", 0)) > 0, "gizlenen miktar > 0")
+	_check(int(data.get("actual_resources_total", 0)) == 1800, "gizli olmayan toplam da raporda")
+
+
+# ============================================================================
+#  (b-2) Normal casusluk görünür, gizli casusluk görünmez
+# ============================================================================
+
+func _test_spy_visibility() -> void:
+	_section("(b) Normal casusluk görünür (savunan rapor alır), gizli görünmez")
+
+	# Normal casusluk: savunana görünür + savunan rapor alır.
+	var s := _state_two()
+	_find_village(s, 1)["units"]["spy"] = 50
+	_find_village(s, 2)["units"]["spear"] = 5
+	var normal := MovementScript.send_spy(s, 1, 2, {"spy": 10}, NOW)
+	_check(bool((normal["movement"] as Dictionary).get("visible_to_defender", false)),
+		"normal casusluk savunana görünür")
+	ActionSimulatorScript.process_tick(s, int(normal["movement"]["arrive_unix"]), 1.0)
+	_check(not _report_of_type(s, "spy_incoming").is_empty(),
+		"normal casuslukta savunan rapor alır")
+
+	# Gizli casusluk: savunana görünmez + savunan rapor ALMAZ.
+	var g := _state_two()
+	_find_village(g, 1)["units"]["spy"] = 50
+	_find_village(g, 2)["units"]["spear"] = 5
+	var creeping := MovementScript.send_spy(g, 1, 2, {"spy": 10}, NOW, {"creeping": true})
+	_check(not bool((creeping["movement"] as Dictionary).get("visible_to_defender", true)),
+		"gizli casusluk savunana görünmez")
+	ActionSimulatorScript.process_tick(g, int(creeping["movement"]["arrive_unix"]), 1.0)
+	_check(_report_of_type(g, "spy_incoming").is_empty(), "gizli casuslukta savunan rapor ALMAZ")
+	_check(not _report_of_type(g, "spy").is_empty(), "gizli casuslukta saldıran yine rapor alır")
+
+
+# ============================================================================
+#  (c-2) Bilgi kademesi: normalde "dışarıdaki birlikler" var, gizlide yok
+# ============================================================================
+
+func _test_spy_outside_units() -> void:
+	_section("(c) Normal raporda 'dışarıdaki birlikler' var, gizlide yok")
+
+	var s := _state_two()
+	_find_village(s, 1)["units"]["spy"] = 50
+	_find_village(s, 2)["units"]["spear"] = 5
+	# Hedef köyün dışarıda (yolda) bir ordusu olsun.
+	s["movements"].append({
+		"id": 999, "village_id": 2, "type": "raid", "from_village_id": 2, "to_village_id": 1,
+		"units": {"axe": 7}, "depart_unix": NOW, "arrive_unix": NOW + 9999, "state": "outgoing",
+	})
+	var normal := MovementScript.send_spy(s, 1, 2, {"spy": 10}, NOW)
+	ActionSimulatorScript.process_tick(s, int(normal["movement"]["arrive_unix"]), 1.0)
+	var n_data: Dictionary = _report_of_type(s, "spy").get("data", {})
+	_check(n_data.has("outside_units"), "normal raporda 'outside_units' alanı var")
+	_check(int((n_data.get("outside_units", {}) as Dictionary).get("axe", 0)) == 7,
+		"dışarıdaki 7 Baltacı raporlandı")
+
+	var g := _state_two()
+	_find_village(g, 1)["units"]["spy"] = 50
+	_find_village(g, 2)["units"]["spear"] = 5
+	g["movements"].append({
+		"id": 999, "village_id": 2, "type": "raid", "from_village_id": 2, "to_village_id": 1,
+		"units": {"axe": 7}, "depart_unix": NOW, "arrive_unix": NOW + 9999, "state": "outgoing",
+	})
+	var creeping := MovementScript.send_spy(g, 1, 2, {"spy": 10}, NOW, {"creeping": true})
+	ActionSimulatorScript.process_tick(g, int(creeping["movement"]["arrive_unix"]), 1.0)
+	var c_data: Dictionary = _report_of_type(g, "spy").get("data", {})
+	_check(not c_data.has("outside_units"), "gizli raporda 'outside_units' YOK")
+
+
+# ============================================================================
+#  (d-2) Min. birlik kuralı yalnızca saldırı/talan
+# ============================================================================
+
+func _test_min_units_scope() -> void:
+	_section("(d) Min. birlik kuralı yalnızca saldırı/talan")
+
+	# _own_origin: Kışla 20 (min 60) + Market 1.
+	var own := _village(2, "İkinci Köy", 110, 100, "Kral", false, _buildings(0, 0, 0, 0), {})
+	var s := _state_from([_own_origin(), own])
+	_find_village(s, 1)["units"]["spear"] = 1
+	var support := MovementScript.send_support(s, 1, 2, {"spear": 1}, NOW)
+	_check(bool(support.get("ok", false)),
+		"1 birim destek min. eşiğe takılmaz [%s]" % str(support.get("code", "")))
+
+	var s2 := _state_from([_own_origin(), own.duplicate(true)])
+	_find_village(s2, 1)["resources"] = {"wood": 10, "stone": 10, "iron": 10}
+	var trade := MovementScript.send_trade(s2, 1, 2, {"wood": 10}, NOW)
+	_check(bool(trade.get("ok", false)),
+		"küçük ticaret min. eşiğe takılmaz [%s]" % str(trade.get("code", "")))
+
+	var s3 := _state_two()
+	_find_village(s3, 1)["units"]["spy"] = 1
+	var spy := MovementScript.send_spy(s3, 1, 2, {"spy": 1}, NOW)
+	_check(bool(spy.get("ok", false)),
+		"1 casus min. eşiğe takılmaz [%s]" % str(spy.get("code", "")))
+
+	# Saldırı ise eşiğe takılır (kontrol).
+	var s4 := _state_two()
+	_find_village(s4, 1)["units"]["axe"] = 5
+	var attack := MovementScript.send_attack(s4, 1, 2, {"axe": 5}, NOW)
+	_check(not bool(attack.get("ok", false)) and str(attack.get("code", "")) == "min_units",
+		"saldırı min. eşiğe takılır [%s]" % str(attack.get("code", "")))
 
 
 # ============================================================================
@@ -614,6 +749,13 @@ func _event_types(events: Array) -> Array:
 		if typeof(event) == TYPE_DICTIONARY:
 			out.append(str((event as Dictionary).get("type", "")))
 	return out
+
+
+func _report_of_type(state: Dictionary, type: String) -> Dictionary:
+	for entry in state.get("reports", []):
+		if typeof(entry) == TYPE_DICTIONARY and str((entry as Dictionary).get("type", "")) == type:
+			return entry
+	return {}
 
 
 func _sum(d: Dictionary) -> int:
