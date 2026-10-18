@@ -26,14 +26,15 @@
 ```
 res://
 ├─ project.godot
-├─ autoload/              # Singleton servisler
-│  ├─ GameState.gd        # Tüm oyun durumu (kök)
-│  ├─ GameClock.gd        # Tick/simülasyon zamanlayıcısı
-│  ├─ ConfigService.gd    # Sunucu ayarları (hız, gece bonusu, koruma...)
-│  ├─ DataService.gd      # JSON → Resource yükleyici
-│  ├─ EventBus.gd         # Global sinyal veri yolu
-│  └─ SaveService.gd      # Kaydet/yükle + offline ilerleme
+├─ autoload/              # Singleton servisler (FAZ 2'de kuruldu)
+│  ├─ EventBus.gd         # Global sinyal veri yolu (sözleşme)
+│  ├─ GameConfig.gd       # Sunucu ayarları (hız, gece bonusu, koruma...) — JSON
+│  ├─ GameData.gd         # JSON → sözlük yükleyici + sorgu API
+│  ├─ GameState.gd        # Tüm oyun durumu (kök) + serileştirme
+│  ├─ GameClock.gd        # Tick döngüsü + offline hızlı-ileri
+│  └─ SaveManager.gd      # Kaydet/yükle (saveVersion) + offline telafi
 ├─ data/                  # data/*.json kopyaları (buildings, units, points)
+│  └─ rules/              # Makine-okunur kural seti (gereksinim DAG'ı, maliyet, üretim, savaş…)
 ├─ resources/             # .tres tanımları (BuildingDef, UnitDef, ServerConfig)
 ├─ scenes/
 │  ├─ boot/               # Yükleme, yön seçimi, ilk köy
@@ -42,12 +43,19 @@ res://
 │  ├─ ui/                 # Menüler, paneller, raporlar, mesajlar
 │  └─ battle/             # Savaş simülasyonu görselleştirme
 ├─ scripts/
-│  ├─ sim/                # Saf mantık: ekonomi, üretim, inşaat, savaş
+│  ├─ core/               # Açılış/orchestration (Boot)
+│  ├─ rules/              # Kural motoru (gereksinim zinciri sorguları)
+│  ├─ sim/                # Saf mantık: ekonomi, üretim, inşaat, ordu, savaş
+│  ├─ world/              # Dünya haritası, köyler, yolculuk
 │  ├─ ai/                 # Bot/AI davranışları
-│  └─ net/                # (Faz 8) istemci-sunucu
+│  └─ ui/                 # Arayüz mantığı
 └─ assets/
-   ├─ sprites/  effects/  fonts/  audio/
+   ├─ sprites/  fonts/  audio/
 ```
+
+> **Not (isim sözleşmesi):** Autoload adları **`EventBus`, `GameConfig`, `GameData`, `GameState`,
+> `GameClock`, `SaveManager`**'dır (FAZ 2'de kuruldu ve doğrulandı). Eski taslaktaki
+> `ConfigService`/`DataService`/`SaveService` adları **geçersizdir**.
 
 ---
 
@@ -55,10 +63,12 @@ res://
 
 - Kaynak: mevcut **`data/buildings.json`, `data/units.json`, `data/building-points.json`**
   (TR kaynaktan üretildi, resmî Türkçe adlarla).
-- `DataService` bu JSON'ları okur → **typed Resource**'lara çevirir:
+- `GameData` bu JSON'ları okur → **sözlüklere (Dictionary)** çevirir; `game/data/rules/*.json`
+  **makine-okunur kural seti** (gereksinim DAG'ı, maliyet/üretim/savaş tabloları) opsiyonel olarak yüklenir:
   - `BuildingDef` (anahtar, ad, maks. seviye, gereksinimler, seviye tablosu, son sütun)
-  - `UnitDef` (maliteyet, istatistik, araştırma/eğitim, gereksinimler)
-- **Sunucu ayarları** `ConfigService` içinde (JSON): hız, birim hızı, gece bonusu penceresi,
+  - `UnitDef` (maliyet, istatistik, araştırma/eğitim, gereksinimler)
+  - `RuleSet` (gereksinim zinciri, büyüme faktörleri, savaş sabitleri, doğrulanmamış alanlar `known:false`)
+- **Sunucu ayarları** `GameConfig` içinde (JSON): hız, birim hızı, gece bonusu penceresi,
   koruma süreleri, Kont mesafesi, min. saldırı birimi, iptal süreleri, oran limitleri.
   → **TR ve EN dünyaları farklı olduğu için ayarlar mutlaka veri olarak tutulur** (`10-HARITA-VE-DUNYA.md` §6).
 
@@ -69,7 +79,7 @@ res://
 ### 4.1 Tick döngüsü
 - `GameClock` bir **birikimli tick** döngüsü çalıştırır (ör. 1 sn).
 - Her tick'te **olay kuyruğu** işlenir: bina tamamlandı, birlik eğitildi, ordu vardı, kaynak üretimi.
-- **Offline ilerleme:** Uygulama kapalıyken geçen süre `SaveService`'te saklanır; açılışta
+- **Offline ilerleme:** Uygulama kapalıyken geçen süre `SaveManager`'da (`savedAtUnix`) saklanır; açılışta
   **hızlı-ileri** (fast-forward) ile telafi edilir. Üretim doğrusal → integral alınabilir.
 
 ### 4.2 Katmanlar

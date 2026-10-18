@@ -1,0 +1,573 @@
+{
+  "schema_version": "1.0.0",
+  "generated_by": "A-KURAL",
+  "source": "game/data/units.json",
+  "description": "Birim araştırma/eğitim gereksinimleri (Kışla seviyeleri) + maliyet ve muharebe istatistikleri.",
+  "canonical_for": "birim araştırma gereksinimleri (Kışla seviyeleri)",
+  "research_building": "barracks",
+  "training_cost_time_note": "base_time_seconds değerleri Kışla/Köşk zaman faktörü uygulanmadan önceki temel sürelerdir. Katsayı bilinmiyor (bkz. time-factors.json).",
+  "time_coefficient_known": false,
+  "research_requirements_barracks": {
+    "farmer": 1,
+    "spear": 1,
+    "sword": 1,
+    "axe": 2,
+    "spy": 4,
+    "bow": 5,
+    "light": 7,
+    "heavy": 16,
+    "ram": 20,
+    "kata": 25
+  },
+  "not_researched_units": [
+    "snob"
+  ],
+  "unit_keys": [
+    "farmer",
+    "spear",
+    "sword",
+    "axe",
+    "bow",
+    "spy",
+    "light",
+    "heavy",
+    "ram",
+    "kata",
+    "snob"
+  ],
+  "classes": {
+    "infantry": [
+      "farmer",
+      "spear",
+      "sword",
+      "axe"
+    ],
+    "archer": [
+      "bow"
+    ],
+    "cavalry": [
+      "light",
+      "heavy"
+    ],
+    "siege": [
+      "ram",
+      "kata"
+    ],
+    "special": [
+      "spy",
+      "snob"
+    ]
+  },
+  "class_names_tr": {
+    "infantry": "Piyade",
+    "archer": "Okçu sınıfı",
+    "cavalry": "Süvari",
+    "siege": "Kuşatma",
+    "special": "Özel"
+  },
+  "class_is_official": false,
+  "units": [
+    {
+      "key": "farmer",
+      "name_tr": "Köy Koruyucusu",
+      "unit_class": "infantry",
+      "cost": {
+        "wood": 10,
+        "stone": 3,
+        "iron": 7
+      },
+      "settlers": 1,
+      "speed": {
+        "minutes_per_field": 5.0,
+        "source_raw": "5 Alan başına dakika",
+        "mobility": 5
+      },
+      "carry_capacity": 5,
+      "combat": {
+        "attack": 20,
+        "defence_infantry": 40,
+        "defence_cavalry": 30,
+        "defence_archer": 5
+      },
+      "research": {
+        "required": true,
+        "building": "barracks",
+        "level": 1,
+        "cost": {
+          "wood": 10,
+          "stone": 10,
+          "iron": 10
+        },
+        "base_time_seconds": 10
+      },
+      "training": {
+        "building": "barracks",
+        "cost": {
+          "wood": 10,
+          "stone": 3,
+          "iron": 7
+        },
+        "settlers": 1,
+        "base_time_seconds": 14,
+        "requires_gold_armor": false
+      },
+      "notes": null
+    },
+    {
+      "key": "spear",
+      "name_tr": "Silahtar",
+      "unit_class": "infantry",
+      "cost": {
+        "wood": 20,
+        "stone": 10,
+        "iron": 30
+      },
+      "settlers": 1,
+      "speed": {
+        "minutes_per_field": 4.5,
+        "source_raw": "4.5 Alan başına dakika",
+        "mobility": 5
+      },
+      "carry_capacity": 25,
+      "combat": {
+        "attack": 50,
+        "defence_infantry": 100,
+        "defence_cavalry": 200,
+        "defence_archer": 300
+      },
+      "research": {
+        "required": true,
+        "building": "barracks",
+        "level": 1,
+        "cost": {
+          "wood": 20,
+          "stone": 20,
+          "iron": 30
+        },
+        "base_time_seconds": 60
+      },
+      "training": {
+        "building": "barracks",
+        "cost": {
+          "wood": 20,
+          "stone": 10,
+          "iron": 30
+        },
+        "settlers": 1,
+        "base_time_seconds": 53,
+        "requires_gold_armor": false
+      },
+      "notes": null
+    },
+    {
+      "key": "sword",
+      "name_tr": "Muhafız",
+      "unit_class": "infantry",
+      "cost": {
+        "wood": 10,
+        "stone": 30,
+        "iron": 80
+      },
+      "settlers": 1,
+      "speed": {
+        "minutes_per_field": 5.5,
+        "source_raw": "5.5 Alan başına dakika",
+        "mobility": 6
+      },
+      "carry_capacity": 15,
+      "combat": {
+        "attack": 100,
+        "defence_infantry": 300,
+        "defence_cavalry": 100,
+        "defence_archer": 200
+      },
+      "research": {
+        "required": true,
+        "building": "barracks",
+        "level": 1,
+        "cost": {
+          "wood": 40,
+          "stone": 40,
+          "iron": 60
+        },
+        "base_time_seconds": 120
+      },
+      "training": {
+        "building": "barracks",
+        "cost": {
+          "wood": 10,
+          "stone": 30,
+          "iron": 80
+        },
+        "settlers": 1,
+        "base_time_seconds": 68,
+        "requires_gold_armor": false
+      },
+      "notes": null
+    },
+    {
+      "key": "axe",
+      "name_tr": "Baltacı",
+      "unit_class": "infantry",
+      "cost": {
+        "wood": 50,
+        "stone": 40,
+        "iron": 50
+      },
+      "settlers": 1,
+      "speed": {
+        "minutes_per_field": 4.5,
+        "source_raw": "4.5 Alan başına dakika",
+        "mobility": 5
+      },
+      "carry_capacity": 10,
+      "combat": {
+        "attack": 350,
+        "defence_infantry": 70,
+        "defence_cavalry": 50,
+        "defence_archer": 50
+      },
+      "research": {
+        "required": true,
+        "building": "barracks",
+        "level": 2,
+        "cost": {
+          "wood": 500,
+          "stone": 720,
+          "iron": 630
+        },
+        "base_time_seconds": 4720
+      },
+      "training": {
+        "building": "barracks",
+        "cost": {
+          "wood": 50,
+          "stone": 40,
+          "iron": 50
+        },
+        "settlers": 1,
+        "base_time_seconds": 60,
+        "requires_gold_armor": false
+      },
+      "notes": null
+    },
+    {
+      "key": "bow",
+      "name_tr": "Okçu",
+      "unit_class": "archer",
+      "cost": {
+        "wood": 160,
+        "stone": 80,
+        "iron": 80
+      },
+      "settlers": 1,
+      "speed": {
+        "minutes_per_field": 4.5,
+        "source_raw": "4.5 Alan başına dakika",
+        "mobility": 5
+      },
+      "carry_capacity": 10,
+      "combat": {
+        "attack": 150,
+        "defence_infantry": 400,
+        "defence_cavalry": 150,
+        "defence_archer": 100
+      },
+      "research": {
+        "required": true,
+        "building": "barracks",
+        "level": 5,
+        "cost": {
+          "wood": 570,
+          "stone": 480,
+          "iron": 630
+        },
+        "base_time_seconds": 8496
+      },
+      "training": {
+        "building": "barracks",
+        "cost": {
+          "wood": 160,
+          "stone": 80,
+          "iron": 80
+        },
+        "settlers": 1,
+        "base_time_seconds": 75,
+        "requires_gold_armor": false
+      },
+      "notes": null
+    },
+    {
+      "key": "spy",
+      "name_tr": "Casus",
+      "unit_class": "special",
+      "cost": {
+        "wood": 60,
+        "stone": 40,
+        "iron": 60
+      },
+      "settlers": 2,
+      "speed": {
+        "minutes_per_field": 2.25,
+        "source_raw": "2.25 Alan başına dakika",
+        "mobility": 2
+      },
+      "carry_capacity": 0,
+      "combat": {
+        "attack": 1,
+        "defence_infantry": 10,
+        "defence_cavalry": 5,
+        "defence_archer": 7
+      },
+      "research": {
+        "required": true,
+        "building": "barracks",
+        "level": 4,
+        "cost": {
+          "wood": 630,
+          "stone": 570,
+          "iron": 610
+        },
+        "base_time_seconds": 5130
+      },
+      "training": {
+        "building": "barracks",
+        "cost": {
+          "wood": 60,
+          "stone": 40,
+          "iron": 60
+        },
+        "settlers": 2,
+        "base_time_seconds": 135,
+        "requires_gold_armor": false
+      },
+      "notes": null
+    },
+    {
+      "key": "light",
+      "name_tr": "Akıncı",
+      "unit_class": "cavalry",
+      "cost": {
+        "wood": 100,
+        "stone": 100,
+        "iron": 300
+      },
+      "settlers": 4,
+      "speed": {
+        "minutes_per_field": 2.5,
+        "source_raw": "2.5 Alan başına dakika",
+        "mobility": 3
+      },
+      "carry_capacity": 80,
+      "combat": {
+        "attack": 900,
+        "defence_infantry": 200,
+        "defence_cavalry": 300,
+        "defence_archer": 300
+      },
+      "research": {
+        "required": true,
+        "building": "barracks",
+        "level": 7,
+        "cost": {
+          "wood": 1800,
+          "stone": 2100,
+          "iron": 2400
+        },
+        "base_time_seconds": 9234
+      },
+      "training": {
+        "building": "barracks",
+        "cost": {
+          "wood": 100,
+          "stone": 100,
+          "iron": 300
+        },
+        "settlers": 4,
+        "base_time_seconds": 315,
+        "requires_gold_armor": false
+      },
+      "notes": null
+    },
+    {
+      "key": "heavy",
+      "name_tr": "Kara Şövalye",
+      "unit_class": "cavalry",
+      "cost": {
+        "wood": 300,
+        "stone": 100,
+        "iron": 500
+      },
+      "settlers": 6,
+      "speed": {
+        "minutes_per_field": 2.75,
+        "source_raw": "2.75 Alan başına dakika",
+        "mobility": 3
+      },
+      "carry_capacity": 50,
+      "combat": {
+        "attack": 600,
+        "defence_infantry": 1500,
+        "defence_cavalry": 1000,
+        "defence_archer": 1000
+      },
+      "research": {
+        "required": true,
+        "building": "barracks",
+        "level": 16,
+        "cost": {
+          "wood": 3600,
+          "stone": 3500,
+          "iron": 3700
+        },
+        "base_time_seconds": 16621
+      },
+      "training": {
+        "building": "barracks",
+        "cost": {
+          "wood": 300,
+          "stone": 100,
+          "iron": 500
+        },
+        "settlers": 6,
+        "base_time_seconds": 450,
+        "requires_gold_armor": false
+      },
+      "notes": null
+    },
+    {
+      "key": "ram",
+      "name_tr": "Şahmerdan",
+      "unit_class": "siege",
+      "cost": {
+        "wood": 500,
+        "stone": 100,
+        "iron": 200
+      },
+      "settlers": 5,
+      "speed": {
+        "minutes_per_field": 7.5,
+        "source_raw": "7.5 Alan başına dakika",
+        "mobility": 8
+      },
+      "carry_capacity": 0,
+      "combat": {
+        "attack": 100,
+        "defence_infantry": 100,
+        "defence_cavalry": 200,
+        "defence_archer": 20
+      },
+      "research": {
+        "required": true,
+        "building": "barracks",
+        "level": 20,
+        "cost": {
+          "wood": 1400,
+          "stone": 1800,
+          "iron": 1200
+        },
+        "base_time_seconds": 6500
+      },
+      "training": {
+        "building": "barracks",
+        "cost": {
+          "wood": 500,
+          "stone": 100,
+          "iron": 200
+        },
+        "settlers": 5,
+        "base_time_seconds": 1050,
+        "requires_gold_armor": false
+      },
+      "notes": null
+    },
+    {
+      "key": "kata",
+      "name_tr": "Mancınık",
+      "unit_class": "siege",
+      "cost": {
+        "wood": 600,
+        "stone": 200,
+        "iron": 200
+      },
+      "settlers": 8,
+      "speed": {
+        "minutes_per_field": 7.5,
+        "source_raw": "7.5 Alan başına dakika",
+        "mobility": 8
+      },
+      "carry_capacity": 0,
+      "combat": {
+        "attack": 500,
+        "defence_infantry": 400,
+        "defence_cavalry": 100,
+        "defence_archer": 200
+      },
+      "research": {
+        "required": true,
+        "building": "barracks",
+        "level": 25,
+        "cost": {
+          "wood": 2500,
+          "stone": 3000,
+          "iron": 1600
+        },
+        "base_time_seconds": 13000
+      },
+      "training": {
+        "building": "barracks",
+        "cost": {
+          "wood": 600,
+          "stone": 200,
+          "iron": 200
+        },
+        "settlers": 8,
+        "base_time_seconds": 1500,
+        "requires_gold_armor": false
+      },
+      "notes": null
+    },
+    {
+      "key": "snob",
+      "name_tr": "Kont",
+      "unit_class": "special",
+      "cost": {
+        "wood": 120000,
+        "stone": 100000,
+        "iron": 80000
+      },
+      "settlers": 100,
+      "speed": {
+        "minutes_per_field": 8.75,
+        "source_raw": "8.75 Alan başına dakika",
+        "mobility": 9
+      },
+      "carry_capacity": 0,
+      "combat": {
+        "attack": 100,
+        "defence_infantry": 300,
+        "defence_cavalry": 100,
+        "defence_archer": 200
+      },
+      "research": {
+        "required": false,
+        "building": null,
+        "level": 0,
+        "cost": null,
+        "base_time_seconds": null
+      },
+      "training": {
+        "building": "snob",
+        "cost": {
+          "wood": 120000,
+          "stone": 100000,
+          "iron": 80000
+        },
+        "settlers": 100,
+        "base_time_seconds": 9000,
+        "requires_gold_armor": true
+      },
+      "notes": "Kont araştırılmaz; Köşk'te Altın Zırh ile eğitilir. Eğitim süresi Köşk seviyesine bağlıdır."
+    }
+  ]
+}

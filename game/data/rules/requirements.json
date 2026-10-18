@@ -1,0 +1,297 @@
+{
+  "schema_version": "1.0.0",
+  "generated_by": "A-KURAL",
+  "description": "Bina gereksinim (önkoşul) DAG'ı ve birim araştırma Kışla seviyelerinin özeti. Bir binayı `level` seviyesine çıkarmak için `requires` listesindeki TÜM önkoşullar sağlanmalıdır (requires_operator = \"all\").",
+  "source": "data/buildings.json",
+  "units_source": "game/data/units.json",
+  "key_order": [
+    "main",
+    "stone",
+    "wood",
+    "iron",
+    "storage",
+    "hide",
+    "farm",
+    "barracks",
+    "wall",
+    "market",
+    "stable",
+    "garage",
+    "snob",
+    "smith",
+    "statue"
+  ],
+  "free_start_buildings": [
+    "main",
+    "stone",
+    "wood",
+    "iron",
+    "farm",
+    "storage"
+  ],
+  "requires_operator_default": "all",
+  "requires_operator_values": [
+    "all"
+  ],
+  "special_rules": {
+    "all_buildings_at_max_level": "Binanın `requires` listesi, kendisi hariç TÜM diğer binaları kendi max_level değerinde ister."
+  },
+  "buildings": [
+    {
+      "key": "main",
+      "name_tr": "Kale",
+      "max_level": 50,
+      "requires": [],
+      "requires_operator": "all",
+      "requires_special": null,
+      "unlock_note": "Başlangıçta mevcut (serbest). Köyün kalbi; inşaatları başlatır."
+    },
+    {
+      "key": "stone",
+      "name_tr": "Taş ocağı",
+      "max_level": 50,
+      "requires": [],
+      "requires_operator": "all",
+      "requires_special": null,
+      "unlock_note": "Başlangıçta mevcut (serbest). Taş üretir."
+    },
+    {
+      "key": "wood",
+      "name_tr": "Oduncu Kampı",
+      "max_level": 50,
+      "requires": [],
+      "requires_operator": "all",
+      "requires_special": null,
+      "unlock_note": "Başlangıçta mevcut (serbest). Odun üretir."
+    },
+    {
+      "key": "iron",
+      "name_tr": "Maden ocağı",
+      "max_level": 50,
+      "requires": [],
+      "requires_operator": "all",
+      "requires_special": null,
+      "unlock_note": "Başlangıçta mevcut (serbest). Demir üretir."
+    },
+    {
+      "key": "storage",
+      "name_tr": "Depo",
+      "max_level": 50,
+      "requires": [],
+      "requires_operator": "all",
+      "requires_special": null,
+      "unlock_note": "Başlangıçta mevcut (serbest). Hammadde depolama kapasitesi."
+    },
+    {
+      "key": "hide",
+      "name_tr": "Gizli Depo",
+      "max_level": 30,
+      "requires": [
+        {
+          "building": "farm",
+          "level": 3
+        }
+      ],
+      "requires_operator": "all",
+      "requires_special": null,
+      "unlock_note": "Değirmen (farm) Lv3 ile açılır. Talan ve casusluğa karşı korur."
+    },
+    {
+      "key": "farm",
+      "name_tr": "Değirmen",
+      "max_level": 50,
+      "requires": [],
+      "requires_operator": "all",
+      "requires_special": null,
+      "unlock_note": "Başlangıçta mevcut (serbest). Maksimum vatandaş sayısını belirler."
+    },
+    {
+      "key": "barracks",
+      "name_tr": "Kışla",
+      "max_level": 30,
+      "requires": [
+        {
+          "building": "storage",
+          "level": 3
+        },
+        {
+          "building": "farm",
+          "level": 3
+        }
+      ],
+      "requires_operator": "all",
+      "requires_special": null,
+      "unlock_note": "Depo (storage) Lv3 VE Değirmen (farm) Lv3 ile açılır. Birim araştırma + eğitim."
+    },
+    {
+      "key": "wall",
+      "name_tr": "Sur",
+      "max_level": 20,
+      "requires": [
+        {
+          "building": "barracks",
+          "level": 1
+        }
+      ],
+      "requires_operator": "all",
+      "requires_special": null,
+      "unlock_note": "Kışla (barracks) Lv1 ile açılır. Savunma bonusu verir."
+    },
+    {
+      "key": "market",
+      "name_tr": "Market",
+      "max_level": 30,
+      "requires": [
+        {
+          "building": "storage",
+          "level": 5
+        }
+      ],
+      "requires_operator": "all",
+      "requires_special": null,
+      "unlock_note": "Depo (storage) Lv5 ile açılır. Ticaret + maksimum katır sayısı."
+    },
+    {
+      "key": "stable",
+      "name_tr": "Katır çiftliği",
+      "max_level": 30,
+      "requires": [
+        {
+          "building": "market",
+          "level": 1
+        }
+      ],
+      "requires_operator": "all",
+      "requires_special": null,
+      "unlock_note": "Market Lv1 ile açılır. Saatlik katır üretimi."
+    },
+    {
+      "key": "garage",
+      "name_tr": "Simyager",
+      "max_level": 5,
+      "requires": [
+        {
+          "building": "barracks",
+          "level": 5
+        }
+      ],
+      "requires_operator": "all",
+      "requires_special": null,
+      "unlock_note": "Kışla (barracks) Lv5 ile açılır. Kalıcı teknik/bonus araştırması."
+    },
+    {
+      "key": "snob",
+      "name_tr": "Köşk",
+      "max_level": 10,
+      "requires": [
+        {
+          "building": "garage",
+          "level": 5
+        }
+      ],
+      "requires_operator": "all",
+      "requires_special": null,
+      "unlock_note": "Simyager (garage) Lv5 ile açılır. Kont eğitimi (fetih birimi)."
+    },
+    {
+      "key": "smith",
+      "name_tr": "Kuyumcu",
+      "max_level": 5,
+      "requires": [
+        {
+          "building": "snob",
+          "level": 1
+        }
+      ],
+      "requires_operator": "all",
+      "requires_special": null,
+      "unlock_note": "Köşk (snob) Lv1 ile açılır. Altın Zırh üretimi (Kont için)."
+    },
+    {
+      "key": "statue",
+      "name_tr": "Anıt",
+      "max_level": 1,
+      "requires": [
+        {
+          "building": "main",
+          "level": 50
+        },
+        {
+          "building": "farm",
+          "level": 50
+        },
+        {
+          "building": "wood",
+          "level": 50
+        },
+        {
+          "building": "stone",
+          "level": 50
+        },
+        {
+          "building": "iron",
+          "level": 50
+        },
+        {
+          "building": "storage",
+          "level": 50
+        },
+        {
+          "building": "hide",
+          "level": 30
+        },
+        {
+          "building": "market",
+          "level": 30
+        },
+        {
+          "building": "barracks",
+          "level": 30
+        },
+        {
+          "building": "stable",
+          "level": 30
+        },
+        {
+          "building": "garage",
+          "level": 5
+        },
+        {
+          "building": "snob",
+          "level": 10
+        },
+        {
+          "building": "smith",
+          "level": 5
+        },
+        {
+          "building": "wall",
+          "level": 20
+        }
+      ],
+      "requires_operator": "all",
+      "requires_special": "all_buildings_at_max_level",
+      "unlock_note": "TÜM binalar maksimum seviyede olunca açılır. Tahkimatı %50 artırır."
+    }
+  ],
+  "unit_research": {
+    "source_of_truth": "game/data/rules/units.json#research_requirements_barracks",
+    "note": "Birim araştırma önkoşulları (Kışla seviyesi) units.json'da tanımlıdır; burada DAG'ın tam görünümü için ayna olarak tutulur ve validator iki dosyanın aynı olduğunu doğrular.",
+    "barracks_levels": {
+      "farmer": 1,
+      "spear": 1,
+      "sword": 1,
+      "axe": 2,
+      "spy": 4,
+      "bow": 5,
+      "light": 7,
+      "heavy": 16,
+      "ram": 20,
+      "kata": 25
+    },
+    "not_researched": [
+      "snob"
+    ],
+    "barracks_key": "barracks"
+  }
+}

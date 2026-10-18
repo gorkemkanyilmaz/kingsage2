@@ -1,0 +1,270 @@
+{
+  "schema_version": "1.0.0",
+  "generated_by": "A-KURAL",
+  "description": "Savaş sabitleri, değiştiriciler ve 5 faz tanımı.",
+  "consumers": [
+    "A-SAVAS",
+    "A-HALKA (GameConfig.gd)"
+  ],
+  "morale": {
+    "min": 0.3,
+    "max": 1.0,
+    "applies_to": "attacker_attack_value",
+    "known": false,
+    "assumption": "Yalnızca aralık (%30–%100) biliniyor; puan oranı -> moral eğrisi kesin değil.",
+    "open_question": true
+  },
+  "luck": {
+    "min": -0.25,
+    "max": 0.25,
+    "known": true,
+    "description": "Her muharebede rastgele uygulanan şans çarpanı."
+  },
+  "wall_bonus": {
+    "source": "game/data/rules/production.json#tables.wall_defence_bonus_percent",
+    "applies_to": "defender_defence_value",
+    "known": true
+  },
+  "night_bonus": {
+    "configurable": true,
+    "multiplier": 2.0,
+    "applies_to": "defender_defence_value",
+    "window_local": {
+      "start": "00:00",
+      "end": "06:00"
+    },
+    "enabled_by_default": {
+      "en": false,
+      "tr": true
+    },
+    "known": true
+  },
+  "memorial": {
+    "fortification_bonus": 0.5,
+    "requires": "all_buildings_at_max_level",
+    "known": true
+  },
+  "min_attack_units": {
+    "formula": "3 * barracks_level",
+    "barracks_factor": 3,
+    "known": true
+  },
+  "attack_protection": {
+    "new_player_attack_protection_days": 5,
+    "conquest_protection_days": 7,
+    "max_ratio_attacker_defender": 10.0,
+    "outlawed_penalty_days": 60,
+    "highscore_window_players": 200,
+    "known": true
+  },
+  "cancellation": {
+    "attack_cancel_minutes": 30,
+    "donkey_cancel_minutes": 15,
+    "configurable": true,
+    "known": true
+  },
+  "realm_of_power": {
+    "min": 0,
+    "max": "village_points",
+    "max_village_points": 10000,
+    "hourly_increase_percent": 1.0,
+    "loss_foreign_count": {
+      "min": 2250,
+      "max": 2750
+    },
+    "loss_foreign_count_memorial": {
+      "min": 1750,
+      "max": 2250
+    },
+    "cap_per_attack": "max_village_points / 2",
+    "effective_counts_per_attack": 1,
+    "min_counts_per_village": 2,
+    "post_conquest_percent_of_max": 30,
+    "known": true
+  },
+  "count": {
+    "researched": false,
+    "training_building": "snob",
+    "requires_gold_armor": true,
+    "gold_armor_building": "smith",
+    "max_distance_fields": {
+      "en": 100,
+      "tr": 80
+    },
+    "configurable": true,
+    "death_condition": {
+      "known": true,
+      "rules": [
+        "Orduda Kont dışında başka birlik kalmamışsa ve muharebe olduysa → Kont ölür.",
+        "Saldıranın birimlerinin %50'si ölmüşse → Kont ölür."
+      ],
+      "attacker_loss_ratio_threshold": 0.5
+    }
+  },
+  "loot": {
+    "hidden_floor_formula": "remaining_resources >= hideout_capacity",
+    "known": true
+  },
+  "loss_distribution": {
+    "attack_formula": "sum(unit.attack * count) * morale * luck",
+    "defence_formula": "sum(unit.defence[type] * count) * wall_bonus * night_bonus",
+    "known": false,
+    "assumption": "Saldırı/savunma toplamlarının oranından kesin kayıp dağıtım eğrisi yardım sitesinde verilmiyor.",
+    "open_question": true
+  },
+  "spy": {
+    "survivor_formula": {
+      "known": false,
+      "assumption": "'Hayatta kalan casus' formülü yardım sitesinde yok; yalnızca saldıran/savunan casus oranına bağlı olduğu belirtiliyor.",
+      "open_question": true
+    },
+    "defender_loses_units": false,
+    "normal_visible_to_defender": true,
+    "creeping_visible_to_defender": false,
+    "creeping_speed_multiplier": {
+      "known": false,
+      "assumption": "Gizli casusluk 'belirgin şekilde yavaş'; kesin çarpan bilinmiyor.",
+      "open_question": true
+    }
+  },
+  "siege": {
+    "ram_wall_damage": {
+      "known": false,
+      "assumption": "Şahmerdan duvar hasarı formülü bilinmiyor.",
+      "open_question": true
+    },
+    "kata_building_damage": {
+      "known": false,
+      "assumption": "Mancınık bina hasarı formülü bilinmiyor (savunanın kayıpları + mancınık sayısına bağlı olduğu biliniyor).",
+      "open_question": true
+    }
+  },
+  "config_defaults": {
+    "consumers": [
+      "A-HALKA (GameConfig.gd)"
+    ],
+    "speed": {
+      "en": 4,
+      "tr": 4
+    },
+    "unit_speed": {
+      "en": 4,
+      "tr": 4
+    },
+    "night_bonus": {
+      "en": false,
+      "tr": true
+    },
+    "night_window_local": {
+      "en": null,
+      "tr": {
+        "start": "00:00",
+        "end": "06:00"
+      }
+    },
+    "min_units_for_attacking_factor": 3,
+    "attack_protection_days": {
+      "en": 5,
+      "tr": 5
+    },
+    "conquest_protection_days": {
+      "en": 7,
+      "tr": 7
+    },
+    "max_ratio_attacker_defender": {
+      "en": 10,
+      "tr": 10
+    },
+    "attack_cancel_minutes": {
+      "en": 30,
+      "tr": 30
+    },
+    "donkey_cancel_minutes": {
+      "en": 15,
+      "tr": 15
+    },
+    "count_max_distance_fields": {
+      "en": 100,
+      "tr": 80
+    },
+    "realm_loss_foreign_count": {
+      "normal": [
+        2250,
+        2750
+      ],
+      "memorial": [
+        1750,
+        2250
+      ]
+    },
+    "realm_increase_percent_per_hour": 1.0
+  },
+  "phases": [
+    {
+      "order": 1,
+      "key": "wall_damage",
+      "name_tr": "Sura zarar verilmesi",
+      "name_en": "Wall damage phase",
+      "trigger_units": [
+        "ram"
+      ],
+      "summary": "Muharebe öncesi sur seviyesi, saldıranın Şahmerdan sayısına göre düşürülür.",
+      "formula_known": false
+    },
+    {
+      "order": 2,
+      "key": "spy_attack",
+      "name_tr": "Casus Saldırısı",
+      "name_en": "Spy attack phase",
+      "trigger_units": [
+        "spy"
+      ],
+      "summary": "Saldıran orduda casus varsa, normal muharebeden önce casusluk hesaplanır.",
+      "formula_known": false
+    },
+    {
+      "order": 3,
+      "key": "normal_battle",
+      "name_tr": "Normal Asker Saldırısı",
+      "name_en": "Normal troop battle phase",
+      "trigger_units": [],
+      "summary": "Saldırı değerleri ↔ savunma değerleri karşılaştırılır; kayıplar belirlenir.",
+      "formula_known": false
+    },
+    {
+      "order": 4,
+      "key": "building_damage",
+      "name_tr": "Binalara zarar",
+      "name_en": "Building damage phase",
+      "trigger_units": [
+        "kata"
+      ],
+      "summary": "Savunanın kayıplarına ve saldıranın Mancınık sayısına bağlı olarak binalar zarar görür.",
+      "formula_known": false
+    },
+    {
+      "order": 5,
+      "key": "conquest_and_pillage",
+      "name_tr": "Fetihler ve Yağma",
+      "name_en": "Conquest & pillage phase",
+      "trigger_units": [
+        "snob"
+      ],
+      "summary": "Hayatta kalan birimler taşıma kapasitesi kadar yağma yapar; hayatta kalan Kont güç alanını düşürür.",
+      "formula_known": true
+    }
+  ],
+  "_phase_formula_status": {
+    "known_phases": [
+      "conquest_and_pillage"
+    ],
+    "unknown_phases": [
+      "wall_damage",
+      "spy_attack",
+      "normal_battle",
+      "building_damage"
+    ],
+    "assumption": "Faz sırası ve tetikleyici birimler bilinir; fazların sayısal formülleri yardım sitesinde yok. Parametrik bırakılacak.",
+    "open_question": true
+  }
+}

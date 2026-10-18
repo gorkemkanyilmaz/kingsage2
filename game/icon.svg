@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
+  <defs>
+    <linearGradient id="bgGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#9FE7F5"/>
+      <stop offset="1" stop-color="#7EE0C0"/>
+    </linearGradient>
+    <linearGradient id="goldGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FFE59A"/>
+      <stop offset="1" stop-color="#F3C44E"/>
+    </linearGradient>
+    <linearGradient id="shieldGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FFFFFF"/>
+      <stop offset="1" stop-color="#D7E4FF"/>
+    </linearGradient>
+    <linearGradient id="bladeGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#F4F8FF"/>
+      <stop offset="1" stop-color="#B9C9E8"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Yumuşak pastel arka plan -->
+  <rect x="4" y="4" width="120" height="120" rx="30" fill="url(#bgGrad)"/>
+
+  <!-- Taht: taç -->
+  <path d="M38 50 L38 30 L52 42 L64 24 L76 42 L90 30 L90 50 Z"
+        fill="url(#goldGrad)" stroke="#C89A2E" stroke-width="3" stroke-linejoin="round"/>
+  <rect x="38" y="50" width="52" height="8" rx="4"
+        fill="url(#goldGrad)" stroke="#C89A2E" stroke-width="3"/>
+
+  <!-- Kalkan -->
+  <path d="M64 60 L90 68 C90 94 79 104 64 112 C49 104 38 94 38 68 Z"
+        fill="url(#shieldGrad)" stroke="#7C98CF" stroke-width="4" stroke-linejoin="round"/>
+
+  <!-- Kılıç -->
+  <rect x="60" y="70" width="8" height="30" rx="4"
+        fill="url(#bladeGrad)" stroke="#7C98CF" stroke-width="2"/>
+  <path d="M64 66 L68 74 L64 72 L60 74 Z" fill="#E7EEFC" stroke="#7C98CF" stroke-width="2" stroke-linejoin="round"/>
+  <rect x="51" y="99" width="26" height="7" rx="3.5"
+        fill="url(#goldGrad)" stroke="#C89A2E" stroke-width="2"/>
+</svg>

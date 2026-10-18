@@ -51,20 +51,26 @@
 | T-1.3 | Proje klasör ağacı + `game/data/*.json` kopyası | A-ŞEF | ✅ Tamamlandı |
 | T-1.4 | Kodlama görev panosu (`TASKS-CODE.md`) | A-ŞEF | ✅ Tamamlandı |
 
-## FAZ 2 — Halka (Foundation) — *kritik yol*
+## FAZ 2 — Halka (Foundation) — *kritik yol* ✅
 
 | ID | Görev | Ajan | Durum |
 |---|---|---|---|
-| T-2.1 | `project.godot`: ad, dikey 1080×1920, gl_compatibility, autoload kayıtları | A-HALKA | ⏳ Bekliyor |
-| T-2.2 | `EventBus.gd`: global sinyaller (bina tamamlandı, birlik hazır, ordu vardı, kaynak değişti, rapor üretildi…) | A-HALKA | ⏳ Bekliyor |
-| T-2.3 | `GameData.gd`: `data/*.json` → tipli sözlükler (bina, birim, puan, kural) + sorgu API | A-HALKA | ⏳ Bekliyor |
-| T-2.4 | `GameConfig.gd`: **sunucu ayarları** (hız, birim hızı, gece bonusu, koruma süreleri, Kont mesafesi, iptal süreleri, oran limitleri, min. saldırı birimi) | A-HALKA | ⏳ Bekliyor |
-| T-2.5 | `GameState.gd`: kök durum (köyler, kaynaklar, kuyruklar, hareketler, raporlar, oyuncu) + serileştirme | A-HALKA | ⏳ Bekliyor |
-| T-2.6 | `GameClock.gd`: tick döngüsü + **offline hızlı-ileri** | A-HALKA | ⏳ Bekliyor |
-| T-2.7 | `SaveManager.gd`: kaydet/yükle (yerel) + `saveVersion` | A-HALKA | ⏳ Bekliyor |
-| T-2.8 | `scenes/boot/Boot.tscn` + `Boot.gd`: veriyi yükle, başlık + yüklenen bina sayısını göster | A-HALKA | ⏳ Bekliyor |
-| T-2.9 | `icon.svg` (özgün, pastel) | A-HALKA | ⏳ Bekliyor |
-| T-2.10 | **Doğrulama:** `godot --headless --quit --path game` → hata yok | A-HALKA | ⏳ Bekliyor |
+| T-2.1 | `project.godot`: ad, dikey 1080×1920, gl_compatibility, autoload kayıtları | A-HALKA | ✅ Tamamlandı |
+| T-2.2 | `EventBus.gd`: global sinyaller | A-HALKA | ✅ Tamamlandı |
+| T-2.3 | `GameData.gd`: `data/*.json` + `rules/*.json` → sözlük + sorgu API | A-HALKA | ✅ Tamamlandı |
+| T-2.4 | `GameConfig.gd`: sunucu ayarları (JSON yükle/kaydet) | A-HALKA | ✅ Tamamlandı |
+| T-2.5 | `GameState.gd`: kök durum + serileştirme | A-HALKA | ✅ Tamamlandı |
+| T-2.6 | `GameClock.gd`: tick + **offline hızlı-ileri** | A-HALKA | ✅ Tamamlandı |
+| T-2.7 | `SaveManager.gd`: `user://` kaydet/yükle + `saveVersion` | A-HALKA | ✅ Tamamlandı |
+| T-2.8 | `scenes/boot/Boot.tscn` + `Boot.gd` | A-HALKA | ✅ Tamamlandı |
+| T-2.9 | `icon.svg` (özgün, pastel) | A-HALKA | ✅ Tamamlandı |
+| T-2.10 | **Doğrulama:** `godot --headless` → hata yok | A-HALKA + A-ŞEF | ✅ Tamamlandı |
+| T-2.11 | `GameData` sayısal alanları yüklerken **int'e çevir** (KingsAge tamsayı matematiği) | A-HALKA | ⏳ Bekliyor |
+| T-2.12 | `GameClock` yalnızca **aktif köy varsa** tick ilerletsin | A-HALKA | ⏳ Bekliyor |
+
+> **Kanıt (A-ŞEF bağımsız doğrulaması):**
+> `Godot_v4.7.2-stable_win64_console.exe --headless --path .\game --quit-after 5` → `EXIT=0`
+> `[Boot] Veri katmanı hazır — 15 bina yüklendi.` / `Bina: 15 · Birim: 11 · Puan tablosu: 50 seviye · Kural dosyası: 6`
 
 ## FAZ 3 — Kural Motoru (Rules Engine) — *gereksinim zinciri burada*
 
@@ -171,6 +177,19 @@
 
 ## FAZ 13/14 — (Sonra) Premium & Online
 > Kullanıcı kararı: **şimdilik kapsam dışı.**
+
+---
+
+## 🔧 Teknik Kararlar (A-HALKA'nın 6 sorusuna yanıt — A-ŞEF)
+
+| # | Soru | Karar |
+|---|---|---|
+| 1 | Autoload adları (`GameConfig` vs `ConfigService`) | **`GameConfig`/`GameData`/`GameState`/`GameClock`/`SaveManager`/`EventBus` geçerlidir.** `docs/16` hizalandı. |
+| 2 | JSON sayıları float mı int mi? | **`GameData` yüklerken tamsayı alanları `int`'e çevirir** (KingsAge tamsayı matematiği). → T-2.11 |
+| 3 | Kayıt/ayar dosya yolları | Onaylandı: `user://taht_ve_kilic_save.json`, `user://taht_ve_kilic_config.json` |
+| 4 | Oyun saati ne zaman başlar? | Saat **yalnızca aktif köy varken** tick ilerletir. → T-2.12 |
+| 5 | Dünya profili (TR/EN) | **İki hazır profil** (TR varsayılan: gece bonusu 00–06, Kont 80 / EN: gece kapalı, Kont 100); ilk açılışta seçim ekranı **yok**, ayarlardan değiştirilebilir. |
+| 6 | `EventBus` sinyal adları sözleşme mi? | **Evet.** Mevcut sinyaller **yeniden adlandırılamaz**; ajanlar **yeni** sinyal ekleyebilir. |
 
 ---
 
