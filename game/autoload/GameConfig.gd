@@ -6,10 +6,14 @@ extends Node
 ## JSON'a yazılıp okunabilir. Varsayılanlar TR dünyasına (World 59 TR) göredir:
 ## gece bonusu aktif (00:00–06:00), Kontun maksimum yolculuk mesafesi 80 alan.
 ##
-## Not: EN dünyası baz alınacaksa `count_max_distance = 100` ve
-##      `night_bonus_enabled = false` yapılmalıdır (bkz. docs/TERIMLER.md §11).
+## Not: EN dünyası baz alınacaksa `apply_profile("en")` çağrılır; bu da
+##      `count_max_distance = 100` ve `night_bonus_enabled = false` yapar
+##      (bkz. docs/TERIMLER.md §11, docs/10 §5).
 
 const CONFIG_PATH := "user://taht_ve_kilic_config.json"
+
+## Hazır dünya profilleri (TR / EN) veri dosyası.
+const PROFILES_PATH := "res://data/world-profiles.json"
 
 # --- Hız / üretim -----------------------------------------------------------
 
@@ -84,11 +88,81 @@ var holiday_replacement: bool = true
 ## Yön seçimi aktif mi?
 var orientation_choice: bool = true
 
+# --- Dünya profili ----------------------------------------------------------
+
+## Seçili dünya profili anahtarı ("tr" veya "en").
+var current_profile: String = "tr"
+
+# Yüklenen profiller: {profil_adı: {ayar: değer, ...}}
+var _profiles: Dictionary = {}
+var _default_profile: String = "tr"
+
 
 func _ready() -> void:
-	# Kayıtlı ayar varsa onu yükle; yoksa varsayılanlar geçerli kalır.
-	if FileAccess.file_exists(CONFIG_PATH):
-		load_from_file(CONFIG_PATH)
+	load_profiles()
+	# Kayıtlı ayar varsa onu yükle; yoksa varsayılan dünya profilini (TR) uygula.
+	if FileAccess.file_exists(CONFIG_PATH) and load_from_file(CONFIG_PATH):
+		return
+	apply_profile(_default_profile)
+
+
+# --- Dünya profilleri -------------------------------------------------------
+
+## `res://data/world-profiles.json` dosyasından profilleri okur.
+func load_profiles(path: String = PROFILES_PATH) -> bool:
+	if not FileAccess.file_exists(path):
+		push_warning("GameConfig: dünya profilleri bulunamadı -> " + path)
+		return false
+	var parsed = JSON.parse_string(FileAccess.get_file_as_string(path))
+	if typeof(parsed) != TYPE_DICTIONARY:
+		push_warning("GameConfig: dünya profilleri okunamadı -> " + path)
+		return false
+	var profiles = parsed.get("profiles", {})
+	if typeof(profiles) != TYPE_DICTIONARY or (profiles as Dictionary).is_empty():
+		push_warning("GameConfig: profil listesi boş -> " + path)
+		return false
+	_profiles = profiles
+	var def := str(parsed.get("default_profile", "tr"))
+	_default_profile = def if _profiles.has(def) else str(_profiles.keys()[0])
+	return true
+
+
+## Kullanılabilir profil adlarını (alfabetik) döndürür.
+func get_profile_names() -> Array:
+	if _profiles.is_empty():
+		load_profiles()
+	var names := _profiles.keys()
+	names.sort()
+	return names
+
+
+## Profilin görünen adını (etiket) döndürür.
+func get_profile_label(profile_name: String) -> String:
+	return str((_profiles.get(profile_name, {}) as Dictionary).get("label", profile_name))
+
+
+## Aktif profili okunabilir biçimde tanımlar (arayüz için).
+func describe_profile() -> String:
+	return "%s [%s]" % [get_profile_label(current_profile), current_profile]
+
+
+## Verilen dünya profilini uygular (TR / EN). Başarı durumunu döndürür.
+## Bilinmeyen profil adı verilirse hiçbir şey değişmez.
+func apply_profile(profile_name: String) -> bool:
+	if _profiles.is_empty():
+		load_profiles()
+	if not _profiles.has(profile_name):
+		push_warning("GameConfig: bilinmeyen dünya profili -> " + profile_name)
+		return false
+	var profile: Dictionary = _profiles[profile_name]
+	var settings: Dictionary = {}
+	for key in profile.keys():
+		if key == "label":
+			continue
+		settings[key] = profile[key]
+	current_profile = profile_name
+	from_dict(settings)
+	return true
 
 
 # --- Yardımcılar ------------------------------------------------------------
@@ -124,6 +198,7 @@ func realm_loss_range(has_statue: bool) -> Array:
 
 func to_dict() -> Dictionary:
 	return {
+		"profile": current_profile,
 		"speed": speed,
 		"unit_speed": unit_speed,
 		"night_bonus_enabled": night_bonus_enabled,
@@ -157,6 +232,8 @@ func from_dict(data: Dictionary) -> void:
 
 func _set_field(key: String, value) -> void:
 	match key:
+		"profile":
+			current_profile = str(value)
 		"speed":
 			speed = float(value)
 		"unit_speed":

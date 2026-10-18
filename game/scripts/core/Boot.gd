@@ -33,6 +33,7 @@ func _load_and_report() -> void:
 		_status_label.modulate = COLOR_ERROR
 
 	_detail_label.text = GameData.summary()
+	_detail_label.text += "\nDünya profili: " + GameConfig.describe_profile()
 
 	if not GameData.load_errors.is_empty():
 		_detail_label.text += "\nUyarı: " + _join_errors(GameData.load_errors)
@@ -41,6 +42,7 @@ func _load_and_report() -> void:
 	# Açılış logu (veri katmanı kanıtı).
 	print("[Boot] ", _status_label.text)
 	print("[Boot] ", GameData.summary())
+	print("[Boot] Dünya profili: ", GameConfig.describe_profile())
 	if not GameData.load_errors.is_empty():
 		print("[Boot] Uyarı: ", _join_errors(GameData.load_errors))
 

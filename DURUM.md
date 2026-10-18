@@ -84,6 +84,9 @@
 | Sanat | **Ücretsiz CC0/OFL** varlıklar, **pastel & canlı** palet |
 | Git | ✅ başlatıldı (`git init`, ilk commit `435b2b0`) |
 | Godot kurulumu | ✅ indirildi + doğrulandı (`4.7.2.stable.official.ed1daf0bf`) |
+| Varsayılan oyun hızı | **1× birebir** (KingsAge süreleri aynen; hız = sunucu ayarı) |
+| Dünya ölçeği | **~200×200, ~100 bot köyü** (KingsAge 1000×1000'in mobil uyarlaması) |
+| İlerleme yapısı | **Sonsuz kum havuzu** (kazanma koşulu yok) |
 
 ### 3.2 Kurulan altyapı
 - Depo **git deposu** oldu. `.gitignore`: Godot çıktıları, `tools/` ve **telifli araştırma ham metinleri** (`research/raw*/`, `research/text*/`) hariç.

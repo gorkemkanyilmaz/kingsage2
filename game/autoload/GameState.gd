@@ -14,6 +14,10 @@ var player: Dictionary = {}
 ## Oyuncunun köyleri.
 var villages: Array = []
 
+## Şu anda "aktif" (seçili) köyün kimliği; -1 = aktif köy yok.
+## GameClock tick'i yalnızca aktif köy varken ilerletir.
+var active_village_id: int = -1
+
 ## İnşaat / araştırma / eğitim kuyrukları.
 var queues: Array = []
 
@@ -50,6 +54,7 @@ func reset() -> void:
 		"premium": false,
 	}
 	villages = []
+	active_village_id = -1
 	queues = []
 	movements = []
 	reports = []
@@ -80,11 +85,32 @@ func get_village_index(village_id: int) -> int:
 
 func add_village(village: Dictionary) -> void:
 	villages.append(village)
+	# İlk köy eklendiğinde onu otomatik aktif yap.
+	if active_village_id < 0:
+		active_village_id = int(village.get("id", -1))
 	EventBus.state_changed.emit()
 
 
 func get_village_count() -> int:
 	return villages.size()
+
+
+# --- Yardımcılar: aktif köy ------------------------------------------------
+
+## Şu anda aktif (seçili) köyü döndürür; yoksa boş sözlük.
+func get_active_village() -> Dictionary:
+	return get_village(active_village_id)
+
+
+## Aktif köy var mı? (GameClock tick kapısı bunu kullanır.)
+func has_active_village() -> bool:
+	return not get_active_village().is_empty()
+
+
+## Aktif köyü seçer.
+func set_active_village(village_id: int) -> void:
+	active_village_id = village_id
+	EventBus.state_changed.emit()
 
 
 # --- Yardımcılar: kaynak / vatandaş ----------------------------------------
@@ -134,6 +160,7 @@ func to_dict() -> Dictionary:
 	return {
 		"player": player.duplicate(true),
 		"villages": villages.duplicate(true),
+		"active_village_id": active_village_id,
 		"queues": queues.duplicate(true),
 		"movements": movements.duplicate(true),
 		"reports": reports.duplicate(true),
@@ -148,6 +175,9 @@ func from_dict(data: Dictionary) -> bool:
 		return false
 	player = _as_dict(data.get("player", {}))
 	villages = _as_array(data.get("villages", []))
+	active_village_id = int(data.get("active_village_id", -1))
+	if active_village_id < 0 and not villages.is_empty() and typeof(villages[0]) == TYPE_DICTIONARY:
+		active_village_id = int((villages[0] as Dictionary).get("id", -1))
 	queues = _as_array(data.get("queues", []))
 	movements = _as_array(data.get("movements", []))
 	reports = _as_array(data.get("reports", []))

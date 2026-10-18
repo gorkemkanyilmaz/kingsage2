@@ -35,7 +35,12 @@ func _process(delta: float) -> void:
 
 
 ## Tek bir simülasyon adımı.
+##
+## **Aktif köy yoksa hiçbir şey yapmaz** (süre de ilerlemez, `tick` de yayınlanmaz)
+## — bkz. T-2.12 kararı.
 func _step(delta_seconds: float) -> void:
+	if not GameState.has_active_village():
+		return
 	elapsed_seconds += delta_seconds
 	EventBus.tick.emit(delta_seconds)
 	tick.emit(delta_seconds)

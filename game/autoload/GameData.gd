@@ -9,6 +9,23 @@ extends Node
 ##
 ## `rules/` klasörü başka bir ajan tarafından sonradan doldurulacaktır; yoksa
 ## sessizce atlanır ve `get_rule()` boş sözlük döndürür.
+##
+## ## Sayı tipi normalizasyonu (T-2.11 kararı)
+## Godot'un JSON ayrıştırıcısı **tüm** sayıları `float` olarak döndürür (ör. `150`
+## → `150.0`). Bu, maliyet/istatistik/seviye/puan gibi tamsayı alanlarında
+## kayan nokta kalıntısı yaratır. Bu nedenle `_read_json()` her dosyayı
+## yüklerken sayıları **özyinelemeli** normalleştirir:
+##
+##   • Ondalık kısmı **0** olan finit sayılar → `int`  (ör. `150.0` → `150`)
+##   • Ondalık kısmı olan sayılar → `float` kalır  (ör. `1.165` → `1.165`)
+##
+## Böylece `rules/*.json` içindeki tamsayı alanlar da `int` olur; büyüme
+## faktörleri / çarpanlar (`1.165`, `1.40` …) `float` kalır. **Bilinçli ödün:**
+## tam `2.0` gibi değerler `int 2`'ye döner — bu, tamsayı alanlar için
+## istenendir; float beklenen bir alan tam değere sahipse tüketici tarafında
+## `float(...)` ile çevrilmelidir.
+##
+## Not: `bool` ayrı bir türdür, etkilenmez; string'ler dokunulmaz.
 
 const BUILDINGS_PATH := "res://data/buildings.json"
 const UNITS_PATH := "res://data/units.json"
@@ -73,7 +90,33 @@ func _read_json(path: String):
 	if parsed == null:
 		load_errors.append("JSON ayrıştırma hatası: " + path)
 		return null
-	return parsed
+	return _normalize_numbers(parsed)
+
+
+## JSON ayrıştırıcısının tüm sayıları `float` döndürmesini telafi eder:
+## ondalık kısmı 0 olan finit sayıları `int`'e çevirir, diğerlerini bırakır.
+func _normalize_numbers(value):
+	var t := typeof(value)
+	if t == TYPE_FLOAT:
+		return _float_or_int(value)
+	if t == TYPE_DICTIONARY:
+		var out := {}
+		for key in (value as Dictionary).keys():
+			out[key] = _normalize_numbers((value as Dictionary)[key])
+		return out
+	if t == TYPE_ARRAY:
+		var arr := []
+		for item in (value as Array):
+			arr.append(_normalize_numbers(item))
+		return arr
+	return value
+
+
+## Ondalık kısmı 0 olan (ve güvenli aralıkta kalan) float'ı int'e çevirir.
+func _float_or_int(value: float):
+	if is_finite(value) and value == floor(value) and absf(value) <= 9007199254740992.0:
+		return int(value)
+	return value
 
 
 func _load_buildings() -> bool:

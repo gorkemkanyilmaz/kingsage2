@@ -142,7 +142,7 @@
 
 | ID | Görev | Ajan | Durum |
 |---|---|---|---|
-| T-9.1 | Dünya ızgarası (1000×1000, 100 kıta) + koordinat | A-DUNYA | ⏳ Bekliyor |
+| T-9.1 | Dünya ızgarası — **karar: ~200×200, ~100 bot köyü** (KingsAge 1000×1000'in mobil-ölçekli uyarlaması) | A-DUNYA | ⏳ Bekliyor |
 | T-9.2 | Köy yerleşimi (yön seçimi), bonus köyler, terkedilmiş köyler (soyguncular) | A-DUNYA | ⏳ Bekliyor |
 | T-9.3 | Miniharita + komşu/ittifak renkleri | A-DUNYA | ⏳ Bekliyor |
 | T-9.4 | Yolculuk süresi hesabı (mesafe + birim hızı + hız ayarı) | A-DUNYA | ⏳ Bekliyor |
@@ -203,6 +203,9 @@
 | S-4 | Git deposu | ✅ Evet (cevaplandı) |
 | S-5 | Oyun dili | ✅ Sadece TR (cevaplandı) |
 | S-6 | Godot kurulumu | ✅ İndiriliyor (cevaplandı) |
+| S-7 | Varsayılan oyun hızı | ✅ **1× birebir** (KingsAge süreleri aynen) |
+| S-8 | Dünya ölçeği | ✅ **~200×200, ~100 bot köyü** |
+| S-9 | İlerleme yapısı | ✅ **Sonsuz kum havuzu** (kazanma koşulu yok) |
 
 ---
 
@@ -215,3 +218,8 @@
   - **A-KURAL** → `game/data/rules/**`, `tools/validate_rules.py` (FAZ 3)
   - **A-VARLIK** → `game/assets/**` (FAZ 4)
   - Ajanların ortak kuralı: **tahmin yok** → belirsizlikleri `AÇIK SORU:` olarak raporlayacaklar; ben kullanıcıya ileteceğim.
+- **[Kod-4]** **FAZ 2 (Foundation) ✅ tamamlandı ve A-ŞEF tarafından bağımsız doğrulandı.**
+  `godot --headless --path game --quit-after 5` → `EXIT=0`; 15 bina, 11 birim, 50 seviye puan tablosu, 6 kural dosyası yüklendi.
+  A-HALKA'nın 6 sorusu teknik karara bağlandı (autoload adları, int dönüşümü, dosya yolları, saat başlangıcı, dünya profilleri, EventBus sözleşmesi). → küçük iyileştirmeler T-2.11/T-2.12 olarak A-HALKA'ya verildi.
+- **[Kod-5]** Kullanıcı ürün kararları: **oyun hızı 1× birebir**, **dünya ~200×200 / ~100 bot köyü**, **sonsuz kum havuzu**.
+- **[Kod-6]** `docs/16-GODOT-MOBIL-PLANI.md` gerçek autoload adlarına ve klasör yapısına hizalandı (ConfigService/DataService/SaveService adları geçersiz kılındı).

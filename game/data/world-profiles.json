@@ -1,0 +1,53 @@
+{
+	"default_profile": "tr",
+	"profiles": {
+		"tr": {
+			"label": "Türkiye — s59-tr",
+			"speed": 4,
+			"unit_speed": 4,
+			"night_bonus_enabled": true,
+			"night_bonus_window": {"start_hour": 0, "end_hour": 6},
+			"night_bonus_multiplier": 2,
+			"new_player_protection_days": 5,
+			"conquest_protection_days": 7,
+			"min_attack_unit_factor": 3,
+			"max_attack_ratio": 10,
+			"attack_cancel_minutes": 30,
+			"donkey_cancel_minutes": 15,
+			"count_max_distance": 80,
+			"realm_power_hourly_percent": 1,
+			"realm_loss_min": 2250,
+			"realm_loss_max": 2750,
+			"realm_loss_min_with_statue": 1750,
+			"realm_loss_max_with_statue": 2250,
+			"tear_down_building": true,
+			"abandoned_independent_growth": true,
+			"holiday_replacement": true,
+			"orientation_choice": true
+		},
+		"en": {
+			"label": "İngilizce — s59-en",
+			"speed": 4,
+			"unit_speed": 4,
+			"night_bonus_enabled": false,
+			"night_bonus_window": {"start_hour": 0, "end_hour": 6},
+			"night_bonus_multiplier": 2,
+			"new_player_protection_days": 5,
+			"conquest_protection_days": 7,
+			"min_attack_unit_factor": 3,
+			"max_attack_ratio": 10,
+			"attack_cancel_minutes": 30,
+			"donkey_cancel_minutes": 15,
+			"count_max_distance": 100,
+			"realm_power_hourly_percent": 1,
+			"realm_loss_min": 2250,
+			"realm_loss_max": 2750,
+			"realm_loss_min_with_statue": 1750,
+			"realm_loss_max_with_statue": 2250,
+			"tear_down_building": true,
+			"abandoned_independent_growth": true,
+			"holiday_replacement": true,
+			"orientation_choice": true
+		}
+	}
+}
