@@ -249,13 +249,16 @@
 | T-10.6 | Rapor/Mesaj/Sıralama/Ayarlar ekranları | A-ARAYUZ | 🔄 Devam Ediyor |
 | T-10.7 | Ana Menü + Yön/Köy seçimi + `GameLoop` sahneye bağlama | A-ARAYUZ | 🔄 Devam Ediyor |
 
-## FAZ 11 — Bot / AI
+## FAZ 11 — Bot / AI — 🔄 Devam Ediyor (A-BOT)
 
 | ID | Görev | Ajan | Durum |
 |---|---|---|---|
-| T-11.1 | Ekonomi botu (üretim/bina dengesi) | A-BOT | ⏳ Bekliyor |
-| T-11.2 | Askerî bot (keşif, hedef seçimi, savunma) | A-BOT | ⏳ Bekliyor |
-| T-11.3 | Zorluk seviyeleri + kişilik | A-BOT | ⏳ Bekliyor |
+| T-11.1 | Ekonomi botu (üretim/bina dengesi, gereksinim zincirine saygılı) | A-BOT | 🔄 Devam Ediyor |
+| T-11.2 | Askerî bot (keşif, hedef seçimi, yağma, savunma) | A-BOT | 🔄 Devam Ediyor |
+| T-11.3 | Zorluk seviyeleri (`easy`/`normal`/`hard`) + kişilik (`builder`/`trader`/`warlord`) | A-BOT | 🔄 Devam Ediyor |
+| T-11.4 | `BotSimulator.gd` — **§7b** protokol (100 bot × 30 gün, determinizm, performans) | A-BOT | 🔄 Devam Ediyor |
+
+> 🔒 **Zorunlu:** botlar API'yi **bypass edemez** (hareket/kuyruk/asker yalnız `EconomyAPI`/`ArmyAPI`/`Movement` üzerinden) → oyuncuyla **aynı kurallara** tabi.
 
 ## FAZ 12 — Kaydet/Yükle, Test, Denge — 🔄 Devam Ediyor (A-QA)
 
@@ -379,3 +382,4 @@
 - **[Kod-32]** **A-KESIF T-8.9 ✅** — `test_actions` **98/98 PASS**: Gizli Depo casuslukta, normal/gizli görünürlük, bilgi kademeleri, min. birlik kapsamı.
 - **[Kod-33]** ⚠️ **A-ŞEF tutarlılık düzeltmesi:** Gizli Depo kapasitesinin birimi `production.json`'da **`resource_total`** (kaynak başına değil). Yağma katmanı bunu zaten toplam havuz olarak uyguluyordu, casusluk katmanı ise kaynak başına → **çelişki**. Karar: **toplam havuz, oransal (en büyük kalan) dağıtım** — iki katman birebir aynı. `docs/07` §6 güncellendi; A-KESIF'e T-8.10 verildi.
 - **[Kod-34]** **FAZ 8 tamamen kapandı** — A-KESIF T-8.10 ✅, `test_actions` **105/105 PASS** (A-ŞEF doğruladı): casusluk gizli depo dağıtımı `BattleSimulator._compute_loot` ile **birebir aynı çıktı** (çapraz doğrulandı), `toplam ≤ kapasite` → **0 görünür**.
+- **[Kod-35]** **FAZ 11 (Bot / AI) başlatıldı** — **A-BOT**: `game/scripts/bot/**` (BotSimulator/BotEconomy/BotArmy/BotWar/BotProfile) + `test_bot.gd`. Kritik kısıt: **botlar API'yi bypass edemez**, oyuncuyla aynı kural zincirine tabidir; determinizm `(world_seed, village_id)` türetilmiş RNG ile.
