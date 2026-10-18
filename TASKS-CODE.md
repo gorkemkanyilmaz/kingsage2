@@ -92,16 +92,21 @@
 > **Negatif testler:** 7 kusur enjekte edildi (döngü, yanlış faktör, seviye>maks, bozuk tablo, …) → hepsi `exit 1` (doğrulayıcı gerçekten yakalıyor).
 > **🔎 Yeni bulgu:** Demir büyüme faktörü iki gruptur → **çekirdek binalar 1,165 / diğer standart binalar 1,160**. `docs/15` düzeltildi.
 
-## FAZ 3b — Kural Motoru (kod) + Köy Modeli — A-MOTOR
+## FAZ 3b — Kural Motoru (kod) + Köy Modeli — A-MOTOR ✅
 
 | ID | Görev | Durum |
 |---|---|---|
-| T-3b.1 | `game/scripts/rules/RulesEngine.gd` — maliyet + gereksinim sorguları (`docs/19` §4.1) | ⏳ Bekliyor |
-| T-3b.2 | `RulesEngine` — üretim/kapasite/nüfus/sur/puan (`docs/19` §4.3–§4.4) | ⏳ Bekliyor |
-| T-3b.3 | `RulesEngine` — birim sorguları (`docs/19` §4.5) | ⏳ Bekliyor |
-| T-3b.4 | `game/scripts/rules/ASSUMPTIONS.md` — bilinmeyen formüller tek yerde | ⏳ Bekliyor |
-| T-3b.5 | `game/scripts/model/VillageModel.gd` (`docs/19` §5) | ⏳ Bekliyor |
-| T-3b.6 | `game/tests/test_rules.gd` — maliyetler `data/buildings.json` ile birebir | ⏳ Bekliyor |
+| T-3b.1 | `RulesEngine.gd` — maliyet + gereksinim sorguları | ✅ Tamamlandı |
+| T-3b.2 | `RulesEngine` — üretim/kapasite/nüfus/sur/puan | ✅ Tamamlandı |
+| T-3b.3 | `RulesEngine` — birim sorguları | ✅ Tamamlandı |
+| T-3b.4 | `game/scripts/rules/ASSUMPTIONS.md` (7 bilinmeyen) | ✅ Tamamlandı |
+| T-3b.5 | `VillageModel.gd` | ✅ Tamamlandı |
+| T-3b.6 | `game/tests/test_rules.gd` — maliyet birebirliği | ✅ Tamamlandı |
+| T-3b.7 | **Sözleşme düzeltmeleri:** `researched` durumu, `can_upgrade_now`, `unit_speed` float | 🔄 Devam Ediyor |
+
+> **Kanıt (A-ŞEF bağımsız çalıştırdı):** `godot --headless --script res://tests/test_rules.gd` → **126/126 PASS, EXIT=0**.
+> **En kritik kanıt:** `cost()` == `data/buildings.json` → **15 bina × 461 seviye × 3 kaynak = 1383 kontrol, hata 0**.
+> `requirement_chain` topolojik ve eksiksiz (Anıt = 15 düğüm). Tam gelişmiş köy = **10000** puan.
 
 ## FAZ 4 — Varlıklar (Assets) ✅
 
@@ -167,10 +172,14 @@
 
 | ID | Görev | Ajan | Durum |
 |---|---|---|---|
-| T-9.1 | Dünya ızgarası — **karar: ~200×200, ~100 bot köyü** (KingsAge 1000×1000'in mobil-ölçekli uyarlaması) | A-DUNYA | ⏳ Bekliyor |
-| T-9.2 | Köy yerleşimi (yön seçimi), bonus köyler, terkedilmiş köyler (soyguncular) | A-DUNYA | ⏳ Bekliyor |
-| T-9.3 | Miniharita + komşu/ittifak renkleri | A-DUNYA | ⏳ Bekliyor |
-| T-9.4 | Yolculuk süresi hesabı (mesafe + birim hızı + hız ayarı) | A-DUNYA | ⏳ Bekliyor |
+| T-9.1 | Dünya ızgarası — **karar: ~200×200, ~100 bot köyü**, kıta **100×100 (4 kıta)** | A-DUNYA | ✅ Tamamlandı |
+| T-9.2 | Köy yerleşimi (yön), bonus köyler (6 resmî tip + 'Usta'), terkedilmiş köyler (soyguncular) | A-DUNYA | ✅ Tamamlandı |
+| T-9.3 | Miniharita + komşu/ittifak renkleri | A-DUNYA | ✅ Tamamlandı |
+| T-9.4 | Yolculuk süresi hesabı (mesafe + en yavaş birim + `unit_speed`) | A-DUNYA | ✅ Tamamlandı |
+| T-9.5 | **Kaynak düzeltmeleri:** 6 bonus tipi, soyguncu ordusu, `realm=points` | A-DUNYA | 🔄 Devam Ediyor |
+
+> **Kanıt (A-ŞEF bağımsız çalıştırdı):** `godot --headless --script res://tests/test_world.gd` → **107/107 PASS, EXIT=0**.
+> Örnek dünya (tohum 4242): 210 köy (100 bot + 100 terkedilmiş + 10 bonus), 4 kıta, 20×20 miniharita, süreçten bağımsız sabit hash.
 
 ## FAZ 10 — UI & 2.5D
 
@@ -284,3 +293,14 @@
 - **[Kod-13]** **FAZ 7 (Savaş Simülatörü) ✅ tamamlandı.** A-SAVAS 5 fazın tamamını + Türkçe savaş raporunu + `ASSUMPTIONS.md`'yi yazdı.
   Kanıt: **50/50 test PASS, EXIT=0** (A-ŞEF bağımsız çalıştırdı). Determinizm (aynı tohum → aynı sonuç), sur/gece etkisi, ganimet sınırları ve Kont fetih koşulu kanıtlandı.
   Bilinmeyen 6 formül (`known:false`) tek sabitle belgelendi — **uydurulmadı**.
+- **[Kod-14]** **FAZ 3b (Kural Motoru kodu) ✅** + **FAZ 9 (Dünya modeli) ✅** tamamlandı.
+  - A-MOTOR: `RulesEngine.gd` + `VillageModel.gd` → **126/126 test PASS**. En kritik kanıt: `cost()` 15 bina × 461 seviye × 3 kaynak = **1383 kontrol, hata 0**.
+  - A-DUNYA: `WorldModel.gd` + `WorldGenerator.gd` + `Travel.gd` → **107/107 test PASS**, süreçten bağımsız sabit hash.
+- **[Kod-15]** **Kaynaktan yeni doğrulamalar** (`research/text-tr/`):
+  - **Bonus köyler:** 6 resmî tip + 'Usta'; **+%10** odun/taş/demir/vatandaş, **+%10 hızlı eğitim**, **+%3 üretim** (A-DUNYA'nın 1.25 varsayımı **düzeltiliyor**).
+  - **Terkedilmiş köyler:** soyguncular **bina inşa eder + asker üretir** → normal birim anahtarlarıyla modellenecek.
+  - **Kont kuralı:** "güç alanını **maksimumun yarısından fazla** düşüremez" → A-SAVAS bunu zaten doğru uygulamış (`mini(loss, max/2)`).
+  - **Gece bonusu:** genel metin 00:00–08:00 der ama **TR dünya ayarı 00:00–06:00** → config kazanır, doğru.
+  - **TR dünya ayarları** birebir doğrulandı: hız 4, birim hızı 4, min. birim 3×Kışla, koruma 5/7 gün, oran 10:1, Kont 80 alan, Kanun Kaçağı 2 ay, saatlik %1.
+  - `docs/10` §1'deki **hatalı kıta formülü** düzeltildi (`K` + `floor(Y/100)` + `floor(X/100)`), bonus/terkedilmiş köy bölümleri eklendi.
+- **[Kod-16]** `docs/19` sözleşme düzeltmeleri: **`researched` durumu** (araştırma gerçek bir eylemdir — Kışla seviyesinden türetilemez), `can_upgrade_now`, `unit_speed` **float**, `bonus_type`, `realm=points`. A-MOTOR ve A-DUNYA'ya düzeltme görevleri verildi.

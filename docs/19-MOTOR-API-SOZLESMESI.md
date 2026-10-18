@@ -58,13 +58,24 @@
   "buildings": { "main": 1, "wood": 1, ... },   # 15 anahtar → seviye (int)
   "resources": { "wood": 1000, "stone": 1000, "iron": 1000 },  # int
   "units": { "spear": 0, "sword": 0, ... },     # köyde duran ordu (int)
-  "realm_of_power": 1000,           # Güç Alanı (int)
+  "researched": { "spear": true, "sword": false },   # ARAŞTIRMA DURUMU (ödenen birimler)
+  "realm_of_power": 1000,           # Güç Alanı (int) — başlangıç = köy puanı, tavan = köy puanı
   "points": 20,                     # Köy Puanı (türetilebilir)
   "protection_until": 0,            # unix (yeni oyuncu koruması)
   "conquest_protection_until": 0,   # unix
-  "bonus": { "wood": 1.0, "stone": 1.0, "iron": 1.0 },   # bonus köy çarpanları
+  "bonus_type": "",                 # "" | "wood" | "stone" | "iron" | "citizen" | "training" | "production"
   "has_statue": false               # Anıt yapıldıysa true (türetilebilir)
 }
+```
+
+> **Bonus köy (kaynak `villages.txt`):** her bonus köyün **tek** bonusu olur ve başında **'Usta'** vardır.
+> Etkiler: `wood|stone|iron` → **+%10** ilgili hammadde · `citizen` → **+%10** vatandaş ·
+> `training` → **+%10 hızlı** birim eğitimi · `production` → **+%3** tüm hammaddeler.
+> `bonus_type` **dolu** ise `owner` alanı resmî terim olan **"Usta"** olur.
+>
+> **Terkedilmiş köy (kaynak `villages.txt`):** soyguncular **bina inşa eder** ve **askerî birim üretir**.
+> Bu yüzden `units` alanı **normal 11 birim anahtarıyla** doldurulur (özel "soyguncu" anahtarı **yoktur**);
+> `is_barbarian = true`, `owner = "Soyguncular"`, koruması yoktur (`protection_until = 0`).
 ```
 
 ### 3.2 Kuyruk öğesi (`GameState.queues[]`)
@@ -114,9 +125,15 @@ static func is_free_start(key: String) -> bool
 static func requirements(key: String, target_level: int) -> Array            # [{building,level}]
 static func missing_requirements(buildings: Dictionary, key: String, target_level: int) -> Array
 static func can_build(buildings: Dictionary, key: String, target_level: int) -> bool
+static func can_upgrade_now(buildings: Dictionary, key: String) -> bool
+# ↑ SIRALI İLERLEME kapısı: hedef = mevcut+1 olmalı, mevcut < max_level olmalı ve önkoşullar sağlanmalı.
+#   (A-EKONOMI inşa başlatmadan ÖNCE bunu çağırır.)
 static func requirement_chain(buildings: Dictionary, key: String, target_level: int) -> Array
 # ↑ zincirin TAMAMI: ör. [{"key":"farm","level":3,"current":1}, {"key":"barracks","level":1,"current":0}, ...]
 #   (UI "şu binayı önce şu seviyeye getir" akışını bununla kurar) — SIRALI, topolojik
+```
+> **Semantik:** `missing_requirements` **doğrudan** (immediate) engelleri döndürür; tam plan için
+> `requirement_chain` kullanılır. `cost_sum(from, to)` → `from` **hariç**, `to` **dahil**.
 ```
 
 ### 4.2 Süre (bilinmeyen taban → `ASSUMPTIONS.md`)
@@ -148,16 +165,20 @@ static func total_points(villages: Array) -> int                             # +
 ```gdscript
 static func unit_cost(unit_key: String, count: int) -> Dictionary
 static func unit_settlers(unit_key: String) -> int
-static func unit_speed(unit_key: String) -> int                              # yavaşlık faktörü
+static func unit_speed(unit_key: String) -> float                            # yavaşlık: alan/dakika (FLOAT! int kırpma %11 hata verir)
+static func unit_mobility(unit_key: String) -> int                           # resmî "Hareketlilik" (int) — bilgi amaçlı
 static func unit_carry(unit_key: String) -> int
 static func unit_combat(unit_key: String) -> Dictionary                      # {"attack","def_inf","def_cav","def_arch"}
-static func research_requirement(unit_key: String) -> int                    # gereken Kışla seviyesi (0 = araştırılmaz)
-static func is_researched(buildings: Dictionary, unit_key: String) -> bool
-static func can_research(buildings: Dictionary, unit_key: String) -> bool
+static func research_requirement(unit_key: String) -> int                    # gereken Kışla seviyesi (0 = araştırılmaz, ör. Kont)
+static func is_researched(village: Dictionary, unit_key: String) -> bool     # ← village.researched sözlüğüne bakar
+static func can_research(village: Dictionary, unit_key: String) -> bool      # Kışla seviyesi + henüz araştırılmamış + maliyet
 static func research_cost(unit_key: String) -> Dictionary
-static func research_seconds(unit_key: String) -> float
-static func training_seconds(unit_key: String, count: int) -> float
+static func research_seconds(unit_key: String, building_level: int = -1) -> float   # -1 → birimin min. Kışla seviyesi
+static func training_seconds(unit_key: String, count: int, building_level: int = -1) -> float
 static func min_attack_units(barracks_level: int) -> int                     # 3 × Kışla
+```
+> ⚠️ **Araştırma gerçek bir eylemdir:** bedeli ödenir ve **bir kez** yapılır → `village.researched[unit_key] = true`.
+> `is_researched` **Kışla seviyesinden türetilemez**; mutlaka `researched` sözlüğüne bakar.
 ```
 
 ---
@@ -166,8 +187,13 @@ static func min_attack_units(barracks_level: int) -> int                     # 3
 
 ```gdscript
 static func create(id: int, name: String, x: int, y: int, owner: String, is_bot: bool) -> Dictionary
+#   → başlangıç: serbest binalar (`main, stone, wood, iron, farm, storage`) = 1, diğerleri 0
+#   → `researched = {}`, `units` tüm anahtarlar 0, hammadde 1000/1000/1000
+#   → `points` hesaplanır; `realm_of_power = points` (başlangıçta tam), tavan = `points`
 static func building_level(village: Dictionary, key: String) -> int
 static func set_building_level(village: Dictionary, key: String, level: int) -> void
+static func refresh_points(village: Dictionary) -> int       # bina seviyelerinden Köy Puanı
+static func refresh_realm(village: Dictionary) -> void       # realm tavanı = points
 static func population_used(village: Dictionary) -> int      # Σ bina vatandaşları
 static func population_free(village: Dictionary) -> int
 static func has_statue(village: Dictionary) -> bool
@@ -180,11 +206,17 @@ static func is_developed(village: Dictionary) -> bool        # tüm binalar maks
 
 ```gdscript
 const SIZE := 200                     # karar: ~200×200
-static func distance(a_x: int, a_y: int, b_x: int, b_y: int) -> float
-static func travel_seconds(from_x, from_y, to_x, to_y, slowest_unit_speed: int) -> float
-static func generate_world(seed: int, bot_count: int) -> Dictionary   # {"size":200,"villages":[...],"tiles":{}}
+const CONTINENT_SIZE := 100           # kaynakla birebir (100×100) → bizde 4 kıta
+static func distance(a_x: int, a_y: int, b_x: int, b_y: int) -> float          # tam Öklid (yuvarlama YOK)
+static func travel_seconds(from_x, from_y, to_x, to_y, slowest_unit_speed: float) -> float   # ← FLOAT!
+static func continent_id(x: int, y: int) -> int                                # floor(y/100)*10 + floor(x/100)
+static func continent_label(x: int, y: int) -> String                          # "K" + floor(y/100) + floor(x/100)
+static func generate_world(seed: int, bot_count: int) -> Dictionary            # deterministik
 static func find_free_spot(world: Dictionary, x: int, y: int) -> Vector2i
 ```
+> **Kararlar:** dönüş süresi = gidiş süresi (yağma yavaşlatmaz) · yolculuk yalnızca `unit_speed`'den etkilenir
+> (`speed` değil) · aynı alana iki köy konamaz · NPC köyleri de üretimde `protection_until = 0` alır
+> (koruma **oyun katmanında** yazılır) · bot başına 1 köy; terkedilmiş oranı 1.0, bonus oranı 0.1 (varsayım).
 
 ---
 

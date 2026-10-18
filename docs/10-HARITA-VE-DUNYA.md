@@ -14,8 +14,10 @@ Kaynak: `map`, `worldinfo`, `villages`
 | Kıta sayısı | **10 × 10 = 100 kıta** |
 | Koordinat biçimi | `X\|Y` (ör. `499|506` → kıta `K54`) |
 
-> Kıta numarası koordinattan türetilir: `K + (floor(X/100)+1) + (floor(Y/100)+1 −1)` biçiminde
-> gösterilir (örnek: `499|506` → **K54**).
+> Kıta numarası koordinattan türetilir: **`K` + `floor(Y/100)` + `floor(X/100)`** (satır önce, sütun sonra),
+> yani sayısal kimlik `floor(Y/100) × 10 + floor(X/100)` (örnek: `499|506` → `floor(506/100)=5`, `floor(499/100)=4` → **K54** ✅).
+> ⚠️ **Bizim ölçeğimiz:** dünya 200×200 seçildi (kullanıcı kararı); kıta boyutu **kaynakla birebir 100×100** kalır
+> → bizde **4 kıta** (K00, K01, K10, K11). KingsAge'in 1000×1000'inde 100 kıta vardır; yapı aynı, ölçek farklı.
 
 ## 2. Harita Görünümü
 
@@ -31,6 +33,29 @@ Kaynak: `map`, `worldinfo`, `villages`
 | Enemy (düşman) | **Kırmızı** (teknik etkisi yok) |
 
 - **Premium hesap** sahipleri haritayı **kendileri vurgulayabilir** (hedef/dost/düşman işaretleme).
+
+### 2.1 Bonus köyler (kaynak: `villages.txt`)
+
+> Bazı yerleşimler **bonus köy**'dür. Başlarında özel yetenekli **'Usta'** vardır ve köye **belirli bir bonus** verir.
+> **Her köy yalnızca BİR bonusa sahip olabilir.** Bonus köyler haritada **altın parıltılı** görünür.
+
+| # | Bonus | Etki |
+|---|---|---|
+| 1 | Odun | **+%10** odun üretimi |
+| 2 | Taş | **+%10** taş üretimi |
+| 3 | Demir | **+%10** demir üretimi |
+| 4 | Vatandaş | **+%10** vatandaş |
+| 5 | Eğitim | **+%10 daha hızlı** birlik eğitimi |
+| 6 | Hammadde üretimi | **+%3** (tüm hammaddeler) |
+
+> ⚠️ Dikkat: 1–3 numaralı bonuslar **+%10**, 6 numaralı bonus **+%3**'tür (ikisi birden değil — köy **tek** bonus alır).
+
+### 2.2 Terkedilmiş köyler (kaynak: `villages.txt`)
+
+- Sahibi **inaktiflik** nedeniyle silinmiş hesaplardan kalan köylerdir; **soyguncular** ele geçirmiştir.
+- Soyguncular köyü **geliştirmeye devam eder**: **bina inşa eder**, **askerî birim üretir** → köyün **puanı artar**.
+- Yani terkedilmiş köyler **normal köy gibi** davranır (hammadde, bina, ordu) — yalnızca sahibi oyuncu değildir.
+- **Koruma yoktur** (bkz. `11-OYUNCU-PUAN-KORUMA.md` §10.5).
 
 ## 3. Minimap
 

@@ -1,0 +1,122 @@
+# ASSUMPTIONS — Kural Motoru Varsayımları (Taht ve Kılıç)
+
+> **Sahip:** A-MOTOR · **Kapsam:** `game/scripts/rules/RulesEngine.gd`, `game/scripts/model/VillageModel.gd`
+> **Kural (docs/19 §2.5):** Bilinmeyen formüller **uydurulmaz**. Her bilinmeyen için **tek bir sabit**
+> seçilir ve burada gerekçesiyle belgelenir. Referans alanlar `game/data/rules/*.json`
+> içindeki `known: false` düğümleridir.
+>
+> Doğrulanmış (bilinen) formüller burada listelenmez; onlar `docs/15-MATEMATIK-VE-FORMULLER.md`
+> ve `game/data/rules/README.md` içindedir.
+
+---
+
+## 1. Özet Tablo
+
+| # | Fonksiyon | Bilinmeyen | Seçilen sabit / yöntem | Referans (`known:false`) |
+|---|---|---|---|---|
+| 1 | `build_seconds(key, level)` | İnşaatın **taban süresi** | `BASE_BUILD_SECONDS = 60.0` s + Kale (`main`) inşaat zaman faktörü serisi × seviye | `time-factors.json#unresolved.construction_time_formula`, `#unresolved.build_time_scaling` |
+| 2 | `research_seconds(unit)` | Kışla **süre katsayısı** | `units.json` temel süre × Kışla zaman faktörü (birimin min. Kışla seviyesinde) | `time-factors.json#unresolved.research_time_formula`, `units.json#time_coefficient_known` |
+| 3 | `training_seconds(unit, n)` | Kışla/Köşk **süre katsayısı** | `units.json` temel süre × adet × Kışla/Köşk zaman faktörü (min. ilgili bina seviyesi) | `time-factors.json#unresolved.training_time_formula` |
+| 4 | `is_researched` / `can_research` | Araştırma **durumu** (state) | Araştırma, Kışla seviyesinden türetilir (ayrı bayrak imzada yok) | `units.json#research_requirements_barracks` |
+| 5 | `unit_speed(unit)` | "yavaşlık faktörü" tanımı | `units.json → speed.mobility` (int; küçük = hızlı) | `units.json` (resmî `Hareketlilik`) |
+| 6 | `VillageModel.create(...)` | Yeni köyün başlangıç seviyeleri | Serbest başlangıç binaları = **1**, diğerleri **0**; `realm_of_power = 0` | — (yardım sitesinde yok) |
+| 7 | `production_per_hour` | Üretim bina başına mı, vatandaş başına mı | **Bina başına** (tablodaki tek değer aynen) | `production.json#unresolved.production_mode` |
+
+---
+
+## 2. Ayrıntılar
+
+### #1 — `build_seconds(key, level)` (İnşaat süresi)
+**Bilinmeyen:** Yardım sitesinde inşaat süresi = *zaman faktörü × taban süre* olduğu anlaşılıyor,
+ancak **taban süre** hiçbir yerde verilmiyor (`time-factors.json#unresolved.construction_time_formula`,
+`known:false`). Zaman faktörü **serileri** ise biliniyor (`known:true`).
+
+**Seçilen yöntem (tek sabit + bilinen seri):**
+```
+build_seconds(key, level) = BASE_BUILD_SECONDS × level × (main_zaman_faktörü(level) / 100) / speed
+BASE_BUILD_SECONDS = 60.0
+```
+- `main` serisi `applies_to = "construction"` olduğu için inşaat faktörü olarak kullanılır
+  (seviye indeksi `level`; seri dışında en yakın uca kırpılır).
+- **Tek sabit**: `BASE_BUILD_SECONDS = 60.0`. Seviye ile **doğrusal** büyüme varsayıldı
+  (maliyet geometrik büyürken sürenin sabit kalmaması gerektiği için en yalın varsayım).
+- `speed` böler (docs/19 §2.4).
+
+> ⚠️ Sayı **kesin değildir**; yalnızca göreli/sıralı davranışı verir. Oyun istemcisinden
+> doğrulanınca bu sabit değişecektir.
+
+### #2 — `research_seconds(unit)` (Araştırma süresi)
+Birim başına **temel süre** `rules/units.json → research.base_time_seconds` içinde **bilinir**
+(ör. Muhafız 120 s). **Bilinmeyen**, bu süreye uygulanacak **Kışla katsayısıdır**
+
+Seçilen yöntem:
+```
+research_seconds(unit) =
+    base_time_seconds(unit) × (Kışla_zaman_faktörü(unit için gereken Kışla seviyesi) / 100) / speed
+```
+- Kışla seviyesi imzada yer almadığından, birimin **ilk erişilebilir olduğu** Kışla seviyesi
+  (`research_requirements_barracks`) kullanılır — en koru/nötr seçim.
+- `snob` (Kont) araştırılmaz → `0.0`.
+
+### #3 — `training_seconds(unit, count)` (Eğitim süresi)
+`rules/units.json → training.base_time_seconds` **bilinir**; katsayı **bilinmez**. Yöntem:
+```
+training_seconds(unit, count) =
+    base_time_seconds(unit) × count × (ilgili_bina_zaman_faktörü(min_seviye) / 100) / speed
+```
+- İlgili bina: `training.building` (`barracks`, Kont için `snob`).
+- Seviye: araştırılabilir birimlerde gereken Kışla seviyesi; Kont'ta **1** (Köşk en az L1).
+- `snob` serisi `count_training`, `barracks` serisi `research_and_training` için kullanılır.
+
+### #4 — `is_researched` / `can_research`
+Araştırma **durumu** (hangi birim araştırıldı) imzada parametre olarak yok; yalnızca `buildings`
+veriliyor. Bu yüzden araştırma, **Kışla seviyesinden türetilir**:
+`barracks_level >= research_requirement(unit)`. Araştırılamayan birim (`snob`, gereksinim 0)
+her ikisinde de `false` döner.
+
+### #5 — `unit_speed(unit)` ("yavaşlık faktörü")
+İmza yorumu gereği **yavaşlık faktörü** = `units.json → speed.mobility` (resmî "Hareketlilik").
+Küçük değer hızlıdır (ör. Casus 2, Şahmerdan 8). `WorldModel.travel_seconds(slowest_unit_speed:int)`
+bu tamsayıyı beklediği için `int` döner.
+
+### #6 — `VillageModel.create(...)` başlangıç köyü
+Yardım sitesi "yeni köy hangi binalarla/hangi seviyede başlar" belirtmiyor. `docs/19 §3.1`
+örneğinde `"buildings": { "main": 1, "wood": 1, ... }` göründüğü için:
+- **Serbest başlangıç binaları** (`main, stone, wood, iron, farm, storage`) → **seviye 1**,
+- diğer tüm binalar → **seviye 0**,
+- `realm_of_power` → **0** (saatte `+1%` ile artar; docs/15 §5.3),
+- `points` → türetilmiş (`Σ bina puanı`).
+
+> ⚠️ Bu **doğrulanmamıştır** (kaynak yok). A-EKONOMI farklı bir başlangıç isterse tek satır
+> değişiklikle uyarlanır. Rapor: **AÇIK SORU**.
+
+### #7 — Üretim modu
+`production.json#unresolved.production_mode` (`known:false`) gereği üretim **bina başına**
+kabul edildi; `production_per_hour` tablodaki saatlik değeri aynen döndürür (vatandaş bölmesi yok).
+
+---
+
+## 3. Kapsam Dışı Bırakılan Bilinmeyenler (bu modülde ele alınmaz)
+
+Aşağıdakiler `RulesEngine`/`VillageModel` API'sinde **yok**; ilgili ajanlar (A-SAVAS, A-KESIF,
+A-EKONOMI) ele alır:
+
+| Konu | Referans |
+|---|---|
+| Moral eğrisi | `battle.json#morale.known:false` |
+| Casus sağkalım / gizli casusluk çarpanı | `battle.json#spy` |
+| Şahmerdan / Mancınık hasarı | `battle.json#siege` |
+| Kayıp dağıtım eğrisi | `battle.json#loss_distribution` |
+| Katır taşıma kapasitesi & yolculuk süresi | `production.json#unresolved.donkey_carry_capacity`, `#unresolved.donkey_travel_time` |
+| Simyager teknik listesi & Altın Zırh çarpanı | `time-factors.json#time_factor_column.garage.known:false` |
+| Simyager (garage) zaman faktörü serisi (kaynakta tümü %0) | aynı |
+
+---
+
+## 4. Doğrulanmış (varsayım gerektirmeyen) kısımlar
+
+- **Bina maliyeti** `cost()` → büyüme faktörleri + `round_half_up`; **15 bina × tüm seviyeler**
+  (`data/buildings.json`) ile **bit-bit eşit** (test: hata 0).
+- **Kapasite/nüfus/katır/sur** değerleri `production.json` **kesin tablolarından** (`values`) aynen.
+- **Köy puanı** `building-points.json`; tam gelişmiş köy = **10.000**.
+- **Gereksinim zinciri** `requirements.json` DAG'ından (topolojik).
