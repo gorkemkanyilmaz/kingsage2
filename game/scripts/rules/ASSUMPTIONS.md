@@ -15,11 +15,11 @@
 | # | Fonksiyon | Bilinmeyen | Seçilen sabit / yöntem | Referans (`known:false`) |
 |---|---|---|---|---|
 | 1 | `build_seconds(key, level)` | İnşaatın **taban süresi** | `BASE_BUILD_SECONDS = 60.0` s + Kale (`main`) inşaat zaman faktörü serisi × seviye | `time-factors.json#unresolved.construction_time_formula`, `#unresolved.build_time_scaling` |
-| 2 | `research_seconds(unit)` | Kışla **süre katsayısı** | `units.json` temel süre × Kışla zaman faktörü (birimin min. Kışla seviyesinde) | `time-factors.json#unresolved.research_time_formula`, `units.json#time_coefficient_known` |
-| 3 | `training_seconds(unit, n)` | Kışla/Köşk **süre katsayısı** | `units.json` temel süre × adet × Kışla/Köşk zaman faktörü (min. ilgili bina seviyesi) | `time-factors.json#unresolved.training_time_formula` |
-| 4 | `is_researched` / `can_research` | Araştırma **durumu** (state) | Araştırma, Kışla seviyesinden türetilir (ayrı bayrak imzada yok) | `units.json#research_requirements_barracks` |
-| 5 | `unit_speed(unit)` | "yavaşlık faktörü" tanımı | `units.json → speed.mobility` (int; küçük = hızlı) | `units.json` (resmî `Hareketlilik`) |
-| 6 | `VillageModel.create(...)` | Yeni köyün başlangıç seviyeleri | Serbest başlangıç binaları = **1**, diğerleri **0**; `realm_of_power = 0` | — (yardım sitesinde yok) |
+| 2 | `research_seconds(unit, lvl)` | Kışla **süre katsayısı** | `units.json` temel süre × Kışla zaman faktörü (`lvl`; `-1` → birimin min. Kışla seviyesi) | `time-factors.json#unresolved.research_time_formula`, `units.json#time_coefficient_known` |
+| 3 | `training_seconds(unit, n, lvl)` | Kışla/Köşk **süre katsayısı** | `units.json` temel süre × adet × Kışla/Köşk zaman faktörü (`lvl`; `-1` → min. ilgili bina seviyesi) | `time-factors.json#unresolved.training_time_formula` |
+| 4 | `is_researched` / `can_research` | Araştırma **durumu** | **ÇÖZÜLDÜ:** `village.researched[unit]` bayrağı (araştırma gerçek bir eylemdir; türetilmez) | — (docs/19 §4 güncellendi) |
+| 5 | `unit_speed(unit)` / `unit_mobility(unit)` | Yolculuk hızı türü | `unit_speed` → **float** `speed.minutes_per_field` (alan/dk, kesin); `unit_mobility` → int `speed.mobility` (bilgi amaçlı) | `units.json` (resmî `Hareketlilik`) |
+| 6 | `VillageModel.create(...)` | Yeni köyün başlangıç seviyeleri | Serbest başlangıç binaları = **1**, diğerleri **0**; `researched = {}`; `realm_of_power = points` (başlangıçta tam, tavan = points) | `player_points.txt` (Güç Alanı) |
 | 7 | `production_per_hour` | Üretim bina başına mı, vatandaş başına mı | **Bina başına** (tablodaki tek değer aynen) | `production.json#unresolved.production_mode` |
 
 ---
@@ -45,50 +45,59 @@ BASE_BUILD_SECONDS = 60.0
 > ⚠️ Sayı **kesin değildir**; yalnızca göreli/sıralı davranışı verir. Oyun istemcisinden
 > doğrulanınca bu sabit değişecektir.
 
-### #2 — `research_seconds(unit)` (Araştırma süresi)
+### #2 — `research_seconds(unit, building_level)` (Araştırma süresi)
 Birim başına **temel süre** `rules/units.json → research.base_time_seconds` içinde **bilinir**
 (ör. Muhafız 120 s). **Bilinmeyen**, bu süreye uygulanacak **Kışla katsayısıdır**
 
 Seçilen yöntem:
 ```
-research_seconds(unit) =
-    base_time_seconds(unit) × (Kışla_zaman_faktörü(unit için gereken Kışla seviyesi) / 100) / speed
+research_seconds(unit, building_level) =
+    base_time_seconds(unit) × (Kışla_zaman_faktörü(building_level) / 100) / speed
 ```
-- Kışla seviyesi imzada yer almadığından, birimin **ilk erişilebilir olduğu** Kışla seviyesi
-  (`research_requirements_barracks`) kullanılır — en koru/nötr seçim.
+- `building_level` verilmezse (`-1`) birimin **ilk erişilebilir olduğu** Kışla seviyesi
+  (`research_requirements_barracks`) kullanılır — geriye uyumlu, en nötr seçim.
 - `snob` (Kont) araştırılmaz → `0.0`.
 
-### #3 — `training_seconds(unit, count)` (Eğitim süresi)
+### #3 — `training_seconds(unit, count, building_level)` (Eğitim süresi)
 `rules/units.json → training.base_time_seconds` **bilinir**; katsayı **bilinmez**. Yöntem:
 ```
-training_seconds(unit, count) =
-    base_time_seconds(unit) × count × (ilgili_bina_zaman_faktörü(min_seviye) / 100) / speed
+training_seconds(unit, count, building_level) =
+    base_time_seconds(unit) × count × (ilgili_bina_zaman_faktörü(building_level) / 100) / speed
 ```
 - İlgili bina: `training.building` (`barracks`, Kont için `snob`).
-- Seviye: araştırılabilir birimlerde gereken Kışla seviyesi; Kont'ta **1** (Köşk en az L1).
+- `building_level` verilmezse (`-1`): araştırılabilir birimlerde gereken Kışla seviyesi; Kont'ta **1**
+  (Köşk en az L1).
 - `snob` serisi `count_training`, `barracks` serisi `research_and_training` için kullanılır.
 
-### #4 — `is_researched` / `can_research`
-Araştırma **durumu** (hangi birim araştırıldı) imzada parametre olarak yok; yalnızca `buildings`
-veriliyor. Bu yüzden araştırma, **Kışla seviyesinden türetilir**:
-`barracks_level >= research_requirement(unit)`. Araştırılamayan birim (`snob`, gereksinim 0)
-her ikisinde de `false` döner.
+### #4 — `is_researched` / `can_research` (ÇÖZÜLDÜ — docs/19 güncellendi)
+Araştırma, KingsAge'de **gerçek bir eylemdir**: bedeli ödenir, süre geçer, **bir kez** yapılır.
+Bu yüzden durum Kışla seviyesinden **türetilemez**; köy şemasına `researched: {}` eklendi
+(docs/19 §3.1) ve imzalar köyü alacak şekilde değişti.
+- `is_researched(village, unit)` → `village.researched[unit]` (varsayılan `false`).
+- `can_research(village, unit)` → araştırılabilir birim **+** Kışla ≥ gereksinim **+** henüz
+  araştırılmamış **+** hammadde araştırma maliyetini karşılıyor.
 
-### #5 — `unit_speed(unit)` ("yavaşlık faktörü")
-İmza yorumu gereği **yavaşlık faktörü** = `units.json → speed.mobility` (resmî "Hareketlilik").
-Küçük değer hızlıdır (ör. Casus 2, Şahmerdan 8). `WorldModel.travel_seconds(slowest_unit_speed:int)`
-bu tamsayıyı beklediği için `int` döner.
+### #5 — `unit_speed(unit)` / `unit_mobility(unit)`
+İki ayrı kavram ayrıldı:
+- `unit_speed(unit) -> float` = `units.json → speed.minutes_per_field` (**alan/dakika**, kesin,
+  yuvarlanmamış). Yolculuk süresi hesabı bunu kullanır; int kırpma **%11** hataya yol açıyordu (A-DUNYA).
+- `unit_mobility(unit) -> int` = `units.json → speed.mobility` (resmî "Hareketlilik"), bilgi amaçlı.
+Küçük değer hızlıdır (ör. Casus 2.25 alan/dk, hareketlilik 2; Şahmerdan 7.5, hareketlilik 8).
 
 ### #6 — `VillageModel.create(...)` başlangıç köyü
 Yardım sitesi "yeni köy hangi binalarla/hangi seviyede başlar" belirtmiyor. `docs/19 §3.1`
 örneğinde `"buildings": { "main": 1, "wood": 1, ... }` göründüğü için:
 - **Serbest başlangıç binaları** (`main, stone, wood, iron, farm, storage`) → **seviye 1**,
 - diğer tüm binalar → **seviye 0**,
-- `realm_of_power` → **0** (saatte `+1%` ile artar; docs/15 §5.3),
-- `points` → türetilmiş (`Σ bina puanı`).
+- `researched` → **`{}`** (hiçbir birim araştırılmamış),
+- `bonus_type` → `""` (bonus köyü değil),
+- **Güç Alanı**: başlangıçta **tam** (`realm_of_power = points`), **tavan = points**
+  (`player_points.txt`: "güç alanı 0 ile köyün puanı arasında değişir"). Saatte `+%1` artış
+  A-EKONOMI döngüsünün işidir; `refresh_realm` yalnızca tavanı uygular (`[0, points]`'e kırpar).
+- `points` → türetilmiş (`Σ bina puanı`); `refresh_points(village) -> int` ile tazelenir.
 
-> ⚠️ Bu **doğrulanmamıştır** (kaynak yok). A-EKONOMI farklı bir başlangıç isterse tek satır
-> değişiklikle uyarlanır. Rapor: **AÇIK SORU**.
+> ⚠️ Başlangıç **bina seviyeleri** doğrulanmamıştır (kaynak yok). A-EKONOMI farklı bir başlangıç
+> isterse tek satır değişiklikle uyarlanır. Rapor: **AÇIK SORU**.
 
 ### #7 — Üretim modu
 `production.json#unresolved.production_mode` (`known:false`) gereği üretim **bina başına**

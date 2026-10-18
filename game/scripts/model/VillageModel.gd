@@ -58,11 +58,13 @@ static func create(id: int, name: String, x: int, y: int, owner: String, is_bot:
 		"buildings": buildings,
 		"resources": START_RESOURCES.duplicate(true),
 		"units": units,
-		"realm_of_power": 0,          # yeni köyde 0'dan başlar, saatte %1 artar
+		"researched": {},             # birim araştırma durumu (ödenen birimler) — docs/19 §3.1
+		"realm_of_power": points,     # Güç Alanı: başlangıçta tam (= köy puanı); tavan = köy puanı
 		"points": points,             # türetilmiş: Σ bina puanları
 		"protection_until": 0,        # unix (yeni oyuncu koruması)
 		"conquest_protection_until": 0,
-		"bonus": {"wood": 1.0, "stone": 1.0, "iron": 1.0},
+		"bonus_type": "",             # "" | "wood" | "stone" | "iron" | "citizen" | "training" | "production"
+		"bonus": {"wood": 1.0, "stone": 1.0, "iron": 1.0},  # savaş simülatörü girdisi (docs/19 §7)
 		"has_statue": false,
 	}
 
@@ -75,13 +77,34 @@ static func building_level(village: Dictionary, key: String) -> int:
 	return int((b as Dictionary).get(key, 0))
 
 
-## Binanın seviyesini ayarlar ve türetilmiş alanları (Anıt durumu, puan) tazeler.
+## Binanın seviyesini ayarlar ve türetilmiş alanları (Anıt durumu, puan, Güç Alanı
+## tavanı) tazeler.
 static func set_building_level(village: Dictionary, key: String, level: int) -> void:
 	if typeof(village.get("buildings")) != TYPE_DICTIONARY:
 		village["buildings"] = {}
 	(village["buildings"] as Dictionary)[key] = level
 	village["has_statue"] = building_level(village, "statue") >= 1
-	village["points"] = _RulesEngine.village_points(village["buildings"])
+	refresh_points(village)
+	refresh_realm(village)
+
+
+## Bina seviyelerinden Köy Puanını yeniden hesaplar, `points` alanına yazar ve döndürür.
+static func refresh_points(village: Dictionary) -> int:
+	var b = village.get("buildings", {})
+	if typeof(b) != TYPE_DICTIONARY:
+		b = {}
+	var p := _RulesEngine.village_points(b)
+	village["points"] = p
+	return p
+
+
+## Güç Alanı tavanını uygular: tavan = Köy Puanı (`points`).
+## Değer 0 ile tavan arasına kırpılır; alan yoksa başlangıç olarak **tam** (= points) atanır.
+## (Alanın saatte %1 artışı A-EKONOMI döngüsünün işidir.)
+static func refresh_realm(village: Dictionary) -> void:
+	var p := refresh_points(village)
+	var cur := int(village.get("realm_of_power", p))
+	village["realm_of_power"] = clampi(cur, 0, p)
 
 
 ## Bağlı (çalışan) vatandaş toplamı = Σ bina `workersTotal`.

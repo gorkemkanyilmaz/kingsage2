@@ -436,8 +436,15 @@ static func unit_settlers(unit_key: String) -> int:
 	return int(_unit_rule(unit_key).get("settlers", 0))
 
 
-## Birimin **yavaşlık faktörü** (Hareketlilik; küçük = hızlı).
-static func unit_speed(unit_key: String) -> int:
+## Birimin yavaşlık faktörü: **alan/dakika** (FLOAT, kesin yuvarlanmamış değer).
+## Küçük = hızlı. NOT: int kırpma yolculuk süresinde %11 hataya yol açıyordu (A-DUNYA).
+static func unit_speed(unit_key: String) -> float:
+	var sp: Dictionary = _unit_rule(unit_key).get("speed", {})
+	return float(sp.get("minutes_per_field", 0.0))
+
+
+## Resmî "Hareketlilik" değeri (int) — bilgi amaçlı (yolculuk için `unit_speed` kullanılır).
+static func unit_mobility(unit_key: String) -> int:
 	var sp: Dictionary = _unit_rule(unit_key).get("speed", {})
 	return int(sp.get("mobility", 0))
 
@@ -465,22 +472,38 @@ static func research_requirement(unit_key: String) -> int:
 	return int(map.get(unit_key, 0))
 
 
-## Birim, verilen bina seviyelerine göre **araştırılmış** sayılır mı?
-## (Araştırma durumu ayrı tutulmadığı için Kışla seviyesinden türetilir.
-##  Araştırılamayan birimler → false. Bkz. ASSUMPTIONS.md #4.)
-static func is_researched(buildings: Dictionary, unit_key: String) -> bool:
+## Birim **araştırılmış** mı? → `village.researched[unit_key]`.
+## Araştırma gerçek bir eylemdir: bedeli ödenir ve **bir kez** yapılır; bu yüzden
+## **Kışla seviyesinden türetilemez**, mutlaka `researched` sözlüğüne bakılır.
+static func is_researched(village: Dictionary, unit_key: String) -> bool:
+	var r = village.get("researched", {})
+	if typeof(r) != TYPE_DICTIONARY:
+		return false
+	return bool((r as Dictionary).get(unit_key, false))
+
+
+## Birim şu an araştırılabilir mi?
+## Koşullar: araştırılabilir birim + Kışla seviyesi yeterli + **henüz araştırılmamış**
+## + köyün hammaddesi araştırma maliyetini karşılıyor.
+static func can_research(village: Dictionary, unit_key: String) -> bool:
 	var need := research_requirement(unit_key)
 	if need <= 0:
 		return false
-	return int(buildings.get("barracks", 0)) >= need
-
-
-## Birim şu an araştırılabilir mi? (araştırılabilir + Kışla yeterli)
-static func can_research(buildings: Dictionary, unit_key: String) -> bool:
-	var need := research_requirement(unit_key)
-	if need <= 0:
+	if is_researched(village, unit_key):
 		return false
-	return int(buildings.get("barracks", 0)) >= need
+	var b = village.get("buildings", {})
+	if typeof(b) != TYPE_DICTIONARY or int((b as Dictionary).get("barracks", 0)) < need:
+		return false
+	var c := research_cost(unit_key)
+	if c.is_empty():
+		return false
+	var res = village.get("resources", {})
+	if typeof(res) != TYPE_DICTIONARY:
+		return false
+	for r in UNIT_RESOURCES:
+		if int((res as Dictionary).get(r, 0)) < int(c.get(r, 0)):
+			return false
+	return true
 
 
 ## Birimin araştırma maliyeti {"wood","stone","iron"} (araştırılmazsa {}).
@@ -495,32 +518,36 @@ static func research_cost(unit_key: String) -> Dictionary:
 	return out
 
 
-## Araştırma süresi (saniye).
-## ⚠️ Kışla katsayısı bilinmiyor → birimin **gerektirdiği minimum Kışla seviyesinde**
-## Kışla zaman faktörü serisi uygulanır. Bkz. ASSUMPTIONS.md #2.
-static func research_seconds(unit_key: String) -> float:
+## Araştırma süresi (saniye). `building_level` = Kışla seviyesi; `-1` verilirse
+## birimin **minimum gereken** Kışla seviyesi kullanılır.
+## Bkz. ASSUMPTIONS.md #2.
+static func research_seconds(unit_key: String, building_level: int = -1) -> float:
 	var res: Dictionary = _unit_rule(unit_key).get("research", {})
 	var base = res.get("base_time_seconds", null)
 	if base == null:
 		return 0.0
-	var need := research_requirement(unit_key)
-	var lvl := need if need > 0 else 1
+	var lvl := building_level
+	if lvl < 0:
+		var need := research_requirement(unit_key)
+		lvl = need if need > 0 else 1
 	var tf := _time_factor_percent("barracks", lvl)
 	return float(base) * (tf / 100.0) / _speed()
 
 
-## `count` adet birimin eğitim süresi (saniye).
-## ⚠️ Kışla/Köşk katsayısı bilinmiyor → minimum ilgili bina seviyesinde zaman
-## faktörü serisi uygulanır. Bkz. ASSUMPTIONS.md #3.
-static func training_seconds(unit_key: String, count: int) -> float:
+## `count` adet birimin eğitim süresi (saniye). `building_level` = ilgili bina
+## seviyesi (Kışla; Kont için Köşk); `-1` verilirse minimum ilgili bina seviyesi.
+## Bkz. ASSUMPTIONS.md #3.
+static func training_seconds(unit_key: String, count: int, building_level: int = -1) -> float:
 	var tr: Dictionary = _unit_rule(unit_key).get("training", {})
 	var base = tr.get("base_time_seconds", null)
 	if base == null:
 		return 0.0
 	var building := str(tr.get("building", "barracks"))
 	var series := "snob" if building == "snob" else "barracks"
-	var need := research_requirement(unit_key)
-	var lvl := need if need > 0 else 1
+	var lvl := building_level
+	if lvl < 0:
+		var need := research_requirement(unit_key)
+		lvl = need if need > 0 else 1
 	var tf := _time_factor_percent(series, lvl)
 	return float(base) * float(count) * (tf / 100.0) / _speed()
 

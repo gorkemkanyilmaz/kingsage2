@@ -109,6 +109,7 @@ func _initialize() -> void:
 
 	_test_costs_exact(gd)
 	_test_requirements(gd)
+	_test_can_upgrade_now(gd)
 	_test_requirement_chain(gd)
 	_test_points(gd)
 	_test_production_capacity(gd)
@@ -212,6 +213,35 @@ func _test_requirements(gd: Node) -> void:
 	_check(not RE.can_build({}, "bilinmeyen", 1), "Bilinmeyen bina reddedilir")
 
 
+# --- 2b) Sıralı ilerleme kapısı ---------------------------------------------
+
+func _test_can_upgrade_now(gd: Node) -> void:
+	print("\n-- Sıralı ilerleme (can_upgrade_now) --")
+	# Hedef = mevcut + 1; önkoşullar sağlanmalı
+	_check(RE.can_upgrade_now({}, "main"), "Kale: 0 → 1 mümkün (serbest)")
+	_check(RE.can_upgrade_now({"main": 1}, "main"), "Kale: 1 → 2 mümkün")
+	_check(RE.can_upgrade_now({"storage": 3, "farm": 3}, "barracks"), "Kışla: 0 → 1 mümkün (önkoşullar var)")
+	_check(not RE.can_upgrade_now({"storage": 3}, "barracks"), "Kışla: önkoşul eksik → mümkün değil")
+	_check(not RE.can_upgrade_now({}, "barracks"), "Kışla: hiç önkoşul yok → mümkün değil")
+
+	# Maksimum seviyede yükseltme yok
+	var full := _max_buildings(gd)
+	_check(not RE.can_upgrade_now(full, "wall"), "Sur: maks. seviyede → yükseltilemez")
+	_check(not RE.can_upgrade_now(full, "main"), "Kale: maks. seviyede → yükseltilemez")
+	# Bir alttan maksimuma yükseltme mümkün (ör. Sur 19 → 20)
+	var wall19 := full.duplicate(true)
+	wall19["wall"] = int(gd.get_max_level("wall")) - 1
+	_check(RE.can_upgrade_now(wall19, "wall"), "Sur: 19 → 20 (maks.) mümkün")
+	# Bilinmeyen bina
+	_check(not RE.can_upgrade_now({}, "bilinmeyen"), "Bilinmeyen bina → yükseltilemez")
+	# Anıt: 0 → 1 ancak tüm (diğer) binalar maks. iken
+	var full_no_statue := full.duplicate(true)
+	full_no_statue["statue"] = 0
+	_check(not RE.can_upgrade_now({"barracks": 29}, "statue"), "Anıt: köy tam değil → yükseltilemez")
+	_check(RE.can_upgrade_now(full_no_statue, "statue"), "Anıt: tüm binalar maks. (Anıt 0) → yükseltilebilir")
+	_check(not RE.can_upgrade_now(full, "statue"), "Anıt: zaten maksimum (1) → yükseltilemez")
+
+
 # --- 3) Gereksinim zinciri ---------------------------------------------------
 
 func _test_requirement_chain(gd: Node) -> void:
@@ -308,9 +338,16 @@ func _test_units(gd: Node) -> void:
 	_check_eq(RE.unit_cost("snob", 1), {"wood": 120000, "stone": 100000, "iron": 80000}, "Kont 1× eğitim maliyeti")
 	_check_eq(RE.unit_settlers("spy"), 2, "Casus vatandaşı = 2")
 	_check_eq(RE.unit_settlers("snob"), 100, "Kont vatandaşı = 100")
-	_check_eq(RE.unit_speed("spy"), 2, "Casus yavaşlık faktörü = 2")
-	_check_eq(RE.unit_speed("ram"), 8, "Şahmerdan yavaşlık faktörü = 8")
+
+	# unit_speed → FLOAT (alan/dakika)
+	_check(typeof(RE.unit_speed("spy")) == TYPE_FLOAT, "unit_speed float döndürür")
+	_check_eq(RE.unit_speed("spy"), 2.25, "Casus hızı = 2.25 alan/dk (float)")
+	_check_eq(RE.unit_speed("farmer"), 5.0, "Köy Koruyucusu hızı = 5.0 alan/dk")
+	_check_eq(RE.unit_speed("sword"), 5.5, "Muhafız hızı = 5.5 alan/dk")
 	_check(RE.unit_speed("spy") < RE.unit_speed("ram"), "Casus, Şahmerdan'dan hızlı")
+	# unit_mobility → int (resmî Hareketlilik)
+	_check_eq(RE.unit_mobility("spy"), 2, "Casus hareketlilik = 2")
+	_check_eq(RE.unit_mobility("ram"), 8, "Şahmerdan hareketlilik = 8")
 	_check_eq(RE.unit_carry("light"), 80, "Akıncı taşıma = 80")
 	_check_eq(RE.unit_carry("spy"), 0, "Casus taşıma = 0")
 
@@ -325,20 +362,42 @@ func _test_units(gd: Node) -> void:
 	_check_eq(RE.research_requirement("kata"), 25, "Mancınık araştırma: Kışla L25")
 	_check_eq(RE.research_requirement("snob"), 0, "Kont araştırılmaz (0)")
 
-	_check(RE.is_researched({"barracks": 4}, "bow") == false, "Okçu Kışla L4'te araştırılmamış")
-	_check(RE.is_researched({"barracks": 5}, "bow") == true, "Okçu Kışla L5'te araştırılmış")
-	_check(RE.can_research({"barracks": 25}, "kata") == true, "Mancınık Kışla L25'te araştırılabilir")
-	_check(RE.can_research({"barracks": 30}, "snob") == false, "Kont araştırılamaz")
+	# is_researched → village.researched (Kışla seviyesinden TÜRETİLMEZ)
+	_check(RE.is_researched(_make_village(5, 1000, {}), "bow") == false, "Okçu, researched boş → araştırılmamış")
+	_check(RE.is_researched(_make_village(5, 1000, {"bow": true}), "bow") == true, "Okçu, researched[bow]=true → araştırılmış")
+	_check(RE.is_researched(_make_village(30, 1, {}), "bow") == false, "Kışla L30 olsa da researched yoksa araştırılmamış")
+	# can_research → Kışla + henüz araştırılmamış + maliyet
+	_check(RE.can_research(_make_village(5, 10000, {}), "bow") == true, "Okçu: Kışla 5 + maliyet var → araştırılabilir")
+	_check(RE.can_research(_make_village(4, 10000, {}), "bow") == false, "Okçu: Kışla 4 → araştırılamaz")
+	_check(RE.can_research(_make_village(5, 10000, {"bow": true}), "bow") == false, "Okçu: zaten araştırılmış → araştırılamaz")
+	_check(RE.can_research(_make_village(5, 0, {}), "bow") == false, "Okçu: hammadde yok → araştırılamaz")
+	_check(RE.can_research(_make_village(30, 1000000, {}), "snob") == false, "Kont araştırılamaz")
 
 	_check_eq(RE.research_cost("farmer"), {"wood": 10, "stone": 10, "iron": 10}, "Köy Koruyucusu araştırma maliyeti")
 	_check_eq(RE.research_cost("snob"), {}, "Kont araştırma maliyeti yok")
+
+	# research_seconds: -1 → min Kışla; açık seviye verilebilir
 	_check(RE.research_seconds("sword") > 0.0, "Muhafız araştırma süresi > 0")
+	_check_eq(RE.research_seconds("sword"), RE.research_seconds("sword", 1), "research_seconds -1 == min Kışla (Muhafız Kışla 1)")
+	_check(RE.research_seconds("bow", 10) < RE.research_seconds("bow", 5), "Yüksek Kışla → araştırma daha hızlı")
 	_check(RE.research_seconds("snob") == 0.0, "Kont araştırma süresi = 0")
+
+	# training_seconds: -1 → min bina; açık seviye verilebilir
 	_check(RE.training_seconds("spear", 10) > RE.training_seconds("spear", 1), "Eğitim süresi adetle artar")
+	_check(RE.training_seconds("spear", 10, 10) < RE.training_seconds("spear", 10, 1), "Yüksek Kışla → eğitim daha hızlı")
 	_check(RE.training_seconds("snob", 1) > 0.0, "Kont eğitim süresi > 0")
 
 	_check_eq(RE.min_attack_units(5), 15, "Min. saldırı birimi = 3 × Kışla(5)")
 	_check_eq(RE.min_attack_units(0), 0, "Min. saldırı birimi = 0 (Kışla yok)")
+
+
+## Test yardımcısı: Kışla seviyesi + hammadde + araştırma durumu ile köy.
+func _make_village(barracks_level: int, resources_each: int, researched: Dictionary) -> Dictionary:
+	return {
+		"buildings": {"barracks": barracks_level},
+		"resources": {"wood": resources_each, "stone": resources_each, "iron": resources_each},
+		"researched": researched,
+	}
 
 
 # --- 7) Köy modeli -----------------------------------------------------------
@@ -356,6 +415,29 @@ func _test_village_model(gd: Node) -> void:
 	_check(not VM.is_developed(v), "Yeni köy tam gelişmiş değil")
 	_check(not VM.has_statue(v), "Yeni köyde Anıt yok")
 
+	# researched + Güç Alanı başlangıcı (docs/19 §3.1)
+	_check_eq(v.get("researched"), {}, "Yeni köy: researched boş sözlük")
+	_check_eq(int(v.get("realm_of_power", -1)), int(v.get("points", -2)), "Yeni köy: realm_of_power = points (başlangıçta tam)")
+	_check_eq(str(v.get("bonus_type", "x")), "", "Yeni köy: bonus_type boş")
+
+	# refresh_points
+	var rp := VM.refresh_points(v)
+	_check_eq(rp, RE.village_points(v.get("buildings")), "refresh_points = Σ bina puanı")
+	_check_eq(rp, int(v.get("points", -1)), "refresh_points değeri `points` alanına yazar")
+
+	# refresh_realm: tavan = points, 0 ile tavan arasına kırpılır
+	var av := VM.create(3, "Tavan", 0, 0, "Oyuncu", false)
+	var av_points := int(av.get("points", -1))
+	av["realm_of_power"] = 999999
+	VM.refresh_realm(av)
+	_check_eq(int(av.get("realm_of_power", -1)), av_points, "refresh_realm: tavan aşılamaz (points'e kırpılır)")
+	av["realm_of_power"] = -5
+	VM.refresh_realm(av)
+	_check_eq(int(av.get("realm_of_power", -1)), 0, "refresh_realm: negatif → 0")
+	av.erase("realm_of_power")
+	VM.refresh_realm(av)
+	_check_eq(int(av.get("realm_of_power", -1)), av_points, "refresh_realm: alan yoksa başlangıç = points")
+
 	var used := VM.population_used(v)
 	_check(used > 0, "Yeni köyde çalışan vatandaş > 0")
 	_check_eq(VM.population_free(v), RE.max_population(1) - used, "Boş vatandaş = Değirmen tavanı − bağlı")
@@ -368,6 +450,8 @@ func _test_village_model(gd: Node) -> void:
 	_check(VM.has_statue(fv), "Tam gelişmiş köyde Anıt var")
 	_check_eq(int(fv.get("points", -1)), 10000, "set_building_level puanı tazeler (10000)")
 	_check_eq(RE.village_points(fv.get("buildings")), 10000, "Tam gelişmiş köy puanı = 10000")
+	_check(int(fv.get("realm_of_power", -1)) <= int(fv.get("points", 0)), "Yükseltme sonrası Güç Alanı ≤ Köy Puanı")
+	_check_eq(int(fv.get("realm_of_power", -1)), int(v.get("realm_of_power", -2)), "Yükseltmede Güç Alanı korunur (yalnız tavan büyür)")
 
 	# Anıt seviyesinden türetme (alan olmadan)
 	var sv := VM.create(2, "Test", 0, 0, "Bot", true)
