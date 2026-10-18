@@ -217,20 +217,20 @@
 > **Kanıt (A-ŞEF bağımsız çalıştırdı):** `godot --headless --script res://tests/test_world.gd` → **107/107 PASS, EXIT=0**.
 > Örnek dünya (tohum 4242): 210 köy (100 bot + 100 terkedilmiş + 10 bonus), 4 kıta, 20×20 miniharita, süreçten bağımsız sabit hash.
 
-## FAZ 10 — UI & 2.5D — 📋 Tasarım sözleşmesi hazır (`docs/20-ARAYUZ-TASARIMI.md`)
+## FAZ 10 — UI & 2.5D — 🔄 Devam Ediyor (A-ARAYUZ)
 
 > 🔴 A-ARAYUZ bu dosyayı **bağlayıcı** kabul eder: ekran akışı, panel listesi, bina→sprite eşlemesi,
 > durum renkleri ve **10 kabul kriteri** orada tanımlı.
 
 | ID | Görev | Ajan | Durum |
 |---|---|---|---|
-| T-10.1 | UI teması (pastel & canlı) + fontlar (Nunito/Cinzel) + ortak kontroller | A-ARAYUZ | ⏳ Bekliyor |
-| T-10.2 | Kale menüsü + bina panelleri + **gereksinim zinciri görünümü** ⭐ | A-ARAYUZ | ⏳ Bekliyor |
-| T-10.3 | Kışla paneli (araştır/eğit/kov) + Köşk (Altın Zırh) + Market/Kuyumcu | A-ARAYUZ | ⏳ Bekliyor |
-| T-10.4 | 2.5D izometrik köy ekranı (TileSet + sprite + Y-sort + parçacık) | A-ARAYUZ | ⏳ Bekliyor |
-| T-10.5 | Harita ekranı + emir gönderme akışı (min. birlik / Kont mesafesi kapıları) | A-ARAYUZ | ⏳ Bekliyor |
-| T-10.6 | Rapor/Mesaj/Sıralama/Ayarlar ekranları | A-ARAYUZ | ⏳ Bekliyor |
-| T-10.7 | Ana Menü + Yön/Köy seçimi + `GameLoop` sahneye bağlama | A-ARAYUZ | ⏳ Bekliyor |
+| T-10.1 | UI teması (pastel & canlı) + fontlar (Nunito/Cinzel) + ortak kontroller | A-ARAYUZ | 🔄 Devam Ediyor |
+| T-10.2 | Kale menüsü + bina panelleri + **gereksinim zinciri görünümü** ⭐ | A-ARAYUZ | 🔄 Devam Ediyor |
+| T-10.3 | Kışla paneli (araştır/eğit/kov) + Köşk (Altın Zırh) + Market/Kuyumcu | A-ARAYUZ | 🔄 Devam Ediyor |
+| T-10.4 | 2.5D izometrik köy ekranı (TileSet + sprite + Y-sort + parçacık) | A-ARAYUZ | 🔄 Devam Ediyor |
+| T-10.5 | Harita ekranı + emir gönderme akışı (min. birlik / Kont mesafesi kapıları) | A-ARAYUZ | 🔄 Devam Ediyor |
+| T-10.6 | Rapor/Mesaj/Sıralama/Ayarlar ekranları | A-ARAYUZ | 🔄 Devam Ediyor |
+| T-10.7 | Ana Menü + Yön/Köy seçimi + `GameLoop` sahneye bağlama | A-ARAYUZ | 🔄 Devam Ediyor |
 
 ## FAZ 11 — Bot / AI
 
@@ -240,14 +240,14 @@
 | T-11.2 | Askerî bot (keşif, hedef seçimi, savunma) | A-BOT | ⏳ Bekliyor |
 | T-11.3 | Zorluk seviyeleri + kişilik | A-BOT | ⏳ Bekliyor |
 
-## FAZ 12 — Kaydet/Yükle, Test, Denge
+## FAZ 12 — Kaydet/Yükle, Test, Denge — 🔄 Devam Ediyor (A-QA)
 
 | ID | Görev | Ajan | Durum |
 |---|---|---|---|
-| T-12.1 | Kaydet/yükle + offline telafi doğrulaması | A-QA | ⏳ Bekliyor |
-| T-12.2 | Kural doğrulama testleri (maliyet/süre/gereksinim) | A-QA | ⏳ Bekliyor |
-| T-12.3 | Savaş simülatörü birim testleri | A-QA | ⏳ Bekliyor |
-| T-12.4 | Ekonomi dengesi simülasyonu (ör. 30 günlük ilerleme) | A-QA | ⏳ Bekliyor |
+| T-12.1 | Kaydet/yükle + **offline telafi (30 gün)** doğrulaması | A-QA | 🔄 Devam Ediyor |
+| T-12.2 | Uçtan uca entegrasyon testi (§7b `process_tick` zinciri) | A-QA | 🔄 Devam Ediyor |
+| T-12.3 | **Değişmezler:** kaynak ≥ 0 · ≤ depo tavanı · `0 ≤ realm ≤ points` · puan 10000 | A-QA | 🔄 Devam Ediyor |
+| T-12.4 | Determinizm: iki süreçte aynı tohum → aynı hash · yükleme sonrası kesintisiz devam | A-QA | 🔄 Devam Ediyor |
 
 ## FAZ 13/14 — (Sonra) Premium & Online
 > Kullanıcı kararı: **şimdilik kapsam dışı.**
@@ -357,3 +357,4 @@
 - **[Kod-27]** **FAZ 8 (Casusluk / Fetih / Destek / Talan) ✅** A-KESIF tamamladı: **78/78 test PASS** (A-ŞEF doğruladı). Hareket oluşturma/iptal (30/15 dk), varışta çözümleme + dönüş, destek/ticaret/casusluk, 10:1 Kanun Kaçağı (2 ay), fetih + fetih koruması, determinizm.
 - **[Kod-28]** ⚠️ **Kaynak düzeltmesi:** Gizli Depo **casuslara karşı da** korur (*"hırsızların elinden ve casusların gözünden uzak"*) → casusluk raporunda `max(0, kaynak − gizli_depo)`. Ayrıca: **normal casusluk görünür** (savunan rapor alır), **gizli görünmez** (rapor yok) ve gizli raporda "dışarıdaki birlikler" alanı **yok**. `docs/07` §6 güncellendi; A-KESIF'e T-8.9 verildi.
 - **[Kod-29]** **Kanun Kaçağı kuralı teyit edildi** (`worldinfo`): Kanun Kaçağı = **tüm köylerin kalıcı saldırı koruması**; senden **10× yüksek puanlı oyuncular saldıramaz**. Bu korumayı kırarsan → **2 ay** boyunca 10:1 korumanı kaybedersin.
+- **[Kod-30]** **4. ajan dalgası başlatıldı:** **A-ARAYUZ** (`game/themes/**`, `game/ui/**`, `game/scenes/**` → 2.5D köy ekranı + tüm paneller + gereksinim zinciri görünümü), **A-QA** (`game/tests/test_save.gd`, `test_integration.gd`, `QA-RAPORU.md` → kaydet/yükle, offline telafi, uçtan uca entegrasyon, değişmezler, determinizm). A-QA **kod düzeltmez**, yalnız bulgu raporlar.
