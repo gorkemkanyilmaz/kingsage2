@@ -98,7 +98,30 @@ var _profiles: Dictionary = {}
 var _default_profile: String = "tr"
 
 
+static var instance: Node = null
+static var _fallback: Node = null
+
+static func get_singleton() -> Node:
+	if instance != null:
+		return instance
+	var loop := Engine.get_main_loop()
+	if loop is SceneTree:
+		var node: Node = (loop as SceneTree).root.get_node_or_null("GameConfig")
+		if node != null:
+			instance = node
+			return instance
+	if _fallback == null:
+		var script = load("res://autoload/GameConfig.gd")
+		_fallback = script.new()
+	return _fallback
+
+
+func _init() -> void:
+	instance = self
+
+
 func _ready() -> void:
+	instance = self
 	load_profiles()
 	# Kayıtlı ayar varsa onu yükle; yoksa varsayılan dünya profilini (TR) uygula.
 	if FileAccess.file_exists(CONFIG_PATH) and load_from_file(CONFIG_PATH):
@@ -227,7 +250,11 @@ func from_dict(data: Dictionary) -> void:
 	for key in to_dict().keys():
 		if data.has(key):
 			_set_field(key, data[key])
-	EventBus.config_changed.emit()
+	var loop := Engine.get_main_loop()
+	if loop is SceneTree:
+		var bus = (loop as SceneTree).root.get_node_or_null("EventBus")
+		if bus != null and bus.has_signal("config_changed"):
+			bus.config_changed.emit()
 
 
 func _set_field(key: String, value) -> void:

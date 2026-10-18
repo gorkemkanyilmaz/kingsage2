@@ -35,24 +35,17 @@ const BASE_BUILD_SECONDS := 60.0
 #  İç yardımcılar: veri erişimi
 # =============================================================================
 
-## GameData autoload düğümünü (yüklenmiş halde) döndürür; yoksa null.
+const GameDataScript := preload("res://autoload/GameData.gd")
+const GameConfigScript := preload("res://autoload/GameConfig.gd")
+
+## GameData singleton'ını döndürür (otomatik yüklenmiş halde).
 static func _game_data() -> Node:
-	var loop := Engine.get_main_loop()
-	if loop is SceneTree:
-		var node: Node = (loop as SceneTree).root.get_node_or_null("GameData")
-		if node != null:
-			if not node.is_loaded():
-				node.load_all()
-			return node
-	return null
+	return GameDataScript.get_singleton()
 
 
-## GameConfig autoload düğümünü döndürür; yoksa null.
+## GameConfig singleton'ını döndürür.
 static func _game_config() -> Node:
-	var loop := Engine.get_main_loop()
-	if loop is SceneTree:
-		return (loop as SceneTree).root.get_node_or_null("GameConfig")
-	return null
+	return GameConfigScript.get_singleton()
 
 
 ## Sunucu hızı (üretimi çarpar, süreleri böler). Varsayılan 1.0.

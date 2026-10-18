@@ -48,11 +48,38 @@ var _points_max: Dictionary = {}
 # kural adı (String) -> yüklenen JSON içeriği (Dictionary veya Array)
 var _rules: Dictionary = {}
 
+static var instance: Node = null
+static var _fallback: Node = null
+
+static func get_singleton() -> Node:
+	if instance != null:
+		if not instance.is_loaded():
+			instance.load_all()
+		return instance
+	var loop := Engine.get_main_loop()
+	if loop is SceneTree:
+		var node: Node = (loop as SceneTree).root.get_node_or_null("GameData")
+		if node != null:
+			if not node.is_loaded():
+				node.load_all()
+			instance = node
+			return instance
+	if _fallback == null:
+		var script = load("res://autoload/GameData.gd")
+		_fallback = script.new()
+		_fallback.load_all()
+	return _fallback
+
 var _loaded := false
 var load_errors: Array = []
 
 
+func _init() -> void:
+	instance = self
+
+
 func _ready() -> void:
+	instance = self
 	# Otomatik yükleme: veri katmanı hazır olsun. Boot ayrıca load_all() çağırır.
 	load_all()
 

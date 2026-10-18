@@ -3,9 +3,13 @@
 > 🔴 **SONRAKİ OTURUMDA ÖNCE BU DOSYAYI OKU.**
 > Sonra sırayla: `README.md` → `docs/TERIMLER.md` → `TASKS.md`
 
-**Son güncelleme:** 4. oturum (KOD FAZI BAŞLADI) — bkz. **`TASKS-CODE.md`** (canlı görev panosu)
+**Son güncelleme:** 5. oturum (KALE İÇİ GEREKSİNİM ZİNCİRİ, MALİYETLER VE BİNA YÜKSELTMELERİ TEST EDİLDİ) — bkz. **`TASKS-CODE.md`**
 **Proje:** **Taht ve Kılıç** — King's Age mobil klonu (Godot 4.7.2, dikey, 2.5D, Türkçe)
-**Aşama:** 🟢 **Kodlama fazı** (analiz/doküman fazı bitti). Kurallara %100 bağlı kalınacak.
+**Aşama:** 🟢 **Kodlama & Test Doğrulama Fazı** (%100 Başarılı Testler: test_building_upgrades 67/67 PASS, test_player_agent 80/80 PASS, test_rules 159/159 PASS, test_economy 126/126 PASS).
+- **Çözülen Kritik Sorun:** Kilitli binalarda maliyetin `0 0 0` görünmesi ve Anıt (statue) gereksinim zincirinin boş görünmesi kökten giderildi.
+- `GameData` ve `GameConfig` için `get_singleton()` mimarisi kurularak her bağlamda erişim garantiye alındı.
+- `BuildQueue.can_start()` içinde önkoşul kontrolünden önce maliyet ve süre hesaplaması yapılarak UI'a eksiksiz maliyet bilgisi sağlandı.
+- Kapsamlı test paketi: `game/tests/test_building_upgrades.gd` (67/67 PASS).
 
 ---
 

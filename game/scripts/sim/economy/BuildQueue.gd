@@ -43,22 +43,16 @@ const TYPE := "build"
 const MAX_STEPS := 100000
 
 
+const GameDataScript := preload("res://autoload/GameData.gd")
+const GameConfigScript := preload("res://autoload/GameConfig.gd")
+
+
 static func _game_data() -> Node:
-	var loop := Engine.get_main_loop()
-	if loop is SceneTree:
-		var node: Node = (loop as SceneTree).root.get_node_or_null("GameData")
-		if node != null:
-			if node.has_method("is_loaded") and not node.is_loaded():
-				node.load_all()
-			return node
-	return null
+	return GameDataScript.get_singleton()
 
 
 static func _game_config() -> Node:
-	var loop := Engine.get_main_loop()
-	if loop is SceneTree:
-		return (loop as SceneTree).root.get_node_or_null("GameConfig")
-	return null
+	return GameConfigScript.get_singleton()
 
 
 static func _round_half_up(x: float) -> int:
@@ -194,6 +188,15 @@ static func can_start(state: Dictionary, village: Dictionary, key: String) -> Di
 		result["reason"] = "max_level"
 		return result
 
+	var pct := extra_cost_percent(state, vid)
+	var base := RE.cost(key, tgt)
+	var total := {}
+	for r in RESOURCES:
+		total[r] = int(base.get(r, 0)) + _round_half_up(float(base.get(r, 0)) * float(pct) / 100.0)
+	result["extra_percent"] = pct
+	result["base_cost"] = base
+	result["cost"] = total
+
 	var missing := RE.missing_requirements(projected, key, tgt)
 	if not missing.is_empty():
 		result["reason"] = "requirements"
@@ -204,15 +207,6 @@ static func can_start(state: Dictionary, village: Dictionary, key: String) -> Di
 	if not RE.can_upgrade_now(projected, key):
 		result["reason"] = "locked"
 		return result
-
-	var pct := extra_cost_percent(state, vid)
-	var base := RE.cost(key, tgt)
-	var total := {}
-	for r in RESOURCES:
-		total[r] = int(base.get(r, 0)) + _round_half_up(float(base.get(r, 0)) * float(pct) / 100.0)
-	result["extra_percent"] = pct
-	result["base_cost"] = base
-	result["cost"] = total
 
 	if not POP.can_afford_citizens(state, village, key, tgt):
 		result["reason"] = "citizens"

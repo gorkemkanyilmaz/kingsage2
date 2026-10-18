@@ -50,10 +50,14 @@ func refresh() -> void:
 	var b_data: Dictionary = RulesEngineScript.building_data(_current_key)
 	var b_name: String = str(b_data.get("name", _current_key))
 	var cur_lvl: int = int(_village.get("buildings", {}).get(_current_key, 0))
+	var max_lvl: int = RulesEngineScript._max_level(_current_key)
 	var tgt_lvl: int = cur_lvl + 1
 
 	title_label.text = b_name
-	level_label.text = "Seviye: %d  (Hedef: %d)" % [cur_lvl, tgt_lvl]
+	if cur_lvl >= max_lvl and max_lvl > 0:
+		level_label.text = "Seviye: %d / %d (Maksimum)" % [cur_lvl, max_lvl]
+	else:
+		level_label.text = "Seviye: %d  (Hedef: %d / %d)" % [cur_lvl, tgt_lvl, max_lvl]
 
 	var details: Dictionary = EconomyAPI.build_details(_village, _current_key, state)
 	var base_cost: Dictionary = details.get("base_cost", {})
@@ -87,16 +91,23 @@ func refresh() -> void:
 	else:
 		upgrade_btn.disabled = true
 		var reason: String = str(details.get("reason", ""))
-		if reason == "resources":
-			upgrade_btn.text = "Yetersiz Hammadde"
-			req_section.hide()
-		elif reason == "citizens":
-			upgrade_btn.text = "Yetersiz Vatandaş (Değirmen Gerek)"
+		if reason == "max_level":
+			upgrade_btn.text = "Maksimum Seviyeye Ulaşıldı"
 			req_section.hide()
 		elif reason == "requirements" or reason == "locked":
 			upgrade_btn.text = "Önkoşullar Karşılanmadı"
 			req_section.show()
 			_populate_chain_list(chain)
+		elif reason == "resources":
+			upgrade_btn.text = "Yetersiz Hammadde"
+			if details.get("missing", []).size() > 0:
+				req_section.show()
+				_populate_chain_list(chain)
+			else:
+				req_section.hide()
+		elif reason == "citizens":
+			upgrade_btn.text = "Yetersiz Vatandaş (Değirmen Gerek)"
+			req_section.hide()
 		else:
 			upgrade_btn.text = "Yükseltilemez"
 			req_section.hide()
@@ -122,21 +133,24 @@ func _populate_chain_list(chain: Array) -> void:
 		lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		lbl.text = "• %s (Gereken: %d, Şu an: %d)" % [req_name, req_tgt, req_cur]
 		if req_cur >= req_tgt:
-			lbl.modulate = Palette.c("basari")
+			lbl.add_theme_color_override("font_color", Palette.c("basari"))
 		else:
-			lbl.modulate = Palette.c("hata")
+			lbl.add_theme_color_override("font_color", Palette.c("hata"))
 		row.add_child(lbl)
 
 		var goto_btn := Button.new()
 		goto_btn.text = "Binaya Git ➔"
 		goto_btn.custom_minimum_size = Vector2(140, 48)
-		goto_btn.pressed.connect(func():
-			_current_key = req_key
-			refresh()
-			building_switched.emit(req_key))
+		goto_btn.pressed.connect(_on_goto_building.bind(req_key))
 		row.add_child(goto_btn)
 
 		req_container.add_child(row)
+
+
+func _on_goto_building(target_key: String) -> void:
+	_current_key = target_key
+	refresh()
+	building_switched.emit(target_key)
 
 
 func _on_upgrade_pressed() -> void:
