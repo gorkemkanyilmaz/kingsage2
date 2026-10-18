@@ -119,27 +119,29 @@
 
 > **Kanıt (A-ŞEF doğrulaması):** 9.494 dosya / **50,4 MB**; `licenses/KENNEY` 21 + `licenses/FONTS-OFL` 8 lisans metni; tüm dosya adları ASCII; Gameforge kaynaklı 0 dosya.
 
-## FAZ 5 — Ekonomi & Bina Simülasyonu
+## FAZ 5 — Ekonomi & Bina Simülasyonu — 🔄 Devam Ediyor (A-EKONOMI)
 
 | ID | Görev | Ajan | Durum |
 |---|---|---|---|
-| T-5.1 | Hammadde üretimi (saatlik) + Depo tavanı + taşma | A-EKONOMI | ⏳ Bekliyor |
-| T-5.2 | Vatandaş sistemi (boş/çalışan, Değirmen tavanı) | A-EKONOMI | ⏳ Bekliyor |
-| T-5.3 | İnşaat kuyruğu (3 iş ücretsiz + ek maliyet tablosu) + süre hesabı | A-EKONOMI | ⏳ Bekliyor |
-| T-5.4 | Gereksinim doğrulama (inşa/geliştirme öncesi zincir kontrolü) | A-EKONOMI | ⏳ Bekliyor |
-| T-5.5 | Binayı yık (Kale Lv15 + Simyager tekniği) | A-EKONOMI | ⏳ Bekliyor |
-| T-5.6 | Puan hesaplama + Köy Puanı + Toplam Puan (2.500/ek köy) | A-EKONOMI | ⏳ Bekliyor |
-| T-5.7 | Güç Alanı döngüsü (saatlik %1 artış, saldırı düşüşü, 0 → fetih) | A-EKONOMI | ⏳ Bekliyor |
+| T-5.1 | Hammadde üretimi (saatlik) + Depo tavanı + taşma | A-EKONOMI | 🔄 Devam Ediyor |
+| T-5.2 | Vatandaş sistemi (boş/çalışan, Değirmen tavanı) | A-EKONOMI | 🔄 Devam Ediyor |
+| T-5.3 | İnşaat kuyruğu (3 iş ücretsiz + ek maliyet) + süre | A-EKONOMI | 🔄 Devam Ediyor |
+| T-5.4 | Gereksinim doğrulama (sıralı ilerleme + zincir) | A-EKONOMI | 🔄 Devam Ediyor |
+| T-5.5 | Binayı yık (Kale Lv15 + Simyager tekniği) | A-EKONOMI | 🔄 Devam Ediyor |
+| T-5.6 | Puan hesaplama + Köy Puanı + Toplam Puan (2.500/ek köy) | A-EKONOMI | 🔄 Devam Ediyor |
+| T-5.7 | Güç Alanı döngüsü (saatlik %1 artış, saldırı düşüşü) | A-EKONOMI | 🔄 Devam Ediyor |
+| T-5.8 | `GameLoop.gd` — **§7b sim modül protokolü** (tick → olaylar → EventBus) | A-EKONOMI | 🔄 Devam Ediyor |
 
-## FAZ 6 — Ordu & Eğitim
+## FAZ 6 — Ordu & Eğitim — 🔄 Devam Ediyor (A-ORDU)
 
 | ID | Görev | Ajan | Durum |
 |---|---|---|---|
-| T-6.1 | Birim araştırma (Kışla seviyesi gereksinimleri + kuyruk) | A-ORDU | ⏳ Bekliyor |
-| T-6.2 | Birim eğitimi (maliyet + vatandaş + Kışla süre katsayısı) | A-ORDU | ⏳ Bekliyor |
-| T-6.3 | Birim kovma (dismiss) + vatandaş iadesi | A-ORDU | ⏳ Bekliyor |
-| T-6.4 | Altın zırh üretimi (Kuyumcu) + Kont eğitimi (Köşk) + maliyet artışı | A-ORDU | ⏳ Bekliyor |
-| T-6.5 | Ordu büyüklüğü limitleri (min. saldırı birimi = 3 × Kışla) | A-ORDU | ⏳ Bekliyor |
+| T-6.1 | Birim araştırma (Kışla seviyeleri + kuyruk + `researched`) | A-ORDU | 🔄 Devam Ediyor |
+| T-6.2 | Birim eğitimi (maliyet + vatandaş + süre) | A-ORDU | 🔄 Devam Ediyor |
+| T-6.3 | Birim kovma (dismiss) + vatandaş iadesi | A-ORDU | 🔄 Devam Ediyor |
+| T-6.4 | Altın Zırh (Kuyumcu) + Kont eğitimi (Köşk) | A-ORDU | 🔄 Devam Ediyor |
+| T-6.5 | Ordu limitleri (min. saldırı birimi = 3 × Kışla) | A-ORDU | 🔄 Devam Ediyor |
+| T-6.6 | Bonus köy "eğitim" etkisi (+%10 hızlı) | A-ORDU | 🔄 Devam Ediyor |
 
 ## FAZ 7 — Savaş Simülatörü (5 faz) ✅
 
@@ -304,3 +306,6 @@
   - **TR dünya ayarları** birebir doğrulandı: hız 4, birim hızı 4, min. birim 3×Kışla, koruma 5/7 gün, oran 10:1, Kont 80 alan, Kanun Kaçağı 2 ay, saatlik %1.
   - `docs/10` §1'deki **hatalı kıta formülü** düzeltildi (`K` + `floor(Y/100)` + `floor(X/100)`), bonus/terkedilmiş köy bölümleri eklendi.
 - **[Kod-16]** `docs/19` sözleşme düzeltmeleri: **`researched` durumu** (araştırma gerçek bir eylemdir — Kışla seviyesinden türetilemez), `can_upgrade_now`, `unit_speed` **float**, `bonus_type`, `realm=points`. A-MOTOR ve A-DUNYA'ya düzeltme görevleri verildi.
+- **[Kod-17]** A-MOTOR düzeltmeleri tamam: **159/159 test PASS** (A-ŞEF doğruladı). `researched` bayrağı, `can_upgrade_now`, `unit_speed` float (Casus 2.25 alan/dk), `refresh_points`/`refresh_realm`.
+- **[Kod-18]** `docs/19` **§7b "Sim modül protokolü"** eklendi: her sim modülü `static func process_tick(state, now_unix, delta_seconds) -> Array` sağlar; `GameLoop.gd` modülleri **yol ile** yükler (`ResourceLoader.exists`) → modüller birbirini beklemeden yazılabilir.
+- **[Kod-19]** **3. ajan dalgası başlatıldı:** **A-EKONOMI** (`game/scripts/sim/economy/**` + `game/scripts/core/GameLoop.gd`), **A-ORDU** (`game/scripts/sim/army/**`).

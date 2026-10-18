@@ -226,12 +226,40 @@ static func find_free_spot(world: Dictionary, x: int, y: int) -> Vector2i
 
 ```gdscript
 # attacker/defender: {"units":{...}, "wall_level":int, "buildings":{...},
-#                     "bonus":{...}, "has_statue":bool, "points":int}
+#                     "has_statue":bool, "points":int, "realm_of_power":int}
+#   (NOT: "bonus"/"bonus_type" savaşı ETKİLEMEZ — yalnız üretim/eğitim hızını etkiler.)
 # options: {"seed":int, "night":bool, "speed":float, "raider_points":int, "is_raid":bool}
 static func simulate(attacker: Dictionary, defender: Dictionary, options: Dictionary) -> Dictionary
 # dönüş: {"phases":[...], "attacker_losses":{...}, "defender_losses":{...},
 #          "wall_damage_pct":float, "loot":{...}, "conquered":bool, "morale":float, "luck":float}
 ```
+
+---
+
+## 7b. Sim modül protokolü (ZORUNLU — modüller arası bağ)
+
+Her simülasyon modülü **şu statik imzayı** sağlar; böylece `GameLoop` hepsini tek yerden çalıştırır:
+
+```gdscript
+# state  : GameState.to_dict() çıktısı (kök durum)
+# now_unix, delta_seconds: simülasyon zamanı
+# dönüş  : bu tick'te tamamlanan işlerin olayları (Array[Dictionary])
+static func process_tick(state: Dictionary, now_unix: int, delta_seconds: float) -> Array
+```
+
+Olay örneği: `{"type":"building_completed","village_id":1,"key":"wood","level":5}`
+
+`game/scripts/core/GameLoop.gd` modülleri **yol ile** yükler ve dosya yoksa **sessizce atlar**:
+
+```gdscript
+const MODULES := [
+    "res://scripts/sim/economy/EconomySimulator.gd",
+    "res://scripts/sim/army/ArmySimulator.gd",
+    "res://scripts/sim/actions/ActionSimulator.gd",
+]
+```
+> Böylece modüller **birbirini beklemeden** yazılabilir. `GameLoop`, `GameClock.tick`
+> sinyaline bağlanır ve **offline hızlı-ileri** sırasında da aynı yolu kullanır (determinizm).
 
 ---
 
