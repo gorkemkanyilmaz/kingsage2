@@ -97,9 +97,17 @@
   "target_level": 5,          # yalnız "build"
   "count": 0,                 # yalnız "train"
   "start_unix": 0, "finish_unix": 0,
-  "cost_paid": { "wood": 100, "stone": 100, "iron": 100 }
+  "cost_paid": { "wood": 100, "stone": 100, "iron": 100 },   # taban maliyet (İADE EDİLİR)
+  "extra_paid": { "wood": 25, "stone": 25, "iron": 25 }      # kuyruk ek maliyeti (İADE EDİLMEZ)
 }
 ```
+
+> **İptal/iade kuralı (kaynak `buildings.txt` — kesin):**
+> - İnşaat **her an iptal edilebilir** → **taban maliyet (`cost_paid`) İADE EDİLİR**.
+> - **Kuyruk ek maliyeti (`extra_paid`) İADE EDİLMEZ.**
+> - **Aynı anda yalnızca BİR bina** inşa halindedir; en fazla **3 komut** kuyruğa alınır ve **art arda** tamamlanır.
+>   (Premium hesapta kuyruk **sınırsız** — premium sonraki faz.)
+> - Bina yıkımında (Kale 15 + Simyager tekniği) hammadde iadesi **yoktur**; vatandaş geri döner.
 
 ### 3.3 Hareket (`GameState.movements[]`)
 ```gdscript

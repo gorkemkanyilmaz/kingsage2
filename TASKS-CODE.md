@@ -119,18 +119,27 @@
 
 > **Kanıt (A-ŞEF doğrulaması):** 9.494 dosya / **50,4 MB**; `licenses/KENNEY` 21 + `licenses/FONTS-OFL` 8 lisans metni; tüm dosya adları ASCII; Gameforge kaynaklı 0 dosya.
 
-## FAZ 5 — Ekonomi & Bina Simülasyonu — 🔄 Devam Ediyor (A-EKONOMI)
+## FAZ 5 — Ekonomi & Bina Simülasyonu — ✅ Tamamlandı (A-EKONOMI)
 
 | ID | Görev | Ajan | Durum |
 |---|---|---|---|
-| T-5.1 | Hammadde üretimi (saatlik) + Depo tavanı + taşma | A-EKONOMI | 🔄 Devam Ediyor |
-| T-5.2 | Vatandaş sistemi (boş/çalışan, Değirmen tavanı) | A-EKONOMI | 🔄 Devam Ediyor |
-| T-5.3 | İnşaat kuyruğu (3 iş ücretsiz + ek maliyet) + süre | A-EKONOMI | 🔄 Devam Ediyor |
-| T-5.4 | Gereksinim doğrulama (sıralı ilerleme + zincir) | A-EKONOMI | 🔄 Devam Ediyor |
-| T-5.5 | Binayı yık (Kale Lv15 + Simyager tekniği) | A-EKONOMI | 🔄 Devam Ediyor |
-| T-5.6 | Puan hesaplama + Köy Puanı + Toplam Puan (2.500/ek köy) | A-EKONOMI | 🔄 Devam Ediyor |
-| T-5.7 | Güç Alanı döngüsü (saatlik %1 artış, saldırı düşüşü) | A-EKONOMI | 🔄 Devam Ediyor |
-| T-5.8 | `GameLoop.gd` — **§7b sim modül protokolü** (tick → olaylar → EventBus) | A-EKONOMI | 🔄 Devam Ediyor |
+| T-5.1 | Hammadde üretimi (saatlik) + Depo tavanı + taşma | A-EKONOMI | ✅ Tamamlandı |
+| T-5.2 | Vatandaş sistemi (boş/çalışan, Değirmen tavanı) | A-EKONOMI | ✅ Tamamlandı |
+| T-5.3 | İnşaat kuyruğu (3 iş ücretsiz + ek maliyet) + süre | A-EKONOMI | ✅ Tamamlandı |
+| T-5.4 | Gereksinim doğrulama (sıralı ilerleme + zincir) | A-EKONOMI | ✅ Tamamlandı |
+| T-5.5 | Binayı yık (Kale Lv15 + Simyager tekniği) | A-EKONOMI | ✅ Tamamlandı |
+| T-5.6 | Puan hesaplama + Köy Puanı + Toplam Puan (2.500/ek köy) | A-EKONOMI | ✅ Tamamlandı |
+| T-5.7 | Güç Alanı döngüsü (saatlik %1 artış, saldırı düşüşü, fetih %30) | A-EKONOMI | ✅ Tamamlandı |
+| T-5.8 | `GameLoop.gd` — **§7b sim modül protokolü** (tick → olaylar → EventBus) | A-EKONOMI | ✅ Tamamlandı |
+| T-5.9 | **İptalde iade düzeltmesi:** taban maliyet iade, **ek maliyet iade DEĞİL** | A-EKONOMI | 🔄 Devam Ediyor |
+
+> **Kanıt (A-ŞEF bağımsız çalıştırdı):** `godot --headless --script res://tests/test_economy.gd` → **108/108 PASS, EXIT=0**.
+> Doğrulananlar: 1 saat üretim + depo tavanı · 100 küçük tick ≈ 120 (kayan-nokta telafisi) · kuyruk ek maliyeti %25/%56/%95 ·
+> sıralı `can_upgrade_now` · gereksinim ihlali reddi (Kışla ← Depo 3 + Değirmen 3) · **30 gün offline hızlı-ileri çökme yok** ·
+> Güç Alanı %1/saat + tavan/kırpma/fetih %30 · tam gelişmiş köy = 10000 · `GameLoop` modül yükleme + EventBus köprüsü.
+>
+> ⚠️ **A-ŞEF düzeltmesi:** Görev metnimde "iptalde iade yok" **yanlıştı**. Kaynak (`buildings.txt`): taban maliyet **iade edilir**,
+> kuyruk ek maliyeti **iade edilmez**. `docs/19` §3.2 güncellendi, T-5.9 ile düzeltiliyor.
 
 ## FAZ 6 — Ordu & Eğitim — ✅ Tamamlandı (A-ORDU)
 
@@ -333,3 +342,5 @@
 - **[Kod-22]** **FAZ 6 (Ordu & Eğitim) ✅** A-ORDU tamamladı: **66/66 test PASS** (A-ŞEF doğruladı). Araştırma (`researched` tek seferlik), eğitim + vatandaş rezervi, dismiss iadesi, **Altın Zırh (Kuyumcu) + Kont (Köşk)**, `min_attack_units`, `training` bonusu ×0,90.
 - **[Kod-23]** `docs/19` **§7b** protokolü işliyor: `ArmySimulator.gd` yol/`process_tick` imzasıyla birebir uyumlu → `GameLoop` takacak.
 - **[Kod-24]** **Doküman indeksi notu:** `docs/07` = **casusluk** (araştırma değil); araştırma/eğitim içeriği `docs/05-ASKERLER.md`'de; kaynak/nüfus `docs/03-KAYNAKLAR-VE-SETTLER.md`'de. Ajan brieflerinde dosya adları buna göre düzeltilmeli.
+- **[Kod-25]** **FAZ 5 (Ekonomi & Bina Simülasyonu) ✅** A-EKONOMI tamamladı: **108/108 test PASS** (A-ŞEF doğruladı). Üretim + depo tavanı, kuyruk ek maliyeti, sıralı ilerleme, gereksinim ihlali reddi, **30 gün offline hızlı-ileri çökme yok**, Güç Alanı, `GameLoop` (§7b) + EventBus köprüsü.
+- **[Kod-26]** ⚠️ **A-ŞEF sadakat düzeltmesi:** Görev metnimde "iptalde iade yok" **yanlıştı**. Kaynak (`buildings.txt`): **taban maliyet İADE EDİLİR**, kuyruk ek maliyeti **iade EDİLMEZ**. `docs/19` §3.2 güncellendi (`cost_paid` / `extra_paid` ayrımı) → A-EKONOMI'ye T-5.9 düzeltmesi verildi.
