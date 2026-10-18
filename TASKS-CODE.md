@@ -136,16 +136,21 @@
 | T-6.4 | Altın zırh üretimi (Kuyumcu) + Kont eğitimi (Köşk) + maliyet artışı | A-ORDU | ⏳ Bekliyor |
 | T-6.5 | Ordu büyüklüğü limitleri (min. saldırı birimi = 3 × Kışla) | A-ORDU | ⏳ Bekliyor |
 
-## FAZ 7 — Savaş Simülatörü (5 faz)
+## FAZ 7 — Savaş Simülatörü (5 faz) ✅
 
 | ID | Görev | Ajan | Durum |
 |---|---|---|---|
-| T-7.1 | Faz 1: **Sura zarar** (Şahmerdan) | A-SAVAS | ⏳ Bekliyor |
-| T-7.2 | Faz 2: **Casus Saldırısı** | A-SAVAS | ⏳ Bekliyor |
-| T-7.3 | Faz 3: **Normal Asker Saldırısı** (moral + şans + sur + gece) | A-SAVAS | ⏳ Bekliyor |
-| T-7.4 | Faz 4: **Binalara zarar** (Mancınık; savunan kaybına bağlı) | A-SAVAS | ⏳ Bekliyor |
-| T-7.5 | Faz 5: **Fetihler ve Yağma** | A-SAVAS | ⏳ Bekliyor |
-| T-7.6 | Deterministik + tohumlanabilir; **Savaş Raporu** üretimi | A-SAVAS | ⏳ Bekliyor |
+| T-7.1 | Faz 1: **Sura zarar** (Şahmerdan) | A-SAVAS | ✅ Tamamlandı |
+| T-7.2 | Faz 2: **Casus Saldırısı** | A-SAVAS | ✅ Tamamlandı |
+| T-7.3 | Faz 3: **Normal Asker Saldırısı** (moral + şans + sur + gece + Anıt) | A-SAVAS | ✅ Tamamlandı |
+| T-7.4 | Faz 4: **Binalara zarar** (Mancınık) | A-SAVAS | ✅ Tamamlandı |
+| T-7.5 | Faz 5: **Fetihler ve Yağma** (Gizli Depo, Kont, Güç Alanı) | A-SAVAS | ✅ Tamamlandı |
+| T-7.6 | Deterministik (tohumlu) + **Savaş Raporu** (Türkçe) | A-SAVAS | ✅ Tamamlandı |
+| T-7.7 | `ASSUMPTIONS.md` — 6 bilinmeyen formül belgelendi | A-SAVAS | ✅ Tamamlandı |
+
+> **Kanıt (A-ŞEF bağımsız çalıştırdı):** `godot --headless --script res://tests/test_battle.gd` → **50/50 PASS, EXIT=0**.
+> Doğrulananlar: aynı tohum → aynı sonuç · sur ↑ → savunan kaybı ↓ · gece → savunan kaybı ↓ · moral daima %30–%100 ·
+> ganimet ≤ kapasite ve ≤ hedef hammadde · Gizli Depo korur · min. birlik 3×Kışla · Kont fetih koşulu (Anıt 1750–2250, talanda fetih yok).
 
 ## FAZ 8 — Casusluk / Fetih / Destek / Talan
 
@@ -276,3 +281,6 @@
 - **[Kod-10]** Kullanıcı kararları uygulandı: **hız 1**, **özgün birim sprite'ları**, **müziksiz**, **Safir `#6E9BE8`**. `world-profiles.json` + `GameConfig` hız 1'e çekildi.
 - **[Kod-11]** **`docs/19-MOTOR-API-SOZLESMESI.md`** yazıldı — tüm kod ajanları için bağlayıcı arayüz (veri şekilleri, `RulesEngine`/`VillageModel`/`WorldModel`/`BattleSimulator` imzaları, determinizm kuralları).
 - **[Kod-12]** 2. ajan dalgası başlatıldı: **A-MOTOR** (kural motoru kodu + köy modeli), **A-DUNYA** (dünya/harita), **A-SAVAS** (savaş simülatörü).
+- **[Kod-13]** **FAZ 7 (Savaş Simülatörü) ✅ tamamlandı.** A-SAVAS 5 fazın tamamını + Türkçe savaş raporunu + `ASSUMPTIONS.md`'yi yazdı.
+  Kanıt: **50/50 test PASS, EXIT=0** (A-ŞEF bağımsız çalıştırdı). Determinizm (aynı tohum → aynı sonuç), sur/gece etkisi, ganimet sınırları ve Kont fetih koşulu kanıtlandı.
+  Bilinmeyen 6 formül (`known:false`) tek sabitle belgelendi — **uydurulmadı**.
