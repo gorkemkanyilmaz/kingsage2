@@ -47,7 +47,7 @@
 | ID | Görev | Ajan | Durum |
 |---|---|---|---|
 | T-1.1 | `git init` + `.gitignore` + ilk commit | A-ŞEF (ana) | ✅ Tamamlandı |
-| T-1.2 | Godot 4.7.2 portable indir/kur (`tools/godot/`) | A-ŞEF | 🔄 Devam Ediyor |
+| T-1.2 | Godot 4.7.2 portable indir/kur (`tools/godot/`) | A-ŞEF | ✅ Tamamlandı |
 | T-1.3 | Proje klasör ağacı + `game/data/*.json` kopyası | A-ŞEF | ✅ Tamamlandı |
 | T-1.4 | Kodlama görev panosu (`TASKS-CODE.md`) | A-ŞEF | ✅ Tamamlandı |
 
@@ -190,3 +190,9 @@
 ## 📓 İlerleme Günlüğü
 
 - **[Kod-1]** Proje kararları alındı; git başlatıldı; Godot 4.7.2 indiriliyor; klasör ağacı kuruldu. (T-1.1, T-1.3, T-1.4 ✅)
+- **[Kod-2]** Godot indirildi ve doğrulandı: `Godot_v4.7.2-stable_win64_console.exe --version` → `4.7.2.stable.official.ed1daf0bf`. (T-1.2 ✅)
+- **[Kod-3]** 1. ajan dalgası başlatıldı (arka planda, çakışmasız klasörler):
+  - **A-HALKA** → `game/project.godot`, `game/autoload/**`, `game/scripts/core/**`, `game/scenes/boot/**`, `game/icon.svg` (FAZ 2)
+  - **A-KURAL** → `game/data/rules/**`, `tools/validate_rules.py` (FAZ 3)
+  - **A-VARLIK** → `game/assets/**` (FAZ 4)
+  - Ajanların ortak kuralı: **tahmin yok** → belirsizlikleri `AÇIK SORU:` olarak raporlayacaklar; ben kullanıcıya ileteceğim.

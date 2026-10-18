@@ -3,9 +3,9 @@
 > 🔴 **SONRAKİ OTURUMDA ÖNCE BU DOSYAYI OKU.**
 > Sonra sırayla: `README.md` → `docs/TERIMLER.md` → `TASKS.md`
 
-**Son güncelleme:** 3. oturum sonu
-**Proje:** King's Age mobil klonu (Godot, 2.5D) — **analiz + dokümantasyon + plan fazı**
-**Kural:** Bu fazda **KOD YAZILMIYOR.** (Kod fazına geçiş kullanıcı onayına bağlı.)
+**Son güncelleme:** 4. oturum (KOD FAZI BAŞLADI) — bkz. **`TASKS-CODE.md`** (canlı görev panosu)
+**Proje:** **Taht ve Kılıç** — King's Age mobil klonu (Godot 4.7.2, dikey, 2.5D, Türkçe)
+**Aşama:** 🟢 **Kodlama fazı** (analiz/doküman fazı bitti). Kurallara %100 bağlı kalınacak.
 
 ---
 
@@ -68,7 +68,45 @@
 
 ---
 
-## 3. 🔄 Bu Oturumda Yapılan (3. oturum)
+## 3. 🟢 KODLAMA FAZI (4. oturum — güncel)
+
+> **Canlı görev panosu: `TASKS-CODE.md`** ← tüm görevler + durumları burada. Her biten iş ✅ Tamamlandı işaretlenir.
+
+### 3.1 Onaylanan kararlar (kullanıcı)
+| Konu | Karar |
+|---|---|
+| Oyun adı | **Taht ve Kılıç** |
+| Motor | **Godot 4.7.2-stable** (portable, `tools/godot/`) |
+| Ekran | **Dikey (Portrait)**, 1080×1920 |
+| Dil | **Sadece Türkçe** (resmî KingsAge TR terimleri) |
+| Premium/Kron | **Sonraki faz** |
+| Online | **Sonraki faz** (önce tek oyunculu + bot) |
+| Sanat | **Ücretsiz CC0/OFL** varlıklar, **pastel & canlı** palet |
+| Git | ✅ başlatıldı (`git init`, ilk commit `435b2b0`) |
+| Godot kurulumu | ✅ indirildi + doğrulandı (`4.7.2.stable.official.ed1daf0bf`) |
+
+### 3.2 Kurulan altyapı
+- Depo **git deposu** oldu. `.gitignore`: Godot çıktıları, `tools/` ve **telifli araştırma ham metinleri** (`research/raw*/`, `research/text*/`) hariç.
+- Klasör ağacı: `game/{autoload,data/rules,resources,scripts/{core,rules,sim,world,ai,ui},scenes/{boot,village,map,ui,battle},assets/{sprites,fonts,audio},tests}`
+- `data/*.json` → `game/data/` kopyalandı.
+- **Ajan kadrosu** ve dosya sahipliği `TASKS-CODE.md` §1'de.
+
+### 3.3 Çalışan ajanlar (1. dalga — arka planda)
+| Ajan | Kapsam | Dosya sahipliği |
+|---|---|---|
+| **A-HALKA** | Foundation (FAZ 2) | `game/project.godot`, `game/autoload/**`, `game/scripts/core/**`, `game/scenes/boot/**`, `game/icon.svg` |
+| **A-KURAL** | Kural motoru verisi (FAZ 3) | `game/data/rules/**`, `tools/validate_rules.py` |
+| **A-VARLIK** | Varlık toplama (FAZ 4) | `game/assets/**` |
+
+### 3.4 Çalışma kuralları (bağlayıcı)
+1. **Her iş görev olarak** `TASKS-CODE.md`'ye yazılır; bitince **✅ Tamamlandı** + kanıt.
+2. Ajanlar **yalnızca kendi klasörüne** yazar (çakışma yok).
+3. Ajanlar **tahmin etmez** → belirsizlik `AÇIK SORU:` olarak raporlanır, ben kullanıcıya sorarım.
+4. Kurallara (süre/maliyet/gereksinim zinciri) **%100** bağlılık; doğrulanmamış formüller `"known": false` ile işaretlenir.
+
+---
+
+## 3b. 🔄 Önceki Oturumda Yapılan (3. oturum)
 
 1. **`make-docs.ps1` TR uyumlu** hale getirildi (dilden bağımsız ayrıştırma:
    `Maksimum seviye`, `Gereksinimler`, `Giderler`, ikon tabanlı istatistik okuma, `def_cav.png` ile savaş tablosu).
@@ -94,16 +132,27 @@
 
 ---
 
-## 4. ⏳ Sıradaki Adımlar (öncelik sırasıyla)
+## 4. ⏳ Sıradaki Adımlar (kodlama fazı)
 
-### A. Dokümantasyon cilası (küçük)
-1. `docs/05-ASKERLER.md` tablosundaki sütun başlıklarını (Wood/Stone/Iron → Odun/Taş/Demir) kontrol et.
-2. `docs/06`, `docs/07`, `docs/13` içindeki İngilizce kalan başlıklı ifadeleri (varsa) TR'ye çevir.
-3. `docs/00` §1 amaç/kapsam bloğunu okuyup güncel kararlarla hizala.
+### A. Şu an çalışıyor (arka planda)
+- **A-HALKA:** Godot iskeleti + autoload'lar + Boot sahnesi → `godot --headless` ile doğrulanacak.
+- **A-KURAL:** `game/data/rules/*.json` (gereksinim DAG'ı, maliyet/üretim/savaş tabloları) + `tools/validate_rules.py`.
+- **A-VARLIK:** CC0/OFL varlıklar + `ASSET-MANIFEST.md` + `PALET.md`.
 
-### B. Araştırma boşlukları (istemci doğrulaması) ⛔
-> Bunlar yardım sitesinde **yok**; oyunu oynayarak/veri kazıyarak doğrulanmalı.
-> Karar: MVP'de **parametrik** tutulacak.
+### B. Foundation + kurallar inince başlayacak 2. dalga (FAZ 5–9)
+- **A-EKONOMI** (üretim, vatandaş, inşaat kuyruğu, gereksinim doğrulama, puan, Güç Alanı)
+- **A-ORDU** (araştırma, eğitim, Altın zırh/Kont)
+- **A-SAVAS** (5 fazlı savaş simülatörü + savaş raporu)
+- **A-KESIF** (casusluk, destek, talan, fetih, iptal kuralları)
+- **A-DUNYA** (1000×1000 dünya, kıtalar, yolculuk süresi)
+
+### C. Sonraki dalga (FAZ 10–12)
+- **A-ARAYUZ** (pastel 2.5D köy ekranı + tüm paneller, **gereksinim zinciri görünümü**)
+- **A-BOT** (ekonomi/askerî bot, zorluk seviyeleri)
+- **A-QA** (kaydet/yükle + offline telafi, kural/savaş testleri, denge simülasyonu)
+
+### D. ⛔ Araştırma boşlukları (istemci doğrulaması gerekli — parametrik tutulur)
+> Bunlar yardım sitesinde **yok**. Kodda `known: false` + `assumption` ile işaretlenir; oyun oynanarak doğrulanacak.
 - İnşaat süresi formülü (zaman faktörü × taban süre)
 - Araştırma/eğitim süresi katsayısı
 - Katır başına taşıma kapasitesi + katır yolculuk süresi
@@ -113,11 +162,6 @@
 - Casusluk "hayatta kalan casus" formülü
 - Şahmerdan/Mancınık hasar formülleri
 - Üretimin vatandaş başına mı bina başına mı olduğu
-
-### C. Kod fazına hazırlık (kullanıcı onayıyla)
-4. Godot 4.x proje iskeleti (`16-GODOT-MOBIL-PLANI.md` §2)
-5. Veri katmanı: `data/*.json` → `Resource`
-6. MVP dikey dilim: köy + ekonomi + inşaat + basit savaş
 
 ---
 
@@ -135,7 +179,8 @@
 | Binler ayırıcı | `1.160` = 1160 |
 | Rate-limit | Hızlı istekte sunucu "Tanıtım" döndürür → doğrulama + bekleme şart |
 | PowerShell | `"$base?m=x"` hatası: `$($base)?...` veya `$base + '?m=' + $x` kullan |
-| Git | `kingsage` klasörü **git deposu değil** |
+| Git | ✅ **artık git deposu** — ilk commit `435b2b0`; `tools/` ve telifli araştırma metinleri ignore |
+| Godot | `tools/godot/Godot_v4.7.2-stable_win64.exe` (+ `..._console.exe` headless çıktı için) |
 
 ### Türetilmiş eğriler (özet)
 - **Bina maliyeti:** standart odun ×1,165 / taş ×1,170 / demir ×1,160;
@@ -175,8 +220,8 @@ powershell -NoProfile -ExecutionPolicy Bypass -File 'research\fetch-tr.ps1' -Lis
 powershell -NoProfile -ExecutionPolicy Bypass -File 'research\html2text.ps1' -RawDir 'research\raw-tr' -TextDir 'research\text-tr'
 ```
 
-**Sonraki oturumun ilk somut işi:** §4.A (küçük terim cilası) → sonra kullanıcıya
-**kod fazına geçiş onayı** sor.
+**Sonraki oturumun ilk somut işi:** `TASKS-CODE.md`'deki **🔄 Devam Ediyor / ⏳ Bekliyor** görevlere bak →
+tamamlananları doğrula → 2. dalga ajanlarını (A-EKONOMI, A-ORDU, A-SAVAS, A-KESIF, A-DUNYA) başlat.
 
 ---
 
@@ -186,19 +231,22 @@ powershell -NoProfile -ExecutionPolicy Bypass -File 'research\html2text.ps1' -Ra
 kingsage/
 ├─ README.md                     ← ENTRY POINT
 ├─ DURUM.md                      ← BU DOSYA
-├─ TASKS.md
-├─ data/
+├─ TASKS.md                      ← analiz/doküman görevleri
+├─ TASKS-CODE.md                 ← 🔴 KODLAMA GÖREV PANOSU (canlı)
+├─ .gitignore
+├─ data/                         ← kaynak yapısal veri
 │  ├─ buildings.json  units.json  building-points.json
-├─ docs/
-│  ├─ TERIMLER.md                ← RESMÎ TR TERİMLER
-│  ├─ 00..18-*.md                ← ana dokümanlar
-│  └─ reference/
-│     ├─ buildings/*.md          ← 15 bina (TR)
-│     ├─ units/*.md              ← 11 birim (TR)
-│     └─ puan-tablosu.md
-└─ research/
-   ├─ raw/ (EN 54)   raw-tr/ (TR 52)
-   ├─ text/ (EN 54)  text-tr/ (TR 52)
-   ├─ urls.txt  urls-tr.txt
-   └─ fetch-pages.ps1  fetch-tr.ps1  html2text.ps1  make-docs.ps1  make-points.ps1
+├─ game/                         ← 🎮 GODOT PROJESİ
+│  ├─ project.godot              ← A-HALKA
+│  ├─ icon.svg
+│  ├─ autoload/                  ← EventBus, GameConfig, GameData, GameState, GameClock, SaveManager
+│  ├─ data/                      ← buildings.json, units.json, building-points.json, rules/
+│  ├─ resources/
+│  ├─ scripts/{core,rules,sim,world,ai,ui}/
+│  ├─ scenes/{boot,village,map,ui,battle}/
+│  ├─ assets/{sprites,fonts,audio}/   ← A-VARLIK
+│  └─ tests/
+├─ tools/                        ← (git ignore) Godot binary + validate_rules.py
+├─ docs/                         ← TERIMLER.md + 00..18 + reference/
+└─ research/                     ← script'ler + urls (ham metinler git ignore)
 ```
