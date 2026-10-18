@@ -73,6 +73,16 @@
 > `training` → **+%10 hızlı** birim eğitimi · `production` → **+%3** tüm hammaddeler.
 > `bonus_type` **dolu** ise `owner` alanı resmî terim olan **"Usta"** olur.
 >
+> **Standart kullanım (tüm modüller bunu uygular):**
+> ```gdscript
+> # bonus_type == "" ise çarpan 1.0
+> production_multiplier(resource) -> float   # wood|stone|iron → 1.10 (yalnız o kaynak) · production → 1.03 (hepsi)
+> citizen_multiplier()             -> float   # citizen  → 1.10
+> training_speed_multiplier()      -> float   # training → 1.10 (süre = süre / 1.10)
+> ```
+> (A-DUNYA bunları `WorldModel.village_*_multiplier()` sarmalayıcıları olarak sağlar; A-EKONOMI/A-ORDU
+> doğrudan `village.bonus_type` okuyup aynı tabloyu uygulayabilir — **iki yol da aynı sonucu vermeli**.)
+>
 > **Terkedilmiş köy (kaynak `villages.txt`):** soyguncular **bina inşa eder** ve **askerî birim üretir**.
 > Bu yüzden `units` alanı **normal 11 birim anahtarıyla** doldurulur (özel "soyguncu" anahtarı **yoktur**);
 > `is_barbarian = true`, `owner = "Soyguncular"`, koruması yoktur (`protection_until = 0`).

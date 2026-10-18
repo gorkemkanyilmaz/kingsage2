@@ -6,19 +6,26 @@ class_name WorldGenerator
 ## yalnızca `RandomNumberGenerator` (+ `rng.seed`) kullanılır. **Global `randi()` / `Array.shuffle()`
 ## YASAK** (determinizmi bozar). Bkz. `docs/19` §2.3.
 ##
-## Dünya: **200×200 alan** (`docs/19` §6 kararı), kıta = 100×100 alan (`docs/10` §1).
-## Üretilen köyler `docs/19` §3.1 köy şekline birebir uyar.
+## Dünya: **200×200 alan** (`docs/19` §6), kıta = 100×100 alan → **4 kıta** (`docs/19` §6 kararı).
+## Üretilen köyler `docs/19` §3.1 köy şekline **birebir** uyar (17 alan).
+##
+## Resmî kaynaklar:
+##  • **Bonus köyler** (`research/text-tr/villages.txt`): her bonus köyün **tek** bonusu olur ve
+##    başında **'Usta'** vardır. 6 tip: `wood|stone|iron` → +%10 ilgili hammadde,
+##    `citizen` → +%10 vatandaş, `training` → +%10 hızlı eğitim, `production` → +%3 tüm hammaddeler.
+##  • **Terkedilmiş köyler**: "Soyguncular köyün gelişimini devam ettirirler, **bina inşa ederler**
+##    ve **askeri birimler oluştururlar**" → gelişmiş bina seviyeleri + normal 11 birim anahtarıyla ordu.
 ##
 ## Bilinmeyen oranlar ve seçilen sabitler: `game/scripts/world/ASSUMPTIONS.md`
 
 ## Dünya kenarı (alan). `WorldModel.SIZE` ile **aynı** olmalıdır (test doğrular).
 const SIZE := 200
 
-## Kıta kenarı (alan) — `docs/10` §1: "Kıta (continent) = 100 × 100 alan".
+## Kıta kenarı (alan) — `docs/10` §1 / `docs/19` §6: resmî kaynak "100×100'lük bölüm bir kıtayı temsil eder".
 const CONTINENT_SIZE := 100
 
 ## Yerleşim kümesi kenarı (alan). Köyler tek tek serpilmez; **kümeler** hâlinde yerleşir
-## (KingsAge'de yerleşimler kıtalar içinde toplanır). Küme merkezleri düzenli ızgaradadır.
+## (KingsAge'de yerleşimler kıtalar içinde toplanır; miniharitada yoğunluk ancak böyle anlamlı olur).
 const CLUSTER_SIZE := 25
 
 ## Bir köyün küme merkezinden en fazla sapması (± alan).
@@ -36,26 +43,37 @@ const BARBARIAN_RATIO := 1.0
 ## Bonus köy / bot köyü oranı. **VARSAYIM** (bkz. ASSUMPTIONS.md §4).
 const BONUS_RATIO := 0.1
 
-## Bonus köyün yükselttiği kaynağın çarpanı. **VARSAYIM** (bkz. ASSUMPTIONS.md §4) — gerçek KingsAge
-## değeri bilinmiyor. Nötr değer 1.0'dır.
-const BONUS_MULTIPLIER := 1.25
+## Terkedilmiş köylerin sahibi (resmî terim: **Soyguncular**).
+const BARBARIAN_OWNER := "Soyguncular"
 
-## Bonus köyde yükseltilebilecek kaynaklar (`docs/10` §2: bonus yerleşim "altın parıltı").
-const BONUS_RESOURCES := ["wood", "stone", "iron"]
-
-## İki köy arasındaki en az alan mesafesi. 1 = yalnızca **aynı alan** yasak (`docs/10`'da minimum yok).
-const MIN_VILLAGE_DISTANCE := 1
-
-## Terkedilmiş köylerin sahibi yoktur (soyguncular `docs/10`/`TERIMLER.md` §4).
-const BARBARIAN_OWNER := ""
-
-## Bonus köyün sahibi resmî TR terimdir: "Usta" (`docs/TERIMLER.md` §4).
+## Bonus köylerin sahibi (resmî terim: **'Usta'**).
 const BONUS_OWNER := "Usta"
+
+## Bonus köy tipleri (`docs/19` §3.1) — her bonus köy **tek** tip taşır.
+const BONUS_TYPES := ["wood", "stone", "iron", "citizen", "training", "production"]
+
+## `wood|stone|iron` bonusunun ilgili hammadde çarpanı: +%10.
+const BONUS_RESOURCE_PERCENT := 10
+
+## `production` bonusu: **tüm** hammaddeler +%3.
+const BONUS_PRODUCTION_PERCENT := 3
+
+## `citizen` bonusu: +%10 vatandaş.
+const BONUS_CITIZEN_PERCENT := 10
+
+## `training` bonusu: birim eğitimi +%10 **daha hızlı** (süre bu çarpana bölünür).
+const BONUS_TRAINING_PERCENT := 10
+
+## Nötr hammadde çarpanları (bonus yoksa).
+const NEUTRAL_PRODUCTION := {"wood": 1.0, "stone": 1.0, "iron": 1.0}
+
+## İki köy arasındaki en az alan mesafesi. 1 = yalnızca **aynı alan** yasak (karar: aynı alana iki köy konamaz).
+const MIN_VILLAGE_DISTANCE := 1
 
 ## Yeni köyün hammaddeleri (`GameState.START_RESOURCES`).
 const START_RESOURCES := {"wood": 1000, "stone": 1000, "iron": 1000}
 
-## `docs/19` §3.1: başlangıçta 1 olan binalar; **diğerleri 0**.
+## `docs/19` §3.1/§5: başlangıçta 1 olan **serbest** binalar; **diğerleri 0**.
 const START_BUILDINGS_LEVEL_1 := ["main", "stone", "wood", "iron", "farm", "storage"]
 
 ## 15 bina anahtarı — `data/buildings.json` sırası (alfabetik).
@@ -76,14 +94,36 @@ const MAX_LEVELS := {
 	"storage": 50, "wall": 20, "wood": 50,
 }
 
-## Başlangıç binalarının (sv 1) kümülatif puanı — `data/building-points.json` level 1.
-## main 20 + stone 20 + wood 20 + iron 20 + storage 20 + farm 10 = **110**.
-const POINTS_AT_LEVEL_1 := {"main": 20, "stone": 20, "wood": 20, "iron": 20, "farm": 10, "storage": 20}
+## Bina başına **seviye başına** kümülatif puan (`data/building-points.json`, doğrusal:
+## `puan(sv) = taban × sv` — `docs/15` §5.1). Tam gelişmiş köy = **10.000**.
+const POINTS_PER_LEVEL := {
+	"main": 20, "stone": 20, "wood": 20, "iron": 20, "storage": 20, "farm": 10,
+	"barracks": 20, "wall": 20, "market": 20, "stable": 10, "hide": 10,
+	"garage": 20, "snob": 100, "smith": 40, "statue": 1000,
+}
 
-## Nötr bonus çarpanları (`docs/19` §3.1).
-const NEUTRAL_BONUS := {"wood": 1.0, "stone": 1.0, "iron": 1.0}
+## Birimin (Kışla) araştırma gereksinimi — `data/rules/units.json#research_requirements_barracks`.
+## Soyguncular yalnızca **Kışla seviyesinin izin verdiği** birimleri üretebilir (resmî kaynak: "askeri
+## birimler oluştururlar"). `snob` araştırılmaz (`not_researched_units`).
+const BARRACKS_REQUIREMENT := {
+	"farmer": 1, "spear": 1, "sword": 1, "axe": 2, "spy": 4, "bow": 5,
+	"light": 7, "heavy": 16, "ram": 20, "kata": 25, "snob": 0,
+}
 
-## Köy adı heceleri (özgün, Türkçe) — `docs/18` §"özgün isimlendirme".
+## Terkedilmiş köylerin ulaşabileceği en yüksek **gelişim kademesi** (VARSAYIM: dağılım bilinmiyor).
+const BARBARIAN_MAX_TIER := 10
+
+## Terkedilmiş köyün "garnizon" birim ağırlıkları (0 = soyguncular bu birimi barındırmaz).
+## Savunma odaklıdır; casus/kuşatma/Kont garnizonda tutulmaz. **VARSAYIM** (bkz. ASSUMPTIONS.md §4).
+const BARBARIAN_UNIT_WEIGHTS := {
+	"farmer": 4, "spear": 4, "sword": 3, "axe": 2, "bow": 3,
+	"spy": 0, "light": 1, "heavy": 1, "ram": 0, "kata": 0, "snob": 0,
+}
+
+## Bir birim türünün garnizonda bulunma olasılığı (deterministik rng ile). **VARSAYIM**.
+const BARBARIAN_UNIT_CHANCE := 0.6
+
+## Köy adı heceleri (özgün, Türkçe) — `docs/18`.
 const NAME_A := [
 	"Ak", "Al", "Boz", "Demir", "Gök", "Kara", "Kızıl", "Sarı", "Taş", "Yeşil",
 	"Gümüş", "Kurt", "Kartal", "Şahin", "Ateş", "Deniz", "Ay", "Gün", "Er", "Yıldız",
@@ -124,8 +164,8 @@ static func generate(seed_value: int, bot_count: int, world_size: int = SIZE) ->
 	var bonuses := maxi(0, int(round(float(bots) * BONUS_RATIO)))
 	var total := bots + barbarians + bonuses
 
-	var kinds := _build_kinds(bots, barbarians, bonuses)
-	_shuffle(kinds, rng)
+	var placements := _build_placements(bots, barbarians, bonuses)
+	_shuffle(placements, rng)
 
 	var centers := _cluster_centers(world_size, rng)
 	var cluster_order: Array = []
@@ -140,7 +180,7 @@ static func generate(seed_value: int, bot_count: int, world_size: int = SIZE) ->
 	var next_id := 1
 
 	for index in total:
-		var kind := str(kinds[index])
+		var placement: Dictionary = placements[index]
 		var center: Vector2i = centers[int(cluster_order[index % cluster_order.size()])]
 		var spot := _spot_in_cluster(tiles, center, world_size, rng)
 		if spot.x < 0:
@@ -153,7 +193,7 @@ static func generate(seed_value: int, bot_count: int, world_size: int = SIZE) ->
 			)
 		if spot.x < 0:
 			break  # dünya dolu — beklenmiyor (SIZE² >> köy sayısı)
-		villages.append(_make_village(next_id, kind, spot.x, spot.y, rng, used_names, used_owners))
+		villages.append(_make_village(next_id, placement, spot.x, spot.y, rng, used_names, used_owners))
 		tiles[tile_key(spot.x, spot.y)] = next_id
 		next_id += 1
 
@@ -186,29 +226,128 @@ static func starting_units() -> Dictionary:
 	return units
 
 
+## Yeni köyün araştırma durumu: hiçbir birim araştırılmamış (`docs/19` §5: `researched = {}`).
+static func starting_researched() -> Dictionary:
+	return {}
+
+
 ## Yeni köyün hammaddeleri (kopya).
 static func starting_resources() -> Dictionary:
 	return START_RESOURCES.duplicate(true)
 
 
-## Yeni köyün Köy Puanı (sv 1 başlangıç binaları) = 110.
-static func starting_points() -> int:
+## Bina seviyelerinden **Köy Puanı** (`docs/15` §5.1: `Σ taban_puan × seviye`).
+static func village_points(buildings: Dictionary) -> int:
 	var total := 0
-	for key in POINTS_AT_LEVEL_1.keys():
-		total += int(POINTS_AT_LEVEL_1[key])
+	for key in buildings.keys():
+		total += int(POINTS_PER_LEVEL.get(str(key), 0)) * int(buildings[key])
 	return total
 
 
-## Bonus köy çarpanları: `resource_key` 1.25, diğerleri 1.0 (`docs/19` §3.1).
-static func bonus_multipliers(resource_key: String) -> Dictionary:
-	var bonus := NEUTRAL_BONUS.duplicate(true)
-	if bonus.has(resource_key):
-		bonus[resource_key] = BONUS_MULTIPLIER
-	return bonus
+## Yeni köyün Köy Puanı (serbest binalar sv 1) = **110**.
+static func starting_points() -> int:
+	return village_points(starting_buildings())
 
 
-static func neutral_bonus() -> Dictionary:
-	return NEUTRAL_BONUS.duplicate(true)
+## Terkedilmiş köyün bina sözlüğü — gelişim kademesine göre (soyguncular **bina inşa eder**).
+## Yalnızca çekirdek + Kışla + Sur + Gizli Depo gelişir; Market/Katır/Simyager/Köşk/Kuyumcu/Anıt = 0.
+static func barbarian_buildings(tier: int) -> Dictionary:
+	var buildings := {}
+	for key in BUILDING_KEYS:
+		buildings[key] = 0
+	for key in ["main", "stone", "wood", "iron", "farm", "storage", "barracks", "wall", "hide"]:
+		buildings[key] = clampi(tier, 1, int(MAX_LEVELS.get(key, 1)))
+	return buildings
+
+
+## Terkedilmiş köyün ordusu (11 normal birim anahtarı; özel "soyguncu" anahtarı **yoktur**).
+## Miktar köyün gelişimine (kademe) göre ölçeklenir ve **deterministiktir**.
+## Yalnızca Kışla seviyesinin izin verdiği birimler üretilir.
+static func barbarian_units(tier: int, barracks_level: int, rng: RandomNumberGenerator) -> Dictionary:
+	var units := starting_units()
+	var eligible: Array = []
+	for key in UNIT_KEYS:
+		if int(BARBARIAN_UNIT_WEIGHTS.get(key, 0)) <= 0:
+			continue
+		if int(BARRACKS_REQUIREMENT.get(key, 999)) <= barracks_level:
+			eligible.append(key)
+	for key in eligible:
+		if rng.randf() < BARBARIAN_UNIT_CHANCE:
+			units[key] = _barbarian_unit_count(str(key), tier, rng)
+	if units_total(units) == 0 and not eligible.is_empty():
+		# Garnizon asla boş kalmaz.
+		var pick := str(eligible[rng.randi_range(0, eligible.size() - 1)])
+		units[pick] = _barbarian_unit_count(pick, tier, rng)
+	return units
+
+
+## Ordudaki toplam birim sayısı.
+static func units_total(units: Dictionary) -> int:
+	var total := 0
+	for key in units.keys():
+		total += int(units[key])
+	return total
+
+
+## Ordusu olan birimlerin `researched` sözlüğü (soyguncular ürettiği birimi "araştırmış" sayılır).
+static func researched_for_units(units: Dictionary) -> Dictionary:
+	var researched := {}
+	for key in units.keys():
+		if int(units[key]) > 0:
+			researched[str(key)] = true
+	return researched
+
+
+# --- Bonus köyleri (resmî etkiler) ------------------------------------------
+
+## Bonus tipinin **hammadde** çarpanları (`docs/19` §3.1).
+## `wood|stone|iron` → ilgili kaynak +%10 · `production` → tümü +%3 · diğerleri → nötr.
+static func bonus_production_multipliers(bonus_type: String) -> Dictionary:
+	var multipliers := NEUTRAL_PRODUCTION.duplicate(true)
+	if multipliers.has(bonus_type):
+		multipliers[bonus_type] = 1.0 + float(BONUS_RESOURCE_PERCENT) / 100.0
+	elif bonus_type == "production":
+		var factor := 1.0 + float(BONUS_PRODUCTION_PERCENT) / 100.0
+		for key in multipliers.keys():
+			multipliers[key] = factor
+	return multipliers
+
+
+## `citizen` bonusu: vatandaş çarpanı (+%10), diğerleri 1.0.
+static func bonus_citizen_multiplier(bonus_type: String) -> float:
+	if bonus_type == "citizen":
+		return 1.0 + float(BONUS_CITIZEN_PERCENT) / 100.0
+	return 1.0
+
+
+## `training` bonusu: eğitim **hız** çarpanı (+%10 hızlı) → eğitim **süresi** bu değere bölünür.
+static func bonus_training_speed_multiplier(bonus_type: String) -> float:
+	if bonus_type == "training":
+		return 1.0 + float(BONUS_TRAINING_PERCENT) / 100.0
+	return 1.0
+
+
+## Bonus tipinin kısa Türkçe açıklaması (arayüz için).
+static func bonus_effect_text(bonus_type: String) -> String:
+	match bonus_type:
+		"wood":
+			return "Odun üretimi +%d" % BONUS_RESOURCE_PERCENT
+		"stone":
+			return "Taş üretimi +%d" % BONUS_RESOURCE_PERCENT
+		"iron":
+			return "Demir üretimi +%d" % BONUS_RESOURCE_PERCENT
+		"citizen":
+			return "Vatandaş sayısı +%d" % BONUS_CITIZEN_PERCENT
+		"training":
+			return "Birim eğitimi +%d daha hızlı" % BONUS_TRAINING_PERCENT
+		"production":
+			return "Tüm hammadde üretimi +%d" % BONUS_PRODUCTION_PERCENT
+	return ""
+
+
+## Bonus tipi geçerli mi? ("" = bonus yok.)
+static func is_valid_bonus_type(bonus_type: String) -> bool:
+	return bonus_type == "" or BONUS_TYPES.has(bonus_type)
 
 
 # --- Yardımcılar: alan / konum ---------------------------------------------
@@ -268,19 +407,11 @@ static func find_free_spot(tiles: Dictionary, x: int, y: int, world_size: int = 
 static func kind_of(village: Dictionary) -> String:
 	if bool(village.get("is_barbarian", false)):
 		return "barbarian"
-	var bonus = village.get("bonus", {})
-	if typeof(bonus) == TYPE_DICTIONARY and not is_neutral_bonus(bonus):
+	if not str(village.get("bonus_type", "")).is_empty():
 		return "bonus"
 	if bool(village.get("is_bot", false)):
 		return "bot"
 	return "player"
-
-
-static func is_neutral_bonus(bonus: Dictionary) -> bool:
-	for key in bonus.keys():
-		if not is_equal_approx(float(bonus[key]), 1.0):
-			return false
-	return true
 
 
 ## Köy listesinin tür sayımı: `{"bot":n,"barbarian":n,"bonus":n,"total":n}`.
@@ -297,15 +428,17 @@ static func count_kinds(villages: Array) -> Dictionary:
 
 # --- İç yardımcılar ---------------------------------------------------------
 
-static func _build_kinds(bots: int, barbarians: int, bonuses: int) -> Array:
-	var kinds: Array = []
+## Yerleştirme listesi: `[{"kind": "bot"|"barbarian"|"bonus", "bonus_type": ""|...}, ...]`
+## Bonus tipleri sırayla (round-robin) dağıtılır → `bonus_count >= 6` ise **6 tipin tamamı** bulunur.
+static func _build_placements(bots: int, barbarians: int, bonuses: int) -> Array:
+	var placements: Array = []
 	for i in bots:
-		kinds.append("bot")
+		placements.append({"kind": "bot", "bonus_type": ""})
 	for i in barbarians:
-		kinds.append("barbarian")
+		placements.append({"kind": "barbarian", "bonus_type": ""})
 	for i in bonuses:
-		kinds.append("bonus")
-	return kinds
+		placements.append({"kind": "bonus", "bonus_type": str(BONUS_TYPES[i % BONUS_TYPES.size()])})
+	return placements
 
 
 ## Fisher–Yates; **global rng değil**, verilen `RandomNumberGenerator` kullanılır.
@@ -341,27 +474,49 @@ static func _spot_in_cluster(tiles: Dictionary, center: Vector2i, world_size: in
 	return Vector2i(-1, -1)
 
 
+## Terkedilmiş köyün gelişim kademesi (1..`BARBARIAN_MAX_TIER`). Küçük köyler daha sık:
+## `tier = 1 + floor(randf()^1.5 × MAX)`. **Dağılım VARSAYIM** (kaynakta yok).
+static func _barbarian_tier(rng: RandomNumberGenerator) -> int:
+	var roll := pow(rng.randf(), 1.5)
+	return clampi(1 + int(floor(roll * float(BARBARIAN_MAX_TIER))), 1, BARBARIAN_MAX_TIER)
+
+
+static func _barbarian_unit_count(unit_key: String, tier: int, rng: RandomNumberGenerator) -> int:
+	var weight := maxi(1, int(BARBARIAN_UNIT_WEIGHTS.get(unit_key, 1)))
+	var roll := rng.randf_range(0.5, 1.5)
+	return maxi(1, int(round(float(weight) * float(tier) * roll)))
+
+
 static func _make_village(
 	id: int,
-	kind: String,
+	placement: Dictionary,
 	x: int,
 	y: int,
 	rng: RandomNumberGenerator,
 	used_names: Dictionary,
 	used_owners: Dictionary
 ) -> Dictionary:
+	var kind := str(placement.get("kind", "bot"))
 	var is_barbarian := kind == "barbarian"
 	var is_bonus := kind == "bonus"
 	var is_bot := kind == "bot"
 	var owner := BARBARIAN_OWNER
+	var buildings := starting_buildings()
+	var units := starting_units()
+	var researched := starting_researched()
+	var bonus_type := ""
 	if is_bot:
 		owner = _owner_name(rng, used_owners)
 	elif is_bonus:
 		owner = BONUS_OWNER
-	var bonus := neutral_bonus()
-	if is_bonus:
-		bonus = bonus_multipliers(str(BONUS_RESOURCES[rng.randi_range(0, BONUS_RESOURCES.size() - 1)]))
-	var points := starting_points()
+		bonus_type = str(placement.get("bonus_type", ""))
+	elif is_barbarian:
+		# Soyguncular: bina inşa eder ve askerî birim üretir.
+		var tier := _barbarian_tier(rng)
+		buildings = barbarian_buildings(tier)
+		units = barbarian_units(tier, int(buildings.get("barracks", 0)), rng)
+		researched = researched_for_units(units)
+	var points := village_points(buildings)
 	return {
 		"id": id,
 		"name": _unique_name(rng, NAME_A, NAME_B, used_names, true),
@@ -370,14 +525,15 @@ static func _make_village(
 		"owner": owner,
 		"is_bot": is_bot,
 		"is_barbarian": is_barbarian,
-		"buildings": starting_buildings(),
+		"buildings": buildings,
 		"resources": starting_resources(),
-		"units": starting_units(),
+		"units": units,
+		"researched": researched,
 		"realm_of_power": points,
 		"points": points,
 		"protection_until": 0,
 		"conquest_protection_until": 0,
-		"bonus": bonus,
+		"bonus_type": bonus_type,
 		"has_statue": false,
 	}
 

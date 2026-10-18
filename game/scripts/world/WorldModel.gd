@@ -199,17 +199,29 @@ static func continent_villages(world: Dictionary, x: int, y: int) -> Array:
 
 # --- Kıta -------------------------------------------------------------------
 
-## Kıta numarası: `row * 10 + col`, `row = floor(y / 100)`, `col = floor(x / 100)`
-## (`docs/10` §1 örneği: `499|506` → **K54**). Bkz. ASSUMPTIONS.md §2 (metin ile örnek çelişiyor).
+## Kıta numarası — `docs/19` §6: `floor(y / CONTINENT_SIZE) * 10 + floor(x / CONTINENT_SIZE)`.
+## `docs/10` §1 örneği: `499|506` → **K54**. (Kıta = 100×100 alan → 200×200 dünyada **4 kıta**.)
 static func continent_id(x: int, y: int) -> int:
-	var col := int(floor(float(x) / float(CONTINENT_SIZE)))
-	var row := int(floor(float(y) / float(CONTINENT_SIZE)))
-	return row * 10 + col
+	return _continent_row(y) * 10 + _continent_col(x)
 
 
-## Kıta etiketi: "K54" (2 haneli, sıfır dolgulu).
+## Kıta etiketi — `docs/19` §6: `"K" + floor(Y/100) + floor(X/100)` → `K00/K01/K10/K11`
+## (499|506 → **K54**).
+static func continent_label(x: int, y: int) -> String:
+	return "K%d%d" % [_continent_row(y), _continent_col(x)]
+
+
+## `continent_label()` için geriye dönük ad (aynı sonucu verir).
 static func continent_of(x: int, y: int) -> String:
-	return "K%02d" % continent_id(x, y)
+	return continent_label(x, y)
+
+
+static func _continent_col(x: int) -> int:
+	return int(floor(float(x) / float(CONTINENT_SIZE)))
+
+
+static func _continent_row(y: int) -> int:
+	return int(floor(float(y) / float(CONTINENT_SIZE)))
 
 
 ## Dünyadaki kıta dağılımı: `{"K00": n, ...}` (id'ye göre sıralı sözlük).
@@ -340,13 +352,23 @@ static func validate_world(world: Dictionary) -> Array:
 		_problems_for_buildings(id, v.get("buildings", {}), problems)
 		_problems_for_number_map(id, "resources", v.get("resources", {}), _RESOURCE_KEYS, true, problems)
 		_problems_for_number_map(id, "units", v.get("units", {}), Generator.UNIT_KEYS, true, problems)
-		_problems_for_number_map(id, "bonus", v.get("bonus", {}), _RESOURCE_KEYS, false, problems)
+		_problems_for_researched(id, v.get("researched", {}), problems)
+		_problems_for_bonus_type(id, v.get("bonus_type"), problems)
 		for flag in ["is_bot", "is_barbarian", "has_statue"]:
 			if typeof(v.get(flag)) != TYPE_BOOL:
 				problems.append("köy %d: '%s' bool değil" % [id, flag])
 		for number in ["points", "realm_of_power", "protection_until", "conquest_protection_until"]:
 			if typeof(v.get(number)) != TYPE_INT:
 				problems.append("köy %d: '%s' int değil" % [id, number])
+		# Güç Alanı kuralı (`docs/10` §3): başlangıçta tavan = köy puanı → 0 ≤ güç alanı ≤ puan.
+		if typeof(v.get("realm_of_power")) == TYPE_INT and typeof(v.get("points")) == TYPE_INT:
+			var realm := int(v.get("realm_of_power"))
+			var ceiling := int(v.get("points"))
+			if realm < 0 or realm > ceiling:
+				problems.append("köy %d: güç alanı sınır dışı (%d ∉ [0, %d])" % [id, realm, ceiling])
+		# `bonus_type` ve `is_barbarian` birbirini dışlar (docs/19 §3.1).
+		if bool(v.get("is_barbarian", false)) and not str(v.get("bonus_type", "")).is_empty():
+			problems.append("köy %d: terkedilmiş köy bonus tipi taşıyamaz ('%s')" % [id, v.get("bonus_type")])
 	if tiles.size() != villages.size():
 		problems.append("'tiles' sayısı (%d) köy sayısına (%d) eşit değil" % [tiles.size(), villages.size()])
 	for key in tiles.keys():
@@ -401,23 +423,86 @@ static func player_village(
 		"buildings": Generator.starting_buildings(),
 		"resources": Generator.starting_resources(),
 		"units": Generator.starting_units(),
-		"realm_of_power": 0,
+		"researched": Generator.starting_researched(),
+		"realm_of_power": points,
 		"points": points,
 		"protection_until": 0,
 		"conquest_protection_until": 0,
-		"bonus": Generator.neutral_bonus(),
+		"bonus_type": "",
 		"has_statue": false,
 	}
+
+
+# --- Bonus köyleri (resmî etkiler — `docs/19` §3.1) -------------------------
+
+## Köyün bonus tipi (`""` = bonus yok).
+static func bonus_type_of(village: Dictionary) -> String:
+	return str(village.get("bonus_type", ""))
+
+
+## Köyün **hammadde** çarpanları: `wood|stone|iron` → ilgili kaynak ×1.10,
+## `production` → tümü ×1.03, diğer tipler → nötr (×1.00). (`docs/19` §3.1)
+static func village_production_multipliers(village: Dictionary) -> Dictionary:
+	return Generator.bonus_production_multipliers(bonus_type_of(village))
+
+
+## `citizen` bonusu: vatandaş çarpanı (×1.10); diğer tiplerde 1.0.
+static func village_citizen_multiplier(village: Dictionary) -> float:
+	return Generator.bonus_citizen_multiplier(bonus_type_of(village))
+
+
+## `training` bonusu: eğitim **hız** çarpanı (×1.10) → eğitim **süresi** bu değere bölünür.
+## Diğer tiplerde 1.0.
+static func village_training_speed_multiplier(village: Dictionary) -> float:
+	return Generator.bonus_training_speed_multiplier(bonus_type_of(village))
+
+
+## Bonus tipinin kısa Türkçe açıklaması (arayüz için).
+static func bonus_effect_text(bonus_type: String) -> String:
+	return Generator.bonus_effect_text(bonus_type)
+
+
+## Verilen bonus tipindeki köyler (id'ye göre artan).
+static func villages_of_bonus_type(world: Dictionary, bonus_type: String) -> Array:
+	var out: Array = []
+	for village in villages_of(world):
+		if typeof(village) == TYPE_DICTIONARY and bonus_type_of(village) == bonus_type:
+			out.append(village)
+	out.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return int(a.get("id", 0)) < int(b.get("id", 0)))
+	return out
 
 
 # --- İç yardımcılar ---------------------------------------------------------
 
 const _VILLAGE_KEYS := [
 	"id", "name", "x", "y", "owner", "is_bot", "is_barbarian", "buildings", "resources",
-	"units", "realm_of_power", "points", "protection_until", "conquest_protection_until",
-	"bonus", "has_statue",
+	"units", "researched", "realm_of_power", "points", "protection_until",
+	"conquest_protection_until", "bonus_type", "has_statue",
 ]
 const _RESOURCE_KEYS := ["wood", "stone", "iron"]
+
+
+## `researched` sözlüğü: anahtarlar **birim** anahtarı, değerler bool ("araştırıldı" mı).
+## `docs/19` §3.1: `{"spear": true, "sword": false}` (yalnızca araştırılmış birimler bulunur).
+static func _problems_for_researched(id: int, raw, problems: Array) -> void:
+	if typeof(raw) != TYPE_DICTIONARY:
+		problems.append("köy %d: 'researched' sözlük değil" % id)
+		return
+	var researched: Dictionary = raw
+	for key in researched.keys():
+		if not Generator.UNIT_KEYS.has(str(key)):
+			problems.append("köy %d: 'researched' bilinmeyen birim anahtarı: %s" % [id, key])
+		elif typeof(researched[key]) != TYPE_BOOL:
+			problems.append("köy %d: 'researched.%s' bool değil" % [id, key])
+
+
+## `bonus_type`: `""` veya resmî 6 tipten biri (`docs/19` §3.1).
+static func _problems_for_bonus_type(id: int, raw, problems: Array) -> void:
+	if typeof(raw) != TYPE_STRING:
+		problems.append("köy %d: 'bonus_type' String değil" % id)
+		return
+	if not Generator.is_valid_bonus_type(str(raw)):
+		problems.append("köy %d: 'bonus_type' geçersiz: '%s'" % [id, raw])
 
 
 static func _cell_of(x: int, y: int, cell_size: int) -> Vector2i:

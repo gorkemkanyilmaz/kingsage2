@@ -178,7 +178,13 @@
 | T-9.2 | Köy yerleşimi (yön), bonus köyler (6 resmî tip + 'Usta'), terkedilmiş köyler (soyguncular) | A-DUNYA | ✅ Tamamlandı |
 | T-9.3 | Miniharita + komşu/ittifak renkleri | A-DUNYA | ✅ Tamamlandı |
 | T-9.4 | Yolculuk süresi hesabı (mesafe + en yavaş birim + `unit_speed`) | A-DUNYA | ✅ Tamamlandı |
-| T-9.5 | **Kaynak düzeltmeleri:** 6 bonus tipi, soyguncu ordusu, `realm=points` | A-DUNYA | 🔄 Devam Ediyor |
+| T-9.5 | **Kaynak düzeltmeleri:** 6 bonus tipi, soyguncu ordusu, `realm=points` | A-DUNYA | ✅ Tamamlandı |
+
+> **Kanıt (A-ŞEF bağımsız çalıştırdı):** `godot --headless --script res://tests/test_world.gd` → **152/152 PASS, EXIT=0**;
+> `test_rules.gd` → **159/159 PASS** (çapraz uyum).
+> Örnek dünya (tohum 4242): 210 köy (100 bot + 100 soyguncu + 10 bonus), 4 kıta, **6 bonus tipinin tamamı** üretiliyor,
+> soyguncu garnizonları Kışla seviyesiyle uyumlu, `realm_of_power == points` değişmezi tüm köylerde sağlanıyor,
+> süreçten bağımsız sabit hash `dd986b0a…`. `POINTS_PER_LEVEL` tablosu `building-points.json` ile **bina×seviye tam çapraz** doğrulandı.
 
 > **Kanıt (A-ŞEF bağımsız çalıştırdı):** `godot --headless --script res://tests/test_world.gd` → **107/107 PASS, EXIT=0**.
 > Örnek dünya (tohum 4242): 210 köy (100 bot + 100 terkedilmiş + 10 bonus), 4 kıta, 20×20 miniharita, süreçten bağımsız sabit hash.
@@ -309,3 +315,5 @@
 - **[Kod-17]** A-MOTOR düzeltmeleri tamam: **159/159 test PASS** (A-ŞEF doğruladı). `researched` bayrağı, `can_upgrade_now`, `unit_speed` float (Casus 2.25 alan/dk), `refresh_points`/`refresh_realm`.
 - **[Kod-18]** `docs/19` **§7b "Sim modül protokolü"** eklendi: her sim modülü `static func process_tick(state, now_unix, delta_seconds) -> Array` sağlar; `GameLoop.gd` modülleri **yol ile** yükler (`ResourceLoader.exists`) → modüller birbirini beklemeden yazılabilir.
 - **[Kod-19]** **3. ajan dalgası başlatıldı:** **A-EKONOMI** (`game/scripts/sim/economy/**` + `game/scripts/core/GameLoop.gd`), **A-ORDU** (`game/scripts/sim/army/**`).
+- **[Kod-20]** A-DUNYA kaynak düzeltmeleri tamam: **152/152 test PASS** (A-ŞEF doğruladı). 6 resmî bonus tipi + 'Usta', soyguncu garnizonları (Kışla uyumlu), `realm_of_power == points` değişmezi, kıta etiketleri (`499|506 → K54` doğrulandı), `POINTS_PER_LEVEL` ↔ `building-points.json` tam çapraz doğrulama.
+- **[Kod-21]** `docs/19` §3.1'e **bonus köy etki tablosu** ve kanonik sorgu sözleşmesi eklendi (`production_multiplier`, `citizen_multiplier`, `training_speed_multiplier`). A-DUNYA'nın sarmalayıcıları onaylandı; A-EKONOMI/A-ORDU iki yoldan da aynı sonucu üretmeli.

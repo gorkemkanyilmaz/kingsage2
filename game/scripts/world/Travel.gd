@@ -105,6 +105,10 @@ static func unit_speed_multiplier() -> float:
 ##   1) `res://data/rules/units.json` → `units[].speed.minutes_per_field` (kanonik)
 ##   2) `res://data/units.json` → `speed` metni ("4.5 Alan başına dakika") başındaki sayı
 ##   3) `UNIT_MINUTES_PER_FIELD_FALLBACK` (aynı değerlerin gömülü kopyası)
+##
+## Aynı sorgu kural motorunda **`RulesEngine.unit_speed(unit_key) -> float`** olarak vardır
+## (`docs/19` §4.5, ondalıklı dakika); `RulesEngine.unit_mobility()` ise yuvarlanmış **int**
+## "Mobility" değeridir ve yolculuk hesabında **kullanılmaz**.
 static func unit_minutes_per_field(unit_key: String) -> float:
 	var from_rules := _minutes_per_field_from_rules(unit_key)
 	if from_rules > 0.0:
