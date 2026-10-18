@@ -132,16 +132,23 @@
 | T-5.7 | Güç Alanı döngüsü (saatlik %1 artış, saldırı düşüşü) | A-EKONOMI | 🔄 Devam Ediyor |
 | T-5.8 | `GameLoop.gd` — **§7b sim modül protokolü** (tick → olaylar → EventBus) | A-EKONOMI | 🔄 Devam Ediyor |
 
-## FAZ 6 — Ordu & Eğitim — 🔄 Devam Ediyor (A-ORDU)
+## FAZ 6 — Ordu & Eğitim — ✅ Tamamlandı (A-ORDU)
 
 | ID | Görev | Ajan | Durum |
 |---|---|---|---|
-| T-6.1 | Birim araştırma (Kışla seviyeleri + kuyruk + `researched`) | A-ORDU | 🔄 Devam Ediyor |
-| T-6.2 | Birim eğitimi (maliyet + vatandaş + süre) | A-ORDU | 🔄 Devam Ediyor |
-| T-6.3 | Birim kovma (dismiss) + vatandaş iadesi | A-ORDU | 🔄 Devam Ediyor |
-| T-6.4 | Altın Zırh (Kuyumcu) + Kont eğitimi (Köşk) | A-ORDU | 🔄 Devam Ediyor |
-| T-6.5 | Ordu limitleri (min. saldırı birimi = 3 × Kışla) | A-ORDU | 🔄 Devam Ediyor |
-| T-6.6 | Bonus köy "eğitim" etkisi (+%10 hızlı) | A-ORDU | 🔄 Devam Ediyor |
+| T-6.1 | Birim araştırma (Kışla seviyeleri + kuyruk + `researched`) | A-ORDU | ✅ Tamamlandı |
+| T-6.2 | Birim eğitimi (maliyet + vatandaş + süre) | A-ORDU | ✅ Tamamlandı |
+| T-6.3 | Birim kovma (dismiss) + vatandaş iadesi | A-ORDU | ✅ Tamamlandı |
+| T-6.4 | Altın Zırh (Kuyumcu) + Kont eğitimi (Köşk) | A-ORDU | ✅ Tamamlandı |
+| T-6.5 | Ordu limitleri (min. saldırı birimi = 3 × Kışla) | A-ORDU | ✅ Tamamlandı |
+| T-6.6 | Bonus köy "eğitim" etkisi (+%10 hızlı → ×0,90) | A-ORDU | ✅ Tamamlandı |
+| T-6.7 | `ArmySimulator.gd` — **§7b** protokol (kaynak dosya adı sözleşmeye birebir) | A-ORDU | ✅ Tamamlandı |
+
+> **Kanıt (A-ŞEF bağımsız çalıştırdı):** `godot --headless --script res://tests/test_army.gd` → **66/66 PASS, EXIT=0**.
+> Diğer testler etkilenmedi (`test_rules` 159, `test_world` 152, `test_battle` 50 → hepsi EXIT=0).
+> Doğrulananlar: Kışla kapısı (Okçu 5) · `researched` tek seferlik · vatandaş rezervi + iade ·
+> `min_attack_units` · Kont yalnız Köşk + **Altın Zırh** ile · `training` bonuslu köyde süre ×0,90.
+> **Not:** "Araştırma/eğitim" içeriği `docs/05-ASKERLER.md`'dedir (`docs/07` = **casusluk**).
 
 ## FAZ 7 — Savaş Simülatörü (5 faz) ✅
 
@@ -319,3 +326,6 @@
 - **[Kod-19]** **3. ajan dalgası başlatıldı:** **A-EKONOMI** (`game/scripts/sim/economy/**` + `game/scripts/core/GameLoop.gd`), **A-ORDU** (`game/scripts/sim/army/**`).
 - **[Kod-20]** A-DUNYA kaynak düzeltmeleri tamam: **152/152 test PASS** (A-ŞEF doğruladı). 6 resmî bonus tipi + 'Usta', soyguncu garnizonları (Kışla uyumlu), `realm_of_power == points` değişmezi, kıta etiketleri (`499|506 → K54` doğrulandı), `POINTS_PER_LEVEL` ↔ `building-points.json` tam çapraz doğrulama.
 - **[Kod-21]** `docs/19` §3.1'e **bonus köy etki tablosu** ve kanonik sorgu sözleşmesi eklendi (`production_multiplier`, `citizen_multiplier`, `training_speed_multiplier`). A-DUNYA'nın sarmalayıcıları onaylandı; A-EKONOMI/A-ORDU iki yoldan da aynı sonucu üretmeli.
+- **[Kod-22]** **FAZ 6 (Ordu & Eğitim) ✅** A-ORDU tamamladı: **66/66 test PASS** (A-ŞEF doğruladı). Araştırma (`researched` tek seferlik), eğitim + vatandaş rezervi, dismiss iadesi, **Altın Zırh (Kuyumcu) + Kont (Köşk)**, `min_attack_units`, `training` bonusu ×0,90.
+- **[Kod-23]** `docs/19` **§7b** protokolü işliyor: `ArmySimulator.gd` yol/`process_tick` imzasıyla birebir uyumlu → `GameLoop` takacak.
+- **[Kod-24]** **Doküman indeksi notu:** `docs/07` = **casusluk** (araştırma değil); araştırma/eğitim içeriği `docs/05-ASKERLER.md`'de; kaynak/nüfus `docs/03-KAYNAKLAR-VE-SETTLER.md`'de. Ajan brieflerinde dosya adları buna göre düzeltilmeli.
