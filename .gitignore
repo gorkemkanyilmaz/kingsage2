@@ -6,8 +6,8 @@ export_presets.cfg
 *.translation
 .mono/
 
-# ---------- Araclar (indirilen Godot vb.) ----------
-tools/
+# ---------- Araclar (indirilen Godot ikilisi — repoda TUTULMAZ) ----------
+tools/godot/
 
 # ---------- Arastirma: ham ve turetilmis yardim icerigi ----------
 # NOT: Bunlar Gameforge'a ait telifli yardim metinleridir; surum kontrolunde TUTULMAZ.
