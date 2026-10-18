@@ -198,16 +198,20 @@
 > **Kanıt (A-ŞEF bağımsız çalıştırdı):** `godot --headless --script res://tests/test_world.gd` → **107/107 PASS, EXIT=0**.
 > Örnek dünya (tohum 4242): 210 köy (100 bot + 100 terkedilmiş + 10 bonus), 4 kıta, 20×20 miniharita, süreçten bağımsız sabit hash.
 
-## FAZ 10 — UI & 2.5D
+## FAZ 10 — UI & 2.5D — 📋 Tasarım sözleşmesi hazır (`docs/20-ARAYUZ-TASARIMI.md`)
+
+> 🔴 A-ARAYUZ bu dosyayı **bağlayıcı** kabul eder: ekran akışı, panel listesi, bina→sprite eşlemesi,
+> durum renkleri ve **10 kabul kriteri** orada tanımlı.
 
 | ID | Görev | Ajan | Durum |
 |---|---|---|---|
-| T-10.1 | UI teması (pastel & canlı) + fontlar + ortak kontroller | A-ARAYUZ | ⏳ Bekliyor |
-| T-10.2 | Kale menüsü + bina panelleri + **gereksinim zinciri görünümü** | A-ARAYUZ | ⏳ Bekliyor |
-| T-10.3 | Kışla paneli (araştır/eğit/kov) | A-ARAYUZ | ⏳ Bekliyor |
-| T-10.4 | 2.5D izometrik köy ekranı (tilemap + sprite + ışık) | A-ARAYUZ | ⏳ Bekliyor |
-| T-10.5 | Harita ekranı + emir gönderme akışı | A-ARAYUZ | ⏳ Bekliyor |
-| T-10.6 | Rapor/Mesaj/Sıralama ekranları | A-ARAYUZ | ⏳ Bekliyor |
+| T-10.1 | UI teması (pastel & canlı) + fontlar (Nunito/Cinzel) + ortak kontroller | A-ARAYUZ | ⏳ Bekliyor |
+| T-10.2 | Kale menüsü + bina panelleri + **gereksinim zinciri görünümü** ⭐ | A-ARAYUZ | ⏳ Bekliyor |
+| T-10.3 | Kışla paneli (araştır/eğit/kov) + Köşk (Altın Zırh) + Market/Kuyumcu | A-ARAYUZ | ⏳ Bekliyor |
+| T-10.4 | 2.5D izometrik köy ekranı (TileSet + sprite + Y-sort + parçacık) | A-ARAYUZ | ⏳ Bekliyor |
+| T-10.5 | Harita ekranı + emir gönderme akışı (min. birlik / Kont mesafesi kapıları) | A-ARAYUZ | ⏳ Bekliyor |
+| T-10.6 | Rapor/Mesaj/Sıralama/Ayarlar ekranları | A-ARAYUZ | ⏳ Bekliyor |
+| T-10.7 | Ana Menü + Yön/Köy seçimi + `GameLoop` sahneye bağlama | A-ARAYUZ | ⏳ Bekliyor |
 
 ## FAZ 11 — Bot / AI
 
