@@ -1,0 +1,91 @@
+[gd_scene format=3 uid="uid://n7p2m8k1v5q4w"]
+
+[ext_resource type="Script" path="res://scenes/Settings.gd" id="1_sett"]
+[ext_resource type="Theme" path="res://themes/TahtVeKilic.tres" id="2_theme"]
+
+[node name="Settings" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme = ExtResource("2_theme")
+script = ExtResource("1_sett")
+
+[node name="Background" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.992157, 0.964706, 0.890196, 1)
+
+[node name="Center" type="CenterContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="VBox" type="VBoxContainer" parent="Center"]
+custom_minimum_size = Vector2(760, 0)
+layout_mode = 2
+theme_override_constants/separation = 32
+alignment = 1
+
+[node name="Title" type="Label" parent="Center/VBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.431373, 0.607843, 0.909804, 1)
+theme_override_font_sizes/font_size = 48
+text = "⚙️ Ayarlar"
+horizontal_alignment = 1
+
+[node name="ProfileRow" type="VBoxContainer" parent="Center/VBox"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="Label" type="Label" parent="Center/VBox/ProfileRow"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 22
+text = "Dünya Profili:"
+
+[node name="Option" type="OptionButton" parent="Center/VBox/ProfileRow"]
+custom_minimum_size = Vector2(0, 80)
+layout_mode = 2
+theme_override_font_sizes/font_size = 20
+
+[node name="SpeedRow" type="HBoxContainer" parent="Center/VBox"]
+layout_mode = 2
+theme_override_constants/separation = 20
+
+[node name="Label" type="Label" parent="Center/VBox/SpeedRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 22
+text = "Oyun Hızı Çarpanı (1× - 10×):"
+
+[node name="Spin" type="SpinBox" parent="Center/VBox/SpeedRow"]
+custom_minimum_size = Vector2(160, 64)
+layout_mode = 2
+min_value = 1.0
+max_value = 10.0
+value = 1.0
+
+[node name="Spacer" type="Control" parent="Center/VBox"]
+custom_minimum_size = Vector2(0, 40)
+layout_mode = 2
+
+[node name="BtnBack" type="Button" parent="Center/VBox"]
+custom_minimum_size = Vector2(0, 96)
+layout_mode = 2
+theme_override_font_sizes/font_size = 26
+text = "🏰 Köye Dön"
+
+[node name="BtnMainMenu" type="Button" parent="Center/VBox"]
+custom_minimum_size = Vector2(0, 96)
+layout_mode = 2
+theme_override_font_sizes/font_size = 26
+text = "🏠 Ana Menüye Dön"

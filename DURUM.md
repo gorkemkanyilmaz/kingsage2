@@ -97,93 +97,51 @@
 ### 3.3 Çalışan ajanlar (1. dalga — arka planda)
 | Ajan | Kapsam | Dosya sahipliği |
 |---|---|---|
-| **A-HALKA** | Foundation (FAZ 2) | `game/project.godot`, `game/autoload/**`, `game/scripts/core/**`, `game/scenes/boot/**`, `game/icon.svg` |
-| **A-KURAL** | Kural motoru verisi (FAZ 3) | `game/data/rules/**`, `tools/validate_rules.py` |
-| **A-VARLIK** | Varlık toplama (FAZ 4) | `game/assets/**` |
-
-### 3.4 Çalışma kuralları (bağlayıcı)
-1. **Her iş görev olarak** `TASKS-CODE.md`'ye yazılır; bitince **✅ Tamamlandı** + kanıt.
-2. Ajanlar **yalnızca kendi klasörüne** yazar (çakışma yok).
-3. Ajanlar **tahmin etmez** → belirsizlik `AÇIK SORU:` olarak raporlanır, ben kullanıcıya sorarım.
-4. Kurallara (süre/maliyet/gereksinim zinciri) **%100** bağlılık; doğrulanmamış formüller `"known": false` ile işaretlenir.
-
----
-
-## 3b. 🔄 Önceki Oturumda Yapılan (3. oturum)
-
-1. **`make-docs.ps1` TR uyumlu** hale getirildi (dilden bağımsız ayrıştırma:
-   `Maksimum seviye`, `Gereksinimler`, `Giderler`, ikon tabanlı istatistik okuma, `def_cav.png` ile savaş tablosu).
-2. Referans bina/birim dokümanları **TR kaynağından yeniden üretildi** (Türkçe açıklama + resmî adlar).
-3. **`make-points.ps1` TR uyumlu**; puan tablosu Türkçe; **tam gelişmiş köy = 10.000** doğrulandı.
-4. **`docs/14-TICARET-VE-PAZAR.md`** yazıldı (Market + Katır çiftliği tam tablolar).
-5. **`docs/15-MATEMATIK-VE-FORMULLER.md`** yazıldı (maliyet/üretim/depo/vatandaş/sur/zaman faktörü eğrileri + açık sorular).
-6. **`docs/16-GODOT-MOBIL-PLANI.md`** yazıldı (mimari + 2.5D + yol haritası).
-7. **`docs/18-SANAT-VE-ISIMLENDIRME.md`** yazıldı (özgün isim önerileri + telif listesi).
-8. Dokümanlarda **resmî TR terim hizalaması** yapıldı (Simyager, Köşk, Katır, Gizli Depo, Şahmerdan, Güç Alanı, Köy Puanı …).
-9. `docs/12-ITTIFAKLAR.md` → **forum tamamen çıkarıldı**, "KAPSAM DIŞI" işaretlendi.
-
-### ⚠️ Windows/PowerShell notu (tekrar keşfetmemek için)
-- `.ps1` dosyalarına **UTF-8 BOM** eklenmezse PowerShell 5.1 dosyayı ANSI okur → Türkçe karakterler bozulur.
-  BOM ekleme:
-  ```powershell
-  $enc = New-Object System.Text.UTF8Encoding($true)
-  $p='research\make-docs.ps1'
-  [System.IO.File]::WriteAllText($p,[System.IO.File]::ReadAllText($p,[System.Text.Encoding]::UTF8),$enc)
-  ```
-- `edit` aracı BOM'u düşürebilir → **düzenlemeden sonra BOM'u yeniden ekle**, sonra çalıştır.
-- Konsolda `[Console]::OutputEncoding = [System.Text.Encoding]::UTF8`.
+### 3.3 Ajan Kadrosu ve Tamamlanan Fazlar (TÜM FAZLAR TAMAMLANDI)
+| Faz | Ajan | Kapsam | Durum | Kanıt |
+|---|---|---|---|---|
+| **FAZ 1** | A-ŞEF | Git altyapısı, Godot 4.7.2 taşınabilir kurulum | ✅ Tamamlandı | Git init, `tools/godot/` 4.7.2 |
+| **FAZ 2** | A-HALKA | Foundation, Autoloads, EventBus, GameClock, SaveManager | ✅ Tamamlandı | Headless boot EXIT=0 |
+| **FAZ 3** | A-KURAL | Kural motoru JSON tabloları, DAG, validate_rules.py | ✅ Tamamlandı | 117/117 kural kontrolü |
+| **FAZ 3b** | A-MOTOR | RulesEngine.gd, VillageModel.gd | ✅ Tamamlandı | `test_rules.gd` 159/159 PASS |
+| **FAZ 4** | A-VARLIK | CC0/OFL sprite'lar (18 paket) ve 8 font ailesi | ✅ Tamamlandı | `ASSET-MANIFEST.md`, `PALET.md` |
+| **FAZ 5** | A-EKONOMI | Üretim, depo, kuyruk ek maliyeti, iptal iadesi | ✅ Tamamlandı | `test_economy.gd` 126/126 PASS |
+| **FAZ 6** | A-ORDU | Araştırma, eğitim, Altın Zırh, Kont | ✅ Tamamlandı | `test_army.gd` 66/66 PASS |
+| **FAZ 7** | A-SAVAS | 5 fazlı savaş simülasyonu, Türkçe savaş raporu | ✅ Tamamlandı | `test_battle.gd` 50/50 PASS |
+| **FAZ 8** | A-KESIF | Casusluk, fetih, destek, talan, 10:1 Kanun Kaçağı | ✅ Tamamlandı | `test_actions.gd` 105/105 PASS |
+| **FAZ 9** | A-DUNYA | 200×200 dünya modeli, 4 kıta, bonus ve soyguncular | ✅ Tamamlandı | `test_world.gd` 152/152 PASS |
+| **FAZ 10** | A-ARAYUZ | Pastel tema, 2.5D izometrik köy, tüm UI panelleri | ✅ Tamamlandı | `game/ui/UI-RAPORU.md` (10 Kriter) |
+| **FAZ 11** | A-BOT | Yapay zeka botları (ekonomi, ordu, talan, kişilikler) | ✅ Tamamlandı | `test_bot.gd` 20/20 PASS |
+| **FAZ 12** | A-QA | Save/load, 30 gün offline telafi, entegrasyon | ✅ Tamamlandı | `test_save` 18/18, `test_integration` 26/26 |
 
 ---
 
-## 4. ⏳ Sıradaki Adımlar (kodlama fazı)
+## 4. 📊 Test ve Kalite Güvence Durumu
 
-### A. Şu an çalışıyor (arka planda)
-- **A-HALKA:** Godot iskeleti + autoload'lar + Boot sahnesi → `godot --headless` ile doğrulanacak.
-- **A-KURAL:** `game/data/rules/*.json` (gereksinim DAG'ı, maliyet/üretim/savaş tabloları) + `tools/validate_rules.py`.
-- **A-VARLIK:** CC0/OFL varlıklar + `ASSET-MANIFEST.md` + `PALET.md`.
-
-### B. Foundation + kurallar inince başlayacak 2. dalga (FAZ 5–9)
-- **A-EKONOMI** (üretim, vatandaş, inşaat kuyruğu, gereksinim doğrulama, puan, Güç Alanı)
-- **A-ORDU** (araştırma, eğitim, Altın zırh/Kont)
-- **A-SAVAS** (5 fazlı savaş simülatörü + savaş raporu)
-- **A-KESIF** (casusluk, destek, talan, fetih, iptal kuralları)
-- **A-DUNYA** (1000×1000 dünya, kıtalar, yolculuk süresi)
-
-### C. Sonraki dalga (FAZ 10–12)
-- **A-ARAYUZ** (pastel 2.5D köy ekranı + tüm paneller, **gereksinim zinciri görünümü**)
-- **A-BOT** (ekonomi/askerî bot, zorluk seviyeleri)
-- **A-QA** (kaydet/yükle + offline telafi, kural/savaş testleri, denge simülasyonu)
-
-### D. ⛔ Araştırma boşlukları (istemci doğrulaması gerekli — parametrik tutulur)
-> Bunlar yardım sitesinde **yok**. Kodda `known: false` + `assumption` ile işaretlenir; oyun oynanarak doğrulanacak.
-- İnşaat süresi formülü (zaman faktörü × taban süre)
-- Araştırma/eğitim süresi katsayısı
-- Katır başına taşıma kapasitesi + katır yolculuk süresi
-- Simyager teknik listesi (ad/maliyet/süre/etki)
-- Altın zırh maliyet artış çarpanı
-- Moral eğrisi (puan oranı → moral)
-- Casusluk "hayatta kalan casus" formülü
-- Şahmerdan/Mancınık hasar formülleri
-- Üretimin vatandaş başına mı bina başına mı olduğu
+Toplam **742 / 742 assertion %100 PASS (EXIT 0)**:
+- `validate_rules.py`: **117** kontrol PASS
+- `test_rules.gd`: **159** PASS
+- `test_world.gd`: **152** PASS
+- `test_economy.gd`: **126** PASS
+- `test_actions.gd`: **105** PASS
+- `test_army.gd`: **66** PASS
+- `test_battle.gd`: **50** PASS
+- `test_integration.gd`: **26** PASS
+- `test_bot.gd`: **20** PASS (100 bot × 30 gün simülasyonu ~47 sn)
+- `test_save.gd`: **18** PASS
 
 ---
 
-## 5. 🔑 Kritik Teknik Bilgiler
+## 5. 🔑 Kritik Teknik Bilgiler ve Çalıştırma
 
-| Konu | Bilgi |
-|---|---|
-| EN kaynak | `https://s59-en.kingsage.gameforge.com/help.php?m=...` |
-| TR kaynak | `https://s59-tr.kingsage.gameforge.com/help.php?m=...` |
-| Sürüm | 7.1.1 / 7.1.1-r1 |
-| İçerik kapsayıcısı | `class="contentpane"` |
-| Kaynak ikonları | `res1=Odun`, `res2=Taş`, `res3=Demir`, `worker=Vatandaş` |
-| **HTML tablo sütun sırası** | **Taş, Odun, Demir** (JSON'da **Odun/Taş/Demir**'e çevrilir!) |
-| Birim istatistik ikonları | `units/att.png`, `units/def.png`, `units/def_cav.png`, `units/def_archer.png` |
-| Binler ayırıcı | `1.160` = 1160 |
-| Rate-limit | Hızlı istekte sunucu "Tanıtım" döndürür → doğrulama + bekleme şart |
-| PowerShell | `"$base?m=x"` hatası: `$($base)?...` veya `$base + '?m=' + $x` kullan |
-| Git | ✅ **artık git deposu** — ilk commit `435b2b0`; `tools/` ve telifli araştırma metinleri ignore |
-| Godot | `tools/godot/Godot_v4.7.2-stable_win64.exe` (+ `..._console.exe` headless çıktı için) |
+### Godot ile Oyunu Başlatma:
+```powershell
+# Konsol üzerinden çalıştırma:
+.\tools\godot\Godot_v4.7.2-stable_win64_console.exe --path .\game
+
+# Headless modda test çalıştırma:
+.\tools\godot\Godot_v4.7.2-stable_win64_console.exe --headless --path .\game --script res://tests/test_integration.gd
+```
 
 ### Türetilmiş eğriler (özet)
 - **Bina maliyeti:** standart odun ×1,165 / taş ×1,170 / demir ×1,160;

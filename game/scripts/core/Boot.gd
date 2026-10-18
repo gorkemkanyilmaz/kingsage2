@@ -20,6 +20,13 @@ func _ready() -> void:
 	# Oyun döngüsünü başlat (tick + offline telafi kancası hazır).
 	GameClock.start()
 
+	# Başarılı yükleme sonrası Ana Menü'ye geçiş
+	var timer := get_tree().create_timer(1.0)
+	timer.timeout.connect(func():
+		if ResourceLoader.exists("res://scenes/MainMenu.tscn"):
+			get_tree().change_scene_to_file("res://scenes/MainMenu.tscn")
+	)
+
 
 func _load_and_report() -> void:
 	var ok := GameData.load_all(true)

@@ -1,0 +1,87 @@
+[gd_scene format=3 uid="uid://h8k3m9p4n2r5t"]
+
+[ext_resource type="Script" path="res://scenes/VillageSelect.gd" id="1_vselect"]
+[ext_resource type="Theme" path="res://themes/TahtVeKilic.tres" id="2_theme"]
+
+[node name="VillageSelect" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme = ExtResource("2_theme")
+script = ExtResource("1_vselect")
+
+[node name="Background" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.992157, 0.964706, 0.890196, 1)
+
+[node name="Center" type="CenterContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="VBox" type="VBoxContainer" parent="Center"]
+custom_minimum_size = Vector2(760, 0)
+layout_mode = 2
+theme_override_constants/separation = 32
+alignment = 1
+
+[node name="Title" type="Label" parent="Center/VBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.431373, 0.607843, 0.909804, 1)
+theme_override_font_sizes/font_size = 48
+text = "Başlangıç Yönü Seçin"
+horizontal_alignment = 1
+
+[node name="Desc" type="Label" parent="Center/VBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.486275, 0.45098, 0.407843, 1)
+theme_override_font_sizes/font_size = 22
+text = "Yeni krallığınız haritanın hangi bölgesinde kurulsun?"
+horizontal_alignment = 1
+
+[node name="Grid" type="GridContainer" parent="Center/VBox"]
+layout_mode = 2
+theme_override_constants/h_separation = 20
+theme_override_constants/v_separation = 20
+columns = 2
+
+[node name="BtnNW" type="Button" parent="Center/VBox/Grid"]
+custom_minimum_size = Vector2(360, 110)
+layout_mode = 2
+theme_override_font_sizes/font_size = 26
+text = "↖ Kuzeybatı"
+
+[node name="BtnNE" type="Button" parent="Center/VBox/Grid"]
+custom_minimum_size = Vector2(360, 110)
+layout_mode = 2
+theme_override_font_sizes/font_size = 26
+text = "↗ Kuzeydoğu"
+
+[node name="BtnSW" type="Button" parent="Center/VBox/Grid"]
+custom_minimum_size = Vector2(360, 110)
+layout_mode = 2
+theme_override_font_sizes/font_size = 26
+text = "↙ Güneybatı"
+
+[node name="BtnSE" type="Button" parent="Center/VBox/Grid"]
+custom_minimum_size = Vector2(360, 110)
+layout_mode = 2
+theme_override_font_sizes/font_size = 26
+text = "↘ Güneydoğu"
+
+[node name="BtnRandom" type="Button" parent="Center/VBox"]
+custom_minimum_size = Vector2(0, 100)
+layout_mode = 2
+theme_override_font_sizes/font_size = 28
+text = "🎲 Rastgele Bölge"

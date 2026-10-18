@@ -27,6 +27,7 @@ const MODULES := [
 	"res://scripts/sim/economy/EconomySimulator.gd",
 	"res://scripts/sim/army/ArmySimulator.gd",
 	"res://scripts/sim/actions/ActionSimulator.gd",
+	"res://scripts/bot/BotSimulator.gd",
 ]
 
 ## Aktif GameLoop örneği (ekonomi API'si sim saatini buradan okuyabilir); yoksa null.

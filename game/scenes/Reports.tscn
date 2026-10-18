@@ -1,0 +1,103 @@
+[gd_scene format=3 uid="uid://k8v3m2n5p7q1r"]
+
+[ext_resource type="Script" path="res://scenes/Reports.gd" id="1_rep"]
+[ext_resource type="PackedScene" path="res://ui/ResourceBar.tscn" id="2_rbar"]
+[ext_resource type="PackedScene" path="res://ui/BottomNav.tscn" id="3_bnav"]
+[ext_resource type="Theme" path="res://themes/TahtVeKilic.tres" id="4_theme"]
+
+[node name="Reports" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme = ExtResource("4_theme")
+script = ExtResource("1_rep")
+
+[node name="Background" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.992157, 0.964706, 0.890196, 1)
+
+[node name="ResourceBar" parent="." instance=ExtResource("2_rbar")]
+layout_mode = 1
+anchors_preset = 10
+anchor_right = 1.0
+offset_bottom = 110.0
+grow_horizontal = 2
+
+[node name="Container" type="Control" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 30.0
+offset_top = 130.0
+offset_right = -30.0
+offset_bottom = -130.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Scroll" type="ScrollContainer" parent="Container"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="List" type="VBoxContainer" parent="Container/Scroll"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 16
+
+[node name="DetailPanel" type="PanelContainer" parent="."]
+visible = false
+custom_minimum_size = Vector2(980, 800)
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -490.0
+offset_top = -400.0
+offset_right = 490.0
+offset_bottom = 400.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="VBox" type="VBoxContainer" parent="DetailPanel"]
+layout_mode = 2
+
+[node name="Scroll" type="ScrollContainer" parent="DetailPanel/VBox"]
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="DetailText" type="Label" parent="DetailPanel/VBox/Scroll"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+theme_override_font_sizes/font_size = 20
+text = "Detay"
+
+[node name="CloseBtn" type="Button" parent="DetailPanel/VBox"]
+custom_minimum_size = Vector2(0, 88)
+layout_mode = 2
+text = "Kapat"
+
+[node name="BottomNav" parent="." instance=ExtResource("3_bnav")]
+layout_mode = 1
+anchors_preset = 12
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_top = -110.0
+offset_bottom = 0.0
+grow_horizontal = 2
+grow_vertical = 0

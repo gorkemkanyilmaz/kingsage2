@@ -1,0 +1,68 @@
+[gd_scene format=3 uid="uid://m4p9v2x1k5q7r"]
+
+[ext_resource type="Script" path="res://scenes/Ranking.gd" id="1_rank"]
+[ext_resource type="PackedScene" path="res://ui/ResourceBar.tscn" id="2_rbar"]
+[ext_resource type="PackedScene" path="res://ui/BottomNav.tscn" id="3_bnav"]
+[ext_resource type="Theme" path="res://themes/TahtVeKilic.tres" id="4_theme"]
+
+[node name="Ranking" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme = ExtResource("4_theme")
+script = ExtResource("1_rank")
+
+[node name="Background" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.992157, 0.964706, 0.890196, 1)
+
+[node name="ResourceBar" parent="." instance=ExtResource("2_rbar")]
+layout_mode = 1
+anchors_preset = 10
+anchor_right = 1.0
+offset_bottom = 110.0
+grow_horizontal = 2
+
+[node name="Container" type="Control" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 40.0
+offset_top = 130.0
+offset_right = -40.0
+offset_bottom = -130.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Scroll" type="ScrollContainer" parent="Container"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="List" type="VBoxContainer" parent="Container/Scroll"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 12
+
+[node name="BottomNav" parent="." instance=ExtResource("3_bnav")]
+layout_mode = 1
+anchors_preset = 12
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_top = -110.0
+offset_bottom = 0.0
+grow_horizontal = 2
+grow_vertical = 0

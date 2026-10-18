@@ -1,0 +1,119 @@
+[gd_scene format=3 uid="uid://b7v4k2n8m5q1r"]
+
+[ext_resource type="Script" path="res://scenes/WorldMap.gd" id="1_wmap"]
+[ext_resource type="PackedScene" path="res://ui/ResourceBar.tscn" id="2_rbar"]
+[ext_resource type="PackedScene" path="res://ui/BottomNav.tscn" id="3_bnav"]
+[ext_resource type="PackedScene" path="res://ui/SendTroopsPanel.tscn" id="4_stroops"]
+[ext_resource type="Theme" path="res://themes/TahtVeKilic.tres" id="5_theme"]
+
+[node name="WorldMap" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme = ExtResource("5_theme")
+script = ExtResource("1_wmap")
+
+[node name="Background" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.929412, 0.807843, 0.560784, 1)
+
+[node name="Header" type="PanelContainer" parent="."]
+custom_minimum_size = Vector2(0, 80)
+layout_mode = 1
+anchors_preset = 10
+anchor_right = 1.0
+offset_top = 110.0
+offset_bottom = 190.0
+grow_horizontal = 2
+
+[node name="HBox" type="HBoxContainer" parent="Header"]
+layout_mode = 2
+theme_override_constants/separation = 16
+alignment = 1
+
+[node name="LabelX" type="Label" parent="Header/HBox"]
+layout_mode = 2
+text = "X:"
+
+[node name="CoordX" type="SpinBox" parent="Header/HBox"]
+custom_minimum_size = Vector2(140, 48)
+layout_mode = 2
+max_value = 200.0
+value = 100.0
+
+[node name="LabelY" type="Label" parent="Header/HBox"]
+layout_mode = 2
+text = "Y:"
+
+[node name="CoordY" type="SpinBox" parent="Header/HBox"]
+custom_minimum_size = Vector2(140, 48)
+layout_mode = 2
+max_value = 200.0
+value = 100.0
+
+[node name="BtnGoto" type="Button" parent="Header/HBox"]
+custom_minimum_size = Vector2(160, 56)
+layout_mode = 2
+text = "🔍 Git"
+
+[node name="MapContainer" type="Control" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_top = 190.0
+offset_bottom = -110.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Scroll" type="ScrollContainer" parent="MapContainer"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="GridControl" type="Control" parent="MapContainer/Scroll"]
+custom_minimum_size = Vector2(12800, 12800)
+layout_mode = 2
+
+[node name="ResourceBar" parent="." instance=ExtResource("2_rbar")]
+layout_mode = 1
+anchors_preset = 10
+anchor_right = 1.0
+offset_bottom = 110.0
+grow_horizontal = 2
+
+[node name="SendTroopsPanel" parent="." instance=ExtResource("4_stroops")]
+visible = false
+layout_mode = 1
+anchors_preset = 12
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 20.0
+offset_top = -800.0
+offset_right = -20.0
+offset_bottom = -130.0
+grow_horizontal = 2
+grow_vertical = 0
+
+[node name="BottomNav" parent="." instance=ExtResource("3_bnav")]
+layout_mode = 1
+anchors_preset = 12
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_top = -110.0
+offset_bottom = 0.0
+grow_horizontal = 2
+grow_vertical = 0

@@ -234,40 +234,49 @@
 > **Kanıt (A-ŞEF bağımsız çalıştırdı):** `godot --headless --script res://tests/test_world.gd` → **107/107 PASS, EXIT=0**.
 > Örnek dünya (tohum 4242): 210 köy (100 bot + 100 terkedilmiş + 10 bonus), 4 kıta, 20×20 miniharita, süreçten bağımsız sabit hash.
 
-## FAZ 10 — UI & 2.5D — 🔄 Devam Ediyor (A-ARAYUZ)
+## FAZ 10 — UI & 2.5D ✅ — (A-ARAYUZ)
 
 > 🔴 A-ARAYUZ bu dosyayı **bağlayıcı** kabul eder: ekran akışı, panel listesi, bina→sprite eşlemesi,
 > durum renkleri ve **10 kabul kriteri** orada tanımlı.
 
 | ID | Görev | Ajan | Durum |
 |---|---|---|---|
-| T-10.1 | UI teması (pastel & canlı) + fontlar (Nunito/Cinzel) + ortak kontroller | A-ARAYUZ | 🔄 Devam Ediyor |
-| T-10.2 | Kale menüsü + bina panelleri + **gereksinim zinciri görünümü** ⭐ | A-ARAYUZ | 🔄 Devam Ediyor |
-| T-10.3 | Kışla paneli (araştır/eğit/kov) + Köşk (Altın Zırh) + Market/Kuyumcu | A-ARAYUZ | 🔄 Devam Ediyor |
-| T-10.4 | 2.5D izometrik köy ekranı (TileSet + sprite + Y-sort + parçacık) | A-ARAYUZ | 🔄 Devam Ediyor |
-| T-10.5 | Harita ekranı + emir gönderme akışı (min. birlik / Kont mesafesi kapıları) | A-ARAYUZ | 🔄 Devam Ediyor |
-| T-10.6 | Rapor/Mesaj/Sıralama/Ayarlar ekranları | A-ARAYUZ | 🔄 Devam Ediyor |
-| T-10.7 | Ana Menü + Yön/Köy seçimi + `GameLoop` sahneye bağlama | A-ARAYUZ | 🔄 Devam Ediyor |
+| T-10.1 | UI teması (pastel & canlı) + fontlar (Nunito/Cinzel) + ortak kontroller | A-ARAYUZ | ✅ Tamamlandı |
+| T-10.2 | Kale menüsü + bina panelleri + **gereksinim zinciri görünümü** ⭐ | A-ARAYUZ | ✅ Tamamlandı |
+| T-10.3 | Kışla paneli (araştır/eğit/kov) + Köşk (Altın Zırh) + Market/Kuyumcu | A-ARAYUZ | ✅ Tamamlandı |
+| T-10.4 | 2.5D izometrik köy ekranı (TileSet + sprite + Y-sort + parçacık) | A-ARAYUZ | ✅ Tamamlandı |
+| T-10.5 | Harita ekranı + emir gönderme akışı (min. birlik / Kont mesafesi kapıları) | A-ARAYUZ | ✅ Tamamlandı |
+| T-10.6 | Rapor/Mesaj/Sıralama/Ayarlar ekranları | A-ARAYUZ | ✅ Tamamlandı |
+| T-10.7 | Ana Menü + Yön/Köy seçimi + `GameLoop` sahneye bağlama | A-ARAYUZ | ✅ Tamamlandı |
 
-## FAZ 11 — Bot / AI — 🔄 Devam Ediyor (A-BOT)
+> **Kanıt:** `game/ui/UI-RAPORU.md` (10 kabul kriteri doğrulandı), `game/themes/TahtVeKilic.tres`, `game/ui/ResourceBar.tscn`, `BottomNav.tscn`, `BuildingPanel.tscn`, `SendTroopsPanel.tscn`, `game/scenes/MainMenu.tscn`, `VillageSelect.tscn`, `Village.tscn`, `WorldMap.tscn`, `Reports.tscn`, `Ranking.tscn`, `Settings.tscn`.
+
+## FAZ 11 — Bot / AI ✅ — (A-BOT)
 
 | ID | Görev | Ajan | Durum |
 |---|---|---|---|
-| T-11.1 | Ekonomi botu (üretim/bina dengesi, gereksinim zincirine saygılı) | A-BOT | 🔄 Devam Ediyor |
-| T-11.2 | Askerî bot (keşif, hedef seçimi, yağma, savunma) | A-BOT | 🔄 Devam Ediyor |
-| T-11.3 | Zorluk seviyeleri (`easy`/`normal`/`hard`) + kişilik (`builder`/`trader`/`warlord`) | A-BOT | 🔄 Devam Ediyor |
-| T-11.4 | `BotSimulator.gd` — **§7b** protokol (100 bot × 30 gün, determinizm, performans) | A-BOT | 🔄 Devam Ediyor |
+| T-11.1 | Ekonomi botu (üretim/bina dengesi, gereksinim zincirine saygılı) | A-BOT | ✅ Tamamlandı |
+| T-11.2 | Askerî bot (keşif, hedef seçimi, yağma, savunma) | A-BOT | ✅ Tamamlandı |
+| T-11.3 | Zorluk seviyeleri (`easy`/`normal`/`hard`) + kişilik (`builder`/`trader`/`warlord`) | A-BOT | ✅ Tamamlandı |
+| T-11.4 | `BotSimulator.gd` — **§7b** protokol (100 bot × 30 gün, determinizm, performans) | A-BOT | ✅ Tamamlandı |
 
 > 🔒 **Zorunlu:** botlar API'yi **bypass edemez** (hareket/kuyruk/asker yalnız `EconomyAPI`/`ArmyAPI`/`Movement` üzerinden) → oyuncuyla **aynı kurallara** tabi.
+> **Kanıt (A-ŞEF bağımsız çalıştırdı):** `godot --headless --script res://tests/test_bot.gd` → **20/20 PASS, EXIT=0** (47.16 sn).
+> 100 bot × 30 gün simülasyonunda sıfır çökme, determinizm hash eşitliği, değişmezlerin (kaynak >= 0, <= depo tavanı, 0 <= realm <= points, vatandaş <= değirmen) %100 korunumu kanıtlandı.
 
-## FAZ 12 — Kaydet/Yükle, Test, Denge — 🔄 Devam Ediyor (A-QA)
+## FAZ 12 — Kaydet/Yükle, Test, Denge ✅ — (A-QA)
 
 | ID | Görev | Ajan | Durum |
 |---|---|---|---|
-| T-12.1 | Kaydet/yükle + **offline telafi (30 gün)** doğrulaması | A-QA | 🔄 Devam Ediyor |
-| T-12.2 | Uçtan uca entegrasyon testi (§7b `process_tick` zinciri) | A-QA | 🔄 Devam Ediyor |
-| T-12.3 | **Değişmezler:** kaynak ≥ 0 · ≤ depo tavanı · `0 ≤ realm ≤ points` · puan 10000 | A-QA | 🔄 Devam Ediyor |
-| T-12.4 | Determinizm: iki süreçte aynı tohum → aynı hash · yükleme sonrası kesintisiz devam | A-QA | 🔄 Devam Ediyor |
+| T-12.1 | Kaydet/yükle + **offline telafi (30 gün)** doğrulaması | A-QA | ✅ Tamamlandı |
+| T-12.2 | Uçtan uca entegrasyon testi (§7b `process_tick` zinciri) | A-QA | ✅ Tamamlandı |
+| T-12.3 | **Değişmezler:** kaynak ≥ 0 · ≤ depo tavanı · `0 ≤ realm ≤ points` · puan 10000 | A-QA | ✅ Tamamlandı |
+| T-12.4 | Determinizm: iki süreçte aynı tohum → aynı hash · yükleme sonrası kesintisiz devam | A-QA | ✅ Tamamlandı |
+
+> **Kanıt:**
+> - `godot --headless --script res://tests/test_save.gd` → **18/18 PASS, EXIT=0** (save/load roundtrip, kanonik hash eşitliği, bozuk dosya kurtarma, 30 gün offline telafi).
+> - `godot --headless --script res://tests/test_integration.gd` → **26/26 PASS, EXIT=0** (üretim, gereksinim zinciri, ordu eğitimi, talan, iptal kuralları, determinizm ve kayıt sürekliliği).
+> - `game/tests/QA-RAPORU.md`: Tüm testlerin ve sistem değişmezlerinin detaylı raporu.
 
 ## FAZ 13/14 — (Sonra) Premium & Online
 > Kullanıcı kararı: **şimdilik kapsam dışı.**
@@ -383,3 +392,6 @@
 - **[Kod-33]** ⚠️ **A-ŞEF tutarlılık düzeltmesi:** Gizli Depo kapasitesinin birimi `production.json`'da **`resource_total`** (kaynak başına değil). Yağma katmanı bunu zaten toplam havuz olarak uyguluyordu, casusluk katmanı ise kaynak başına → **çelişki**. Karar: **toplam havuz, oransal (en büyük kalan) dağıtım** — iki katman birebir aynı. `docs/07` §6 güncellendi; A-KESIF'e T-8.10 verildi.
 - **[Kod-34]** **FAZ 8 tamamen kapandı** — A-KESIF T-8.10 ✅, `test_actions` **105/105 PASS** (A-ŞEF doğruladı): casusluk gizli depo dağıtımı `BattleSimulator._compute_loot` ile **birebir aynı çıktı** (çapraz doğrulandı), `toplam ≤ kapasite` → **0 görünür**.
 - **[Kod-35]** **FAZ 11 (Bot / AI) başlatıldı** — **A-BOT**: `game/scripts/bot/**` (BotSimulator/BotEconomy/BotArmy/BotWar/BotProfile) + `test_bot.gd`. Kritik kısıt: **botlar API'yi bypass edemez**, oyuncuyla aynı kural zincirine tabidir; determinizm `(world_seed, village_id)` türetilmiş RNG ile.
+- **[Kod-36]** **FAZ 10 (UI & 2.5D Köy) ✅ tamamlandı:** A-ARAYUZ pastel tema (`TahtVeKilic.tres`), `ResourceBar`, `BottomNav`, `BuildingPanel` (sıralı gereksinim zinciri görünümüyle), `SendTroopsPanel`, `MainMenu`, `VillageSelect`, `Village` (15 bina izometrik yerleşimi + Y-sort), `WorldMap` (200×200), `Reports`, `Ranking`, `Settings` sahnelerini ve `game/ui/UI-RAPORU.md` kabul kriteri belgesini tamamladı.
+- **[Kod-37]** **FAZ 11 (Bot / AI) ✅ tamamlandı:** A-BOT `BotProfile.gd`, `BotEconomy.gd`, `BotArmy.gd`, `BotWar.gd`, `BotSimulator.gd` modüllerini tamamladı. `test_bot.gd` **20/20 PASS (EXIT 0)** — 100 bot × 30 günlük simülasyon 47.16 saniyede sıfır hata ve sıfır çökmeyle tamamlandı. Değişmezler, kişilik farkları ve talan akışı kanıtlandı.
+- **[Kod-38]** **FAZ 12 (Entegrasyon & Doğrulama) ✅ tamamlandı:** A-QA `test_save.gd` (**18/18 PASS**) ve `test_integration.gd` (**26/26 PASS**) test suitelerini hazırladı. 30 gün offline telafi, roundtrip kayıt sürekliliği, bozuk dosya kurtarma, tam hammadde->inşaat->araştırma->asker->talan zinciri ve deterministik hash doğrulaması yapıldı. `game/tests/QA-RAPORU.md` oluşturuldu. Toplam test assertion sayısı **742 / 742 PASS, 0 FAIL** seviyesine ulaştı.

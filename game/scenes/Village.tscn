@@ -1,0 +1,82 @@
+[gd_scene format=3 uid="uid://j9m2k4p8n3r7x"]
+
+[ext_resource type="Script" path="res://scenes/Village.gd" id="1_vil"]
+[ext_resource type="PackedScene" path="res://ui/ResourceBar.tscn" id="2_rbar"]
+[ext_resource type="PackedScene" path="res://ui/BottomNav.tscn" id="3_bnav"]
+[ext_resource type="PackedScene" path="res://ui/BuildingPanel.tscn" id="4_bpanel"]
+[ext_resource type="Theme" path="res://themes/TahtVeKilic.tres" id="5_theme"]
+
+[node name="Village" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme = ExtResource("5_theme")
+script = ExtResource("1_vil")
+
+[node name="Background" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.662745, 0.862745, 0.447059, 1)
+
+[node name="VillageArea" type="Control" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="IsometricGround" type="ColorRect" parent="VillageArea"]
+layout_mode = 0
+offset_left = 60.0
+offset_top = 340.0
+offset_right = 1020.0
+offset_bottom = 1680.0
+color = Color(0.890196, 0.941176, 0.768627, 0.85)
+
+[node name="BuildingsContainer" type="Control" parent="VillageArea"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="ResourceBar" parent="." instance=ExtResource("2_rbar")]
+layout_mode = 1
+anchors_preset = 10
+anchor_right = 1.0
+offset_bottom = 110.0
+grow_horizontal = 2
+
+[node name="BuildingPanel" parent="." instance=ExtResource("4_bpanel")]
+visible = false
+layout_mode = 1
+anchors_preset = 12
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 20.0
+offset_top = -800.0
+offset_right = -20.0
+offset_bottom = -130.0
+grow_horizontal = 2
+grow_vertical = 0
+
+[node name="BottomNav" parent="." instance=ExtResource("3_bnav")]
+layout_mode = 1
+anchors_preset = 12
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_top = -110.0
+offset_bottom = 0.0
+grow_horizontal = 2
+grow_vertical = 0

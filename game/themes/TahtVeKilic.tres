@@ -1,0 +1,203 @@
+[gd_resource type="Theme" load_steps=14 format=3]
+
+[ext_resource type="FontFile" path="res://assets/fonts/Nunito-Regular.ttf" id="1_nunito"]
+[ext_resource type="FontFile" path="res://assets/fonts/Nunito-Bold.ttf" id="2_nunito_bold"]
+[ext_resource type="FontFile" path="res://assets/fonts/Nunito-SemiBold.ttf" id="3_nunito_semibold"]
+[ext_resource type="FontFile" path="res://assets/fonts/Cinzel-Bold.ttf" id="4_cinzel_bold"]
+
+[sub_resource type="StyleBoxFlat" id="sb_panel"]
+bg_color = Color(1, 0.992157, 0.968627, 1)
+border_width_left = 3
+border_width_top = 3
+border_width_right = 3
+border_width_bottom = 3
+border_color = Color(0.603922, 0.392157, 0.215686, 1)
+corner_radius_top_left = 14
+corner_radius_top_right = 14
+corner_radius_bottom_right = 14
+corner_radius_bottom_left = 14
+shadow_color = Color(0.419608, 0.262745, 0.164706, 0.388235)
+shadow_size = 4
+shadow_offset = Vector2(0, 3)
+
+[sub_resource type="StyleBoxFlat" id="sb_panel_alt"]
+bg_color = Color(0.94902, 0.894118, 0.784314, 1)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.690196, 0.631373, 0.541176, 1)
+corner_radius_top_left = 10
+corner_radius_top_right = 10
+corner_radius_bottom_right = 10
+corner_radius_bottom_left = 10
+
+[sub_resource type="StyleBoxFlat" id="sb_btn_normal"]
+bg_color = Color(0.94902, 0.894118, 0.784314, 1)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 3
+border_color = Color(0.603922, 0.392157, 0.215686, 1)
+corner_radius_top_left = 12
+corner_radius_top_right = 12
+corner_radius_bottom_right = 12
+corner_radius_bottom_left = 12
+content_margin_left = 20.0
+content_margin_top = 12.0
+content_margin_right = 20.0
+content_margin_bottom = 12.0
+
+[sub_resource type="StyleBoxFlat" id="sb_btn_hover"]
+bg_color = Color(0.984314, 0.913725, 0.788235, 1)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 3
+border_color = Color(0.603922, 0.392157, 0.215686, 1)
+corner_radius_top_left = 12
+corner_radius_top_right = 12
+corner_radius_bottom_right = 12
+corner_radius_bottom_left = 12
+content_margin_left = 20.0
+content_margin_top = 12.0
+content_margin_right = 20.0
+content_margin_bottom = 12.0
+
+[sub_resource type="StyleBoxFlat" id="sb_btn_pressed"]
+bg_color = Color(0.901961, 0.823529, 0.682353, 1)
+border_width_left = 2
+border_width_top = 3
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.603922, 0.392157, 0.215686, 1)
+corner_radius_top_left = 12
+corner_radius_top_right = 12
+corner_radius_bottom_right = 12
+corner_radius_bottom_left = 12
+content_margin_left = 20.0
+content_margin_top = 12.0
+content_margin_right = 20.0
+content_margin_bottom = 12.0
+
+[sub_resource type="StyleBoxFlat" id="sb_btn_disabled"]
+bg_color = Color(0.85098, 0.878431, 0.917647, 1)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 3
+border_color = Color(0.72549, 0.74902, 0.8, 1)
+corner_radius_top_left = 12
+corner_radius_top_right = 12
+corner_radius_bottom_right = 12
+corner_radius_bottom_left = 12
+content_margin_left = 20.0
+content_margin_top = 12.0
+content_margin_right = 20.0
+content_margin_bottom = 12.0
+
+[sub_resource type="StyleBoxFlat" id="sb_line_normal"]
+bg_color = Color(1, 0.992157, 0.968627, 1)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.690196, 0.631373, 0.541176, 1)
+corner_radius_top_left = 10
+corner_radius_top_right = 10
+corner_radius_bottom_right = 10
+corner_radius_bottom_left = 10
+content_margin_left = 14.0
+content_margin_top = 10.0
+content_margin_right = 14.0
+content_margin_bottom = 10.0
+
+[sub_resource type="StyleBoxFlat" id="sb_line_focus"]
+bg_color = Color(1, 1, 1, 1)
+border_width_left = 3
+border_width_top = 3
+border_width_right = 3
+border_width_bottom = 3
+border_color = Color(0.431373, 0.607843, 0.909804, 1)
+corner_radius_top_left = 10
+corner_radius_top_right = 10
+corner_radius_bottom_right = 10
+corner_radius_bottom_left = 10
+content_margin_left = 14.0
+content_margin_top = 10.0
+content_margin_right = 14.0
+content_margin_bottom = 10.0
+
+[sub_resource type="StyleBoxFlat" id="sb_pb_bg"]
+bg_color = Color(0.890196, 0.909804, 0.941176, 1)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.54902, 0.537255, 0.505882, 1)
+corner_radius_top_left = 10
+corner_radius_top_right = 10
+corner_radius_bottom_right = 10
+corner_radius_bottom_left = 10
+
+[sub_resource type="StyleBoxFlat" id="sb_pb_fill"]
+bg_color = Color(0.490196, 0.827451, 0.878431, 1)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.305882, 0.65098, 0.776471, 1)
+corner_radius_top_left = 10
+corner_radius_top_right = 10
+corner_radius_bottom_right = 10
+corner_radius_bottom_left = 10
+
+[resource]
+default_font = ExtResource("1_nunito")
+default_font_size = 34
+Button/colors/font_color = Color(0.231373, 0.211765, 0.188235, 1)
+Button/colors/font_disabled_color = Color(0.486275, 0.45098, 0.407843, 1)
+Button/colors/font_hover_color = Color(0.231373, 0.211765, 0.188235, 1)
+Button/colors/font_pressed_color = Color(0.231373, 0.211765, 0.188235, 1)
+Button/font_sizes/font_size = 36
+Button/fonts/font = ExtResource("2_nunito_bold")
+Button/styles/disabled = SubResource("sb_btn_disabled")
+Button/styles/focus = SubResource("sb_btn_hover")
+Button/styles/hover = SubResource("sb_btn_hover")
+Button/styles/normal = SubResource("sb_btn_normal")
+Button/styles/pressed = SubResource("sb_btn_pressed")
+CheckBox/colors/font_color = Color(0.231373, 0.211765, 0.188235, 1)
+CheckBox/font_sizes/font_size = 34
+CheckButton/colors/font_color = Color(0.231373, 0.211765, 0.188235, 1)
+CheckButton/font_sizes/font_size = 34
+HSeparator/constants/separation = 10
+HSeparator/styles/separator = SubResource("sb_panel_alt")
+Label/colors/font_color = Color(0.231373, 0.211765, 0.188235, 1)
+Label/colors/font_shadow_color = Color(0.419608, 0.262745, 0.164706, 0.2)
+Label/constants/line_spacing = 6
+Label/font_sizes/font_size = 34
+Label/fonts/font = ExtResource("1_nunito")
+LineEdit/colors/caret_color = Color(0.231373, 0.211765, 0.188235, 1)
+LineEdit/colors/font_color = Color(0.231373, 0.211765, 0.188235, 1)
+LineEdit/colors/font_placeholder_color = Color(0.486275, 0.45098, 0.407843, 1)
+LineEdit/colors/selection_color = Color(0.431373, 0.607843, 0.909804, 0.4)
+LineEdit/font_sizes/font_size = 36
+LineEdit/fonts/font = ExtResource("1_nunito")
+LineEdit/styles/focus = SubResource("sb_line_focus")
+LineEdit/styles/normal = SubResource("sb_line_normal")
+Panel/styles/panel = SubResource("sb_panel_alt")
+PanelContainer/styles/panel = SubResource("sb_panel")
+ProgressBar/colors/font_color = Color(0.231373, 0.211765, 0.188235, 1)
+ProgressBar/font_sizes/font_size = 28
+ProgressBar/styles/background = SubResource("sb_pb_bg")
+ProgressBar/styles/fill = SubResource("sb_pb_fill")
+RichTextLabel/colors/default_color = Color(0.231373, 0.211765, 0.188235, 1)
+RichTextLabel/font_sizes/normal_font_size = 34
+RichTextLabel/fonts/normal_font = ExtResource("1_nunito")
+ScrollContainer/scroll/styles/normal = SubResource("sb_panel_alt")
+TabContainer/colors/font_selected_color = Color(0.231373, 0.211765, 0.188235, 1)
+TabContainer/colors/font_unselected_color = Color(0.486275, 0.45098, 0.407843, 1)
+TabContainer/font_sizes/font_size = 32
+TabContainer/fonts/font = ExtResource("3_nunito_semibold")
+VSeparator/constants/separation = 10
+VSeparator/styles/separator = SubResource("sb_panel_alt")

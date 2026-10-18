@@ -1,0 +1,139 @@
+[gd_scene format=3 uid="uid://e5m8j2x1p7q4z"]
+
+[ext_resource type="Script" path="res://ui/BuildingPanel.gd" id="1_bpanel"]
+[ext_resource type="Theme" path="res://themes/TahtVeKilic.tres" id="2_theme"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_sheet_bg"]
+content_margin_left = 24.0
+content_margin_top = 20.0
+content_margin_right = 24.0
+content_margin_bottom = 24.0
+bg_color = Color(1, 0.992157, 0.968627, 0.98)
+border_width_top = 4
+border_color = Color(0.603922, 0.392157, 0.215686, 1)
+corner_radius_top_left = 20
+corner_radius_top_right = 20
+shadow_color = Color(0.231373, 0.14902, 0.0980392, 0.3)
+shadow_size = 12
+
+[node name="BuildingPanel" type="PanelContainer"]
+custom_minimum_size = Vector2(1040, 650)
+offset_left = 20.0
+offset_top = 1140.0
+offset_right = 1060.0
+offset_bottom = 1790.0
+theme = ExtResource("2_theme")
+theme_override_styles/panel = SubResource("StyleBoxFlat_sheet_bg")
+script = ExtResource("1_bpanel")
+
+[node name="VBox" type="VBoxContainer" parent="."]
+layout_mode = 2
+theme_override_constants/separation = 16
+
+[node name="Header" type="HBoxContainer" parent="VBox"]
+layout_mode = 2
+
+[node name="TitleLabel" type="Label" parent="VBox/Header"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(0.231373, 0.211765, 0.188235, 1)
+theme_override_font_sizes/font_size = 32
+text = "Bina Adı"
+
+[node name="LevelLabel" type="Label" parent="VBox/Header"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.486275, 0.45098, 0.407843, 1)
+theme_override_font_sizes/font_size = 22
+text = "Seviye: 1 (Hedef: 2)"
+
+[node name="CloseButton" type="Button" parent="VBox/Header"]
+custom_minimum_size = Vector2(88, 88)
+layout_mode = 2
+theme_override_font_sizes/font_size = 28
+text = "✕"
+
+[node name="CostContainer" type="HBoxContainer" parent="VBox"]
+layout_mode = 2
+theme_override_constants/separation = 24
+alignment = 1
+
+[node name="WoodBox" type="HBoxContainer" parent="VBox/CostContainer"]
+layout_mode = 2
+
+[node name="Icon" type="Label" parent="VBox/CostContainer/WoodBox"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 24
+text = "🌲"
+
+[node name="Label" type="Label" parent="VBox/CostContainer/WoodBox"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 22
+text = "0"
+
+[node name="StoneBox" type="HBoxContainer" parent="VBox/CostContainer"]
+layout_mode = 2
+
+[node name="Icon" type="Label" parent="VBox/CostContainer/StoneBox"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 24
+text = "🧱"
+
+[node name="Label" type="Label" parent="VBox/CostContainer/StoneBox"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 22
+text = "0"
+
+[node name="IronBox" type="HBoxContainer" parent="VBox/CostContainer"]
+layout_mode = 2
+
+[node name="Icon" type="Label" parent="VBox/CostContainer/IronBox"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 24
+text = "⛏️"
+
+[node name="Label" type="Label" parent="VBox/CostContainer/IronBox"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 22
+text = "0"
+
+[node name="MetaContainer" type="HBoxContainer" parent="VBox"]
+layout_mode = 2
+theme_override_constants/separation = 30
+alignment = 1
+
+[node name="TimeLabel" type="Label" parent="VBox/MetaContainer"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.486275, 0.45098, 0.407843, 1)
+theme_override_font_sizes/font_size = 20
+text = "İnşa Süresi: 0 sn"
+
+[node name="ExtraCostLabel" type="Label" parent="VBox/MetaContainer"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.968627, 0.788235, 0.282353, 1)
+theme_override_font_sizes/font_size = 20
+text = "⚠️ Kuyruk Ek Maliyeti: +%25"
+
+[node name="UpgradeButton" type="Button" parent="VBox"]
+custom_minimum_size = Vector2(0, 96)
+layout_mode = 2
+theme_override_font_sizes/font_size = 26
+text = "Yükselt"
+
+[node name="RequirementSection" type="VBoxContainer" parent="VBox"]
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="ReqTitle" type="Label" parent="VBox/RequirementSection"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.94902, 0.439216, 0.364706, 1)
+theme_override_font_sizes/font_size = 22
+text = "Önce şunlar gerekli (Gereksinim Zinciri):"
+
+[node name="ReqScroll" type="ScrollContainer" parent="VBox/RequirementSection"]
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="ReqList" type="VBoxContainer" parent="VBox/RequirementSection/ReqScroll"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 12

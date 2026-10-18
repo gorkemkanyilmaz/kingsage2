@@ -1,0 +1,64 @@
+[gd_scene format=3 uid="uid://d4g2h7k8m1n9q"]
+
+[ext_resource type="Script" path="res://ui/BottomNav.gd" id="1_bnav"]
+[ext_resource type="Theme" path="res://themes/TahtVeKilic.tres" id="2_theme"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_nav_bg"]
+content_margin_left = 12.0
+content_margin_top = 8.0
+content_margin_right = 12.0
+content_margin_bottom = 12.0
+bg_color = Color(0.992157, 0.964706, 0.890196, 0.98)
+border_width_top = 2
+border_color = Color(0.603922, 0.392157, 0.215686, 1)
+shadow_color = Color(0.419608, 0.262745, 0.164706, 0.15)
+shadow_size = 6
+
+[node name="BottomNav" type="PanelContainer"]
+custom_minimum_size = Vector2(1080, 110)
+offset_top = 1810.0
+offset_right = 1080.0
+offset_bottom = 1920.0
+theme = ExtResource("2_theme")
+theme_override_styles/panel = SubResource("StyleBoxFlat_nav_bg")
+script = ExtResource("1_bnav")
+
+[node name="HBox" type="HBoxContainer" parent="."]
+layout_mode = 2
+theme_override_constants/separation = 12
+alignment = 1
+
+[node name="BtnVillage" type="Button" parent="HBox"]
+custom_minimum_size = Vector2(190, 88)
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 22
+text = "🏰 Köy"
+
+[node name="BtnMap" type="Button" parent="HBox"]
+custom_minimum_size = Vector2(190, 88)
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 22
+text = "🗺️ Harita"
+
+[node name="BtnReports" type="Button" parent="HBox"]
+custom_minimum_size = Vector2(190, 88)
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 22
+text = "📜 Rapor"
+
+[node name="BtnRanking" type="Button" parent="HBox"]
+custom_minimum_size = Vector2(190, 88)
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 22
+text = "🏆 Sıra"
+
+[node name="BtnMenu" type="Button" parent="HBox"]
+custom_minimum_size = Vector2(190, 88)
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 22
+text = "⚙️ Menü"

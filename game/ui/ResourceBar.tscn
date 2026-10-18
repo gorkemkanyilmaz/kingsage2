@@ -1,0 +1,125 @@
+[gd_scene format=3 uid="uid://c3f0b2r7k1y8p"]
+
+[ext_resource type="Script" path="res://ui/ResourceBar.gd" id="1_rbar"]
+[ext_resource type="Theme" path="res://themes/TahtVeKilic.tres" id="2_theme"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_bg"]
+content_margin_left = 16.0
+content_margin_top = 12.0
+content_margin_right = 16.0
+content_margin_bottom = 12.0
+bg_color = Color(0.992157, 0.964706, 0.890196, 0.95)
+border_width_bottom = 3
+border_color = Color(0.603922, 0.392157, 0.215686, 1)
+shadow_color = Color(0.419608, 0.262745, 0.164706, 0.2)
+shadow_size = 4
+
+[node name="ResourceBar" type="PanelContainer"]
+custom_minimum_size = Vector2(1080, 110)
+offset_right = 1080.0
+offset_bottom = 110.0
+theme = ExtResource("2_theme")
+theme_override_styles/panel = SubResource("StyleBoxFlat_bg")
+script = ExtResource("1_rbar")
+
+[node name="HBox" type="HBoxContainer" parent="."]
+layout_mode = 2
+theme_override_constants/separation = 24
+
+[node name="VillageInfo" type="VBoxContainer" parent="HBox"]
+layout_mode = 2
+alignment = 1
+
+[node name="VillageName" type="Label" parent="HBox/VillageInfo"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.231373, 0.211765, 0.188235, 1)
+theme_override_font_sizes/font_size = 24
+text = "Başkent (100|100)"
+
+[node name="Points" type="Label" parent="HBox/VillageInfo"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.486275, 0.45098, 0.407843, 1)
+theme_override_font_sizes/font_size = 18
+text = "Puan: 110"
+
+[node name="Resources" type="HBoxContainer" parent="HBox"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 16
+alignment = 1
+
+[node name="WoodBox" type="HBoxContainer" parent="HBox/Resources"]
+layout_mode = 2
+
+[node name="Icon" type="Label" parent="HBox/Resources/WoodBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.788235, 0.560784, 0.356863, 1)
+theme_override_font_sizes/font_size = 22
+text = "🌲"
+
+[node name="WoodLabel" type="Label" parent="HBox/Resources/WoodBox"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 20
+text = "1000"
+
+[node name="StoneBox" type="HBoxContainer" parent="HBox/Resources"]
+layout_mode = 2
+
+[node name="Icon" type="Label" parent="HBox/Resources/StoneBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.690196, 0.631373, 0.541176, 1)
+theme_override_font_sizes/font_size = 22
+text = "🧱"
+
+[node name="StoneLabel" type="Label" parent="HBox/Resources/StoneBox"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 20
+text = "1000"
+
+[node name="IronBox" type="HBoxContainer" parent="HBox/Resources"]
+layout_mode = 2
+
+[node name="Icon" type="Label" parent="HBox/Resources/IronBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.603922, 0.643137, 0.705882, 1)
+theme_override_font_sizes/font_size = 22
+text = "⛏️"
+
+[node name="IronLabel" type="Label" parent="HBox/Resources/IronBox"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 20
+text = "1000"
+
+[node name="StorageBox" type="VBoxContainer" parent="HBox"]
+layout_mode = 2
+alignment = 1
+
+[node name="StorageBar" type="ProgressBar" parent="HBox/StorageBox"]
+custom_minimum_size = Vector2(100, 14)
+layout_mode = 2
+value = 50.0
+show_percentage = false
+
+[node name="StorageLabel" type="Label" parent="HBox/StorageBox"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 15
+text = "Depo: 1000"
+
+[node name="CitizensBox" type="VBoxContainer" parent="HBox"]
+layout_mode = 2
+alignment = 1
+
+[node name="CitizensLabel" type="Label" parent="HBox/CitizensBox"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 18
+text = "Vatandaş: 233 / 250"
+
+[node name="RealmBox" type="VBoxContainer" parent="HBox"]
+layout_mode = 2
+alignment = 1
+
+[node name="RealmLabel" type="Label" parent="HBox/RealmBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.431373, 0.607843, 0.909804, 1)
+theme_override_font_sizes/font_size = 18
+text = "Güç Alanı: 110"
