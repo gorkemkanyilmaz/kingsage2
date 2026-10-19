@@ -2,24 +2,112 @@
 
 [ext_resource type="Script" path="res://ui/BuildingPanel.gd" id="1_bpanel"]
 [ext_resource type="Theme" path="res://themes/TahtVeKilic.tres" id="2_theme"]
+[ext_resource type="Script" path="res://ui/ResourcePill.gd" id="3_rpill"]
+[ext_resource type="Texture2D" path="res://assets/sprites/ui/nano_banana/sharp_icon_wood.tres" id="4_icon_wood"]
+[ext_resource type="Texture2D" path="res://assets/sprites/ui/nano_banana/sharp_icon_stone.tres" id="5_icon_stone"]
+[ext_resource type="Texture2D" path="res://assets/sprites/ui/nano_banana/sharp_icon_iron.tres" id="6_icon_iron"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_sheet_bg"]
+content_margin_left = 30.0
+content_margin_top = 22.0
+content_margin_right = 30.0
+content_margin_bottom = 30.0
+bg_color = Color(0.12, 0.11, 0.14, 0.98)
+border_width_left = 2
+border_width_top = 3
+border_width_right = 2
+border_color = Color(0.85, 0.72, 0.42, 0.95)
+corner_radius_top_left = 24
+corner_radius_top_right = 24
+shadow_color = Color(0, 0, 0, 0.6)
+shadow_size = 20
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_handle"]
+bg_color = Color(0.75, 0.65, 0.45, 0.6)
+corner_radius_top_left = 3
+corner_radius_top_right = 3
+corner_radius_bottom_right = 3
+corner_radius_bottom_left = 3
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_close_normal"]
+bg_color = Color(0.55, 0.14, 0.16, 0.95)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.90, 0.76, 0.42, 1)
+corner_radius_top_left = 24
+corner_radius_top_right = 24
+corner_radius_bottom_right = 24
+corner_radius_bottom_left = 24
+shadow_color = Color(0, 0, 0, 0.4)
+shadow_size = 4
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_close_hover"]
+bg_color = Color(0.70, 0.18, 0.20, 1)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(1, 0.88, 0.50, 1)
+corner_radius_top_left = 24
+corner_radius_top_right = 24
+corner_radius_bottom_right = 24
+corner_radius_bottom_left = 24
+shadow_color = Color(0.8, 0.2, 0.2, 0.4)
+shadow_size = 6
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_active_build"]
+content_margin_left = 16.0
+content_margin_top = 10.0
+content_margin_right = 16.0
+content_margin_bottom = 10.0
+bg_color = Color(0.18, 0.16, 0.12, 0.95)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.88, 0.72, 0.32, 0.85)
+corner_radius_top_left = 12
+corner_radius_top_right = 12
+corner_radius_bottom_right = 12
+corner_radius_bottom_left = 12
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_cancel_btn"]
+bg_color = Color(0.52, 0.16, 0.14, 0.9)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.92, 0.45, 0.40, 0.9)
+corner_radius_top_left = 10
+corner_radius_top_right = 10
+corner_radius_bottom_right = 10
+corner_radius_bottom_left = 10
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_upg_normal"]
 content_margin_left = 24.0
-content_margin_top = 20.0
+content_margin_top = 18.0
 content_margin_right = 24.0
-content_margin_bottom = 24.0
-bg_color = Color(1, 0.992157, 0.968627, 0.98)
-border_width_top = 4
-border_color = Color(0.603922, 0.392157, 0.215686, 1)
-corner_radius_top_left = 20
-corner_radius_top_right = 20
-shadow_color = Color(0.231373, 0.14902, 0.0980392, 0.3)
-shadow_size = 12
+content_margin_bottom = 18.0
+bg_color = Color(0.18, 0.60, 0.30, 1)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 5
+border_color = Color(0.55, 0.90, 0.62, 1)
+corner_radius_top_left = 16
+corner_radius_top_right = 16
+corner_radius_bottom_right = 16
+corner_radius_bottom_left = 16
+shadow_color = Color(0.04, 0.22, 0.08, 0.45)
+shadow_size = 10
+shadow_offset = Vector2(0, 4)
 
 [node name="BuildingPanel" type="PanelContainer"]
-custom_minimum_size = Vector2(1040, 750)
+custom_minimum_size = Vector2(1040, 360)
 offset_left = 20.0
-offset_top = 1040.0
+offset_top = 1380.0
 offset_right = 1060.0
 offset_bottom = 1790.0
 theme = ExtResource("2_theme")
@@ -30,39 +118,59 @@ script = ExtResource("1_bpanel")
 layout_mode = 2
 theme_override_constants/separation = 16
 
+[node name="TopHandle" type="Panel" parent="VBox"]
+custom_minimum_size = Vector2(60, 5)
+layout_mode = 2
+size_flags_horizontal = 4
+theme_override_styles/panel = SubResource("StyleBoxFlat_handle")
+
 [node name="Header" type="HBoxContainer" parent="VBox"]
 layout_mode = 2
+theme_override_constants/separation = 16
+alignment = 1
 
 [node name="TitleLabel" type="Label" parent="VBox/Header"]
 layout_mode = 2
 size_flags_horizontal = 3
-theme_override_colors/font_color = Color(0.231373, 0.211765, 0.188235, 1)
+theme_override_colors/font_color = Color(1, 0.95, 0.82, 1)
+theme_override_colors/font_shadow_color = Color(0, 0, 0, 0.7)
+theme_override_constants/shadow_offset_y = 2
 theme_override_font_sizes/font_size = 32
 text = "Bina Adı"
+vertical_alignment = 1
 
 [node name="LevelLabel" type="Label" parent="VBox/Header"]
 layout_mode = 2
-theme_override_colors/font_color = Color(0.486275, 0.45098, 0.407843, 1)
-theme_override_font_sizes/font_size = 22
+theme_override_colors/font_color = Color(0.90, 0.86, 0.80, 1)
+theme_override_font_sizes/font_size = 20
 text = "Seviye: 1 (Hedef: 2)"
+vertical_alignment = 1
 
 [node name="CloseButton" type="Button" parent="VBox/Header"]
-custom_minimum_size = Vector2(88, 88)
+custom_minimum_size = Vector2(48, 48)
 layout_mode = 2
-theme_override_font_sizes/font_size = 28
+theme_override_colors/font_color = Color(1, 0.98, 0.92, 1)
+theme_override_colors/font_hover_color = Color(1, 1, 1, 1)
+theme_override_colors/font_shadow_color = Color(0, 0, 0, 0.6)
+theme_override_font_sizes/font_size = 22
+theme_override_styles/normal = SubResource("StyleBoxFlat_close_normal")
+theme_override_styles/hover = SubResource("StyleBoxFlat_close_hover")
+theme_override_styles/pressed = SubResource("StyleBoxFlat_close_normal")
 text = "✕"
 
 [node name="ActiveBuildBox" type="PanelContainer" parent="VBox"]
 visible = false
 layout_mode = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_active_build")
 
 [node name="HBox" type="HBoxContainer" parent="VBox/ActiveBuildBox"]
 layout_mode = 2
-theme_override_constants/separation = 12
+theme_override_constants/separation = 14
+alignment = 1
 
 [node name="IconLabel" type="Label" parent="VBox/ActiveBuildBox/HBox"]
 layout_mode = 2
-theme_override_colors/font_color = Color(0.231373, 0.211765, 0.188235, 1)
+theme_override_colors/font_color = Color(0.98, 0.82, 0.32, 1)
 theme_override_font_sizes/font_size = 20
 text = "🔨 İnşaat Sürüyor: Seviye 2"
 
@@ -70,97 +178,149 @@ text = "🔨 İnşaat Sürüyor: Seviye 2"
 layout_mode = 2
 size_flags_horizontal = 3
 horizontal_alignment = 2
-theme_override_colors/font_color = Color(0.188235, 0.384314, 0.694118, 1)
+theme_override_colors/font_color = Color(0.55, 0.80, 1, 1)
 theme_override_font_sizes/font_size = 20
 text = "00:45"
 
 [node name="ProgressBar" type="ProgressBar" parent="VBox/ActiveBuildBox/HBox"]
-custom_minimum_size = Vector2(160, 24)
+custom_minimum_size = Vector2(160, 22)
 layout_mode = 2
 size_flags_vertical = 4
 show_percentage = false
 
 [node name="CancelButton" type="Button" parent="VBox/ActiveBuildBox/HBox"]
-custom_minimum_size = Vector2(100, 48)
+custom_minimum_size = Vector2(104, 46)
 layout_mode = 2
-theme_override_font_sizes/font_size = 18
+theme_override_styles/normal = SubResource("StyleBoxFlat_cancel_btn")
+theme_override_font_sizes/font_size = 17
 text = "✕ İptal"
 
 [node name="CostContainer" type="HBoxContainer" parent="VBox"]
 layout_mode = 2
-theme_override_constants/separation = 24
+theme_override_constants/separation = 16
 alignment = 1
 
 [node name="WoodBox" type="HBoxContainer" parent="VBox/CostContainer"]
+custom_minimum_size = Vector2(0, 56)
 layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 10
+alignment = 1
+script = ExtResource("3_rpill")
+bg_color = Color(0.14, 0.22, 0.16, 0.95)
+border_color = Color(0.40, 0.72, 0.44, 0.85)
+corner_radius = 12
 
-[node name="Icon" type="Label" parent="VBox/CostContainer/WoodBox"]
+[node name="Icon" type="TextureRect" parent="VBox/CostContainer/WoodBox"]
+custom_minimum_size = Vector2(32, 32)
 layout_mode = 2
-theme_override_font_sizes/font_size = 24
-text = "🌲"
+size_flags_vertical = 4
+texture = ExtResource("4_icon_wood")
+expand_mode = 1
+stretch_mode = 5
 
 [node name="Label" type="Label" parent="VBox/CostContainer/WoodBox"]
 layout_mode = 2
-theme_override_font_sizes/font_size = 22
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_colors/font_shadow_color = Color(0, 0, 0, 0.6)
+theme_override_constants/shadow_offset_y = 1
+theme_override_font_sizes/font_size = 24
 text = "0"
+vertical_alignment = 1
 
 [node name="StoneBox" type="HBoxContainer" parent="VBox/CostContainer"]
+custom_minimum_size = Vector2(0, 56)
 layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 10
+alignment = 1
+script = ExtResource("3_rpill")
+bg_color = Color(0.24, 0.18, 0.15, 0.95)
+border_color = Color(0.75, 0.55, 0.42, 0.85)
+corner_radius = 12
 
-[node name="Icon" type="Label" parent="VBox/CostContainer/StoneBox"]
+[node name="Icon" type="TextureRect" parent="VBox/CostContainer/StoneBox"]
+custom_minimum_size = Vector2(32, 32)
 layout_mode = 2
-theme_override_font_sizes/font_size = 24
-text = "🧱"
+size_flags_vertical = 4
+texture = ExtResource("5_icon_stone")
+expand_mode = 1
+stretch_mode = 5
 
 [node name="Label" type="Label" parent="VBox/CostContainer/StoneBox"]
 layout_mode = 2
-theme_override_font_sizes/font_size = 22
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_colors/font_shadow_color = Color(0, 0, 0, 0.6)
+theme_override_constants/shadow_offset_y = 1
+theme_override_font_sizes/font_size = 24
 text = "0"
+vertical_alignment = 1
 
 [node name="IronBox" type="HBoxContainer" parent="VBox/CostContainer"]
+custom_minimum_size = Vector2(0, 56)
 layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 10
+alignment = 1
+script = ExtResource("3_rpill")
+bg_color = Color(0.14, 0.20, 0.28, 0.95)
+border_color = Color(0.45, 0.65, 0.88, 0.85)
+corner_radius = 12
 
-[node name="Icon" type="Label" parent="VBox/CostContainer/IronBox"]
+[node name="Icon" type="TextureRect" parent="VBox/CostContainer/IronBox"]
+custom_minimum_size = Vector2(32, 32)
 layout_mode = 2
-theme_override_font_sizes/font_size = 24
-text = "⛏️"
+size_flags_vertical = 4
+texture = ExtResource("6_icon_iron")
+expand_mode = 1
+stretch_mode = 5
 
 [node name="Label" type="Label" parent="VBox/CostContainer/IronBox"]
 layout_mode = 2
-theme_override_font_sizes/font_size = 22
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_colors/font_shadow_color = Color(0, 0, 0, 0.6)
+theme_override_constants/shadow_offset_y = 1
+theme_override_font_sizes/font_size = 24
 text = "0"
+vertical_alignment = 1
 
 [node name="MetaContainer" type="HBoxContainer" parent="VBox"]
 layout_mode = 2
-theme_override_constants/separation = 30
+theme_override_constants/separation = 24
 alignment = 1
 
 [node name="TimeLabel" type="Label" parent="VBox/MetaContainer"]
 layout_mode = 2
-theme_override_colors/font_color = Color(0.486275, 0.45098, 0.407843, 1)
+theme_override_colors/font_color = Color(0.88, 0.85, 0.80, 1)
 theme_override_font_sizes/font_size = 20
 text = "İnşa Süresi: 0 sn"
 
 [node name="ExtraCostLabel" type="Label" parent="VBox/MetaContainer"]
 layout_mode = 2
-theme_override_colors/font_color = Color(0.968627, 0.788235, 0.282353, 1)
+theme_override_colors/font_color = Color(1, 0.84, 0.36, 1)
 theme_override_font_sizes/font_size = 20
 text = "⚠️ Kuyruk Ek Maliyeti: +%25"
 
 [node name="UpgradeButton" type="Button" parent="VBox"]
-custom_minimum_size = Vector2(0, 96)
+custom_minimum_size = Vector2(0, 84)
 layout_mode = 2
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_colors/font_shadow_color = Color(0.04, 0.20, 0.08, 0.9)
+theme_override_constants/shadow_offset_y = 2
 theme_override_font_sizes/font_size = 26
+theme_override_styles/normal = SubResource("StyleBoxFlat_upg_normal")
 text = "Yükselt"
 
 [node name="RequirementSection" type="VBoxContainer" parent="VBox"]
+visible = false
 layout_mode = 2
 size_flags_vertical = 3
+theme_override_constants/separation = 10
 
 [node name="ReqTitle" type="Label" parent="VBox/RequirementSection"]
 layout_mode = 2
-theme_override_colors/font_color = Color(0.94902, 0.439216, 0.364706, 1)
-theme_override_font_sizes/font_size = 22
+theme_override_colors/font_color = Color(0.98, 0.60, 0.52, 1)
+theme_override_font_sizes/font_size = 21
 text = "Önce şunlar gerekli (Gereksinim Zinciri):"
 
 [node name="ReqScroll" type="ScrollContainer" parent="VBox/RequirementSection"]
@@ -171,4 +331,4 @@ size_flags_vertical = 3
 [node name="ReqList" type="VBoxContainer" parent="VBox/RequirementSection/ReqScroll"]
 layout_mode = 2
 size_flags_horizontal = 3
-theme_override_constants/separation = 12
+theme_override_constants/separation = 10

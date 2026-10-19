@@ -5,6 +5,7 @@
 [ext_resource type="PackedScene" path="res://ui/BottomNav.tscn" id="3_bnav"]
 [ext_resource type="PackedScene" path="res://ui/SendTroopsPanel.tscn" id="4_stroops"]
 [ext_resource type="Theme" path="res://themes/TahtVeKilic.tres" id="5_theme"]
+[ext_resource type="Texture2D" path="res://assets/sprites/map/cartography-textures/parchmentAncient.png" id="6_parch"]
 
 [node name="WorldMap" type="Control"]
 layout_mode = 3
@@ -16,14 +17,16 @@ grow_vertical = 2
 theme = ExtResource("5_theme")
 script = ExtResource("1_wmap")
 
-[node name="Background" type="ColorRect" parent="."]
+[node name="Background" type="TextureRect" parent="."]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-color = Color(0.929412, 0.807843, 0.560784, 1)
+texture = ExtResource("6_parch")
+expand_mode = 1
+stretch_mode = 6
 
 [node name="Header" type="PanelContainer" parent="."]
 custom_minimum_size = Vector2(0, 80)

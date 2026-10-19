@@ -2,108 +2,176 @@
 
 [ext_resource type="Script" path="res://ui/ResourceBar.gd" id="1_rbar"]
 [ext_resource type="Theme" path="res://themes/TahtVeKilic.tres" id="2_theme"]
+[ext_resource type="Script" path="res://ui/ResourcePill.gd" id="3_rpill"]
+[ext_resource type="Texture2D" path="res://assets/sprites/ui/nano_banana/sharp_icon_wood.tres" id="4_wood_tex"]
+[ext_resource type="Texture2D" path="res://assets/sprites/ui/nano_banana/sharp_icon_stone.tres" id="5_stone_tex"]
+[ext_resource type="Texture2D" path="res://assets/sprites/ui/nano_banana/sharp_icon_iron.tres" id="6_iron_tex"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_bg"]
-content_margin_left = 16.0
-content_margin_top = 12.0
-content_margin_right = 16.0
-content_margin_bottom = 12.0
-bg_color = Color(0.992157, 0.964706, 0.890196, 0.95)
-border_width_bottom = 3
-border_color = Color(0.603922, 0.392157, 0.215686, 1)
-shadow_color = Color(0.419608, 0.262745, 0.164706, 0.2)
-shadow_size = 4
+content_margin_left = 22.0
+content_margin_top = 10.0
+content_margin_right = 22.0
+content_margin_bottom = 10.0
+bg_color = Color(0.12, 0.11, 0.14, 0.98)
+border_width_bottom = 2
+border_color = Color(0.85, 0.72, 0.42, 0.90)
+shadow_color = Color(0, 0, 0, 0.45)
+shadow_size = 8
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_storage_bg"]
+bg_color = Color(0.20, 0.18, 0.22, 0.9)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.55, 0.50, 0.45, 0.6)
+corner_radius_top_left = 4
+corner_radius_top_right = 4
+corner_radius_bottom_right = 4
+corner_radius_bottom_left = 4
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_storage_fg"]
+bg_color = Color(0.32, 0.65, 0.92, 1)
+corner_radius_top_left = 4
+corner_radius_top_right = 4
+corner_radius_bottom_right = 4
+corner_radius_bottom_left = 4
 
 [node name="ResourceBar" type="PanelContainer"]
-custom_minimum_size = Vector2(1080, 110)
+custom_minimum_size = Vector2(1080, 108)
 offset_right = 1080.0
-offset_bottom = 110.0
+offset_bottom = 108.0
 theme = ExtResource("2_theme")
 theme_override_styles/panel = SubResource("StyleBoxFlat_bg")
 script = ExtResource("1_rbar")
 
 [node name="HBox" type="HBoxContainer" parent="."]
 layout_mode = 2
-theme_override_constants/separation = 24
+theme_override_constants/separation = 12
+alignment = 1
 
 [node name="VillageInfo" type="VBoxContainer" parent="HBox"]
 layout_mode = 2
+theme_override_constants/separation = 2
 alignment = 1
 
 [node name="VillageName" type="Label" parent="HBox/VillageInfo"]
 layout_mode = 2
-theme_override_colors/font_color = Color(0.231373, 0.211765, 0.188235, 1)
-theme_override_font_sizes/font_size = 24
-text = "Başkent (100|100)"
+theme_override_colors/font_color = Color(1, 0.96, 0.88, 1)
+theme_override_colors/font_shadow_color = Color(0, 0, 0, 0.8)
+theme_override_constants/shadow_offset_y = 1
+theme_override_font_sizes/font_size = 20
+text = "🏰 Başkent (100|100)"
 
 [node name="Points" type="Label" parent="HBox/VillageInfo"]
 layout_mode = 2
-theme_override_colors/font_color = Color(0.486275, 0.45098, 0.407843, 1)
-theme_override_font_sizes/font_size = 18
+theme_override_colors/font_color = Color(0.96, 0.82, 0.40, 1)
+theme_override_font_sizes/font_size = 14
 text = "Puan: 110"
 
 [node name="Resources" type="HBoxContainer" parent="HBox"]
 layout_mode = 2
 size_flags_horizontal = 3
-theme_override_constants/separation = 16
+theme_override_constants/separation = 8
 alignment = 1
 
 [node name="WoodBox" type="HBoxContainer" parent="HBox/Resources"]
+custom_minimum_size = Vector2(130, 42)
 layout_mode = 2
+theme_override_constants/separation = 8
+alignment = 1
+script = ExtResource("3_rpill")
+bg_color = Color(0.14, 0.22, 0.16, 0.92)
+border_color = Color(0.38, 0.68, 0.42, 0.85)
+corner_radius = 10
 
-[node name="Icon" type="Label" parent="HBox/Resources/WoodBox"]
+[node name="Icon" type="TextureRect" parent="HBox/Resources/WoodBox"]
+custom_minimum_size = Vector2(24, 24)
 layout_mode = 2
-theme_override_colors/font_color = Color(0.788235, 0.560784, 0.356863, 1)
-theme_override_font_sizes/font_size = 22
-text = "🌲"
+size_flags_vertical = 4
+texture = ExtResource("4_wood_tex")
+expand_mode = 1
+stretch_mode = 5
 
 [node name="WoodLabel" type="Label" parent="HBox/Resources/WoodBox"]
 layout_mode = 2
-theme_override_font_sizes/font_size = 20
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_colors/font_shadow_color = Color(0, 0, 0, 0.7)
+theme_override_constants/shadow_offset_y = 1
+theme_override_font_sizes/font_size = 19
 text = "1000"
 
 [node name="StoneBox" type="HBoxContainer" parent="HBox/Resources"]
+custom_minimum_size = Vector2(130, 42)
 layout_mode = 2
+theme_override_constants/separation = 8
+alignment = 1
+script = ExtResource("3_rpill")
+bg_color = Color(0.24, 0.18, 0.15, 0.92)
+border_color = Color(0.75, 0.52, 0.40, 0.85)
+corner_radius = 10
 
-[node name="Icon" type="Label" parent="HBox/Resources/StoneBox"]
+[node name="Icon" type="TextureRect" parent="HBox/Resources/StoneBox"]
+custom_minimum_size = Vector2(24, 24)
 layout_mode = 2
-theme_override_colors/font_color = Color(0.690196, 0.631373, 0.541176, 1)
-theme_override_font_sizes/font_size = 22
-text = "🧱"
+size_flags_vertical = 4
+texture = ExtResource("5_stone_tex")
+expand_mode = 1
+stretch_mode = 5
 
 [node name="StoneLabel" type="Label" parent="HBox/Resources/StoneBox"]
 layout_mode = 2
-theme_override_font_sizes/font_size = 20
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_colors/font_shadow_color = Color(0, 0, 0, 0.7)
+theme_override_constants/shadow_offset_y = 1
+theme_override_font_sizes/font_size = 19
 text = "1000"
 
 [node name="IronBox" type="HBoxContainer" parent="HBox/Resources"]
+custom_minimum_size = Vector2(130, 42)
 layout_mode = 2
+theme_override_constants/separation = 8
+alignment = 1
+script = ExtResource("3_rpill")
+bg_color = Color(0.14, 0.20, 0.28, 0.92)
+border_color = Color(0.42, 0.62, 0.85, 0.85)
+corner_radius = 10
 
-[node name="Icon" type="Label" parent="HBox/Resources/IronBox"]
+[node name="Icon" type="TextureRect" parent="HBox/Resources/IronBox"]
+custom_minimum_size = Vector2(26, 26)
 layout_mode = 2
-theme_override_colors/font_color = Color(0.603922, 0.643137, 0.705882, 1)
-theme_override_font_sizes/font_size = 22
-text = "⛏️"
+size_flags_vertical = 4
+texture = ExtResource("6_iron_tex")
+expand_mode = 1
+stretch_mode = 5
 
 [node name="IronLabel" type="Label" parent="HBox/Resources/IronBox"]
 layout_mode = 2
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_colors/font_shadow_color = Color(0, 0, 0, 0.7)
+theme_override_constants/shadow_offset_y = 1
 theme_override_font_sizes/font_size = 20
 text = "1000"
 
 [node name="StorageBox" type="VBoxContainer" parent="HBox"]
 layout_mode = 2
+theme_override_constants/separation = 3
 alignment = 1
 
 [node name="StorageBar" type="ProgressBar" parent="HBox/StorageBox"]
-custom_minimum_size = Vector2(100, 14)
+custom_minimum_size = Vector2(100, 10)
 layout_mode = 2
+theme_override_styles/background = SubResource("StyleBoxFlat_storage_bg")
+theme_override_styles/fill = SubResource("StyleBoxFlat_storage_fg")
 value = 50.0
 show_percentage = false
 
 [node name="StorageLabel" type="Label" parent="HBox/StorageBox"]
 layout_mode = 2
+theme_override_colors/font_color = Color(0.90, 0.86, 0.80, 1)
 theme_override_font_sizes/font_size = 15
 text = "Depo: 1000"
+horizontal_alignment = 1
 
 [node name="CitizensBox" type="VBoxContainer" parent="HBox"]
 layout_mode = 2
@@ -111,8 +179,9 @@ alignment = 1
 
 [node name="CitizensLabel" type="Label" parent="HBox/CitizensBox"]
 layout_mode = 2
-theme_override_font_sizes/font_size = 18
-text = "Vatandaş: 233 / 250"
+theme_override_colors/font_color = Color(0.95, 0.92, 0.85, 1)
+theme_override_font_sizes/font_size = 16
+text = "👥 233 / 250"
 
 [node name="RealmBox" type="VBoxContainer" parent="HBox"]
 layout_mode = 2
@@ -120,6 +189,6 @@ alignment = 1
 
 [node name="RealmLabel" type="Label" parent="HBox/RealmBox"]
 layout_mode = 2
-theme_override_colors/font_color = Color(0.431373, 0.607843, 0.909804, 1)
-theme_override_font_sizes/font_size = 18
-text = "Güç Alanı: 110"
+theme_override_colors/font_color = Color(0.40, 0.78, 1, 1)
+theme_override_font_sizes/font_size = 16
+text = "⚡ Güç: 110"

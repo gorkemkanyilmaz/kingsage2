@@ -3,13 +3,16 @@
 > 🔴 **SONRAKİ OTURUMDA ÖNCE BU DOSYAYI OKU.**
 > Sonra sırayla: `README.md` → `docs/TERIMLER.md` → `TASKS.md`
 
-**Son güncelleme:** 5. oturum (KALE İÇİ GEREKSİNİM ZİNCİRİ, MALİYETLER VE BİNA YÜKSELTMELERİ TEST EDİLDİ) — bkz. **`TASKS-CODE.md`**
+**Son güncelleme:** 7. oturum (KÖY ZOOM & PAN, BÜYÜK OKUNAKLI SEVİYE PLAKETLERİ & MODERN PASTEL UI) — bkz. **`TASKS-GRAPHICS.md`** & **`TASKS-CODE.md`**
 **Proje:** **Taht ve Kılıç** — King's Age mobil klonu (Godot 4.7.2, dikey, 2.5D, Türkçe)
-**Aşama:** 🟢 **Kodlama & Test Doğrulama Fazı** (%100 Başarılı Testler: test_building_upgrades 67/67 PASS, test_player_agent 80/80 PASS, test_rules 159/159 PASS, test_economy 126/126 PASS).
-- **Çözülen Kritik Sorun:** Kilitli binalarda maliyetin `0 0 0` görünmesi ve Anıt (statue) gereksinim zincirinin boş görünmesi kökten giderildi.
-- `GameData` ve `GameConfig` için `get_singleton()` mimarisi kurularak her bağlamda erişim garantiye alındı.
-- `BuildQueue.can_start()` içinde önkoşul kontrolünden önce maliyet ve süre hesaplaması yapılarak UI'a eksiksiz maliyet bilgisi sağlandı.
-- Kapsamlı test paketi: `game/tests/test_building_upgrades.gd` (67/67 PASS).
+**Aşama:** 🟢 **Mobil UI & Etkileşim Fazı Tamamlandı** (%100 Başarılı Testler: test_village_pan_zoom 18/18, test_village_ui_flow 56/56, test_building_upgrades 67/67, test_player_agent 80/80, test_settings_nav PASS, test_all_scenes PASS).
+- **Akıcı Zoom & Pan (Kaydırma):** Çift parmakla sıkıştırma (pinch-to-zoom), fare tekerleğiyle yakınlaşma (1.0x - 2.2x), tek parmakla serbest harita sürükleme ve kenar kenetleme eklendi.
+- **Sürükleme vs Tıklama Ayrımı:** Mobilde haritayı kaydırırken binalara denk gelse dahi binaların kazara açılmasını önleyen hassas drag-threshold mekanizması kuruldu.
+- **Yüzen Zoom Arayüzü (ZoomHUD):** Tek elle rahat kullanım için sağ üstte zarif `+`, `−` ve `⛶` (sıfırla/ortala) yüzen kontrol paneli eklendi.
+- **Büyük ve Net Seviye Plaketleri:** 46x26'dan 70x36 piksele çıkarılan, 17px kalın fontlu, derin gölgeli ve yüksek kontrastlı zarif beyaz seviye kutucukları (`Sv. 1`, `Sv. 2`, `🔒`, `+`).
+- **Modern Pastel Bottom Sheet (`BuildingPanel`):** 28px kavisli modern çekmece, üst tutma çubuğu (handle), 3'lü pastel maliyet kapsülleri (sage, terracotta, steel), pastel kartlı gereksinim zinciri ve zümrüt yükselt butonu.
+- **Modern Pastel Üst Sekme (`ResourceBar`):** Cam/parşömen melez frosted zemin, kraliyet arması köy başlığı, hammadde kapsülleri (odun/taş/demir), yuvarlatılmış depo ve vatandaş sayaçları.
+- **Modern Alt Navigasyon (`BottomNav`):** Kavisli üst kenarlı, altın ışıltılı aktif pill kapsüllü modern alt bar.
 
 ---
 

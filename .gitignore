@@ -18,6 +18,18 @@ research/raw-tr/
 research/text/
 research/text-tr/
 
+# ---------- AI uretimi UI gorselleri (nano_banana) ----------
+# Ham AI ciktilari + buyuk .tres ImageTexture kopyalari (~148 MB).
+# Bunlar henuz bir sahneye baglanmadi / optimize edilmedi -> surum kontrolunde tutulmaz.
+# Diskte kalirlar. Kullanimda olan ikonlar haric tutulur:
+game/assets/sprites/ui/nano_banana/*
+!game/assets/sprites/ui/nano_banana/sharp_icon_wood.tres
+!game/assets/sprites/ui/nano_banana/sharp_icon_stone.tres
+!game/assets/sprites/ui/nano_banana/sharp_icon_iron.tres
+!game/assets/sprites/ui/nano_banana/sharp_icon_citizens.tres
+!game/assets/sprites/ui/nano_banana/sharp_icon_storage.tres
+!game/assets/sprites/ui/nano_banana/sharp_icon_tab_village.tres
+
 # ---------- Isletim sistemi ----------
 Thumbs.db
 Desktop.ini

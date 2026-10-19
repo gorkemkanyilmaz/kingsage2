@@ -14,23 +14,34 @@ func _ready() -> void:
 
 	var cfg = Engine.get_main_loop().root.get_node_or_null("GameConfig") if Engine.get_main_loop() is SceneTree else null
 	if cfg != null:
-		var prof: String = str(cfg.get("world_profile", "tr"))
+		var prof: String = str(cfg.get("current_profile"))
 		profile_option.selected = 1 if prof == "en" else 0
-		speed_spin.value = float(cfg.get("game_speed", 1.0))
+		var spd = cfg.get("speed")
+		speed_spin.value = float(spd) if spd != null else 1.0
 
-	profile_option.item_selected.connect(_on_profile_selected)
-	speed_spin.value_changed.connect(_on_speed_changed)
+	if not profile_option.item_selected.is_connected(_on_profile_selected):
+		profile_option.item_selected.connect(_on_profile_selected)
+	if not speed_spin.value_changed.is_connected(_on_speed_changed):
+		speed_spin.value_changed.connect(_on_speed_changed)
 
-	btn_back.pressed.connect(func():
-		get_tree().change_scene_to_file("res://scenes/Village.tscn"))
+	if not btn_back.pressed.is_connected(_on_btn_back_pressed):
+		btn_back.pressed.connect(_on_btn_back_pressed)
 
-	btn_main_menu.pressed.connect(func():
-		get_tree().change_scene_to_file("res://scenes/MainMenu.tscn"))
+	if not btn_main_menu.pressed.is_connected(_on_btn_main_menu_pressed):
+		btn_main_menu.pressed.connect(_on_btn_main_menu_pressed)
+
+
+func _on_btn_back_pressed() -> void:
+	get_tree().change_scene_to_file("res://scenes/Village.tscn")
+
+
+func _on_btn_main_menu_pressed() -> void:
+	get_tree().change_scene_to_file("res://scenes/MainMenu.tscn")
 
 
 func _on_profile_selected(idx: int) -> void:
 	var cfg = Engine.get_main_loop().root.get_node_or_null("GameConfig") if Engine.get_main_loop() is SceneTree else null
-	if cfg != null:
+	if cfg != null and cfg.has_method("apply_profile"):
 		var prof_name := "en" if idx == 1 else "tr"
 		cfg.apply_profile(prof_name)
 
@@ -38,4 +49,4 @@ func _on_profile_selected(idx: int) -> void:
 func _on_speed_changed(val: float) -> void:
 	var cfg = Engine.get_main_loop().root.get_node_or_null("GameConfig") if Engine.get_main_loop() is SceneTree else null
 	if cfg != null:
-		cfg.game_speed = val
+		cfg.set("speed", val)
