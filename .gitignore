@@ -34,3 +34,6 @@ game/assets/sprites/ui/nano_banana/*
 Thumbs.db
 Desktop.ini
 .DS_Store
+
+# ---------- Uretilen ekran goruntuleri (arac cikisi) ----------
+screenshots/

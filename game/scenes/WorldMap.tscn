@@ -7,6 +7,32 @@
 [ext_resource type="Theme" path="res://themes/TahtVeKilic.tres" id="5_theme"]
 [ext_resource type="Texture2D" path="res://assets/sprites/map/cartography-textures/parchmentAncient.png" id="6_parch"]
 
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_header"]
+content_margin_left = 22.0
+content_margin_top = 10.0
+content_margin_right = 22.0
+content_margin_bottom = 10.0
+bg_color = Color(0.117647, 0.105882, 0.129412, 0.97)
+border_width_bottom = 2
+border_color = Color(0.85098, 0.721569, 0.42, 0.95)
+corner_radius_top_left = 16
+corner_radius_top_right = 16
+corner_radius_bottom_right = 16
+corner_radius_bottom_left = 16
+shadow_color = Color(0, 0, 0, 0.4)
+shadow_size = 10
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_legend"]
+content_margin_left = 12.0
+content_margin_top = 3.0
+content_margin_right = 12.0
+content_margin_bottom = 3.0
+bg_color = Color(0.117647, 0.105882, 0.129412, 0.82)
+corner_radius_top_left = 10
+corner_radius_top_right = 10
+corner_radius_bottom_right = 10
+corner_radius_bottom_left = 10
+
 [node name="WorldMap" type="Control"]
 layout_mode = 3
 anchors_preset = 15
@@ -17,63 +43,127 @@ grow_vertical = 2
 theme = ExtResource("5_theme")
 script = ExtResource("1_wmap")
 
-[node name="Background" type="TextureRect" parent="."]
+[node name="ParchmentBase" type="ColorRect" parent="."]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
+color = Color(0.917647, 0.843137, 0.694118, 1)
+
+[node name="Background" type="TextureRect" parent="."]
+modulate = Color(1, 1, 1, 0.30)
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
 texture = ExtResource("6_parch")
 expand_mode = 1
 stretch_mode = 6
 
 [node name="Header" type="PanelContainer" parent="."]
-custom_minimum_size = Vector2(0, 80)
 layout_mode = 1
 anchors_preset = 10
 anchor_right = 1.0
-offset_top = 110.0
-offset_bottom = 190.0
+offset_left = 20.0
+offset_top = 122.0
+offset_right = -20.0
+offset_bottom = 218.0
 grow_horizontal = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_header")
 
 [node name="HBox" type="HBoxContainer" parent="Header"]
 layout_mode = 2
-theme_override_constants/separation = 16
+theme_override_constants/separation = 14
 alignment = 1
+
+[node name="Title" type="Label" parent="Header/HBox"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(1, 0.917647, 0.647059, 1)
+theme_override_colors/font_shadow_color = Color(0, 0, 0, 0.75)
+theme_override_constants/shadow_offset_y = 2
+theme_override_font_sizes/font_size = 24
+text = "Dünya Haritası"
 
 [node name="LabelX" type="Label" parent="Header/HBox"]
 layout_mode = 2
+theme_override_colors/font_color = Color(0.9, 0.88, 0.82, 1)
+theme_override_font_sizes/font_size = 20
 text = "X:"
 
 [node name="CoordX" type="SpinBox" parent="Header/HBox"]
-custom_minimum_size = Vector2(140, 48)
+custom_minimum_size = Vector2(150, 54)
 layout_mode = 2
+theme_override_font_sizes/font_size = 20
 max_value = 200.0
 value = 100.0
 
 [node name="LabelY" type="Label" parent="Header/HBox"]
 layout_mode = 2
+theme_override_colors/font_color = Color(0.9, 0.88, 0.82, 1)
+theme_override_font_sizes/font_size = 20
 text = "Y:"
 
 [node name="CoordY" type="SpinBox" parent="Header/HBox"]
-custom_minimum_size = Vector2(140, 48)
+custom_minimum_size = Vector2(150, 54)
 layout_mode = 2
+theme_override_font_sizes/font_size = 20
 max_value = 200.0
 value = 100.0
 
 [node name="BtnGoto" type="Button" parent="Header/HBox"]
-custom_minimum_size = Vector2(160, 56)
+custom_minimum_size = Vector2(150, 56)
 layout_mode = 2
+theme_override_font_sizes/font_size = 20
 text = "🔍 Git"
+
+[node name="Legend" type="PanelContainer" parent="."]
+layout_mode = 1
+anchors_preset = 5
+anchor_left = 0.5
+anchor_right = 0.5
+offset_left = -250.0
+offset_top = 226.0
+offset_right = 250.0
+offset_bottom = 266.0
+grow_horizontal = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_legend")
+
+[node name="HBox" type="HBoxContainer" parent="Legend"]
+layout_mode = 2
+theme_override_constants/separation = 18
+alignment = 1
+
+[node name="Own" type="Label" parent="Legend/HBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.494118, 0.85098, 0.341176, 1)
+theme_override_font_sizes/font_size = 15
+text = "● Kendi köyün"
+
+[node name="Enemy" type="Label" parent="Legend/HBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.94902, 0.439216, 0.364706, 1)
+theme_override_font_sizes/font_size = 15
+text = "● Düşman"
+
+[node name="Barb" type="Label" parent="Legend/HBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.690196, 0.631373, 0.541176, 1)
+theme_override_font_sizes/font_size = 15
+text = "● Soyguncu"
 
 [node name="MapContainer" type="Control" parent="."]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
-offset_top = 190.0
-offset_bottom = -110.0
+offset_top = 274.0
+offset_bottom = -116.0
 grow_horizontal = 2
 grow_vertical = 2
 
@@ -86,7 +176,7 @@ grow_horizontal = 2
 grow_vertical = 2
 
 [node name="GridControl" type="Control" parent="MapContainer/Scroll"]
-custom_minimum_size = Vector2(12800, 12800)
+custom_minimum_size = Vector2(19200, 19200)
 layout_mode = 2
 
 [node name="ResourceBar" parent="." instance=ExtResource("2_rbar")]
