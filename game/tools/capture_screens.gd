@@ -29,6 +29,14 @@ func _init() -> void:
 	gs_node.player = {"id": 1, "name": "Kral", "points": int(pv.get("points", 110))}
 	gs_node.active_village_id = 999
 
+	# Rapor kartlarını denetlemek için örnek kayıtlar
+	var now := int(Time.get_unix_time_from_system())
+	gs_node.reports = [
+		{"type": "battle", "unix": now - 600, "data": {"kazanan": "Başkent", "kayip": 12}},
+		{"type": "spy", "unix": now - 5400, "data": {"hedef": "Erkonak", "sonuc": "basarili"}},
+		{"type": "trade", "unix": now - 9000, "data": {"odun": 250, "tas": 100}},
+	]
+
 	await _shot("res://scenes/MainMenu.tscn", "01_main_menu.png")
 	await _shot("res://scenes/VillageSelect.tscn", "02_village_select.png")
 	await _shot("res://scenes/Village.tscn", "03_village.png")

@@ -2,6 +2,26 @@
 
 [ext_resource type="Script" path="res://scenes/MainMenu.gd" id="1_mmenu"]
 [ext_resource type="Theme" path="res://themes/TahtVeKilic.tres" id="2_theme"]
+[ext_resource type="Script" path="res://ui/Backdrop.gd" id="3_backdrop"]
+[ext_resource type="FontFile" path="res://assets/fonts/Cinzel-Bold.ttf" id="4_cinzel"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_card"]
+content_margin_left = 40.0
+content_margin_top = 36.0
+content_margin_right = 40.0
+content_margin_bottom = 36.0
+bg_color = Color(0.984314, 0.956863, 0.886275, 0.80)
+border_width_left = 3
+border_width_top = 3
+border_width_right = 3
+border_width_bottom = 3
+border_color = Color(0.603922, 0.392157, 0.215686, 0.55)
+corner_radius_top_left = 22
+corner_radius_top_right = 22
+corner_radius_bottom_right = 22
+corner_radius_bottom_left = 22
+shadow_color = Color(0.419608, 0.262745, 0.164706, 0.3)
+shadow_size = 12
 
 [node name="MainMenu" type="Control"]
 layout_mode = 3
@@ -22,6 +42,36 @@ grow_horizontal = 2
 grow_vertical = 2
 color = Color(0.992157, 0.964706, 0.890196, 1)
 
+[node name="Backdrop" type="Control" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+script = ExtResource("3_backdrop")
+emblem_path = "res://assets/sprites/icons/cartography/2x/castleWide.png"
+emblem_alpha = 0.12
+emblem_size = 480.0
+emblem_center = Vector2(0.5, 0.22)
+
+[node name="Card" type="Panel" parent="."]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -470.0
+offset_top = -420.0
+offset_right = 470.0
+offset_bottom = 420.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_card")
+
 [node name="Center" type="CenterContainer" parent="."]
 layout_mode = 1
 anchors_preset = 15
@@ -38,14 +88,20 @@ alignment = 1
 
 [node name="Logo" type="Label" parent="Center/VBox"]
 layout_mode = 2
-theme_override_colors/font_color = Color(0.431373, 0.607843, 0.909804, 1)
-theme_override_font_sizes/font_size = 64
+theme_override_colors/font_color = Color(0.239216, 0.152941, 0.058824, 1)
+theme_override_colors/font_outline_color = Color(0.980392, 0.921569, 0.733333, 0.9)
+theme_override_colors/font_shadow_color = Color(0.85098, 0.721569, 0.42, 0.5)
+theme_override_constants/outline_size = 10
+theme_override_constants/shadow_offset_x = 2
+theme_override_constants/shadow_offset_y = 3
+theme_override_font_sizes/font_size = 76
+theme_override_fonts/font = ExtResource("4_cinzel")
 text = "Taht ve Kılıç"
 horizontal_alignment = 1
 
 [node name="Subtitle" type="Label" parent="Center/VBox"]
 layout_mode = 2
-theme_override_colors/font_color = Color(0.486275, 0.45098, 0.407843, 1)
+theme_override_colors/font_color = Color(0.482353, 0.372549, 0.250980, 1)
 theme_override_font_sizes/font_size = 24
 text = "Orta Çağ Krallık Stratejisi"
 horizontal_alignment = 1

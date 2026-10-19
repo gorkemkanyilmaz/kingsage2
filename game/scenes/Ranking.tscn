@@ -4,6 +4,23 @@
 [ext_resource type="PackedScene" path="res://ui/ResourceBar.tscn" id="2_rbar"]
 [ext_resource type="PackedScene" path="res://ui/BottomNav.tscn" id="3_bnav"]
 [ext_resource type="Theme" path="res://themes/TahtVeKilic.tres" id="4_theme"]
+[ext_resource type="Script" path="res://ui/Backdrop.gd" id="5_backdrop"]
+[ext_resource type="FontFile" path="res://assets/fonts/Cinzel-Bold.ttf" id="6_cinzel"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_header"]
+content_margin_left = 22.0
+content_margin_top = 10.0
+content_margin_right = 22.0
+content_margin_bottom = 10.0
+bg_color = Color(0.117647, 0.105882, 0.129412, 0.97)
+border_width_bottom = 2
+border_color = Color(0.85098, 0.721569, 0.42, 0.95)
+corner_radius_top_left = 16
+corner_radius_top_right = 16
+corner_radius_bottom_right = 16
+corner_radius_bottom_left = 16
+shadow_color = Color(0, 0, 0, 0.4)
+shadow_size = 10
 
 [node name="Ranking" type="Control"]
 layout_mode = 3
@@ -24,6 +41,51 @@ grow_horizontal = 2
 grow_vertical = 2
 color = Color(0.992157, 0.964706, 0.890196, 1)
 
+[node name="Backdrop" type="Control" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+script = ExtResource("5_backdrop")
+emblem_path = "res://assets/sprites/icons/cartography/2x/banner.png"
+emblem_alpha = 0.09
+emblem_size = 420.0
+emblem_center = Vector2(0.5, 0.32)
+
+[node name="Header" type="PanelContainer" parent="."]
+layout_mode = 1
+anchors_preset = 10
+anchor_right = 1.0
+offset_left = 20.0
+offset_top = 122.0
+offset_right = -20.0
+offset_bottom = 218.0
+grow_horizontal = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_header")
+
+[node name="HBox" type="HBoxContainer" parent="Header"]
+layout_mode = 2
+theme_override_constants/separation = 14
+
+[node name="Title" type="Label" parent="Header/HBox"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(1, 0.917647, 0.647059, 1)
+theme_override_colors/font_shadow_color = Color(0, 0, 0, 0.75)
+theme_override_constants/shadow_offset_y = 2
+theme_override_font_sizes/font_size = 30
+theme_override_fonts/font = ExtResource("6_cinzel")
+text = "Sıralama"
+
+[node name="Subtitle" type="Label" parent="Header/HBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.8, 0.76, 0.66, 1)
+theme_override_font_sizes/font_size = 18
+text = "En güçlü 50 köy"
+
 [node name="ResourceBar" parent="." instance=ExtResource("2_rbar")]
 layout_mode = 1
 anchors_preset = 10
@@ -37,7 +99,7 @@ anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
 offset_left = 40.0
-offset_top = 130.0
+offset_top = 236.0
 offset_right = -40.0
 offset_bottom = -130.0
 grow_horizontal = 2
