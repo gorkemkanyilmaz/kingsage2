@@ -81,3 +81,13 @@ Mevcut arayüzdeki düz renkli ve emoji tabanlı görünümü; Kenney CC0 Orta �
 ### Faz 6: Test ve Doğrulama (A-QA)
 - [x] **T-G.6.1:** Tüm sahnelerin derleme ve çalışma kontrolü (`test_all_scenes.gd`) — PASS.
 - [x] **T-G.6.2:** VFX ve arayüz testleri (`test_village_ui_flow.gd` 56/56, `test_building_upgrades.gd` 67/67, `test_player_agent.gd` 80/80, `test_settings_nav.gd`) — %100 PASS.
+
+### Faz 7: Harita Kartografyası & Menü Atmosferi Cilası (8. oturum)
+- [x] **T-G.7.1:** **Kartografik Dekor Katmanı (`scenes/map/WorldDecor.gd`):** Düz parşömen zemin; tek bir `Control._draw()` içinde nehirler (kıvrımlı poligon + akış çentikleri), göller (su lekesi + kartografi ikonu), orman adacıkları (yosun lekesi + çepere dizilen çam ikonları), dağ sırtları ve serpiştirilmiş tek ağaç/kayalarla zenginleştirildi. Binlerce düğüm yerine tek çizim listesi → mobil dostu. Sabit tohum (deterministik).
+- [x] **T-G.7.2:** **Sabit Harita HUD'u (`scenes/map/MapRuler.gd`):** Harita kenarına çift çizgili çerçeve, köşe vurguları, canlı koordinat cetveli (kaydırmayla güncellenen X/Y etiketleri), kenar vinyeti, cetvel şeritleri ve alt-sol "Bölge X | Y" rozeti eklendi.
+- [x] **T-G.7.3:** **Harita Başlığı & Jetonlar:** Başlık Cinzel serif + parşömen tonuna çevrildi; X/Y kutuları koyu "harita aleti" görünümü (oklar gizli), "Git" düğmesi altın parşömen düğmesi yapıldı. `MapVillageView` jetonundaki opak buton gölgesi (cream square hatası) tamamen şeffaf `StyleBoxEmpty` ile giderildi.
+- [x] **T-G.7.4:** **Ortak Parşömen Arka Planı (`ui/Backdrop.gd`):** Tüm menü/panel ekranlarına döşenmiş parşömen dokusu, köşe aquarelle lekeleri, kenar vinyeti ve arma filigranı veren tek yeniden kullanılabilir katman.
+- [x] **T-G.7.5:** **Ana Menü / Köy Seçim / Ayarlar:** Kart (plaque) düzeni, Cinzel başlıklar, arma filigranları (kale / pusula / yel değirmeni) ve merkezî içerik kartı.
+- [x] **T-G.7.6:** **Sıralama & Raporlar:** Sıralama ilk 3 için altın/gümüş/bronz madalya, alternatif satır zeminleri ve oyuncunun köyü vurgusu; raporlar tür renkli sol şeritli kartlar + ikonlar ve zengin boş-durum görünümü; iki ekrana da Cinzel başlık şeridi.
+- [x] **T-G.7.7:** **Görsel Denetim Aracı (`tools/capture_screens.gd`):** 8 ekranı (kaydırılmış harita dahil) `screenshots/` klasörüne 540×960 olarak yakalar; örnek raporlarla kart görünümünü de doğrular. `screenshots/` artık git dışında.
+- [x] **T-G.7.8:** **Regresyon:** 14 test paketi (rules/world/economy/army/battle/actions/save/integration/bot/player_agent/building_upgrades/settings_nav/pan_zoom/ui_flow) + `test_all_scenes` → **tamamı PASS**.

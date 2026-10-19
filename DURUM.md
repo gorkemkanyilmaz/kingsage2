@@ -3,7 +3,7 @@
 > 🔴 **SONRAKİ OTURUMDA ÖNCE BU DOSYAYI OKU.**
 > Sonra sırayla: `README.md` → `docs/TERIMLER.md` → `TASKS.md`
 
-**Son güncelleme:** 7. oturum (KÖY ZOOM & PAN, BÜYÜK OKUNAKLI SEVİYE PLAKETLERİ & MODERN PASTEL UI) — bkz. **`TASKS-GRAPHICS.md`** & **`TASKS-CODE.md`**
+**Son güncelleme:** 8. oturum (HARİTA KARTOGRAFYA CİLASI + ORTAK PARŞÖMEN ATMOSFERİ & MENÜ/SAYFA KARTLARI) — bkz. **`TASKS-GRAPHICS.md`** §Faz 7 & **`TASKS-CODE.md`**
 **Proje:** **Taht ve Kılıç** — King's Age mobil klonu (Godot 4.7.2, dikey, 2.5D, Türkçe)
 **Aşama:** 🟢 **Mobil UI & Etkileşim Fazı Tamamlandı** (%100 Başarılı Testler: test_village_pan_zoom 18/18, test_village_ui_flow 56/56, test_building_upgrades 67/67, test_player_agent 80/80, test_settings_nav PASS, test_all_scenes PASS).
 - **Akıcı Zoom & Pan (Kaydırma):** Çift parmakla sıkıştırma (pinch-to-zoom), fare tekerleğiyle yakınlaşma (1.0x - 2.2x), tek parmakla serbest harita sürükleme ve kenar kenetleme eklendi.
@@ -13,6 +13,11 @@
 - **Modern Pastel Bottom Sheet (`BuildingPanel`):** 28px kavisli modern çekmece, üst tutma çubuğu (handle), 3'lü pastel maliyet kapsülleri (sage, terracotta, steel), pastel kartlı gereksinim zinciri ve zümrüt yükselt butonu.
 - **Modern Pastel Üst Sekme (`ResourceBar`):** Cam/parşömen melez frosted zemin, kraliyet arması köy başlığı, hammadde kapsülleri (odun/taş/demir), yuvarlatılmış depo ve vatandaş sayaçları.
 - **Modern Alt Navigasyon (`BottomNav`):** Kavisli üst kenarlı, altın ışıltılı aktif pill kapsüllü modern alt bar.
+- **8. oturum — Harita Kartografyası:** Yeni `scenes/map/WorldDecor.gd` nehirler, göller, orman adacıkları, dağ sırtları ve serpiştirilmiş ağaç/kayalarla düz parşömeni gerçek bir Orta Çağ haritasına çevirdi (tek `_draw()` → mobil dostu, sabit tohum).
+- **8. oturum — Harita HUD:** Yeni `scenes/map/MapRuler.gd` çerçeve, canlı koordinat cetveli, kenar vinyeti ve "Bölge X | Y" rozeti ekledi; başlık Cinzel serif, X/Y kutuları ve "Git" düğmesi yeniden stillendi; `MapVillageView`'daki opak buton gölgesi (cream square) giderildi.
+- **8. oturum — Ortak Atmosfer:** Yeni `ui/Backdrop.gd` ile tüm menü/panel ekranlarına parşömen dokusu, aquarelle lekeleri, kenar vinyeti ve arma filigranı.
+- **8. oturum — Ekran Kartları:** Ana Menü / Köy Seçim / Ayarlar kart (plaque) düzeni + Cinzel başlıklar; Sıralama'da altın/gümüş/bronz madalya + oyuncu vurgusu; Raporlar'da tür renkli kartlar + boş-durum görünümü.
+- **8. oturum — Araç:** `tools/capture_screens.gd` 8 ekranı (kaydırılmış harita dahil) `screenshots/`'a yakalıyor; `screenshots/` git dışında. 14 test paketi + `test_all_scenes` → tamamı PASS.
 
 ---
 
