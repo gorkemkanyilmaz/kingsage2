@@ -5,7 +5,7 @@ extends Node
 signal sync_completed(success: bool, data: Dictionary)
 signal auth_completed(success: bool, profile: Dictionary)
 
-const DEFAULT_SERVER_URL := "http://127.0.0.1:8000"
+const DEFAULT_SERVER_URL := "https://tahtkilic.vercel.app"
 
 var server_url: String = DEFAULT_SERVER_URL
 var is_server_reachable: bool = false
