@@ -127,16 +127,23 @@ class DBConnection:
 
 
 def get_db() -> DBConnection:
-    if IS_POSTGRES and HAS_PSYCOPG2:
-        conn = psycopg2.connect(DATABASE_URL)
+    raw_url = os.getenv("DATABASE_URL", "")
+    db_url = sanitize_db_url(raw_url)
+    is_pg = bool(db_url and (db_url.startswith("postgres://") or db_url.startswith("postgresql://")))
+    if is_pg and HAS_PSYCOPG2:
+        conn = psycopg2.connect(db_url)
         return DBConnection(conn, True)
     else:
         conn = sqlite3.connect(DB_PATH, check_same_thread=False)
         conn.row_factory = sqlite3.Row
-        conn.execute("PRAGMA journal_mode=WAL;")
+        if not IS_VERCEL:
+            conn.execute("PRAGMA journal_mode=WAL;")
+        else:
+            conn.execute("PRAGMA journal_mode=MEMORY;")
         conn.execute("PRAGMA synchronous=NORMAL;")
         conn.execute("PRAGMA foreign_keys=ON;")
         return DBConnection(conn, False)
+
 
 
 def init_db():
