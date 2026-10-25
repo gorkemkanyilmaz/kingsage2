@@ -52,10 +52,10 @@ func refresh_view() -> void:
 	var alliance: Dictionary = AllianceModelScript.get_player_alliance(state, p_name)
 
 	if alliance.is_empty():
-		header_title.text = "🛡️ İTTİFAK MERKEZİ"
+		header_title.text = "️ İTTİFAK MERKEZİ"
 		_build_non_member_view(gs, p_name)
 	else:
-		header_title.text = "🛡️ [%s] %s" % [str(alliance.get("tag", "")), str(alliance.get("name", ""))]
+		header_title.text = "️ [%s] %s" % [str(alliance.get("tag", "")), str(alliance.get("name", ""))]
 		_build_member_view(gs, alliance, p_name)
 
 
@@ -75,14 +75,14 @@ func _build_non_member_view(gs: Node, player_name: String) -> void:
 	tab_bar.add_theme_constant_override("separation", 12)
 	vbox.add_child(tab_bar)
 
-	var btn_tab_create := _make_tab_button("⚔️ İttifak Kur", _non_member_tab == "create")
+	var btn_tab_create := _make_tab_button("️ İttifak Kur", _non_member_tab == "create")
 	btn_tab_create.pressed.connect(func():
 		_non_member_tab = "create"
 		refresh_view()
 	)
 	tab_bar.add_child(btn_tab_create)
 
-	var btn_tab_browse := _make_tab_button("🔍 İttifak Bul & Davetler", _non_member_tab == "browse")
+	var btn_tab_browse := _make_tab_button(" İttifak Bul & Davetler", _non_member_tab == "browse")
 	btn_tab_browse.pressed.connect(func():
 		_non_member_tab = "browse"
 		refresh_view()
@@ -167,7 +167,7 @@ func _build_create_alliance_form(parent: Control, gs: Node, player_name: String)
 	card_vbox.add_child(err_label)
 
 	var create_btn := Button.new()
-	create_btn.text = "👑 İttifakı Kur"
+	create_btn.text = " İttifakı Kur"
 	create_btn.custom_minimum_size = Vector2(0, 60)
 	create_btn.add_theme_font_override("font", FontCinzelBold)
 	create_btn.add_theme_font_size_override("font_size", 24)
@@ -187,7 +187,7 @@ func _build_create_alliance_form(parent: Control, gs: Node, player_name: String)
 			_active_tab = "chat"
 			refresh_view()
 		else:
-			err_label.text = "⚠️ " + str(res.get("message", "Hata oluştu."))
+			err_label.text = "️ " + str(res.get("message", "Hata oluştu."))
 	)
 	card_vbox.add_child(create_btn)
 
@@ -221,7 +221,7 @@ func _build_browse_alliances_view(parent: Control, gs: Node, player_name: String
 		inv_card.add_child(ic_vbox)
 
 		var inv_title := Label.new()
-		inv_title.text = "📩 Size Gelen İttifak Davetleri (%d)" % pending_allies.size()
+		inv_title.text = " Size Gelen İttifak Davetleri (%d)" % pending_allies.size()
 		inv_title.add_theme_font_override("font", FontCinzelBold)
 		inv_title.add_theme_font_size_override("font_size", 24)
 		inv_title.add_theme_color_override("font_color", Color(0.45, 0.90, 1.0))
@@ -235,11 +235,11 @@ func _build_browse_alliances_view(parent: Control, gs: Node, player_name: String
 			var info_lbl := Label.new()
 			info_lbl.size_flags_horizontal = SIZE_EXPAND_FILL
 			info_lbl.add_theme_font_size_override("font_size", 22)
-			info_lbl.text = "🛡️ [%s] %s (Lider: %s)" % [str(ally.get("tag", "")), str(ally.get("name", "")), str(ally.get("leader", ""))]
+			info_lbl.text = "️ [%s] %s (Lider: %s)" % [str(ally.get("tag", "")), str(ally.get("name", "")), str(ally.get("leader", ""))]
 			row.add_child(info_lbl)
 
 			var accept_btn := Button.new()
-			accept_btn.text = "✓ Kabul Et"
+			accept_btn.text = " Kabul Et"
 			accept_btn.custom_minimum_size = Vector2(130, 48)
 			_style_gold_btn(accept_btn)
 			var a_id = int(ally.get("id", -1))
@@ -297,7 +297,7 @@ func _build_browse_alliances_view(parent: Control, gs: Node, player_name: String
 		var leader_name: String = str(a_dict.get("leader", ""))
 		var desc: String = str(a_dict.get("description", ""))
 		var sub_lbl := Label.new()
-		sub_lbl.text = "👑 Lider: %s | 👥 %d Üye | %s" % [leader_name, members_count, desc]
+		sub_lbl.text = " Lider: %s |  %d Üye | %s" % [leader_name, members_count, desc]
 		sub_lbl.add_theme_font_size_override("font_size", 18)
 		sub_lbl.add_theme_color_override("font_color", Color(0.75, 0.72, 0.65))
 		info_box.add_child(sub_lbl)
@@ -327,7 +327,7 @@ func _build_member_view(gs: Node, alliance: Dictionary, player_name: String) -> 
 
 	var stat_lbl := Label.new()
 	stat_lbl.size_flags_horizontal = SIZE_EXPAND_FILL
-	stat_lbl.text = "👑 Lider: %s   |   👥 Üye: %d   |   ⚡ Toplam Puan: %d" % [
+	stat_lbl.text = " Lider: %s   |    Üye: %d   |    Toplam Puan: %d" % [
 		str(alliance.get("leader", "")),
 		members.size(),
 		total_pts
@@ -338,7 +338,7 @@ func _build_member_view(gs: Node, alliance: Dictionary, player_name: String) -> 
 	ib_hbox.add_child(stat_lbl)
 
 	var leave_btn := Button.new()
-	leave_btn.text = "🚪 Ayrıl"
+	leave_btn.text = " Ayrıl"
 	leave_btn.custom_minimum_size = Vector2(100, 42)
 	_style_danger_btn(leave_btn)
 	leave_btn.pressed.connect(func():
@@ -367,7 +367,7 @@ func _build_member_view(gs: Node, alliance: Dictionary, player_name: String) -> 
 		vbox.add_child(ann_box)
 
 		var ann_lbl := Label.new()
-		ann_lbl.text = "📢 İç Duyuru: " + ann_text
+		ann_lbl.text = " İç Duyuru: " + ann_text
 		ann_lbl.add_theme_font_override("font", FontNunitoBold)
 		ann_lbl.add_theme_font_size_override("font_size", 20)
 		ann_lbl.add_theme_color_override("font_color", Color(1.0, 0.92, 0.60))
@@ -379,19 +379,19 @@ func _build_member_view(gs: Node, alliance: Dictionary, player_name: String) -> 
 	tab_bar.add_theme_constant_override("separation", 10)
 	vbox.add_child(tab_bar)
 
-	var t_chat := _make_tab_button("💬 İttifak Sohbeti", _active_tab == "chat")
+	var t_chat := _make_tab_button(" İttifak Sohbeti", _active_tab == "chat")
 	t_chat.pressed.connect(func(): _active_tab = "chat"; refresh_view())
 	tab_bar.add_child(t_chat)
 
-	var t_members := _make_tab_button("👥 Üyeler (%d)" % members.size(), _active_tab == "members")
+	var t_members := _make_tab_button(" Üyeler (%d)" % members.size(), _active_tab == "members")
 	t_members.pressed.connect(func(): _active_tab = "members"; refresh_view())
 	tab_bar.add_child(t_members)
 
-	var t_invite := _make_tab_button("✉️ Davet Gönder", _active_tab == "invite")
+	var t_invite := _make_tab_button("️ Davet Gönder", _active_tab == "invite")
 	t_invite.pressed.connect(func(): _active_tab = "invite"; refresh_view())
 	tab_bar.add_child(t_invite)
 
-	var t_diplomacy := _make_tab_button("🤝 Diplomasi", _active_tab == "diplomacy")
+	var t_diplomacy := _make_tab_button(" Diplomasi", _active_tab == "diplomacy")
 	t_diplomacy.pressed.connect(func(): _active_tab = "diplomacy"; refresh_view())
 	tab_bar.add_child(t_diplomacy)
 
@@ -502,7 +502,7 @@ func _build_chat_tab(parent: Control, gs: Node, alliance: Dictionary, player_nam
 	send_box.add_child(chat_input)
 
 	var send_btn := Button.new()
-	send_btn.text = "Gönder 🚀"
+	send_btn.text = "Gönder "
 	send_btn.custom_minimum_size = Vector2(130, 56)
 	send_btn.add_theme_font_override("font", FontNunitoBold)
 	send_btn.add_theme_font_size_override("font_size", 22)
@@ -558,7 +558,7 @@ func _build_members_tab(parent: Control, gs: Node, alliance: Dictionary, player_
 		card.add_child(hbox)
 
 		var icon_lbl := Label.new()
-		icon_lbl.text = "👑" if m_is_lead else "⚔️"
+		icon_lbl.text = "" if m_is_lead else "️"
 		icon_lbl.add_theme_font_size_override("font_size", 28)
 		hbox.add_child(icon_lbl)
 
@@ -574,7 +574,7 @@ func _build_members_tab(parent: Control, gs: Node, alliance: Dictionary, player_
 		info_vbox.add_child(name_lbl)
 
 		var pts_lbl := Label.new()
-		pts_lbl.text = "⚡ Puan: %d" % m_pts
+		pts_lbl.text = " Puan: %d" % m_pts
 		pts_lbl.add_theme_font_size_override("font_size", 18)
 		pts_lbl.add_theme_color_override("font_color", Color(0.75, 0.72, 0.65))
 		info_vbox.add_child(pts_lbl)
@@ -582,7 +582,7 @@ func _build_members_tab(parent: Control, gs: Node, alliance: Dictionary, player_
 		# Lider diğer üyeleri atabilir
 		if is_leader and m_name != player_name:
 			var kick_btn := Button.new()
-			kick_btn.text = "✕ At"
+			kick_btn.text = " At"
 			kick_btn.custom_minimum_size = Vector2(80, 42)
 			_style_danger_btn(kick_btn)
 			kick_btn.pressed.connect(func():
@@ -628,7 +628,7 @@ func _build_invite_tab(parent: Control, gs: Node, alliance: Dictionary, player_n
 	c_vbox.add_child(msg_lbl)
 
 	var send_inv_btn := Button.new()
-	send_inv_btn.text = "✉️ Davet Gönder"
+	send_inv_btn.text = "️ Davet Gönder"
 	send_inv_btn.custom_minimum_size = Vector2(0, 52)
 	_style_gold_btn(send_inv_btn)
 	send_inv_btn.pressed.connect(func():
@@ -639,11 +639,11 @@ func _build_invite_tab(parent: Control, gs: Node, alliance: Dictionary, player_n
 		if bool(res.get("ok", false)):
 			gs.from_dict(st)
 			_save_game()
-			msg_lbl.text = "✓ %s başarıyla davet edildi!" % target
+			msg_lbl.text = " %s başarıyla davet edildi!" % target
 			msg_lbl.add_theme_color_override("font_color", Color(0.40, 0.90, 0.50))
 			input.text = ""
 		else:
-			msg_lbl.text = "⚠️ " + str(res.get("message", "Hata"))
+			msg_lbl.text = "️ " + str(res.get("message", "Hata"))
 			msg_lbl.add_theme_color_override("font_color", Color(1.0, 0.40, 0.40))
 	)
 	c_vbox.add_child(send_inv_btn)
@@ -668,7 +668,7 @@ func _build_diplomacy_tab(parent: Control, gs: Node, alliance: Dictionary, playe
 	card.add_child(c_vbox)
 
 	var t1 := Label.new()
-	t1.text = "🛡️ Diplomasi İlişkileri"
+	t1.text = "️ Diplomasi İlişkileri"
 	t1.add_theme_font_override("font", FontCinzelBold)
 	t1.add_theme_font_size_override("font_size", 22)
 	t1.add_theme_color_override("font_color", Color(1.0, 0.90, 0.45))

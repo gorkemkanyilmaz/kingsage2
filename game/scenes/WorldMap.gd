@@ -123,9 +123,9 @@ func _style_header() -> void:
 	if gs != null and AllianceModelScript != null:
 		var p_ally: Dictionary = AllianceModelScript.get_player_alliance(gs.to_dict(), player_name)
 		if not p_ally.is_empty():
-			ally_info = "  •  🛡️ [%s] %s" % [str(p_ally.get("tag", "")), str(p_ally.get("name", ""))]
+			ally_info = "  •  ️ [%s] %s" % [str(p_ally.get("tag", "")), str(p_ally.get("name", ""))]
 		else:
-			ally_info = "  •  🛡️ İttifak: Yok"
+			ally_info = "  •  ️ İttifak: Yok"
 
 	title.text = "Dünya Haritası" + ally_info
 	title.add_theme_font_override("font", FontNunitoBold)
@@ -164,7 +164,7 @@ func _style_header() -> void:
 				le.add_theme_stylebox_override("normal", sb_box)
 				le.add_theme_stylebox_override("focus", sb_box)
 
-	btn_goto.text = "🔍 Git"
+	btn_goto.text = " Git"
 	btn_goto.custom_minimum_size = Vector2(130, 52)
 	btn_goto.add_theme_font_override("font", FontNunitoBold)
 	btn_goto.add_theme_font_size_override("font_size", 24)
@@ -817,11 +817,11 @@ func _on_draw_movements() -> void:
 		movements_layer.draw_circle(current_march_pos, token_radius, Color(0.10, 0.09, 0.14, 0.96))
 		movements_layer.draw_arc(current_march_pos, token_radius, 0.0, TAU, 32, line_color, 3.0, true)
 
-		var icon_str := "⚔️"
+		var icon_str := "️"
 		if is_returning:
 			icon_str = "↩️"
 		elif is_trade:
-			icon_str = "🐴"
+			icon_str = ""
 
 		movements_layer.draw_string(FontNunitoBold, current_march_pos + Vector2(-12, 8), icon_str, HORIZONTAL_ALIGNMENT_CENTER, -1, 24)
 
@@ -832,9 +832,9 @@ func _on_draw_movements() -> void:
 		if is_returning:
 			banner_txt = "↩️ Dönüş: " + time_str
 		elif is_trade:
-			banner_txt = "🐴 Katır: " + time_str
+			banner_txt = " Katır: " + time_str
 		else:
-			banner_txt = "⚔️ Varış: " + time_str
+			banner_txt = "️ Varış: " + time_str
 
 		var banner_w := 240.0
 		var banner_h := 46.0
@@ -884,7 +884,7 @@ func _setup_movement_status_bar() -> void:
 	hbox.add_child(movement_status_label)
 
 	var btn_track := Button.new()
-	btn_track.text = "🎯 Takip Et"
+	btn_track.text = " Takip Et"
 	btn_track.custom_minimum_size = Vector2(120, 42)
 	btn_track.add_theme_font_override("font", FontNunitoBold)
 	btn_track.add_theme_font_size_override("font_size", 18)
@@ -892,7 +892,7 @@ func _setup_movement_status_bar() -> void:
 	hbox.add_child(btn_track)
 
 	var btn_detail := Button.new()
-	btn_detail.text = "⚔️ Detay & İptal"
+	btn_detail.text = "️ Detay & İptal"
 	btn_detail.custom_minimum_size = Vector2(150, 42)
 	btn_detail.add_theme_font_override("font", FontNunitoBold)
 	btn_detail.add_theme_font_size_override("font_size", 18)
@@ -958,10 +958,10 @@ func _refresh_movement_status_bar() -> void:
 		movement_status_label.text = "↩️ Birlik Dönüş Yolunda! Üsse Kalan Süre: %s (Toplam %d)" % [time_str, my_movements.size()]
 		movement_status_label.add_theme_color_override("font_color", Color(0.3, 0.9, 1.0))
 	elif is_trade:
-		movement_status_label.text = "🐴 Katır Kervanı Sevkiyatta! Kalan Süre: %s (Toplam %d)" % [time_str, my_movements.size()]
+		movement_status_label.text = " Katır Kervanı Sevkiyatta! Kalan Süre: %s (Toplam %d)" % [time_str, my_movements.size()]
 		movement_status_label.add_theme_color_override("font_color", Color(1.0, 0.85, 0.3))
 	else:
-		movement_status_label.text = "⚔️ Ordu Seferde! Hedefe Kalan Süre: %s (Toplam %d)" % [time_str, my_movements.size()]
+		movement_status_label.text = "️ Ordu Seferde! Hedefe Kalan Süre: %s (Toplam %d)" % [time_str, my_movements.size()]
 		movement_status_label.add_theme_color_override("font_color", Color(1.0, 0.5, 0.3))
 
 
@@ -1100,7 +1100,7 @@ func _create_movement_detail_panel() -> void:
 	# 1) Üst Başlık & Kapat Butonu
 	var header_hbox := HBoxContainer.new()
 	_detail_title_lbl = Label.new()
-	_detail_title_lbl.text = "⚔️ Sefer Detayları"
+	_detail_title_lbl.text = "️ Sefer Detayları"
 	_detail_title_lbl.add_theme_font_override("font", FontNunitoBold)
 	_detail_title_lbl.add_theme_font_size_override("font_size", 30)
 	_detail_title_lbl.add_theme_constant_override("outline_size", 3)
@@ -1110,7 +1110,7 @@ func _create_movement_detail_panel() -> void:
 	header_hbox.add_child(_detail_title_lbl)
 
 	var btn_close := Button.new()
-	btn_close.text = "✕"
+	btn_close.text = ""
 	btn_close.custom_minimum_size = Vector2(50, 50)
 	btn_close.add_theme_font_override("font", FontNunitoBold)
 	btn_close.add_theme_font_size_override("font_size", 28)
@@ -1192,7 +1192,7 @@ func _create_movement_detail_panel() -> void:
 
 	# 4) Seferdeki Birlikler Başlığı ve Izgara
 	var units_title := Label.new()
-	units_title.text = "🛡️ Seferdeki Birlikler / Sevkiyat:"
+	units_title.text = "️ Seferdeki Birlikler / Sevkiyat:"
 	units_title.add_theme_font_override("font", FontNunitoBold)
 	units_title.add_theme_font_size_override("font_size", 24)
 	units_title.add_theme_constant_override("outline_size", 3)
@@ -1226,7 +1226,7 @@ func _create_movement_detail_panel() -> void:
 	btns_hbox.add_theme_constant_override("separation", 16)
 
 	_detail_btn_cancel = Button.new()
-	_detail_btn_cancel.text = "❌ Saldırıyı İptal Et (Geri Çağır)"
+	_detail_btn_cancel.text = " Saldırıyı İptal Et (Geri Çağır)"
 	_detail_btn_cancel.custom_minimum_size = Vector2(0, 56)
 	_detail_btn_cancel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_detail_btn_cancel.add_theme_font_override("font", FontNunitoBold)
@@ -1298,9 +1298,9 @@ func _refresh_movement_detail_content() -> void:
 	if is_returning:
 		_detail_title_lbl.text = "↩️ Birlik Dönüş Hareketi Detayı"
 	elif is_trade:
-		_detail_title_lbl.text = "🐴 Katır Kervanı Sevkiyat Detayı"
+		_detail_title_lbl.text = " Katır Kervanı Sevkiyat Detayı"
 	else:
-		_detail_title_lbl.text = "⚔️ Ordu Seferi Detayları (Saldırı)"
+		_detail_title_lbl.text = "️ Ordu Seferi Detayları (Saldırı)"
 
 	var from_id := int(m.get("from_village_id", m.get("village_id", 0)))
 	var to_id := int(m.get("to_village_id", 0))
@@ -1316,11 +1316,11 @@ func _refresh_movement_detail_content() -> void:
 	var tgt_y: int = int(target_v.get("y", m.get("to_y", 0)))
 
 	if is_returning:
-		_detail_route_lbl.text = "🚩 Konum: (%.1f|%.1f) ➜ 🏰 Üs: %s (%d|%d)" % [float(m.get("from_x", orig_x)), float(m.get("from_y", orig_y)), orig_name, orig_x, orig_y]
+		_detail_route_lbl.text = " Konum: (%.1f|%.1f)   Üs: %s (%d|%d)" % [float(m.get("from_x", orig_x)), float(m.get("from_y", orig_y)), orig_name, orig_x, orig_y]
 		_detail_status_lbl.text = "● Durum: Köye Geri Dönüyor"
 		_detail_status_lbl.add_theme_color_override("font_color", Color(0.35, 0.90, 1.0))
 	else:
-		_detail_route_lbl.text = "🏰 Çıkış: %s (%d|%d) ➜ 🎯 Hedef: %s (%d|%d)" % [orig_name, orig_x, orig_y, tgt_name, tgt_x, tgt_y]
+		_detail_route_lbl.text = " Çıkış: %s (%d|%d)   Hedef: %s (%d|%d)" % [orig_name, orig_x, orig_y, tgt_name, tgt_x, tgt_y]
 		_detail_status_lbl.text = "● Durum: Hedefe İlerliyor"
 		_detail_status_lbl.add_theme_color_override("font_color", Color(1.0, 0.50, 0.30))
 
@@ -1351,7 +1351,7 @@ func _refresh_movement_detail_content() -> void:
 
 			var plbl := Label.new()
 			var u_tr: String = UNIT_NAMES_MAP.get(u_key, u_key)
-			plbl.text = "⚔️ %s: %d" % [u_tr, count]
+			plbl.text = "️ %s: %d" % [u_tr, count]
 			plbl.add_theme_font_override("font", FontNunitoBold)
 			plbl.add_theme_font_size_override("font_size", 22)
 			plbl.add_theme_constant_override("outline_size", 3)
@@ -1379,7 +1379,7 @@ func _refresh_movement_detail_content() -> void:
 
 				var plbl := Label.new()
 				var r_tr := "Odun" if r_key == "wood" else ("Taş" if r_key == "stone" else "Demir")
-				var r_icon := "🌲" if r_key == "wood" else ("🪨" if r_key == "stone" else "⛏️")
+				var r_icon := "" if r_key == "wood" else ("" if r_key == "stone" else "️")
 				plbl.text = "%s %s: %d" % [r_icon, r_tr, amt]
 				plbl.add_theme_font_override("font", FontNunitoBold)
 				plbl.add_theme_font_size_override("font_size", 22)
@@ -1402,7 +1402,7 @@ func _refresh_movement_detail_content() -> void:
 		_detail_cancel_note.show()
 	else:
 		_detail_btn_cancel.show()
-		_detail_cancel_note.text = "⚠️ İptal edildiğinde birlikler bulundukları noktadan derhal üsse geri dönerler."
+		_detail_cancel_note.text = "️ İptal edildiğinde birlikler bulundukları noktadan derhal üsse geri dönerler."
 		_detail_cancel_note.show()
 
 

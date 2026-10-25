@@ -175,11 +175,11 @@ func refresh() -> void:
 
 		var count_str := " [%d/%d]" % [cur_idx, total_vills] if total_vills > 1 else ""
 		var v_name := str(v.get("name", "Başkent"))
-		village_name_label.text = "👑 %s | 🏰 %s (%d|%d)%s" % [user_name, v_name, int(v.get("x", 0)), int(v.get("y", 0)), count_str]
+		village_name_label.text = "%s | %s (%d|%d)%s" % [user_name, v_name, int(v.get("x", 0)), int(v.get("y", 0)), count_str]
 		village_name_label.tooltip_text = ""
 
 	if points_label != null:
-		points_label.text = "👑 %d" % int(v.get("points", 0))
+		points_label.text = "%d P" % int(v.get("points", 0))
 		points_label.tooltip_text = "Köy Puanı: %d" % int(v.get("points", 0))
 
 	var res: Dictionary = v.get("resources", {})

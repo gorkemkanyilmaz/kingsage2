@@ -153,7 +153,9 @@ func _ensure_nodes() -> void:
 		queue_hud = find_child("QueueHUD", true, false) as PanelContainer
 		queue_title = find_child("TitleLabel", true, false) as Label
 		queue_list = find_child("QueueList", true, false) as VBoxContainer
-		if has_node("VillageArea/Background"):
+		if has_node("Background"):
+			background = $Background
+		elif has_node("VillageArea/Background"):
 			background = $VillageArea/Background
 
 
@@ -203,6 +205,8 @@ func _ready() -> void:
 	if village_area != null:
 		village_area.position = Vector2(0.0, BASE_OFFSET_Y)
 		_clamp_village_area()
+		if not get_viewport().size_changed.is_connected(_clamp_village_area):
+			get_viewport().size_changed.connect(_clamp_village_area)
 
 	building_panel.hide()
 	if not building_panel.building_switched.is_connected(_on_building_selected):
@@ -448,19 +452,19 @@ func refresh_all() -> void:
 
 func _get_building_icon(key: String) -> String:
 	match key:
-		"main": return "🏰"
+		"main": return ""
 		"wood": return "🪓"
 		"stone": return "⛏️"
 		"iron": return "⚒️"
 		"storage": return "📦"
 		"hide": return "🗝️"
 		"farm": return "🌾"
-		"barracks": return "🛡️"
+		"barracks": return ""
 		"wall": return "🧱"
 		"market": return "⚖️"
 		"stable": return "🐴"
 		"garage": return "🧪"
-		"snob": return "👑"
+		"snob": return ""
 		"smith": return "💍"
 		"statue": return "🗿"
 		_: return "🏠"
@@ -559,7 +563,7 @@ func _update_queue_ui() -> void:
 		queue_title.text = "🚨 ALARM: %d Düşman Saldırısı! | Aktiviteler (%d)" % [incoming_count, activities.size()]
 		queue_title.add_theme_color_override("font_color", Color(1.0, 0.40, 0.40))
 	else:
-		queue_title.text = "🏰 Aktiviteler ve Askeri Durum (%d)" % activities.size()
+		queue_title.text = " Aktiviteler ve Askeri Durum (%d)" % activities.size()
 		queue_title.add_theme_color_override("font_color", Color(1.0, 0.92, 0.45))
 
 	while queue_list.get_child_count() > activities.size():
@@ -683,7 +687,7 @@ func _bind_queue_row(row: HBoxContainer, activity: Dictionary, now: int) -> void
 			time_lbl.add_theme_color_override("font_color", Color(1.0, 0.35, 0.35))
 			progress.value = pct
 
-			cancel_btn.text = "🛡️ Alarm!"
+			cancel_btn.text = " Alarm!"
 			cancel_btn.disabled = true
 			var dis_sb := StyleBoxFlat.new()
 			dis_sb.bg_color = Color(0.40, 0.12, 0.12, 0.8)
@@ -705,7 +709,7 @@ func _bind_queue_row(row: HBoxContainer, activity: Dictionary, now: int) -> void
 				icon_name_lbl.text = "↩️ Ordu Dönüyor (#%d)" % to_id
 				icon_name_lbl.add_theme_color_override("font_color", Color(0.80, 0.85, 0.95))
 			else:
-				icon_name_lbl.text = "⚔️ Sefer: Hedef Köy #%d" % to_id
+				icon_name_lbl.text = " Sefer: Hedef Köy #%d" % to_id
 				icon_name_lbl.add_theme_color_override("font_color", Color(1.0, 0.85, 0.40))
 
 			time_lbl.text = "%02d:%02d" % [rem / 60, rem % 60]
@@ -713,7 +717,7 @@ func _bind_queue_row(row: HBoxContainer, activity: Dictionary, now: int) -> void
 			progress.value = pct
 
 			var can_cancel := (m_state == "outgoing" and (now - dep_u) <= 90)
-			cancel_btn.text = "↩️ Çek" if can_cancel else "⚔️ Seferde"
+			cancel_btn.text = "↩️ Çek" if can_cancel else " Seferde"
 			cancel_btn.disabled = not can_cancel
 
 			var old_meta = cancel_btn.get_meta("act_key", "")
@@ -793,7 +797,7 @@ func _bind_queue_row(row: HBoxContainer, activity: Dictionary, now: int) -> void
 			var rem := maxi(0, finish - now)
 			var pct := clampf(float(total_dur - rem) / float(total_dur) * 100.0, 0.0, 100.0)
 
-			icon_name_lbl.text = "⚔️ %d %s (Eğitim)" % [count, u_name]
+			icon_name_lbl.text = " %d %s (Eğitim)" % [count, u_name]
 			icon_name_lbl.add_theme_color_override("font_color", Color(0.60, 1.0, 0.65))
 			time_lbl.text = "%02d:%02d" % [rem / 60, rem % 60]
 			time_lbl.add_theme_color_override("font_color", Color(0.50, 0.95, 0.60))
@@ -867,103 +871,27 @@ func _on_building_dragged(rel: Vector2) -> void:
 	_pan_by(rel)
 
 
-func _unhandled_input(event: InputEvent) -> void:
-	if event is InputEventMouseButton:
-		var mb := event as InputEventMouseButton
-		if mb.button_index == MOUSE_BUTTON_WHEEL_UP and mb.pressed:
-			_apply_zoom(0.12, mb.position)
-		elif mb.button_index == MOUSE_BUTTON_WHEEL_DOWN and mb.pressed:
-			_apply_zoom(-0.12, mb.position)
-		elif mb.button_index == MOUSE_BUTTON_LEFT or mb.button_index == MOUSE_BUTTON_RIGHT:
-			if mb.pressed:
-				_is_panning = true
-				_pan_start_mouse = mb.position
-				_pan_start_pos = village_area.position if village_area != null else Vector2(0.0, BASE_OFFSET_Y)
-			else:
-				_is_panning = false
-	elif event is InputEventMouseMotion:
-		var mm := event as InputEventMouseMotion
-		if _is_panning:
-			_pan_by(mm.relative)
-	elif event is InputEventScreenTouch:
-		var st := event as InputEventScreenTouch
-		if st.pressed:
-			_active_touches[st.index] = st.position
-			if _active_touches.size() == 1:
-				_is_panning = true
-				_pan_start_mouse = st.position
-				_pan_start_pos = village_area.position if village_area != null else Vector2(0.0, BASE_OFFSET_Y)
-			elif _active_touches.size() == 2:
-				_is_panning = false
-				var vals = _active_touches.values()
-				_prev_touch_dist = (vals[0] as Vector2).distance_to(vals[1] as Vector2)
-		else:
-			_active_touches.erase(st.index)
-			if _active_touches.size() < 2:
-				_prev_touch_dist = 0.0
-			if _active_touches.size() == 0:
-				_is_panning = false
-	elif event is InputEventScreenDrag:
-		var sd := event as InputEventScreenDrag
-		if _active_touches.has(sd.index):
-			_active_touches[sd.index] = sd.position
-		if _active_touches.size() >= 2:
-			var vals = _active_touches.values()
-			var p0: Vector2 = vals[0]
-			var p1: Vector2 = vals[1]
-			var cur_dist: float = p0.distance_to(p1)
-			if _prev_touch_dist > 0.0:
-				var diff: float = cur_dist - _prev_touch_dist
-				var focal: Vector2 = (p0 + p1) * 0.5
-				_apply_zoom(diff * 0.003, focal)
-			_prev_touch_dist = cur_dist
-		elif _is_panning and _active_touches.size() == 1:
-			_pan_by(sd.relative)
+func _unhandled_input(_event: InputEvent) -> void:
+	# Kullanıcı isteği: Köy içerisinde pan ve zoom devre dışı, en yukarı kilitli
+	pass
 
 
-func _pan_by(rel: Vector2) -> void:
-	if village_area == null:
-		return
-	village_area.position += rel
-	_clamp_village_area()
+func _pan_by(_rel: Vector2) -> void:
+	pass
 
 
-func _apply_zoom(delta_zoom: float, focal: Vector2) -> void:
-	if village_area == null:
-		return
-	var target_zoom := clampf(_current_zoom + delta_zoom, MIN_ZOOM, MAX_ZOOM)
-	if is_equal_approx(target_zoom, _current_zoom):
-		return
-	var ratio := target_zoom / _current_zoom
-	var new_pos := focal - (focal - village_area.position) * ratio
-	_current_zoom = target_zoom
-	village_area.scale = Vector2(_current_zoom, _current_zoom)
-	village_area.position = new_pos
-	_clamp_village_area()
+func _apply_zoom(_delta_zoom: float, _focal: Vector2) -> void:
+	pass
 
 
 func _clamp_village_area() -> void:
 	if village_area == null:
 		return
 	var vp_size := get_viewport_rect().size if is_inside_tree() else Vector2(1080, 1920)
-	if vp_size.x <= 0 or vp_size.y <= 0:
-		vp_size = Vector2(1080, 1920)
-	var scaled_size := Vector2(1080, 1920) * _current_zoom
-
-	var min_x := minf(0.0, vp_size.x - scaled_size.x)
-	var max_x := maxf(0.0, (vp_size.x - scaled_size.x) * 0.5) if scaled_size.x <= vp_size.x else 0.0
-
-	var min_y := minf(BASE_OFFSET_Y, (vp_size.y - 116.0) - scaled_size.y)
-	var max_y := BASE_OFFSET_Y
-
-	village_area.position.x = clampf(village_area.position.x, min_x, max_x)
-	village_area.position.y = clampf(village_area.position.y, min_y, max_y)
+	var center_x := maxf(0.0, (vp_size.x - 1080.0) * 0.5)
+	village_area.scale = Vector2.ONE
+	village_area.position = Vector2(center_x, BASE_OFFSET_Y)
 
 
 func _reset_view() -> void:
-	if village_area == null:
-		return
-	var t := create_tween().set_parallel(true)
-	t.tween_property(village_area, "scale", Vector2(1.0, 1.0), 0.25).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
-	t.tween_property(village_area, "position", Vector2(0.0, BASE_OFFSET_Y), 0.25).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
-	_current_zoom = 1.0
+	_clamp_village_area()

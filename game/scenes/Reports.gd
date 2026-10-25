@@ -14,17 +14,17 @@ const ICON_TRADE := "res://assets/sprites/icons/cartography/2x/chest.png"
 const ICON_EMPTY := "res://assets/sprites/icons/cartography/2x/chest.png"
 
 const UNIT_ICONS := {
-	"farmer": "🧑‍🌾",
-	"spear": "🛡️",
-	"sword": "⚔️",
-	"axe": "🪓",
-	"bow": "🏹",
-	"spy": "🕵️",
-	"light": "🐎",
-	"heavy": "♞",
-	"ram": "🪵",
-	"kata": "🎯",
-	"snob": "👑",
+	"farmer": "‍",
+	"spear": "️",
+	"sword": "️",
+	"axe": "",
+	"bow": "",
+	"spy": "️",
+	"light": "",
+	"heavy": "",
+	"ram": "",
+	"kata": "",
+	"snob": "",
 }
 
 const UNIT_NAMES_TR := {
@@ -149,25 +149,25 @@ func _select_tab(tab_name: String) -> void:
 	var subtitle_lbl = find_child("Subtitle", true, false) as Label
 
 	if tab_name == "reports":
-		if title_lbl != null: title_lbl.text = "📜 Savaş & İstihbarat Raporları"
+		if title_lbl != null: title_lbl.text = " Savaş & İstihbarat Raporları"
 		if subtitle_lbl != null: subtitle_lbl.text = "Muharebeler, casusluk ve ticaret"
 		if btn_tab_reports != null:
 			btn_tab_reports.visible = true
-			btn_tab_reports.text = "📜 Tüm Raporlar"
+			btn_tab_reports.text = " Tüm Raporlar"
 		if btn_tab_messages != null: btn_tab_messages.visible = false
 		if btn_tab_new_message != null: btn_tab_new_message.visible = false
 		_style_tab_btn(btn_tab_reports, true)
 	else:
-		if title_lbl != null: title_lbl.text = "✉️ Lord Mektupları & Mesajlar"
+		if title_lbl != null: title_lbl.text = "️ Lord Mektupları & Mesajlar"
 		if subtitle_lbl != null: subtitle_lbl.text = "Krallıklar arası diplomasi"
 		if btn_tab_reports != null: btn_tab_reports.visible = false
 		if btn_tab_messages != null:
 			btn_tab_messages.visible = true
-			btn_tab_messages.text = "✉️ Gelen Kutusu"
+			btn_tab_messages.text = "️ Gelen Kutusu"
 			_style_tab_btn(btn_tab_messages, tab_name == "messages")
 		if btn_tab_new_message != null:
 			btn_tab_new_message.visible = true
-			btn_tab_new_message.text = "✍️ Yeni Mektup Yaz"
+			btn_tab_new_message.text = "️ Yeni Mektup Yaz"
 			_style_tab_btn(btn_tab_new_message, tab_name == "new_message")
 
 	if tab_name == "new_message":
@@ -264,15 +264,15 @@ func _on_send_message_pressed() -> void:
 	var body := body_input.text.strip_edges()
 
 	if to_player.is_empty():
-		status_label.text = "⚠️ Lütfen alıcı lordun adını giriniz."
+		status_label.text = "️ Lütfen alıcı lordun adını giriniz."
 		status_label.add_theme_color_override("font_color", Color(1.0, 0.35, 0.35))
 		return
 	if subj.is_empty():
-		status_label.text = "⚠️ Lütfen bir konu başlığı giriniz."
+		status_label.text = "️ Lütfen bir konu başlığı giriniz."
 		status_label.add_theme_color_override("font_color", Color(1.0, 0.35, 0.35))
 		return
 	if body.is_empty():
-		status_label.text = "⚠️ Mesaj içeriği boş bırakılamaz."
+		status_label.text = "️ Mesaj içeriği boş bırakılamaz."
 		status_label.add_theme_color_override("font_color", Color(1.0, 0.35, 0.35))
 		return
 
@@ -316,7 +316,7 @@ func _on_send_message_pressed() -> void:
 	recipient_input.text = ""
 	subject_input.text = ""
 	body_input.text = ""
-	status_label.text = "✓ Mektubunuz ulağa teslim edildi!"
+	status_label.text = " Mektubunuz ulağa teslim edildi!"
 	status_label.add_theme_color_override("font_color", Color(0.40, 0.90, 0.50))
 
 	_select_tab("messages")
@@ -363,13 +363,13 @@ func _populate_messages() -> void:
 		var is_outgoing := (from_user == player_name and to_user != player_name)
 		var title := ""
 		if is_outgoing:
-			title = "📤 Kime: %s | %s" % [to_user, subj]
+			title = " Kime: %s | %s" % [to_user, subj]
 		else:
 			title = "%s: %s" % [from_user, subj]
 			if not is_read:
-				title = "✉️ (Yeni) " + title
+				title = "️ (Yeni) " + title
 			else:
-				title = "📩 " + title
+				title = " " + title
 
 		var subtitle := "Tarih: %s   |   Alıcı: %s" % [dt, to_user]
 		var accent := Color(0.95, 0.85, 0.40) if (not is_read and not is_outgoing) else Color(0.60, 0.55, 0.50)
@@ -383,14 +383,14 @@ func _make_empty_messages_state() -> Control:
 	box.add_theme_constant_override("separation", 16)
 
 	var lbl := Label.new()
-	lbl.text = "✉️ Henüz gelen veya giden bir mektup bulunmuyor."
+	lbl.text = "️ Henüz gelen veya giden bir mektup bulunmuyor."
 	lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	lbl.add_theme_font_size_override("font_size", 24)
 	lbl.add_theme_color_override("font_color", Color(0.65, 0.60, 0.52))
 	box.add_child(lbl)
 
 	var sub := Label.new()
-	sub.text = "'✍️ Yeni Mesaj' sekmesinden diğer lordlara mektup gönderebilirsiniz."
+	sub.text = "'️ Yeni Mesaj' sekmesinden diğer lordlara mektup gönderebilirsiniz."
 	sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	sub.add_theme_font_size_override("font_size", 20)
 	sub.add_theme_color_override("font_color", Color(0.50, 0.46, 0.40))
@@ -427,7 +427,7 @@ func _show_message_detail(msg: Dictionary) -> void:
 	m_card.add_child(mc_vbox)
 
 	var subj_lbl := Label.new()
-	subj_lbl.text = "✉️ " + str(msg.get("subject", "Konusuz"))
+	subj_lbl.text = "️ " + str(msg.get("subject", "Konusuz"))
 	subj_lbl.add_theme_font_override("font", FontCinzelBold)
 	subj_lbl.add_theme_font_size_override("font_size", 28)
 	subj_lbl.add_theme_color_override("font_color", Color(1.0, 0.90, 0.45))
@@ -548,7 +548,7 @@ func _populate_reports() -> void:
 
 		var is_unread := bool(r.get("unread", false))
 		if is_unread:
-			title = "🔴 " + title
+			title = " " + title
 
 		var subtitle := Time.get_datetime_string_from_unix_time(int(r.get("unix", 0)))
 		report_list.add_child(_make_card(icon, title, subtitle, accent, func(): _show_detail(r)))
@@ -640,7 +640,7 @@ func _make_card(icon_path: String, title: String, subtitle: String, accent: Colo
 	row.add_child(info)
 
 	var chevron := Label.new()
-	chevron.text = "❯"
+	chevron.text = ""
 	chevron.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	chevron.add_theme_font_size_override("font_size", 28)
 	chevron.add_theme_color_override("font_color", Color(0.52, 0.44, 0.32))
@@ -728,7 +728,7 @@ func _render_battle_report(parent: Control, rep: Dictionary) -> void:
 	banner_vbox.add_theme_constant_override("separation", 6)
 
 	var title_lbl := Label.new()
-	title_lbl.text = ("🏆 ZAFER!" if attacker_won else "💀 YENİLGİ") if not is_raid else ("⚔️ YAĞMA AKINI TAMAMLANDI" if attacker_won else "🛡️ YAĞMA PÜSKÜRTÜLDÜ")
+	title_lbl.text = (" ZAFER!" if attacker_won else " YENİLGİ") if not is_raid else ("️ YAĞMA AKINI TAMAMLANDI" if attacker_won else "️ YAĞMA PÜSKÜRTÜLDÜ")
 	title_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title_lbl.add_theme_font_override("font", FontNunitoBold)
 	title_lbl.add_theme_font_size_override("font_size", 38)
@@ -739,7 +739,7 @@ func _render_battle_report(parent: Control, rep: Dictionary) -> void:
 
 	var subtitle_lbl := Label.new()
 	if conquered:
-		subtitle_lbl.text = "👑 KÖY BAŞARIYLA FETHEDİLDİ VE KRALLIĞINIZA KATILDI!"
+		subtitle_lbl.text = " KÖY BAŞARIYLA FETHEDİLDİ VE KRALLIĞINIZA KATILDI!"
 	elif attacker_won:
 		subtitle_lbl.text = "Düşman hatları yarıldı, garnizon ezildi ve zafer kazanıldı!"
 	else:
@@ -757,9 +757,9 @@ func _render_battle_report(parent: Control, rep: Dictionary) -> void:
 	var morale: float = float(data.get("morale", raw.get("morale", 1.0)))
 	var luck: float = float(data.get("luck", raw.get("luck", 0.0)))
 
-	var p_morale := _make_pill("⚔️ Moral: %%%d" % int(round(morale * 100.0)), Color(0.2, 0.25, 0.35, 0.85))
-	var p_luck := _make_pill("🍀 Şans: %+d%%" % int(round(luck * 100.0)), Color(0.15, 0.35, 0.20, 0.85) if luck >= 0 else Color(0.4, 0.18, 0.18, 0.85))
-	var p_time := _make_pill("📅 " + Time.get_datetime_string_from_unix_time(int(rep.get("unix", 0))), Color(0.18, 0.16, 0.22, 0.85))
+	var p_morale := _make_pill("️ Moral: %%%d" % int(round(morale * 100.0)), Color(0.2, 0.25, 0.35, 0.85))
+	var p_luck := _make_pill(" Şans: %+d%%" % int(round(luck * 100.0)), Color(0.15, 0.35, 0.20, 0.85) if luck >= 0 else Color(0.4, 0.18, 0.18, 0.85))
+	var p_time := _make_pill(" " + Time.get_datetime_string_from_unix_time(int(rep.get("unix", 0))), Color(0.18, 0.16, 0.22, 0.85))
 
 	stats_hbox.add_child(p_morale)
 	stats_hbox.add_child(p_luck)
@@ -776,19 +776,19 @@ func _render_battle_report(parent: Control, rep: Dictionary) -> void:
 	var duel_box := HBoxContainer.new()
 	duel_box.add_theme_constant_override("separation", 14)
 
-	var att_card := _make_side_card("👑 SALDIRAN", att_name, Color(0.18, 0.35, 0.60, 0.9))
+	var att_card := _make_side_card(" SALDIRAN", att_name, Color(0.18, 0.35, 0.60, 0.9))
 	att_card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	duel_box.add_child(att_card)
 
 	var vs_lbl := Label.new()
-	vs_lbl.text = "⚔️ VS 🛡️"
+	vs_lbl.text = "️ VS ️"
 	vs_lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	vs_lbl.add_theme_font_override("font", FontNunitoBold)
 	vs_lbl.add_theme_font_size_override("font_size", 28)
 	vs_lbl.add_theme_color_override("font_color", Color(1.0, 0.85, 0.40))
 	duel_box.add_child(vs_lbl)
 
-	var def_card := _make_side_card("🏰 SAVUNAN", def_name, Color(0.55, 0.22, 0.20, 0.9))
+	var def_card := _make_side_card(" SAVUNAN", def_name, Color(0.55, 0.22, 0.20, 0.9))
 	def_card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	duel_box.add_child(def_card)
 
@@ -831,7 +831,7 @@ func _render_battle_report(parent: Control, rep: Dictionary) -> void:
 		wall_box.add_theme_stylebox_override("panel", w_sb)
 
 		var w_lbl := Label.new()
-		w_lbl.text = "🧱 SUR HASARI: Şahmerdanlar surlara vurdu! (Seviye %d ➔ Seviye %d | Hasar: %%%d)" % [wall_before, wall_after, int(round(wall_pct))]
+		w_lbl.text = " SUR HASARI: Şahmerdanlar surlara vurdu! (Seviye %d  Seviye %d | Hasar: %%%d)" % [wall_before, wall_after, int(round(wall_pct))]
 		w_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		w_lbl.add_theme_font_override("font", FontNunitoBold)
 		w_lbl.add_theme_font_size_override("font_size", 24)
@@ -925,7 +925,7 @@ func _make_army_table_card(header: String, units: Dictionary, losses: Dictionary
 		var total_count: int = int(units.get(u_key, 0))
 		var lost_count: int = int(losses.get(u_key, 0))
 		var rem_count: int = int(alive.get(u_key, maxi(0, total_count - lost_count)))
-		var u_icon: String = str(UNIT_ICONS.get(u_key, "🛡️"))
+		var u_icon: String = str(UNIT_ICONS.get(u_key, "️"))
 		var u_name: String = str(UNIT_NAMES_TR.get(u_key, u_key))
 
 		var u_card := PanelContainer.new()
@@ -956,9 +956,9 @@ func _make_army_table_card(header: String, units: Dictionary, losses: Dictionary
 		u_vb.add_child(title_row)
 
 		# 3 gösterge: Gönderilen, Kayıp, Kalan
-		var row_sent := _make_stat_line("🔵 Mevcut:", str(total_count), Color(0.70, 0.85, 1.0))
-		var row_lost := _make_stat_line("🔴 Kayıp:", "-%d" % lost_count, Color(1.0, 0.45, 0.45) if lost_count > 0 else Color(0.6, 0.6, 0.6))
-		var row_rem := _make_stat_line("🟢 Kalan:", str(rem_count), Color(0.55, 1.0, 0.65))
+		var row_sent := _make_stat_line(" Mevcut:", str(total_count), Color(0.70, 0.85, 1.0))
+		var row_lost := _make_stat_line(" Kayıp:", "-%d" % lost_count, Color(1.0, 0.45, 0.45) if lost_count > 0 else Color(0.6, 0.6, 0.6))
+		var row_rem := _make_stat_line(" Kalan:", str(rem_count), Color(0.55, 1.0, 0.65))
 
 		u_vb.add_child(row_sent)
 		u_vb.add_child(row_lost)
@@ -1004,7 +1004,7 @@ func _make_loot_card(loot: Dictionary, carry_cap: int) -> PanelContainer:
 	vb.add_theme_constant_override("separation", 10)
 
 	var h_lbl := Label.new()
-	h_lbl.text = "📦 ELE GEÇİRİLEN GANİMET & YAĞMA"
+	h_lbl.text = " ELE GEÇİRİLEN GANİMET & YAĞMA"
 	h_lbl.add_theme_font_override("font", FontNunitoBold)
 	h_lbl.add_theme_font_size_override("font_size", 26)
 	h_lbl.add_theme_color_override("font_color", Color(1.0, 0.92, 0.70))
@@ -1116,7 +1116,7 @@ func _render_spy_report(parent: Control, rep: Dictionary) -> void:
 
 	var vb := VBoxContainer.new()
 	var t_lbl := Label.new()
-	t_lbl.text = "🕵️ CASUSLUK VE İSTİHBARAT RAPORU"
+	t_lbl.text = "️ CASUSLUK VE İSTİHBARAT RAPORU"
 	t_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	t_lbl.add_theme_font_override("font", FontNunitoBold)
 	t_lbl.add_theme_font_size_override("font_size", 32)
@@ -1165,7 +1165,7 @@ func _render_spy_report(parent: Control, rep: Dictionary) -> void:
 		var b_vb := VBoxContainer.new()
 		b_vb.add_theme_constant_override("separation", 10)
 		var b_title := Label.new()
-		b_title.text = "🏛️ KEŞFEDİLEN BİNALAR VE SEVİYELERİ"
+		b_title.text = "️ KEŞFEDİLEN BİNALAR VE SEVİYELERİ"
 		b_title.add_theme_font_override("font", FontNunitoBold)
 		b_title.add_theme_font_size_override("font_size", 26)
 		b_title.add_theme_color_override("font_color", Color(1.0, 0.92, 0.70))
@@ -1198,7 +1198,7 @@ func _render_spy_report(parent: Control, rep: Dictionary) -> void:
 
 	# Dışarıdaki birlikler (KingsAge: %70+ casus sağ kalımı ve creeping değilse)
 	if data.has("outside_units") and not (data["outside_units"] as Dictionary).is_empty():
-		var out_card := _make_army_table_card("🗺️ Dışarıdaki / Seferdeki Birlikler", data["outside_units"], {}, data["outside_units"], Color(0.45, 0.30, 0.20))
+		var out_card := _make_army_table_card("️ Dışarıdaki / Seferdeki Birlikler", data["outside_units"], {}, data["outside_units"], Color(0.45, 0.30, 0.20))
 		parent.add_child(out_card)
 
 
@@ -1215,7 +1215,7 @@ func _render_trade_report(parent: Control, rep: Dictionary) -> void:
 
 	var vb := VBoxContainer.new()
 	var t_lbl := Label.new()
-	t_lbl.text = "📦 TİCARET TESLİMATI TAMAMLANDI"
+	t_lbl.text = " TİCARET TESLİMATI TAMAMLANDI"
 	t_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	t_lbl.add_theme_font_override("font", FontNunitoBold)
 	t_lbl.add_theme_font_size_override("font_size", 32)

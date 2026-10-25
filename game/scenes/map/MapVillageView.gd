@@ -8,7 +8,7 @@ class_name MapVillageView
 ##   • Kale Sv. > 10 -> gelismis.png
 ##
 ## Yazılar:
-##   • Kullanıcı İsmi (👑 Kral / ⚔️ Sahip / 🛡️ Soyguncular)
+##   • Kullanıcı İsmi ( Kral / ️ Sahip / ️ Soyguncular)
 ##   • Köy İsmi ve Koordinat (Başkent (100|100))
 ##   • Nunito-Bold, büyük punto ve 3px siyah kontur ile razor-sharp netlik.
 
@@ -100,7 +100,7 @@ func _build_ui() -> void:
 
 	add_child(_sprite)
 
-	# 2) 15 Günlük Fetih Koruması Kalkanı (🛡️ Haritada Işıldayan Koruma Kalkanı)
+	# 2) 15 Günlük Fetih Koruması Kalkanı (️ Haritada Işıldayan Koruma Kalkanı)
 	var now_u := int(Time.get_unix_time_from_system())
 	var is_shielded: bool = ProtectionScript.is_attack_protected(village_data, now_u) \
 		or int(village_data.get("protection_until", 0)) > now_u \
@@ -143,7 +143,7 @@ func _build_ui() -> void:
 		_shield_badge.add_theme_stylebox_override("panel", s_badge_sb)
 
 		var s_lbl := Label.new()
-		s_lbl.text = "🛡️ Koruma"
+		s_lbl.text = "️ Koruma"
 		s_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		s_lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 		s_lbl.add_theme_font_override("font", FontNunitoBold)
@@ -219,14 +219,14 @@ func _build_ui() -> void:
 
 	_owner_label = Label.new()
 	if is_player:
-		_owner_label.text = "👑 " + owner_name
+		_owner_label.text = " " + owner_name
 		_owner_label.add_theme_color_override("font_color", Color(1.0, 0.92, 0.45))
 	elif is_alliance_member:
 		var tag_prefix := ("[" + alliance_tag + "] ") if not alliance_tag.is_empty() else ""
-		_owner_label.text = "🤝 " + tag_prefix + owner_name
+		_owner_label.text = " " + tag_prefix + owner_name
 		_owner_label.add_theme_color_override("font_color", Color(0.55, 0.85, 1.0))
 	else:
-		_owner_label.text = "⚔️ " + owner_name
+		_owner_label.text = "️ " + owner_name
 		_owner_label.add_theme_color_override("font_color", Color(1.0, 0.65, 0.60))
 
 	_owner_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER

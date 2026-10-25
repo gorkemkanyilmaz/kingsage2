@@ -287,7 +287,7 @@ func join_world(world_id: int, player_name: String, target_x: int = 100, target_
 			"id": now * 1000 + 1,
 			"from": "Taht ve Kılıç Konseyi",
 			"to": player_name,
-			"subject": "🛡️ Dünya %d'ye Hoş Geldiniz, Sayın Lord" % world_id,
+			"subject": " Dünya %d'ye Hoş Geldiniz, Sayın Lord" % world_id,
 			"body": "Selamlar Sayın %s,\n\nDünya %d topraklarına hoş geldiniz! 15 günlük fetih korumanız aktif durumdadır. Bu süre zarfında köylerinizi geliştirebilir ve ordunuzu kurabilirsiniz.\n\nKılıcınız keskin, krallığınız daim olsun.\n\nSaygılarımızla,\nTaht ve Kılıç Konseyi" % [player_name, world_id],
 			"created_unix": now,
 			"read": false

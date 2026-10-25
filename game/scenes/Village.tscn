@@ -17,6 +17,17 @@ grow_vertical = 2
 theme = ExtResource("5_theme")
 script = ExtResource("1_vil")
 
+[node name="Background" type="TextureRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+texture = ExtResource("6_landscape")
+expand_mode = 1
+stretch_mode = 6
+
 [node name="VillageArea" type="Control" parent="."]
 custom_minimum_size = Vector2(1080, 1920)
 layout_mode = 1
@@ -24,15 +35,6 @@ anchors_preset = 0
 offset_top = 138.0
 offset_right = 1080.0
 offset_bottom = 2058.0
-
-[node name="Background" type="TextureRect" parent="VillageArea"]
-custom_minimum_size = Vector2(1080, 1920)
-layout_mode = 1
-anchors_preset = 0
-offset_right = 1080.0
-offset_bottom = 1920.0
-texture = ExtResource("6_landscape")
-expand_mode = 1
 
 [node name="BuildingsContainer" type="Control" parent="VillageArea"]
 custom_minimum_size = Vector2(1080, 1920)
@@ -63,7 +65,7 @@ offset_bottom = 202.0
 grow_horizontal = 0
 mouse_filter = 0
 theme_override_font_sizes/font_size = 22
-text = "🛡️ İttifak"
+text = "İttifak"
 
 [node name="QueueHUD" type="PanelContainer" parent="."]
 visible = false
@@ -87,7 +89,7 @@ theme_override_constants/separation = 8
 layout_mode = 2
 theme_override_colors/font_color = Color(1.0, 0.92, 0.45, 1)
 theme_override_font_sizes/font_size = 24
-text = "🏰 Aktiviteler ve Askeri Durum"
+text = "Aktiviteler ve Askeri Durum"
 
 [node name="Scroll" type="ScrollContainer" parent="QueueHUD/VBox"]
 layout_mode = 2

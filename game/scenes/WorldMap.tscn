@@ -119,7 +119,7 @@ value = 100.0
 custom_minimum_size = Vector2(150, 56)
 layout_mode = 2
 theme_override_font_sizes/font_size = 20
-text = "🔍 Git"
+text = " Git"
 
 [node name="Legend" type="PanelContainer" parent="."]
 layout_mode = 1

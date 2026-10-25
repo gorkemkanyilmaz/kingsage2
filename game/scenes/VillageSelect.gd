@@ -10,11 +10,11 @@ const FontNunitoBold: Font = preload("res://assets/fonts/Nunito-Bold.ttf")
 const FontCinzelBold: Font = preload("res://assets/fonts/Cinzel-Bold.ttf")
 
 const ROW_X_LEFT := 230
-const ROW_X_BTN := 530
-const ROW_Y_START := 460
-const ROW_Y_STEP := 110
+const ROW_X_BTN := 550
+const ROW_Y_START := 570
+const ROW_Y_STEP := 111
 const ROW_BANNER_SIZE := Vector2(295, 100)
-const ROW_BTN_SIZE := Vector2(310, 94)
+const ROW_BTN_SIZE := Vector2(305, 94)
 
 @onready var background_rect: TextureRect = $Background
 @onready var rows_container: Control = $RowsContainer
@@ -51,6 +51,8 @@ func _ready() -> void:
 	_setup_region_modal()
 	_refresh_auth_state()
 	_build_world_rows()
+	if not get_viewport().size_changed.is_connected(_build_world_rows):
+		get_viewport().size_changed.connect(_build_world_rows)
 
 
 func _is_authenticated() -> bool:
@@ -90,8 +92,8 @@ func _refresh_auth_state() -> void:
 			_profile_bar.show()
 			var lbl = _profile_bar.get_node_or_null("HBox/ProfileLabel") as Label
 			if lbl != null and auth != null:
-				var prov_icon := "🔴 Google" if auth.auth_provider == "google" else "🍏 Apple"
-				lbl.text = "👑 %s (%s)" % [auth.display_name, prov_icon]
+				var prov_name := "Google" if auth.auth_provider == "google" else "Apple"
+				lbl.text = "Lord %s (%s)" % [auth.display_name, prov_name]
 		_sync_player_name()
 		_build_world_rows()
 	else:
@@ -132,7 +134,7 @@ func _setup_profile_bar() -> void:
 
 	var p_lbl := Label.new()
 	p_lbl.name = "ProfileLabel"
-	p_lbl.text = "👑 Lord Gorkem (🔴 Google)"
+	p_lbl.text = "Lord Gorkem (Google)"
 	p_lbl.add_theme_font_override("font", FontCinzelBold)
 	p_lbl.add_theme_font_size_override("font_size", 24)
 	p_lbl.add_theme_color_override("font_color", Color(1.0, 0.92, 0.65))
@@ -140,14 +142,14 @@ func _setup_profile_bar() -> void:
 	hbox.add_child(p_lbl)
 
 	var server_dot := Label.new()
-	server_dot.text = "🟢 500 CCU Bulut"
+	server_dot.text = "500 CCU Bulut (Aktif)"
 	server_dot.add_theme_font_override("font", FontNunitoBold)
 	server_dot.add_theme_font_size_override("font_size", 20)
 	server_dot.add_theme_color_override("font_color", Color(0.40, 0.95, 0.55))
 	hbox.add_child(server_dot)
 
 	var btn_logout := Button.new()
-	btn_logout.text = "🚪 Çıkış"
+	btn_logout.text = "Çıkış"
 	btn_logout.custom_minimum_size = Vector2(120, 44)
 	btn_logout.add_theme_font_override("font", FontNunitoBold)
 	btn_logout.add_theme_font_size_override("font_size", 20)
@@ -224,11 +226,16 @@ func _setup_auth_overlay() -> void:
 	card.add_child(vb)
 
 	# Başlık
-	var crown := Label.new()
-	crown.text = "👑"
-	crown.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	crown.add_theme_font_size_override("font_size", 54)
-	vb.add_child(crown)
+	var crown_container := CenterContainer.new()
+	crown_container.custom_minimum_size = Vector2(0, 64)
+	var crown := TextureRect.new()
+	crown.texture = load("res://assets/sprites/icons/board-game/128px/crown_a.png")
+	crown.custom_minimum_size = Vector2(64, 64)
+	crown.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	crown.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	crown.modulate = Color(1.0, 0.85, 0.40)
+	crown_container.add_child(crown)
+	vb.add_child(crown_container)
 
 	var title := Label.new()
 	title.text = "KRALLIK KAPISI"
@@ -284,7 +291,7 @@ func _setup_auth_overlay() -> void:
 
 	# Giriş Butonları (Google & Apple)
 	var btn_google := Button.new()
-	btn_google.text = "🔴 Google ile Giriş Yap"
+	btn_google.text = "Google ile Giriş Yap"
 	btn_google.custom_minimum_size = Vector2(0, 68)
 	btn_google.add_theme_font_override("font", FontNunitoBold)
 	btn_google.add_theme_font_size_override("font_size", 26)
@@ -309,7 +316,7 @@ func _setup_auth_overlay() -> void:
 	vb.add_child(btn_google)
 
 	var btn_apple := Button.new()
-	btn_apple.text = "🍏 Apple ile Giriş Yap"
+	btn_apple.text = "Apple ile Giriş Yap"
 	btn_apple.custom_minimum_size = Vector2(0, 68)
 	btn_apple.add_theme_font_override("font", FontNunitoBold)
 	btn_apple.add_theme_font_size_override("font_size", 26)
@@ -334,7 +341,7 @@ func _setup_auth_overlay() -> void:
 	vb.add_child(btn_apple)
 
 	_status_lbl = Label.new()
-	_status_lbl.text = "🔒 Taht ve Kılıç sisteminde yalnızca Google ve Apple girişi geçerlidir."
+	_status_lbl.text = "Taht ve Kılıç sisteminde yalnızca Google ve Apple girişi geçerlidir."
 	_status_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_status_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_status_lbl.add_theme_font_size_override("font_size", 20)
@@ -374,6 +381,9 @@ func _build_world_rows() -> void:
 	var wm = root.get_node_or_null("WorldManager") if root != null else null
 	var p_name := _get_player_name()
 
+	var vp_width := get_viewport_rect().size.x if is_inside_tree() else 1080.0
+	var offset_x := maxf(0.0, (vp_width - 1080.0) * 0.5)
+
 	for i in range(1, 11):
 		var y_pos := ROW_Y_START + (i - 1) * ROW_Y_STEP
 		var is_active := false
@@ -391,7 +401,7 @@ func _build_world_rows() -> void:
 			# Aktif Dünya: Sol canlı banner ve Sağ altın buton
 			var banner_rect := TextureRect.new()
 			banner_rect.name = "Banner_%d" % i
-			banner_rect.position = Vector2(ROW_X_LEFT, y_pos)
+			banner_rect.position = Vector2(offset_x + ROW_X_LEFT, y_pos)
 			banner_rect.size = ROW_BANNER_SIZE
 			banner_rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 			banner_rect.stretch_mode = TextureRect.STRETCH_SCALE
@@ -403,7 +413,7 @@ func _build_world_rows() -> void:
 
 			var btn := TextureButton.new()
 			btn.name = "BtnWorld_%d" % i
-			btn.position = Vector2(ROW_X_BTN, y_pos + 3)
+			btn.position = Vector2(offset_x + ROW_X_BTN, y_pos + 3)
 			btn.size = ROW_BTN_SIZE
 			btn.ignore_texture_size = true
 			btn.stretch_mode = TextureButton.STRETCH_SCALE
@@ -427,7 +437,7 @@ func _build_world_rows() -> void:
 			# Pasif Gri Dünya: Arka planda gri olarak basılıdır, üzerine tıklanamaz buton yerleştirilir
 			var btn := TextureButton.new()
 			btn.name = "BtnWorld_%d" % i
-			btn.position = Vector2(ROW_X_BTN, y_pos + 3)
+			btn.position = Vector2(offset_x + ROW_X_BTN, y_pos + 3)
 			btn.size = ROW_BTN_SIZE
 			btn.disabled = true
 			btn.mouse_default_cursor_shape = Control.CURSOR_FORBIDDEN

@@ -79,13 +79,13 @@ layout_mode = 2
 size_flags_horizontal = 3
 theme_override_colors/font_color = Color(1, 0.92, 0.75, 1)
 theme_override_font_sizes/font_size = 28
-text = "⚔️ Sefer & Sevkiyat"
+text = "️ Sefer & Sevkiyat"
 
 [node name="CloseButton" type="Button" parent="VBox/Header"]
 custom_minimum_size = Vector2(72, 72)
 layout_mode = 2
 theme_override_font_sizes/font_size = 26
-text = "✕"
+text = ""
 
 [node name="TargetCard" type="PanelContainer" parent="VBox"]
 layout_mode = 2
@@ -99,7 +99,7 @@ theme_override_constants/separation = 8
 layout_mode = 2
 theme_override_colors/font_color = Color(1, 0.92, 0.55, 1)
 theme_override_font_sizes/font_size = 26
-text = "🏰 Hedef Köy (100|100)"
+text = " Hedef Köy (100|100)"
 
 [node name="TargetSubGrid" type="GridContainer" parent="VBox/TargetCard/TargetDetailsVBox"]
 layout_mode = 2
@@ -112,28 +112,28 @@ layout_mode = 2
 size_flags_horizontal = 3
 theme_override_colors/font_color = Color(1, 0.95, 0.85, 1)
 theme_override_font_sizes/font_size = 22
-text = "👑 Sahip: Kral"
+text = " Sahip: Kral"
 
 [node name="AllianceLabel" type="Label" parent="VBox/TargetCard/TargetDetailsVBox/TargetSubGrid"]
 layout_mode = 2
 size_flags_horizontal = 3
 theme_override_colors/font_color = Color(0.7, 0.88, 1, 1)
 theme_override_font_sizes/font_size = 22
-text = "🛡️ İttifak: Yok"
+text = "️ İttifak: Yok"
 
 [node name="PointsLabel" type="Label" parent="VBox/TargetCard/TargetDetailsVBox/TargetSubGrid"]
 layout_mode = 2
 size_flags_horizontal = 3
 theme_override_colors/font_color = Color(1, 0.85, 0.35, 1)
 theme_override_font_sizes/font_size = 22
-text = "🏆 Puan: 110"
+text = " Puan: 110"
 
 [node name="DistanceLabel" type="Label" parent="VBox/TargetCard/TargetDetailsVBox/TargetSubGrid"]
 layout_mode = 2
 size_flags_horizontal = 3
 theme_override_colors/font_color = Color(0.55, 0.95, 0.65, 1)
 theme_override_font_sizes/font_size = 22
-text = "📍 Mesafe: 0 alan"
+text = " Mesafe: 0 alan"
 
 [node name="TargetInfo" type="Label" parent="VBox"]
 visible = false
@@ -150,7 +150,7 @@ custom_minimum_size = Vector2(0, 56)
 layout_mode = 2
 size_flags_horizontal = 3
 theme_override_font_sizes/font_size = 24
-text = "📦 Hammadde Gönder (Katır)"
+text = " Hammadde Gönder (Katır)"
 
 [node name="Scroll" type="ScrollContainer" parent="VBox"]
 custom_minimum_size = Vector2(0, 240)
@@ -186,13 +186,13 @@ theme_override_styles/panel = SubResource("StyleBoxFlat_est_card")
 layout_mode = 2
 theme_override_colors/font_color = Color(1.0, 0.95, 0.80, 1)
 theme_override_font_sizes/font_size = 24
-text = "⏱️ En Yavaş Birim: - | ⏳ Yolculuk Süresi: 00:00 | 🎯 Varış Saati: --:--:--"
+text = "⏱️ En Yavaş Birim: - | ⏳ Yolculuk Süresi: 00:00 |  Varış Saati: --:--:--"
 
 [node name="WarningLabel" type="Label" parent="VBox"]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.95, 0.45, 0.35, 1)
 theme_override_font_sizes/font_size = 18
-text = "⚠️ Sefer için birlik seçiniz."
+text = "️ Sefer için birlik seçiniz."
 
 [node name="ActionButtons" type="HBoxContainer" parent="VBox"]
 layout_mode = 2
@@ -203,14 +203,14 @@ custom_minimum_size = Vector2(0, 72)
 layout_mode = 2
 size_flags_horizontal = 3
 theme_override_font_sizes/font_size = 22
-text = "🌾 Talan (Yağma)"
+text = " Talan (Yağma)"
 
 [node name="BtnAttack" type="Button" parent="VBox/ActionButtons"]
 custom_minimum_size = Vector2(0, 72)
 layout_mode = 2
 size_flags_horizontal = 3
 theme_override_font_sizes/font_size = 22
-text = "⚔️ Saldır"
+text = "️ Saldır"
 
 [node name="BtnTrade" type="Button" parent="VBox/ActionButtons"]
 visible = false
@@ -218,4 +218,4 @@ custom_minimum_size = Vector2(0, 72)
 layout_mode = 2
 size_flags_horizontal = 3
 theme_override_font_sizes/font_size = 22
-text = "📦 Hammaddeyi Sevk Et"
+text = " Hammaddeyi Sevk Et"

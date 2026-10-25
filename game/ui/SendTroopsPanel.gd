@@ -230,13 +230,13 @@ func _populate_target_info() -> void:
 	var from_y: int = int(_from_village.get("y", 0))
 	var dist: float = TravelScript.distance(from_x, from_y, to_x, to_y)
 
-	target_header_label.text = "🏰 %s (%d|%d)" % [to_name, to_x, to_y]
+	target_header_label.text = " %s (%d|%d)" % [to_name, to_x, to_y]
 	target_info_label.text = "Hedef: %s (%d|%d) — Mesafe: %.1f alan" % [to_name, to_x, to_y, dist]
 
 	var owner_name: String = str(_to_village.get("owner", ""))
 	if owner_name.is_empty():
 		owner_name = "Düşman"
-	owner_label.text = "👑 Sahip: %s" % owner_name
+	owner_label.text = " Sahip: %s" % owner_name
 
 	var gs = Engine.get_main_loop().root.get_node_or_null("GameState") if Engine.get_main_loop() is SceneTree else null
 	var state: Dictionary = gs.to_dict() if gs != null else {}
@@ -256,16 +256,16 @@ func _populate_target_info() -> void:
 		alliance_name = "İttifak Yok"
 
 	if is_ally:
-		alliance_label.text = "🛡️ İttifak: %s (Müttefik)" % alliance_name
+		alliance_label.text = "️ İttifak: %s (Müttefik)" % alliance_name
 		alliance_label.add_theme_color_override("font_color", Color(0.40, 0.85, 1.0))
 	else:
-		alliance_label.text = "🛡️ İttifak: %s" % alliance_name
+		alliance_label.text = "️ İttifak: %s" % alliance_name
 		alliance_label.remove_theme_color_override("font_color")
 
 	var points: int = int(_to_village.get("points", 0))
-	points_label.text = "🏆 Puan: %d" % points
+	points_label.text = " Puan: %d" % points
 
-	distance_label.text = "📍 Mesafe: %.1f alan" % dist
+	distance_label.text = " Mesafe: %.1f alan" % dist
 
 
 func _populate_units() -> void:
@@ -324,9 +324,9 @@ func _populate_resources() -> void:
 	_resource_inputs.clear()
 
 	var res_data := [
-		{"key": "wood", "name": "🌲 Odun", "row": wood_row, "color": Color(0.48, 0.95, 0.52)},
-		{"key": "stone", "name": "🪨 Taş", "row": stone_row, "color": Color(0.95, 0.90, 0.85)},
-		{"key": "iron", "name": "⛏️ Demir", "row": iron_row, "color": Color(0.65, 0.88, 1.0)},
+		{"key": "wood", "name": " Odun", "row": wood_row, "color": Color(0.48, 0.95, 0.52)},
+		{"key": "stone", "name": " Taş", "row": stone_row, "color": Color(0.95, 0.90, 0.85)},
+		{"key": "iron", "name": "️ Demir", "row": iron_row, "color": Color(0.65, 0.88, 1.0)},
 	]
 
 	var res_dict: Dictionary = _from_village.get("resources", {})
@@ -379,14 +379,14 @@ func _switch_tab(tab: String) -> void:
 		btn_raid.hide()
 		btn_attack.show()
 		btn_trade.hide()
-		btn_tab_trade.text = "📦 Hammadde Gönder (Katır)"
+		btn_tab_trade.text = " Hammadde Gönder (Katır)"
 	else:
 		scroll_troops.hide()
 		trade_container.show()
 		btn_raid.hide()
 		btn_attack.hide()
 		btn_trade.show()
-		btn_tab_trade.text = "⚔️ Birlik Gönder (Saldırı)"
+		btn_tab_trade.text = "️ Birlik Gönder (Saldırı)"
 	refresh()
 
 
@@ -428,18 +428,18 @@ func _refresh_troops_mode(state: Dictionary, from_x: int, from_y: int, to_x: int
 		var ss := int(travel_secs) % 60
 		var dt := Time.get_time_dict_from_unix_time(arrive_unix)
 
-		estimate_label.text = "⏱️ En Yavaş Birim: %s (%.1f dk/alan)  |  ⏳ Yolculuk: %02d:%02d  |  🎯 Varış: %02d:%02d:%02d" % [
+		estimate_label.text = "⏱️ En Yavaş Birim: %s (%.1f dk/alan)  |  ⏳ Yolculuk: %02d:%02d  |   Varış: %02d:%02d:%02d" % [
 			slowest_name, slowest_speed, mm, ss, dt["hour"], dt["minute"], dt["second"]
 		]
 	else:
-		estimate_label.text = "⏱️ En Yavaş Birim: —  |  ⏳ Yolculuk Süresi: 00:00  |  🎯 Varış Saati: --:--:--"
+		estimate_label.text = "⏱️ En Yavaş Birim: —  |  ⏳ Yolculuk Süresi: 00:00  |   Varış Saati: --:--:--"
 
 	var barracks_lvl: int = int(_from_village.get("buildings", {}).get("barracks", 0))
 	var min_units: int = RulesEngineScript.min_attack_units(barracks_lvl)
 
 	var is_only_spies: bool = total_selected > 0 and int(selected_units.get("spy", 0)) == total_selected
 	var check_type: String = MovementScript.TYPE_SPY if is_only_spies else MovementScript.TYPE_ATTACK
-	btn_attack.text = "🕵️ Casus Gönder" if is_only_spies else "⚔️ Saldır"
+	btn_attack.text = "️ Casus Gönder" if is_only_spies else "️ Saldır"
 
 	var check: Dictionary = MovementScript.can_send(state, int(_from_village.get("id", -1)), int(_to_village.get("id", -1)), check_type, selected_units, {}, now)
 
@@ -449,13 +449,13 @@ func _refresh_troops_mode(state: Dictionary, from_x: int, from_y: int, to_x: int
 		btn_raid.disabled = true
 		warning_label.show()
 		if code == "min_units":
-			warning_label.text = "⚠️ Asgari ordu şartı: En az %d birim seçmelisiniz (3 × Kışla)." % min_units
+			warning_label.text = "️ Asgari ordu şartı: En az %d birim seçmelisiniz (3 × Kışla)." % min_units
 		elif code == "count_too_far":
-			warning_label.text = "⚠️ Kont menzil dışı! Hedef 80 alandan uzak olamaz."
+			warning_label.text = "️ Kont menzil dışı! Hedef 80 alandan uzak olamaz."
 		elif code == "target_protected":
-			warning_label.text = "⚠️ Hedef köy koruma altında."
+			warning_label.text = "️ Hedef köy koruma altında."
 		elif code == "friendly_target":
-			warning_label.text = "🛡️ İttifak Kuralı: Kendi veya ittifak üyesi köylere saldıramazsınız!"
+			warning_label.text = "️ İttifak Kuralı: Kendi veya ittifak üyesi köylere saldıramazsınız!"
 		elif code == "units_empty":
 			warning_label.text = "Sefer için birlik seçiniz."
 		else:
@@ -482,7 +482,7 @@ func _refresh_trade_mode(state: Dictionary, from_x: int, from_y: int, to_x: int,
 	var ss := int(travel_secs) % 60
 	var dt := Time.get_time_dict_from_unix_time(arrive_unix)
 
-	estimate_label.text = "🐴 Katır Hızı: %.1f dk/alan  |  ⏳ Yolculuk: %02d:%02d  |  🎯 Varış: %02d:%02d:%02d" % [
+	estimate_label.text = " Katır Hızı: %.1f dk/alan  |  ⏳ Yolculuk: %02d:%02d  |   Varış: %02d:%02d:%02d" % [
 		donkey_speed, mm, ss, dt["hour"], dt["minute"], dt["second"]
 	]
 
@@ -498,9 +498,9 @@ func _refresh_trade_mode(state: Dictionary, from_x: int, from_y: int, to_x: int,
 		warning_label.show()
 		var code: String = str(check.get("code", ""))
 		if code == "foreign_target":
-			warning_label.text = "⚠️ Ticaret yalnız kendi köylerinize veya müttefiklere yapılabilir."
+			warning_label.text = "️ Ticaret yalnız kendi köylerinize veya müttefiklere yapılabilir."
 		elif code == "market_required":
-			warning_label.text = "⚠️ Ticaret için Market binası (en az Sv. 1) gereklidir."
+			warning_label.text = "️ Ticaret için Market binası (en az Sv. 1) gereklidir."
 		else:
 			warning_label.text = "Uyarı: " + str(check.get("message", "Geçersiz hammadde sevki"))
 		btn_trade.disabled = true

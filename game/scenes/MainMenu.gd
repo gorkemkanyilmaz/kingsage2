@@ -83,8 +83,8 @@ func _refresh_auth_state() -> void:
 			_profile_bar.show()
 			var lbl = _profile_bar.get_node_or_null("HBox/ProfileLabel") as Label
 			if lbl != null and auth != null:
-				var prov_icon := "🔴 Google" if auth.auth_provider == "google" else "🍏 Apple"
-				lbl.text = "👑 %s (%s)" % [auth.display_name, prov_icon]
+				var prov_name := "Google" if auth.auth_provider == "google" else "Apple"
+				lbl.text = "Lord %s (%s)" % [auth.display_name, prov_name]
 		_sync_player_name()
 	else:
 		if _profile_bar != null:
@@ -124,7 +124,7 @@ func _setup_profile_bar() -> void:
 
 	var p_lbl := Label.new()
 	p_lbl.name = "ProfileLabel"
-	p_lbl.text = "👑 Lord Edward"
+	p_lbl.text = "Lord Edward (Google)"
 	p_lbl.add_theme_font_override("font", FontCinzelBold)
 	p_lbl.add_theme_font_size_override("font_size", 24)
 	p_lbl.add_theme_color_override("font_color", Color(1.0, 0.92, 0.65))
@@ -132,14 +132,14 @@ func _setup_profile_bar() -> void:
 	hbox.add_child(p_lbl)
 
 	var server_dot := Label.new()
-	server_dot.text = "🟢 500 CCU Bulut"
+	server_dot.text = "500 CCU Bulut (Aktif)"
 	server_dot.add_theme_font_override("font", FontNunitoBold)
 	server_dot.add_theme_font_size_override("font_size", 20)
 	server_dot.add_theme_color_override("font_color", Color(0.40, 0.95, 0.55))
 	hbox.add_child(server_dot)
 
 	var btn_logout := Button.new()
-	btn_logout.text = "🚪 Çıkış"
+	btn_logout.text = "Çıkış"
 	btn_logout.custom_minimum_size = Vector2(120, 44)
 	btn_logout.add_theme_font_override("font", FontNunitoBold)
 	btn_logout.add_theme_font_size_override("font_size", 20)
@@ -212,11 +212,16 @@ func _setup_auth_overlay() -> void:
 	card.add_child(vb)
 
 	# Başlık
-	var crown := Label.new()
-	crown.text = "👑"
-	crown.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	crown.add_theme_font_size_override("font_size", 54)
-	vb.add_child(crown)
+	var crown_container := CenterContainer.new()
+	crown_container.custom_minimum_size = Vector2(0, 64)
+	var crown := TextureRect.new()
+	crown.texture = load("res://assets/sprites/icons/board-game/128px/crown_a.png")
+	crown.custom_minimum_size = Vector2(64, 64)
+	crown.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	crown.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	crown.modulate = Color(1.0, 0.85, 0.40)
+	crown_container.add_child(crown)
+	vb.add_child(crown_container)
 
 	var title := Label.new()
 	title.text = "KRALLIK KAPISI"
@@ -250,7 +255,7 @@ func _setup_auth_overlay() -> void:
 
 	_name_input = LineEdit.new()
 	_name_input.placeholder_text = "Örn: Lord Gorkem"
-	_name_input.text = "Lord Gorkem"
+	_name_input.text = _get_player_name()
 	_name_input.custom_minimum_size = Vector2(0, 58)
 	_name_input.alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_name_input.add_theme_font_override("font", FontNunitoBold)
@@ -272,7 +277,7 @@ func _setup_auth_overlay() -> void:
 
 	# Giriş Butonları (Google & Apple)
 	var btn_google := Button.new()
-	btn_google.text = "🔴 Google ile Giriş Yap"
+	btn_google.text = "Google ile Giriş Yap"
 	btn_google.custom_minimum_size = Vector2(0, 68)
 	btn_google.add_theme_font_override("font", FontNunitoBold)
 	btn_google.add_theme_font_size_override("font_size", 26)
@@ -297,7 +302,7 @@ func _setup_auth_overlay() -> void:
 	vb.add_child(btn_google)
 
 	var btn_apple := Button.new()
-	btn_apple.text = "🍏 Apple ile Giriş Yap"
+	btn_apple.text = "Apple ile Giriş Yap"
 	btn_apple.custom_minimum_size = Vector2(0, 68)
 	btn_apple.add_theme_font_override("font", FontNunitoBold)
 	btn_apple.add_theme_font_size_override("font_size", 26)
@@ -322,7 +327,7 @@ func _setup_auth_overlay() -> void:
 	vb.add_child(btn_apple)
 
 	_status_lbl = Label.new()
-	_status_lbl.text = "🔒 Taht ve Kılıç sisteminde yalnızca Google ve Apple girişi geçerlidir."
+	_status_lbl.text = "Taht ve Kılıç sisteminde yalnızca Google ve Apple girişi geçerlidir."
 	_status_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_status_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_status_lbl.add_theme_font_size_override("font_size", 20)

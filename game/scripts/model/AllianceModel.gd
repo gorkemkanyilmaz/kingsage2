@@ -82,7 +82,7 @@ static func create_alliance(
 		"name": clean_name,
 		"tag": clean_tag,
 		"description": description.strip_edges(),
-		"internal_announcement": "⚔️ İttifakımıza hoş geldiniz! Birlikte güçlüyüz.",
+		"internal_announcement": " İttifakımıza hoş geldiniz! Birlikte güçlüyüz.",
 		"founder": creator_name,
 		"leader": creator_name,
 		"created_unix": now,
@@ -106,7 +106,7 @@ static func create_alliance(
 		"chat_messages": [
 			{
 				"sender": "Sistem",
-				"text": "🛡️ [%s] %s ittifakı kuruldu!" % [clean_tag, clean_name],
+				"text": " [%s] %s ittifakı kuruldu!" % [clean_tag, clean_name],
 				"timestamp_unix": now
 			}
 		],
@@ -201,7 +201,7 @@ static func invite_player(
 		"id": now * 1000 + randi() % 1000,
 		"from": "%s ([%s])" % [inviter_name, alliance.get("tag", "")],
 		"to": clean_target,
-		"subject": "🛡️ İttifak Daveti: [%s]" % str(alliance.get("tag", "")),
+		"subject": " İttifak Daveti: [%s]" % str(alliance.get("tag", "")),
 		"body": "Sayın %s,\n\nSizi [%s] %s ittifakına katılmaya davet ediyoruz.\nİttifak sekmesinden daveti kabul edebilirsiniz." % [clean_target, alliance.get("tag", ""), alliance.get("name", "")],
 		"created_unix": now,
 		"read": false
@@ -248,7 +248,7 @@ static func accept_invitation(state: Dictionary, player_name: String, alliance_i
 		alliance["chat_messages"] = []
 	(alliance["chat_messages"] as Array).append({
 		"sender": "Sistem",
-		"text": "⚔️ %s ittifaka katıldı!" % player_name,
+		"text": " %s ittifaka katıldı!" % player_name,
 		"timestamp_unix": now
 	})
 
