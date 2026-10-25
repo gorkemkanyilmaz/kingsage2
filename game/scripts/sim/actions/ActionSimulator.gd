@@ -27,6 +27,7 @@ extends RefCounted
 const Arrival := preload("res://scripts/sim/actions/Arrival.gd")
 const Movement := preload("res://scripts/sim/actions/Movement.gd")
 const Protection := preload("res://scripts/sim/actions/Protection.gd")
+const RE := preload("res://scripts/rules/RulesEngine.gd")
 
 const RESOURCES := ["wood", "stone", "iron"]
 
@@ -150,8 +151,16 @@ static func _add_resources(village: Dictionary, resources: Dictionary) -> void:
 	if typeof(village.get("resources")) != TYPE_DICTIONARY:
 		village["resources"] = {"wood": 0, "stone": 0, "iron": 0}
 	var have: Dictionary = village["resources"]
+	var storage_lvl := 0
+	var buildings = village.get("buildings", {})
+	if typeof(buildings) == TYPE_DICTIONARY:
+		storage_lvl = int((buildings as Dictionary).get("storage", 0))
+	var storage_cap := RE.storage_capacity(storage_lvl) if storage_lvl > 0 else 0
 	for r in RESOURCES:
-		have[r] = int(have.get(r, 0)) + int(resources.get(r, 0))
+		if storage_cap > 0:
+			have[r] = mini(storage_cap, int(have.get(r, 0)) + int(resources.get(r, 0)))
+		else:
+			have[r] = int(have.get(r, 0)) + int(resources.get(r, 0))
 
 
 static func _normalize_units(raw) -> Dictionary:

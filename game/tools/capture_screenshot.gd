@@ -43,21 +43,37 @@ func _init() -> void:
 
 	var vil = current_scene
 	var bpanel = vil.get_node("BuildingPanel")
+	bpanel.hide()
+
+	for i in range(15):
+		await process_frame
+
+	# 1. Village screen with animations and ResourceBar (Puan: 110, Depo: 1000)
+	var img1 = root.get_texture().get_image()
+	if img1 != null:
+		img1.save_png("c:/Users/Gorkem/Desktop/kingsage2/screenshot_village_animated.png")
+		print("Saved screenshot_village_animated.png")
+
+	# 2. BuildingPanel for 'wood' (Seviye 1, Hedef 2)
 	bpanel.show_building(v, "wood")
 	bpanel.show()
-
 	for i in range(5):
 		await process_frame
 
-	print("Root size: ", root.size)
-	print("Vil size: ", vil.size)
-	print("BPanel visible: ", bpanel.visible)
-	print("BPanel pos: ", bpanel.position, " size: ", bpanel.size)
-	print("BPanel global pos: ", bpanel.global_position)
+	var img2 = root.get_texture().get_image()
+	if img2 != null:
+		img2.save_png("c:/Users/Gorkem/Desktop/kingsage2/screenshot_ui_revised.png")
+		print("Saved screenshot_ui_revised.png")
 
-	var img = root.get_texture().get_image()
-	if img != null:
-		var save_path = "c:/Users/Gorkem/Desktop/kingsage2/screenshot_ui_revised.png"
-		var err = img.save_png(save_path)
-		print("Screenshot saved to: ", save_path, " err: ", err, " size: ", img.get_size())
+	# 3. BuildingPanel for 'snob' (Önkoşul zinciri: 'Önce şunlar gerekli', 'Binaya Git ➔')
+	bpanel.show_building(v, "snob")
+	bpanel.show()
+	for i in range(5):
+		await process_frame
+
+	var img3 = root.get_texture().get_image()
+	if img3 != null:
+		img3.save_png("c:/Users/Gorkem/Desktop/kingsage2/screenshot_building_panel_reqs.png")
+		print("Saved screenshot_building_panel_reqs.png")
+
 	quit(0)

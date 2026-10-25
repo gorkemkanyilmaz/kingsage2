@@ -98,6 +98,7 @@ static func _complete(state: Dictionary, item: Dictionary) -> Dictionary:
 			"type": "research_completed",
 			"village_id": village_id,
 			"key": key,
+			"unit_key": key,
 		}
 
 	# train
@@ -115,6 +116,7 @@ static func _complete(state: Dictionary, item: Dictionary) -> Dictionary:
 		"type": "training_completed",
 		"village_id": village_id,
 		"key": key,
+		"unit_key": key,
 		"count": count,
 	}
 

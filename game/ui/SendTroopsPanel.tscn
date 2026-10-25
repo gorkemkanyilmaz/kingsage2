@@ -8,18 +8,59 @@ content_margin_left = 24.0
 content_margin_top = 20.0
 content_margin_right = 24.0
 content_margin_bottom = 24.0
-bg_color = Color(1, 0.992157, 0.968627, 0.98)
-border_width_top = 4
-border_color = Color(0.603922, 0.392157, 0.215686, 1)
+bg_color = Color(0.117647, 0.105882, 0.141176, 0.98)
+border_width_left = 2
+border_width_top = 3
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.85098, 0.721569, 0.42, 0.95)
 corner_radius_top_left = 20
 corner_radius_top_right = 20
-shadow_color = Color(0.231373, 0.14902, 0.0980392, 0.3)
-shadow_size = 12
+corner_radius_bottom_right = 20
+corner_radius_bottom_left = 20
+shadow_color = Color(0, 0, 0, 0.6)
+shadow_size = 14
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_target_card"]
+content_margin_left = 18.0
+content_margin_top = 12.0
+content_margin_right = 18.0
+content_margin_bottom = 12.0
+bg_color = Color(0.08, 0.07, 0.11, 0.98)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.85098, 0.721569, 0.42, 0.95)
+corner_radius_top_left = 14
+corner_radius_top_right = 14
+corner_radius_bottom_right = 14
+corner_radius_bottom_left = 14
+shadow_color = Color(0, 0, 0, 0.6)
+shadow_size = 8
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_est_card"]
+content_margin_left = 18.0
+content_margin_top = 12.0
+content_margin_right = 18.0
+content_margin_bottom = 12.0
+bg_color = Color(0.08, 0.08, 0.12, 0.98)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.85098, 0.721569, 0.42, 0.95)
+corner_radius_top_left = 12
+corner_radius_top_right = 12
+corner_radius_bottom_right = 12
+corner_radius_bottom_left = 12
+shadow_color = Color(0, 0, 0, 0.6)
+shadow_size = 6
 
 [node name="SendTroopsPanel" type="PanelContainer"]
-custom_minimum_size = Vector2(1040, 750)
+custom_minimum_size = Vector2(1040, 780)
 offset_left = 20.0
-offset_top = 1040.0
+offset_top = 980.0
 offset_right = 1060.0
 offset_bottom = 1790.0
 theme = ExtResource("2_theme")
@@ -28,7 +69,7 @@ script = ExtResource("1_stroops")
 
 [node name="VBox" type="VBoxContainer" parent="."]
 layout_mode = 2
-theme_override_constants/separation = 16
+theme_override_constants/separation = 12
 
 [node name="Header" type="HBoxContainer" parent="VBox"]
 layout_mode = 2
@@ -36,51 +77,145 @@ layout_mode = 2
 [node name="TitleLabel" type="Label" parent="VBox/Header"]
 layout_mode = 2
 size_flags_horizontal = 3
-theme_override_colors/font_color = Color(0.231373, 0.211765, 0.188235, 1)
-theme_override_font_sizes/font_size = 30
-text = "⚔️ Birlik Gönder"
+theme_override_colors/font_color = Color(1, 0.92, 0.75, 1)
+theme_override_font_sizes/font_size = 28
+text = "⚔️ Sefer & Sevkiyat"
 
 [node name="CloseButton" type="Button" parent="VBox/Header"]
-custom_minimum_size = Vector2(88, 88)
+custom_minimum_size = Vector2(72, 72)
 layout_mode = 2
-theme_override_font_sizes/font_size = 28
+theme_override_font_sizes/font_size = 26
 text = "✕"
 
+[node name="TargetCard" type="PanelContainer" parent="VBox"]
+layout_mode = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_target_card")
+
+[node name="TargetDetailsVBox" type="VBoxContainer" parent="VBox/TargetCard"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="TargetHeaderLabel" type="Label" parent="VBox/TargetCard/TargetDetailsVBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.92, 0.55, 1)
+theme_override_font_sizes/font_size = 26
+text = "🏰 Hedef Köy (100|100)"
+
+[node name="TargetSubGrid" type="GridContainer" parent="VBox/TargetCard/TargetDetailsVBox"]
+layout_mode = 2
+theme_override_constants/h_separation = 32
+theme_override_constants/v_separation = 8
+columns = 2
+
+[node name="OwnerLabel" type="Label" parent="VBox/TargetCard/TargetDetailsVBox/TargetSubGrid"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(1, 0.95, 0.85, 1)
+theme_override_font_sizes/font_size = 22
+text = "👑 Sahip: Kral"
+
+[node name="AllianceLabel" type="Label" parent="VBox/TargetCard/TargetDetailsVBox/TargetSubGrid"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(0.7, 0.88, 1, 1)
+theme_override_font_sizes/font_size = 22
+text = "🛡️ İttifak: Yok"
+
+[node name="PointsLabel" type="Label" parent="VBox/TargetCard/TargetDetailsVBox/TargetSubGrid"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(1, 0.85, 0.35, 1)
+theme_override_font_sizes/font_size = 22
+text = "🏆 Puan: 110"
+
+[node name="DistanceLabel" type="Label" parent="VBox/TargetCard/TargetDetailsVBox/TargetSubGrid"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(0.55, 0.95, 0.65, 1)
+theme_override_font_sizes/font_size = 22
+text = "📍 Mesafe: 0 alan"
+
 [node name="TargetInfo" type="Label" parent="VBox"]
+visible = false
 layout_mode = 2
 theme_override_colors/font_color = Color(0.486275, 0.45098, 0.407843, 1)
-theme_override_font_sizes/font_size = 20
-text = "Hedef: Köy (100|100) — Mesafe: 0 alan"
+theme_override_font_sizes/font_size = 18
+text = "Hedef: Köy (100|100)"
+
+[node name="ModeTabs" type="HBoxContainer" parent="VBox"]
+layout_mode = 2
+
+[node name="BtnTabTrade" type="Button" parent="VBox/ModeTabs"]
+custom_minimum_size = Vector2(0, 56)
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 24
+text = "📦 Hammadde Gönder (Katır)"
 
 [node name="Scroll" type="ScrollContainer" parent="VBox"]
+custom_minimum_size = Vector2(0, 240)
 layout_mode = 2
 size_flags_vertical = 3
 
 [node name="UnitContainer" type="VBoxContainer" parent="VBox/Scroll"]
 layout_mode = 2
 size_flags_horizontal = 3
-theme_override_constants/separation = 12
+theme_override_constants/separation = 8
+
+[node name="TradeContainer" type="VBoxContainer" parent="VBox"]
+visible = false
+custom_minimum_size = Vector2(0, 240)
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_constants/separation = 14
+
+[node name="WoodRow" type="HBoxContainer" parent="VBox/TradeContainer"]
+layout_mode = 2
+
+[node name="StoneRow" type="HBoxContainer" parent="VBox/TradeContainer"]
+layout_mode = 2
+
+[node name="IronRow" type="HBoxContainer" parent="VBox/TradeContainer"]
+layout_mode = 2
+
+[node name="EstimateCard" type="PanelContainer" parent="VBox"]
+layout_mode = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_est_card")
+
+[node name="EstimateLabel" type="Label" parent="VBox/EstimateCard"]
+layout_mode = 2
+theme_override_colors/font_color = Color(1.0, 0.95, 0.80, 1)
+theme_override_font_sizes/font_size = 24
+text = "⏱️ En Yavaş Birim: - | ⏳ Yolculuk Süresi: 00:00 | 🎯 Varış Saati: --:--:--"
 
 [node name="WarningLabel" type="Label" parent="VBox"]
 layout_mode = 2
-theme_override_colors/font_color = Color(0.94902, 0.439216, 0.364706, 1)
+theme_override_colors/font_color = Color(0.95, 0.45, 0.35, 1)
 theme_override_font_sizes/font_size = 18
-text = "⚠️ Asgari ordu şartı: En az 15 birim."
+text = "⚠️ Sefer için birlik seçiniz."
 
 [node name="ActionButtons" type="HBoxContainer" parent="VBox"]
 layout_mode = 2
-theme_override_constants/separation = 20
+theme_override_constants/separation = 14
 
 [node name="BtnRaid" type="Button" parent="VBox/ActionButtons"]
-custom_minimum_size = Vector2(0, 96)
+custom_minimum_size = Vector2(0, 72)
 layout_mode = 2
 size_flags_horizontal = 3
-theme_override_font_sizes/font_size = 24
+theme_override_font_sizes/font_size = 22
 text = "🌾 Talan (Yağma)"
 
 [node name="BtnAttack" type="Button" parent="VBox/ActionButtons"]
-custom_minimum_size = Vector2(0, 96)
+custom_minimum_size = Vector2(0, 72)
 layout_mode = 2
 size_flags_horizontal = 3
-theme_override_font_sizes/font_size = 24
+theme_override_font_sizes/font_size = 22
 text = "⚔️ Saldır"
+
+[node name="BtnTrade" type="Button" parent="VBox/ActionButtons"]
+visible = false
+custom_minimum_size = Vector2(0, 72)
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 22
+text = "📦 Hammaddeyi Sevk Et"

@@ -257,6 +257,7 @@ func _test_return_home() -> void:
 
 	var s := _state_two()
 	_find_village(s, 1)["units"]["axe"] = 500
+	_find_village(s, 1)["buildings"]["storage"] = 10
 	var target := _find_village(s, 2)
 	target["units"]["spear"] = 5
 	target["resources"] = {"wood": 5000, "stone": 5000, "iron": 5000}

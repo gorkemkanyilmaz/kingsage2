@@ -31,8 +31,8 @@ extends RefCounted
 const DAY_SECONDS := 86400
 
 ## `GameConfig` yoksa kullanılacak yedekler (battle.json / docs ile aynı).
-const DEFAULT_NEW_PLAYER_PROTECTION_DAYS := 5
-const DEFAULT_CONQUEST_PROTECTION_DAYS := 7
+const DEFAULT_NEW_PLAYER_PROTECTION_DAYS := 15
+const DEFAULT_CONQUEST_PROTECTION_DAYS := 15
 const DEFAULT_MAX_RATIO := 10.0
 const DEFAULT_OUTLAWED_PENALTY_DAYS := 60
 

@@ -23,8 +23,8 @@ func _ready() -> void:
 	# Başarılı yükleme sonrası Ana Menü'ye geçiş
 	var timer := get_tree().create_timer(1.0)
 	timer.timeout.connect(func():
-		if ResourceLoader.exists("res://scenes/MainMenu.tscn"):
-			get_tree().change_scene_to_file("res://scenes/MainMenu.tscn")
+		if ResourceLoader.exists("res://scenes/VillageSelect.tscn"):
+			get_tree().change_scene_to_file("res://scenes/VillageSelect.tscn")
 	)
 
 

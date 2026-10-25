@@ -36,6 +36,7 @@ static var instance: Node = null
 var _modules: Array = []
 var _loaded_paths: Array = []
 var _now_unix: float = 0.0
+var _auto_save_timer: float = 0.0
 var _connected := false
 
 
@@ -55,6 +56,9 @@ func _ready() -> void:
 
 
 func _exit_tree() -> void:
+	var sm = _autoload("SaveManager")
+	if sm != null and sm.has_method("save_game"):
+		sm.save_game()
 	if instance == self:
 		instance = null
 
@@ -64,8 +68,12 @@ func _exit_tree() -> void:
 # =============================================================================
 
 func _autoload(name: String) -> Node:
+	if is_inside_tree() and get_tree() != null and get_tree().root != null:
+		var n = get_tree().root.get_node_or_null(name)
+		if n != null:
+			return n
 	var loop := Engine.get_main_loop()
-	if loop is SceneTree:
+	if loop is SceneTree and (loop as SceneTree).root != null:
 		return (loop as SceneTree).root.get_node_or_null(name)
 	return null
 
@@ -119,7 +127,11 @@ func simulate(delta_seconds: float) -> Array:
 
 	if _now_unix <= 0.0:
 		_now_unix = float(_initial_now())
-	_now_unix += delta_seconds
+	var real_now := int(Time.get_unix_time_from_system())
+	if _now_unix > 1500000000.0 and real_now > int(_now_unix):
+		_now_unix = float(real_now)
+	else:
+		_now_unix += delta_seconds
 	var now := int(floor(_now_unix + 0.5))
 
 	var state: Dictionary = gs.to_dict()
@@ -135,6 +147,15 @@ func simulate(delta_seconds: float) -> Array:
 
 	gs.from_dict(state)
 	_emit_events(events)
+
+	# Periyodik otomatik kayıt (her 30 saniyede bir son damga kaydedilir)
+	_auto_save_timer += delta_seconds
+	if _auto_save_timer >= 30.0:
+		_auto_save_timer = 0.0
+		var sm = _autoload("SaveManager")
+		if sm != null and sm.has_method("save_game"):
+			sm.save_game()
+
 	return events
 
 
@@ -159,11 +180,29 @@ func _emit_events(events: Array) -> void:
 			"realm_of_power_changed":
 				bus.realm_of_power_changed.emit(vid, int(ev.get("value", 0)))
 			"research_completed":
-				bus.research_completed.emit(vid, str(ev.get("unit_key", "")))
-			"unit_trained":
-				bus.unit_trained.emit(vid, str(ev.get("unit_key", "")), int(ev.get("count", 0)))
+				bus.research_completed.emit(vid, str(ev.get("unit_key", ev.get("key", ""))))
+			"unit_trained", "training_completed":
+				bus.unit_trained.emit(vid, str(ev.get("unit_key", ev.get("key", ""))), int(ev.get("count", 0)))
 			"village_conquered":
 				bus.village_conquered.emit(vid, str(ev.get("owner", "")))
+			"battle_resolved":
+				bus.battle_resolved.emit(ev)
+				bus.report_created.emit(ev)
+				bus.state_changed.emit()
+			"spy_resolved":
+				bus.spy_mission_resolved.emit(ev)
+				bus.report_created.emit(ev)
+				bus.state_changed.emit()
+			"movement_returned":
+				bus.army_returned.emit(ev)
+				bus.resources_changed.emit(vid)
+				bus.state_changed.emit()
+			"trade_delivered":
+				bus.resources_changed.emit(vid)
+				bus.state_changed.emit()
+			"support_arrived":
+				bus.army_arrived.emit(ev)
+				bus.state_changed.emit()
 			_:
 				pass
 

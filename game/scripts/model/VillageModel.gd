@@ -57,8 +57,8 @@ static func create(id: int, name: String, x: int, y: int, owner: String, is_bot:
 		"researched": {},             # birim araştırma durumu (ödenen birimler) — docs/19 §3.1
 		"realm_of_power": points,     # Güç Alanı: başlangıçta tam (= köy puanı); tavan = köy puanı
 		"points": points,             # türetilmiş: Σ bina puanları
-		"protection_until": 0,        # unix (yeni oyuncu koruması)
-		"conquest_protection_until": 0,
+		"protection_until": (int(Time.get_unix_time_from_system()) + 15 * 86400) if not is_bot else 0, # 15 gün koruma
+		"conquest_protection_until": (int(Time.get_unix_time_from_system()) + 15 * 86400) if not is_bot else 0,
 		"bonus_type": "",             # "" | "wood" | "stone" | "iron" | "citizen" | "training" | "production"
 		"bonus": {"wood": 1.0, "stone": 1.0, "iron": 1.0},  # savaş simülatörü girdisi (docs/19 §7)
 		"has_statue": false,

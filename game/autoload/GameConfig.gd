@@ -20,8 +20,8 @@ const PROFILES_PATH := "res://data/world-profiles.json"
 ## Dünya hızı (üretim, inşaat süreleri vb. için çarpan). "Hız".
 var speed: float = 1.0
 
-## Birim hızı (orduların harita üzerinde ilerleme hızı). "Birim hızı".
-var unit_speed: float = 1.0
+## Birim hızı (orduların harita üzerinde ilerleme hızı). "Birim hızı". 3 kat hızlandırıldı.
+var unit_speed: float = 3.0
 
 # --- Gece bonusu ------------------------------------------------------------
 
@@ -37,10 +37,10 @@ var night_bonus_multiplier: float = 2.0
 # --- Koruma süreleri --------------------------------------------------------
 
 ## Yeni oyuncular için saldırı koruması (gün).
-var new_player_protection_days: int = 5
+var new_player_protection_days: int = 15
 
 ## Fetih Koruması (gün).
-var conquest_protection_days: int = 7
+var conquest_protection_days: int = 15
 
 # --- Saldırı sınırları ------------------------------------------------------
 

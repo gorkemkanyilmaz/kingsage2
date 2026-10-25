@@ -1,60 +1,616 @@
 extends Control
-## VillageSelect — Başlangıç yönü ve köy seçimi ekranı (Taht ve Kılıç / A-ARAYUZ).
+## VillageSelect — "DÜNYA SEÇİMİ" ve Ana Giriş Ekranı (Taht ve Kılıç).
+##
+## Oyun doğrudan bu ekrandan başlar.
+## Üstte Google/Apple giriş bilgisi (ProfileBar), ortada 10 Dünya listelenir.
+## Giriş yapılmamışsa "Krallık Kapısı" doğrulama penceresi görüntülenir.
+## Eski ara menü ("Yeni Oyun / Devam Et") ve menüye dönüş butonu kaldırılmıştır.
 
-const WorldGeneratorScript := preload("res://scripts/world/WorldGenerator.gd")
-const VillageModelScript := preload("res://scripts/model/VillageModel.gd")
+const FontNunitoBold: Font = preload("res://assets/fonts/Nunito-Bold.ttf")
+const FontCinzelBold: Font = preload("res://assets/fonts/Cinzel-Bold.ttf")
 
+const ROW_X_LEFT := 230
+const ROW_X_BTN := 530
+const ROW_Y_START := 460
+const ROW_Y_STEP := 110
+const ROW_BANNER_SIZE := Vector2(295, 100)
+const ROW_BTN_SIZE := Vector2(310, 94)
+
+@onready var background_rect: TextureRect = $Background
+@onready var rows_container: Control = $RowsContainer
+@onready var center_modal: CenterContainer = $Center
+@onready var card_panel: Panel = $Center/CardPanel
+@onready var region_title: Label = $Center/VBox/Title
+@onready var region_desc: Label = $Center/VBox/Desc
 @onready var btn_nw: Button = $Center/VBox/Grid/BtnNW
 @onready var btn_ne: Button = $Center/VBox/Grid/BtnNE
 @onready var btn_sw: Button = $Center/VBox/Grid/BtnSW
 @onready var btn_se: Button = $Center/VBox/Grid/BtnSE
 @onready var btn_random: Button = $Center/VBox/BtnRandom
+@onready var btn_cancel: Button = $Center/VBox/BtnCancel
+
+var _profile_bar: PanelContainer
+var _auth_overlay: Control
+var _name_input: LineEdit
+var _status_lbl: Label
+var _world_buttons: Dictionary = {}
+var _selected_world_id: int = 1
 
 
 func _ready() -> void:
-	btn_nw.pressed.connect(func(): _start_game(25, 25))
-	btn_ne.pressed.connect(func(): _start_game(175, 25))
-	btn_sw.pressed.connect(func(): _start_game(25, 175))
-	btn_se.pressed.connect(func(): _start_game(175, 175))
-	btn_random.pressed.connect(func(): _start_game(100, 100))
+	var root = Engine.get_main_loop().root if Engine.get_main_loop() is SceneTree else null
+	var gd = root.get_node_or_null("GameData") if root != null else null
+	if gd != null and not gd.is_loaded():
+		gd.load_all()
+	var gc = root.get_node_or_null("GameClock") if root != null else null
+	if gc != null and not gc.running:
+		gc.start()
+
+	_setup_profile_bar()
+	_setup_auth_overlay()
+	_setup_region_modal()
+	_refresh_auth_state()
+	_build_world_rows()
 
 
-func _start_game(target_x: int, target_y: int) -> void:
-	var gs = Engine.get_main_loop().root.get_node_or_null("GameState") if Engine.get_main_loop() is SceneTree else null
-	if gs == null:
+func _is_authenticated() -> bool:
+	var root = Engine.get_main_loop().root if Engine.get_main_loop() is SceneTree else null
+	var auth = root.get_node_or_null("AuthManager") if root != null else null
+	return bool(auth.is_logged_in) if auth != null else false
+
+
+func _get_player_name() -> String:
+	var root = Engine.get_main_loop().root if Engine.get_main_loop() is SceneTree else null
+	var auth = root.get_node_or_null("AuthManager") if root != null else null
+	if auth != null and not auth.display_name.is_empty():
+		return auth.display_name
+	var gs = root.get_node_or_null("GameState") if root != null else null
+	if gs != null and not str(gs.player.get("name", "")).is_empty() and str(gs.player.get("name", "")) != "Kral":
+		return str(gs.player.get("name"))
+	return "Lord Gorkem"
+
+
+func _sync_player_name() -> void:
+	var root = Engine.get_main_loop().root if Engine.get_main_loop() is SceneTree else null
+	var auth = root.get_node_or_null("AuthManager") if root != null else null
+	var gs = root.get_node_or_null("GameState") if root != null else null
+	if auth != null and gs != null and not auth.display_name.is_empty():
+		gs.player["name"] = auth.display_name
+
+
+func _refresh_auth_state() -> void:
+	var root = Engine.get_main_loop().root if Engine.get_main_loop() is SceneTree else null
+	var auth = root.get_node_or_null("AuthManager") if root != null else null
+	var is_logged := bool(auth.is_logged_in) if auth != null else false
+
+	if is_logged:
+		if _auth_overlay != null:
+			_auth_overlay.hide()
+		if _profile_bar != null:
+			_profile_bar.show()
+			var lbl = _profile_bar.get_node_or_null("HBox/ProfileLabel") as Label
+			if lbl != null and auth != null:
+				var prov_icon := "🔴 Google" if auth.auth_provider == "google" else "🍏 Apple"
+				lbl.text = "👑 %s (%s)" % [auth.display_name, prov_icon]
+		_sync_player_name()
+		_build_world_rows()
+	else:
+		if _profile_bar != null:
+			_profile_bar.hide()
+		if _auth_overlay != null:
+			_auth_overlay.show()
+
+
+# =============================================================================
+#  Üst Profil Çubuğu (Ana Menüdeki Giriş Bilgisi)
+# =============================================================================
+
+func _setup_profile_bar() -> void:
+	_profile_bar = PanelContainer.new()
+	_profile_bar.name = "ProfileBar"
+	_profile_bar.custom_minimum_size = Vector2(0, 68)
+	add_child(_profile_bar)
+	_profile_bar.set_anchors_and_offsets_preset(Control.PRESET_TOP_WIDE)
+	_profile_bar.offset_left = 32
+	_profile_bar.offset_top = 48
+	_profile_bar.offset_right = -32
+	_profile_bar.offset_bottom = 120
+
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color(0.10, 0.08, 0.14, 0.92)
+	sb.border_color = Color(0.85, 0.72, 0.40, 0.95)
+	sb.set_border_width_all(2)
+	sb.set_corner_radius_all(16)
+	sb.set_content_margin_all(14)
+	_profile_bar.add_theme_stylebox_override("panel", sb)
+
+	var hbox := HBoxContainer.new()
+	hbox.name = "HBox"
+	hbox.alignment = BoxContainer.ALIGNMENT_CENTER
+	hbox.add_theme_constant_override("separation", 20)
+	_profile_bar.add_child(hbox)
+
+	var p_lbl := Label.new()
+	p_lbl.name = "ProfileLabel"
+	p_lbl.text = "👑 Lord Gorkem (🔴 Google)"
+	p_lbl.add_theme_font_override("font", FontCinzelBold)
+	p_lbl.add_theme_font_size_override("font_size", 24)
+	p_lbl.add_theme_color_override("font_color", Color(1.0, 0.92, 0.65))
+	p_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	hbox.add_child(p_lbl)
+
+	var server_dot := Label.new()
+	server_dot.text = "🟢 500 CCU Bulut"
+	server_dot.add_theme_font_override("font", FontNunitoBold)
+	server_dot.add_theme_font_size_override("font_size", 20)
+	server_dot.add_theme_color_override("font_color", Color(0.40, 0.95, 0.55))
+	hbox.add_child(server_dot)
+
+	var btn_logout := Button.new()
+	btn_logout.text = "🚪 Çıkış"
+	btn_logout.custom_minimum_size = Vector2(120, 44)
+	btn_logout.add_theme_font_override("font", FontNunitoBold)
+	btn_logout.add_theme_font_size_override("font_size", 20)
+	btn_logout.add_theme_color_override("font_color", Color(1, 0.8, 0.8))
+
+	var l_sb := StyleBoxFlat.new()
+	l_sb.bg_color = Color(0.45, 0.15, 0.15, 0.85)
+	l_sb.border_color = Color(0.85, 0.35, 0.35, 0.90)
+	l_sb.set_border_width_all(1)
+	l_sb.set_corner_radius_all(10)
+	l_sb.set_content_margin_all(8)
+	btn_logout.add_theme_stylebox_override("normal", l_sb)
+
+	btn_logout.pressed.connect(func():
+		var auth = Engine.get_main_loop().root.get_node_or_null("AuthManager") if Engine.get_main_loop() is SceneTree else null
+		if auth != null:
+			auth.logout()
+		_refresh_auth_state()
+	)
+	hbox.add_child(btn_logout)
+
+
+# =============================================================================
+#  Kimlik Doğrulama Modal Penceresi (Krallık Kapısı)
+# =============================================================================
+
+func _setup_auth_overlay() -> void:
+	_auth_overlay = Control.new()
+	_auth_overlay.name = "AuthOverlay"
+	_auth_overlay.custom_minimum_size = Vector2(1080, 1920)
+	add_child(_auth_overlay)
+	_auth_overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_auth_overlay.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	_auth_overlay.grow_vertical = Control.GROW_DIRECTION_BOTH
+	_auth_overlay.mouse_filter = Control.MOUSE_FILTER_STOP
+
+	# Koyu karartma arka planı
+	var dim := ColorRect.new()
+	dim.color = Color(0.04, 0.03, 0.06, 0.88)
+	dim.custom_minimum_size = Vector2(1080, 1920)
+	_auth_overlay.add_child(dim)
+	dim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	dim.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	dim.grow_vertical = Control.GROW_DIRECTION_BOTH
+	dim.mouse_filter = Control.MOUSE_FILTER_STOP
+
+	# Ortalanmış Medieval Kart
+	var center := CenterContainer.new()
+	center.custom_minimum_size = Vector2(1080, 1920)
+	_auth_overlay.add_child(center)
+	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	center.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	center.grow_vertical = Control.GROW_DIRECTION_BOTH
+	center.mouse_filter = Control.MOUSE_FILTER_PASS
+
+	var card := PanelContainer.new()
+	card.custom_minimum_size = Vector2(760, 820)
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color(0.12, 0.10, 0.16, 0.98)
+	sb.border_color = Color(0.88, 0.74, 0.42, 1.0)
+	sb.set_border_width_all(3)
+	sb.border_width_top = 6
+	sb.set_corner_radius_all(24)
+	sb.set_content_margin_all(36)
+	sb.shadow_color = Color(0, 0, 0, 0.6)
+	sb.shadow_size = 20
+	sb.shadow_offset = Vector2(0, 8)
+	card.add_theme_stylebox_override("panel", sb)
+	center.add_child(card)
+
+	var vb := VBoxContainer.new()
+	vb.add_theme_constant_override("separation", 24)
+	vb.alignment = BoxContainer.ALIGNMENT_CENTER
+	card.add_child(vb)
+
+	# Başlık
+	var crown := Label.new()
+	crown.text = "👑"
+	crown.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	crown.add_theme_font_size_override("font_size", 54)
+	vb.add_child(crown)
+
+	var title := Label.new()
+	title.text = "KRALLIK KAPISI"
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.add_theme_font_override("font", FontCinzelBold)
+	title.add_theme_font_size_override("font_size", 42)
+	title.add_theme_color_override("font_color", Color(1.0, 0.92, 0.68))
+	vb.add_child(title)
+
+	var subtitle := Label.new()
+	subtitle.text = "Krallığınıza erişmek ve köyünüzü yönetmek için lütfen bir hesapla giriş yapın:"
+	subtitle.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	subtitle.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	subtitle.add_theme_font_override("font", FontNunitoBold)
+	subtitle.add_theme_font_size_override("font_size", 24)
+	subtitle.add_theme_color_override("font_color", Color(0.85, 0.80, 0.72))
+	vb.add_child(subtitle)
+
+	var sep1 := HSeparator.new()
+	vb.add_child(sep1)
+
+	# Lord Adı Girişi
+	var name_box := VBoxContainer.new()
+	name_box.add_theme_constant_override("separation", 8)
+	var name_lbl := Label.new()
+	name_lbl.text = "Lord Ünvanınız (İsim):"
+	name_lbl.add_theme_font_override("font", FontNunitoBold)
+	name_lbl.add_theme_font_size_override("font_size", 22)
+	name_lbl.add_theme_color_override("font_color", Color(0.95, 0.90, 0.80))
+	name_box.add_child(name_lbl)
+
+	_name_input = LineEdit.new()
+	_name_input.placeholder_text = "Örn: Lord Gorkem"
+	_name_input.text = "Lord Gorkem"
+	_name_input.custom_minimum_size = Vector2(0, 58)
+	_name_input.alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_name_input.add_theme_font_override("font", FontNunitoBold)
+	_name_input.add_theme_font_size_override("font_size", 24)
+	_name_input.add_theme_color_override("font_color", Color(1.0, 0.96, 0.90))
+	_name_input.add_theme_color_override("font_selected_color", Color(1.0, 1.0, 1.0))
+	_name_input.add_theme_color_override("selection_color", Color(0.28, 0.42, 0.72, 0.90))
+	_name_input.add_theme_color_override("caret_color", Color(1.0, 0.85, 0.40))
+	var inp_sb := StyleBoxFlat.new()
+	inp_sb.bg_color = Color(0.06, 0.05, 0.08, 0.95)
+	inp_sb.border_color = Color(0.65, 0.52, 0.35, 0.9)
+	inp_sb.set_border_width_all(2)
+	inp_sb.set_corner_radius_all(12)
+	inp_sb.set_content_margin_all(12)
+	_name_input.add_theme_stylebox_override("normal", inp_sb)
+	_name_input.add_theme_stylebox_override("focus", inp_sb)
+	name_box.add_child(_name_input)
+	vb.add_child(name_box)
+
+	# Giriş Butonları (Google & Apple)
+	var btn_google := Button.new()
+	btn_google.text = "🔴 Google ile Giriş Yap"
+	btn_google.custom_minimum_size = Vector2(0, 68)
+	btn_google.add_theme_font_override("font", FontNunitoBold)
+	btn_google.add_theme_font_size_override("font_size", 26)
+	btn_google.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	var g_sb := StyleBoxFlat.new()
+	g_sb.bg_color = Color(0.95, 0.95, 0.95, 1.0)
+	g_sb.border_color = Color(0.85, 0.70, 0.35, 1.0)
+	g_sb.set_border_width_all(2)
+	g_sb.set_corner_radius_all(14)
+	g_sb.set_content_margin_all(14)
+	btn_google.add_theme_stylebox_override("normal", g_sb)
+	btn_google.add_theme_color_override("font_color", Color(0.15, 0.15, 0.20))
+	var g_hover := g_sb.duplicate() as StyleBoxFlat
+	g_hover.bg_color = Color(1.0, 1.0, 1.0, 1.0)
+	btn_google.add_theme_stylebox_override("hover", g_hover)
+	btn_google.add_theme_color_override("font_hover_color", Color(0.05, 0.05, 0.10))
+	var g_pressed := g_sb.duplicate() as StyleBoxFlat
+	g_pressed.bg_color = Color(0.88, 0.88, 0.88, 1.0)
+	btn_google.add_theme_stylebox_override("pressed", g_pressed)
+	btn_google.add_theme_color_override("font_pressed_color", Color(0.15, 0.15, 0.20))
+	btn_google.pressed.connect(func(): _do_login("google"))
+	vb.add_child(btn_google)
+
+	var btn_apple := Button.new()
+	btn_apple.text = "🍏 Apple ile Giriş Yap"
+	btn_apple.custom_minimum_size = Vector2(0, 68)
+	btn_apple.add_theme_font_override("font", FontNunitoBold)
+	btn_apple.add_theme_font_size_override("font_size", 26)
+	btn_apple.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	var a_sb := StyleBoxFlat.new()
+	a_sb.bg_color = Color(0.02, 0.02, 0.04, 1.0)
+	a_sb.border_color = Color(0.75, 0.75, 0.85, 1.0)
+	a_sb.set_border_width_all(2)
+	a_sb.set_corner_radius_all(14)
+	a_sb.set_content_margin_all(14)
+	btn_apple.add_theme_stylebox_override("normal", a_sb)
+	btn_apple.add_theme_color_override("font_color", Color(0.98, 0.98, 1.0))
+	var a_hover := a_sb.duplicate() as StyleBoxFlat
+	a_hover.bg_color = Color(0.10, 0.10, 0.15, 1.0)
+	btn_apple.add_theme_stylebox_override("hover", a_hover)
+	btn_apple.add_theme_color_override("font_hover_color", Color(1.0, 1.0, 1.0))
+	var a_pressed := a_sb.duplicate() as StyleBoxFlat
+	a_pressed.bg_color = Color(0.0, 0.0, 0.0, 1.0)
+	btn_apple.add_theme_stylebox_override("pressed", a_pressed)
+	btn_apple.add_theme_color_override("font_pressed_color", Color(0.90, 0.90, 0.95))
+	btn_apple.pressed.connect(func(): _do_login("apple"))
+	vb.add_child(btn_apple)
+
+	_status_lbl = Label.new()
+	_status_lbl.text = "🔒 Taht ve Kılıç sisteminde yalnızca Google ve Apple girişi geçerlidir."
+	_status_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_status_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_status_lbl.add_theme_font_size_override("font_size", 20)
+	_status_lbl.add_theme_color_override("font_color", Color(0.65, 0.62, 0.58))
+	vb.add_child(_status_lbl)
+
+
+func _do_login(provider: String) -> void:
+	var desired_name := _name_input.text.strip_edges()
+	if desired_name.is_empty():
+		desired_name = "Lord Gorkem"
+
+	var auth = Engine.get_main_loop().root.get_node_or_null("AuthManager") if Engine.get_main_loop() is SceneTree else null
+	if auth != null:
+		if provider == "google":
+			auth.login_with_google(desired_name)
+		else:
+			auth.login_with_apple(desired_name)
+
+	var net = Engine.get_main_loop().root.get_node_or_null("NetworkManager") if Engine.get_main_loop() is SceneTree else null
+	if net != null:
+		net.login_online(provider, desired_name)
+
+	_refresh_auth_state()
+
+
+# =============================================================================
+#  10 Dünya Sıralaması ve Butonları
+# =============================================================================
+
+func _build_world_rows() -> void:
+	for child in rows_container.get_children():
+		child.queue_free()
+	_world_buttons.clear()
+
+	var root = Engine.get_main_loop().root if Engine.get_main_loop() is SceneTree else null
+	var wm = root.get_node_or_null("WorldManager") if root != null else null
+	var p_name := _get_player_name()
+
+	for i in range(1, 11):
+		var y_pos := ROW_Y_START + (i - 1) * ROW_Y_STEP
+		var is_active := false
+		var has_village := false
+
+		if wm != null:
+			var w_meta = wm.get_world_meta(i)
+			is_active = bool(w_meta.get("is_active", false))
+			if is_active:
+				has_village = wm.has_player_village(i, p_name)
+		else:
+			is_active = (i == 1)
+
+		if is_active:
+			# Aktif Dünya: Sol canlı banner ve Sağ altın buton
+			var banner_rect := TextureRect.new()
+			banner_rect.name = "Banner_%d" % i
+			banner_rect.position = Vector2(ROW_X_LEFT, y_pos)
+			banner_rect.size = ROW_BANNER_SIZE
+			banner_rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+			banner_rect.stretch_mode = TextureRect.STRETCH_SCALE
+			banner_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			var banner_path := "res://assets/sprites/ui/banner_world_%d_active.png" % i
+			if ResourceLoader.exists(banner_path):
+				banner_rect.texture = load(banner_path)
+			rows_container.add_child(banner_rect)
+
+			var btn := TextureButton.new()
+			btn.name = "BtnWorld_%d" % i
+			btn.position = Vector2(ROW_X_BTN, y_pos + 3)
+			btn.size = ROW_BTN_SIZE
+			btn.ignore_texture_size = true
+			btn.stretch_mode = TextureButton.STRETCH_SCALE
+			btn.disabled = false
+			btn.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+
+			if has_village:
+				btn.texture_normal = load("res://assets/sprites/ui/btn_devam_active.png")
+				btn.texture_hover = load("res://assets/sprites/ui/btn_devam_hover.png")
+				btn.texture_pressed = load("res://assets/sprites/ui/btn_devam_pressed.png")
+				btn.pressed.connect(func(): _on_continue_world(i))
+			else:
+				btn.texture_normal = load("res://assets/sprites/ui/btn_katil_active.png")
+				btn.texture_hover = load("res://assets/sprites/ui/btn_katil_hover.png")
+				btn.texture_pressed = load("res://assets/sprites/ui/btn_katil_pressed.png")
+				btn.pressed.connect(func(): _on_join_world(i))
+
+			rows_container.add_child(btn)
+			_world_buttons[i] = btn
+		else:
+			# Pasif Gri Dünya: Arka planda gri olarak basılıdır, üzerine tıklanamaz buton yerleştirilir
+			var btn := TextureButton.new()
+			btn.name = "BtnWorld_%d" % i
+			btn.position = Vector2(ROW_X_BTN, y_pos + 3)
+			btn.size = ROW_BTN_SIZE
+			btn.disabled = true
+			btn.mouse_default_cursor_shape = Control.CURSOR_FORBIDDEN
+			rows_container.add_child(btn)
+			_world_buttons[i] = btn
+
+
+# =============================================================================
+#  Bölge ve Yön Seçim Modalı (↖ Kuzeybatı, ↗ Kuzeydoğu, ↙ Güneybatı, ↘ Güneydoğu, 🎲 Rastgele)
+# =============================================================================
+
+func _setup_region_modal() -> void:
+	if center_modal == null:
+		return
+	center_modal.hide()
+
+	if card_panel != null:
+		var c_sb := StyleBoxFlat.new()
+		c_sb.bg_color = Color(0.10, 0.08, 0.14, 0.96)
+		c_sb.border_color = Color(0.85, 0.72, 0.40, 1.0)
+		c_sb.set_border_width_all(3)
+		c_sb.set_corner_radius_all(20)
+		c_sb.shadow_color = Color(0, 0, 0, 0.7)
+		c_sb.shadow_size = 16
+		card_panel.add_theme_stylebox_override("panel", c_sb)
+
+	if region_title != null:
+		region_title.add_theme_font_override("font", FontCinzelBold)
+		region_title.add_theme_font_size_override("font_size", 42)
+		region_title.add_theme_color_override("font_color", Color(1.0, 0.90, 0.50))
+		region_title.add_theme_color_override("font_outline_color", Color(0, 0, 0, 1.0))
+		region_title.add_theme_constant_override("outline_size", 4)
+
+	if region_desc != null:
+		region_desc.add_theme_font_override("font", FontNunitoBold)
+		region_desc.add_theme_font_size_override("font_size", 22)
+		region_desc.add_theme_color_override("font_color", Color(0.88, 0.84, 0.76))
+
+	var dir_buttons := [btn_nw, btn_ne, btn_sw, btn_se]
+	for b in dir_buttons:
+		if b == null:
+			continue
+		b.add_theme_font_override("font", FontNunitoBold)
+		b.add_theme_font_size_override("font_size", 26)
+		b.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+		var b_sb := StyleBoxFlat.new()
+		b_sb.bg_color = Color(0.18, 0.15, 0.24, 0.95)
+		b_sb.border_color = Color(0.75, 0.62, 0.35, 0.9)
+		b_sb.set_border_width_all(2)
+		b_sb.set_corner_radius_all(14)
+		b_sb.set_content_margin_all(12)
+		b.add_theme_stylebox_override("normal", b_sb)
+		b.add_theme_color_override("font_color", Color(1.0, 0.92, 0.70))
+		var b_h = b_sb.duplicate() as StyleBoxFlat
+		b_h.bg_color = Color(0.28, 0.22, 0.38, 1.0)
+		b_h.border_color = Color(1.0, 0.85, 0.45, 1.0)
+		b.add_theme_stylebox_override("hover", b_h)
+		b.add_theme_stylebox_override("pressed", b_h)
+
+	if btn_random != null:
+		btn_random.add_theme_font_override("font", FontNunitoBold)
+		btn_random.add_theme_font_size_override("font_size", 28)
+		btn_random.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+		var r_sb := StyleBoxFlat.new()
+		r_sb.bg_color = Color(0.24, 0.18, 0.32, 0.95)
+		r_sb.border_color = Color(0.95, 0.80, 0.45, 1.0)
+		r_sb.set_border_width_all(2)
+		r_sb.set_corner_radius_all(16)
+		r_sb.set_content_margin_all(14)
+		btn_random.add_theme_stylebox_override("normal", r_sb)
+		btn_random.add_theme_color_override("font_color", Color(1.0, 0.95, 0.80))
+		var r_h = r_sb.duplicate() as StyleBoxFlat
+		r_h.bg_color = Color(0.36, 0.28, 0.48, 1.0)
+		r_h.border_color = Color(1.0, 0.90, 0.55, 1.0)
+		btn_random.add_theme_stylebox_override("hover", r_h)
+		btn_random.add_theme_stylebox_override("pressed", r_h)
+
+	if btn_cancel != null:
+		btn_cancel.add_theme_font_override("font", FontNunitoBold)
+		btn_cancel.add_theme_font_size_override("font_size", 22)
+		btn_cancel.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+		var c_btn_sb := StyleBoxFlat.new()
+		c_btn_sb.bg_color = Color(0.14, 0.12, 0.16, 0.9)
+		c_btn_sb.border_color = Color(0.50, 0.42, 0.38, 0.8)
+		c_btn_sb.set_border_width_all(1)
+		c_btn_sb.set_corner_radius_all(12)
+		c_btn_sb.set_content_margin_all(10)
+		btn_cancel.add_theme_stylebox_override("normal", c_btn_sb)
+		btn_cancel.add_theme_color_override("font_color", Color(0.75, 0.70, 0.65))
+
+	if btn_nw != null and not btn_nw.pressed.is_connected(_on_nw_pressed):
+		btn_nw.pressed.connect(_on_nw_pressed)
+	if btn_ne != null and not btn_ne.pressed.is_connected(_on_ne_pressed):
+		btn_ne.pressed.connect(_on_ne_pressed)
+	if btn_sw != null and not btn_sw.pressed.is_connected(_on_sw_pressed):
+		btn_sw.pressed.connect(_on_sw_pressed)
+	if btn_se != null and not btn_se.pressed.is_connected(_on_se_pressed):
+		btn_se.pressed.connect(_on_se_pressed)
+	if btn_random != null and not btn_random.pressed.is_connected(_on_random_pressed):
+		btn_random.pressed.connect(_on_random_pressed)
+	if btn_cancel != null and not btn_cancel.pressed.is_connected(_on_cancel_pressed):
+		btn_cancel.pressed.connect(_on_cancel_pressed)
+
+
+func _on_nw_pressed() -> void:
+	_select_direction(35, 35)
+
+
+func _on_ne_pressed() -> void:
+	_select_direction(165, 35)
+
+
+func _on_sw_pressed() -> void:
+	_select_direction(35, 165)
+
+
+func _on_se_pressed() -> void:
+	_select_direction(165, 165)
+
+
+func _on_random_pressed() -> void:
+	var options := [Vector2i(35, 35), Vector2i(165, 35), Vector2i(35, 165), Vector2i(165, 165)]
+	var pick: Vector2i = options[randi() % options.size()]
+	_select_direction(pick.x, pick.y)
+
+
+func _on_cancel_pressed() -> void:
+	if center_modal != null:
+		center_modal.hide()
+
+
+func _select_direction(target_x: int, target_y: int) -> void:
+	if not _is_authenticated():
+		if _auth_overlay != null:
+			_auth_overlay.show()
 		return
 
-	gs.reset()
-	var seed_val := int(Time.get_unix_time_from_system())
-	var world := WorldGeneratorScript.generate(seed_val, 100)
-	var tiles: Dictionary = world.get("tiles", {})
+	var root = Engine.get_main_loop().root if Engine.get_main_loop() is SceneTree else null
+	var wm = root.get_node_or_null("WorldManager") if root != null else null
+	var p_name := _get_player_name()
 
-	var free_spot: Vector2i = WorldGeneratorScript.find_free_spot(tiles, target_x, target_y, WorldGeneratorScript.SIZE)
-	if free_spot.x < 0:
-		free_spot = Vector2i(target_x, target_y)
+	if wm != null:
+		var success: bool = wm.join_world(_selected_world_id, p_name, target_x, target_y)
+		if success:
+			get_tree().change_scene_to_file("res://scenes/Village.tscn")
+	else:
+		push_error("WorldManager bulunamadı!")
 
-	var villages_list: Array = world.get("villages", [])
-	var player_vid: int = villages_list.size() + 1
-	var player_v: Dictionary = VillageModelScript.create(player_vid, "Başkent", free_spot.x, free_spot.y, "Oyuncu", false)
-	player_v["is_bot"] = false
 
-	world["villages"].append(player_v)
-	world["tiles"][WorldGeneratorScript.tile_key(free_spot.x, free_spot.y)] = player_vid
+func _on_join_world(world_id: int) -> void:
+	if not _is_authenticated():
+		if _auth_overlay != null:
+			_auth_overlay.show()
+		return
 
-	gs.world = world
-	gs.villages = world["villages"].duplicate(true)
-	gs.player = {
-		"id": 1,
-		"name": "Kral",
-		"points": int(player_v.get("points", 110)),
-		"protection_until_unix": int(Time.get_unix_time_from_system()) + (5 * 86400),
-		"conquest_protection_until_unix": 0,
-		"premium": false,
-	}
-	gs.active_village_id = player_vid
+	_selected_world_id = world_id
+	if region_title != null:
+		region_title.text = "Başlangıç Yönü Seçin"
+	if region_desc != null:
+		region_desc.text = "Dünya %d topraklarında krallığınız kuruluyor.\nHaritada yerleşmek istediğiniz yönü seçin:" % world_id
 
-	var sm = Engine.get_main_loop().root.get_node_or_null("SaveManager") if Engine.get_main_loop() is SceneTree else null
-	if sm != null:
-		sm.save_game()
+	if center_modal != null:
+		center_modal.show()
+	else:
+		_select_direction(100, 100)
 
-	get_tree().change_scene_to_file("res://scenes/Village.tscn")
+
+func _on_continue_world(world_id: int) -> void:
+	if not _is_authenticated():
+		if _auth_overlay != null:
+			_auth_overlay.show()
+		return
+
+	var root = Engine.get_main_loop().root if Engine.get_main_loop() is SceneTree else null
+	var wm = root.get_node_or_null("WorldManager") if root != null else null
+	var p_name := _get_player_name()
+
+	if wm != null:
+		var success: bool = wm.enter_world(world_id, p_name)
+		if success:
+			get_tree().change_scene_to_file("res://scenes/Village.tscn")
+		else:
+			# Köyü bulunamadıysa (veya fethedildiyse) yön seçimi aç
+			_on_join_world(world_id)
+	else:
+		push_error("WorldManager bulunamadı!")

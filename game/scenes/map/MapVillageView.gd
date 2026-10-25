@@ -1,215 +1,281 @@
 extends Control
-## MapVillageView — 2.5D kartografik harita köyü (Taht ve Kılıç / A-HARITA).
+class_name MapVillageView
+## MapVillageView — Detaylı izometrik harita köyü (Taht ve Kılıç / A-HARITA).
 ##
-## Haritadaki her köy, parşömen bir "jeton" (medallion) olarak çizilir:
-##   • Açık parşömen disk + sahibine göre renkli halka (oyuncu=altın, soyguncu=taş, düşman=kırmızı)
-##   • Kartografik mürekkep ikonu (kale / çadır / düşman kalesi)
-##   • Sağ üstte flama (👑 / ⛺ / 🚩)
-##   • Altta isim + koordinat plaketi
-## Tıklama butonu tamamen şeffaftır; böylece görsellerin üstünü kapatmaz.
+## Görseller:
+##   • Kale Sv. < 5  -> gelismemis.png
+##   • Kale Sv. 5-10 -> orta-gelismis.png
+##   • Kale Sv. > 10 -> gelismis.png
+##
+## Yazılar:
+##   • Kullanıcı İsmi (👑 Kral / ⚔️ Sahip / 🛡️ Soyguncular)
+##   • Köy İsmi ve Koordinat (Başkent (100|100))
+##   • Nunito-Bold, büyük punto ve 3px siyah kontur ile razor-sharp netlik.
 
 signal clicked()
 
-const Palette := preload("res://themes/Palette.gd")
+const TexGelismemis := preload("res://assets/sprites/map/gelismemis.png")
+const TexOrtaGelismis := preload("res://assets/sprites/map/orta-gelismis.png")
+const TexGelismis := preload("res://assets/sprites/map/gelismis.png")
+const ProtectionScript := preload("res://scripts/sim/actions/Protection.gd")
+const FontNunitoBold := preload("res://assets/fonts/Nunito-Bold.ttf")
 
-const TOKEN_SIZE := 72.0
-const ICON_SIZE := 46.0
-const PLATE_W := 156.0
-const PLATE_H := 26.0
+const SPRITE_SIZE := Vector2(296, 296)
+const TOTAL_SIZE := Vector2(360, 410)
 
 var village_data: Dictionary = {}
 var is_player: bool = false
+var is_alliance_member: bool = false
 var is_barbarian: bool = false
+var alliance_tag: String = ""
 
 var _btn: Button
-var _token: Panel
+var _selection_ring: Panel
+var _shield_aura: Panel
+var _shield_badge: PanelContainer
 var _sprite: TextureRect
-var _banner_icon: Label
-var _label_name: Label
-var _panel_info: PanelContainer
+var _info_card: PanelContainer
+var _owner_label: Label
+var _name_coord_label: Label
 var _hover_tween: Tween
 
 
 func _init() -> void:
-	custom_minimum_size = Vector2(96, 96)
-	size = Vector2(96, 96)
+	custom_minimum_size = TOTAL_SIZE
+	size = TOTAL_SIZE
 	mouse_filter = MOUSE_FILTER_PASS
 
 
-func setup(v_data: Dictionary, is_own: bool, is_barb: bool) -> void:
+func setup(v_data: Dictionary, is_own: bool, is_ally: bool = false, ally_tag: String = "") -> void:
 	village_data = v_data
 	is_player = is_own
-	is_barbarian = is_barb
+	is_alliance_member = is_ally
+	alliance_tag = ally_tag
+	is_barbarian = false
 	_build_ui()
 
 
-# ---------------------------------------------------------------- renkler
-func _accent_color() -> Color:
-	if is_player:
-		return Palette.c("altin")
-	if is_barbarian:
-		return Palette.c("tas_golge")
-	return Palette.c("dusman")
-
-
-func _plate_bg() -> Color:
-	if is_player:
-		return Color(0.10, 0.26, 0.15, 0.94)
-	if is_barbarian:
-		return Color(0.22, 0.19, 0.15, 0.92)
-	return Color(0.34, 0.12, 0.12, 0.94)
-
-
-func _disc_bg() -> Color:
-	if is_player:
-		return Color(0.99, 0.95, 0.82, 1.0)
-	if is_barbarian:
-		return Color(0.95, 0.91, 0.82, 1.0)
-	return Color(0.99, 0.90, 0.86, 1.0)
-
-
-# ---------------------------------------------------------------- kurulum
 func _build_ui() -> void:
 	if _btn != null:
 		return
 
-	# 0) Tamamen şeffaf tıklama katmanı (EN ALTA eklenir, görseli kapatmaz)
+	# 0) Şeffaf tıklama butonu (tüm kart yüzeyini kaplar, MOUSE_FILTER_PASS ile harita sürüklemeyi engellemez)
 	_btn = Button.new()
 	_btn.anchors_preset = PRESET_FULL_RECT
 	_btn.size = size
 	_btn.flat = true
+	_btn.mouse_filter = MOUSE_FILTER_PASS
 	_btn.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 	var empty_sb := StyleBoxEmpty.new()
 	_btn.add_theme_stylebox_override("normal", empty_sb)
 	_btn.add_theme_stylebox_override("hover", empty_sb)
 	_btn.add_theme_stylebox_override("pressed", empty_sb)
-	_btn.add_theme_stylebox_override("disabled", empty_sb)
 	_btn.add_theme_stylebox_override("focus", empty_sb)
+	_btn.add_theme_stylebox_override("disabled", empty_sb)
 	_btn.pressed.connect(func(): clicked.emit())
 	_btn.mouse_entered.connect(_on_mouse_enter)
 	_btn.mouse_exited.connect(_on_mouse_exit)
 	add_child(_btn)
 
-	# 1) Zemin gölgesi
-	var shadow := Panel.new()
-	shadow.position = Vector2((size.x - 58.0) * 0.5, TOKEN_SIZE - 4.0)
-	shadow.size = Vector2(58, 16)
-	shadow.mouse_filter = MOUSE_FILTER_IGNORE
-	var sh_sb := StyleBoxFlat.new()
-	sh_sb.bg_color = Color(0.14, 0.10, 0.06, 0.34)
-	sh_sb.set_corner_radius_all(8)
-	shadow.add_theme_stylebox_override("panel", sh_sb)
-	add_child(shadow)
+	# 1) Köy Görseli (2 KAT BÜYÜK - 296x296, Mipmap destekli ultra keskin)
+	var buildings: Dictionary = village_data.get("buildings", {})
+	var main_lvl: int = int(buildings.get("main", 1))
 
-	# 2) Parşömen disk + renkli halka
-	_token = Panel.new()
-	_token.position = Vector2((size.x - TOKEN_SIZE) * 0.5, 2)
-	_token.size = Vector2(TOKEN_SIZE, TOKEN_SIZE)
-	_token.pivot_offset = Vector2(TOKEN_SIZE, TOKEN_SIZE) * 0.5
-	_token.mouse_filter = MOUSE_FILTER_IGNORE
-	var token_sb := StyleBoxFlat.new()
-	token_sb.bg_color = _disc_bg()
-	token_sb.border_color = _accent_color()
-	token_sb.set_border_width_all(3)
-	token_sb.set_corner_radius_all(int(TOKEN_SIZE * 0.5))
-	token_sb.shadow_color = Color(0.16, 0.11, 0.05, 0.42)
-	token_sb.shadow_size = 7
-	token_sb.shadow_offset = Vector2(0, 3)
-	_token.add_theme_stylebox_override("panel", token_sb)
-	add_child(_token)
-
-	# 3) Kartografik mürekkep ikonu
 	_sprite = TextureRect.new()
-	_sprite.position = Vector2((size.x - ICON_SIZE) * 0.5, 2 + (TOKEN_SIZE - ICON_SIZE) * 0.5)
-	_sprite.size = Vector2(ICON_SIZE, ICON_SIZE)
+	_sprite.custom_minimum_size = SPRITE_SIZE
+	_sprite.size = SPRITE_SIZE
+	_sprite.position = Vector2((size.x - SPRITE_SIZE.x) * 0.5, 8.0)
+	_sprite.pivot_offset = SPRITE_SIZE * 0.5
 	_sprite.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	_sprite.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	_sprite.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
 	_sprite.mouse_filter = MOUSE_FILTER_IGNORE
-	_sprite.pivot_offset = Vector2(ICON_SIZE, ICON_SIZE) * 0.5
 
-	var tex_path := "res://assets/sprites/icons/cartography/2x/castle.png"
-	if is_player:
-		tex_path = "res://assets/sprites/icons/cartography/2x/castleWide.png"
-	elif is_barbarian:
-		tex_path = "res://assets/sprites/icons/cartography/2x/tent.png"
-	if ResourceLoader.exists(tex_path):
-		_sprite.texture = load(tex_path)
-	# Mürekkep rengi: koyu kahve (siyah çizgi sanatı sıcak tona çekilir)
-	_sprite.modulate = Color(0.23, 0.16, 0.09, 1.0) if is_player else Color(0.25, 0.20, 0.15, 1.0)
+	if main_lvl < 5:
+		_sprite.texture = TexGelismemis
+	elif main_lvl <= 10:
+		_sprite.texture = TexOrtaGelismis
+	else:
+		_sprite.texture = TexGelismis
+
 	add_child(_sprite)
 
-	# 4) Flama / bayrak (diskin sağ üstü)
-	_banner_icon = Label.new()
-	_banner_icon.position = Vector2(size.x - 34.0, -10.0)
-	_banner_icon.add_theme_font_size_override("font_size", 20)
-	_banner_icon.add_theme_color_override("font_outline_color", Color(0.10, 0.07, 0.03, 0.9))
-	_banner_icon.add_theme_constant_override("outline_size", 4)
-	_banner_icon.mouse_filter = MOUSE_FILTER_IGNORE
-	_banner_icon.pivot_offset = Vector2(10, 10)
+	# 2) 15 Günlük Fetih Koruması Kalkanı (🛡️ Haritada Işıldayan Koruma Kalkanı)
+	var now_u := int(Time.get_unix_time_from_system())
+	var is_shielded: bool = ProtectionScript.is_attack_protected(village_data, now_u) \
+		or int(village_data.get("protection_until", 0)) > now_u \
+		or int(village_data.get("protection_until_unix", 0)) > now_u
+	if is_shielded:
+		_shield_aura = Panel.new()
+		var aura_sz := Vector2(196, 196) # Tam köy yerleşimi çapı
+		_shield_aura.custom_minimum_size = aura_sz
+		_shield_aura.size = aura_sz
+		_shield_aura.position = _sprite.position + (SPRITE_SIZE - aura_sz) * 0.5
+		_shield_aura.mouse_filter = MOUSE_FILTER_IGNORE
+
+		var aura_sb := StyleBoxFlat.new()
+		aura_sb.draw_center = true
+		aura_sb.bg_color = Color(0.20, 0.65, 1.0, 0.04) # Şeffaf, zarif mistik kalkan
+		aura_sb.border_color = Color(0.40, 0.85, 1.0, 0.35) # İnce, göz yormayan mistik sınır
+		aura_sb.set_border_width_all(2)
+		aura_sb.set_corner_radius_all(98)
+		aura_sb.shadow_color = Color(0.15, 0.60, 1.0, 0.15)
+		aura_sb.shadow_size = 6
+		_shield_aura.add_theme_stylebox_override("panel", aura_sb)
+		add_child(_shield_aura)
+
+		# Kalkan Rozeti: Kalkan dairesinin üstüne binmeyecek şekilde yukarı kaldırıldı ve büyütüldü
+		_shield_badge = PanelContainer.new()
+		_shield_badge.custom_minimum_size = Vector2(148, 38)
+		_shield_badge.position = Vector2((size.x - 148.0) * 0.5, 4.0)
+		_shield_badge.mouse_filter = MOUSE_FILTER_IGNORE
+		var s_badge_sb := StyleBoxFlat.new()
+		s_badge_sb.bg_color = Color(0.06, 0.16, 0.28, 0.94)
+		s_badge_sb.border_color = Color(0.40, 0.88, 1.0, 0.85)
+		s_badge_sb.set_border_width_all(2)
+		s_badge_sb.set_corner_radius_all(10)
+		s_badge_sb.shadow_color = Color(0.10, 0.50, 0.90, 0.35)
+		s_badge_sb.shadow_size = 8
+		s_badge_sb.content_margin_left = 10
+		s_badge_sb.content_margin_right = 10
+		s_badge_sb.content_margin_top = 4
+		s_badge_sb.content_margin_bottom = 4
+		_shield_badge.add_theme_stylebox_override("panel", s_badge_sb)
+
+		var s_lbl := Label.new()
+		s_lbl.text = "🛡️ Koruma"
+		s_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		s_lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		s_lbl.add_theme_font_override("font", FontNunitoBold)
+		s_lbl.add_theme_font_size_override("font_size", 20)
+		s_lbl.add_theme_constant_override("outline_size", 3)
+		s_lbl.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.95))
+		s_lbl.add_theme_color_override("font_color", Color(0.85, 0.96, 1.0))
+		_shield_badge.add_child(s_lbl)
+		add_child(_shield_badge)
+
+	# 3) Halka: Kendi köyü için Altın halka, İttifak için Mavi halka
+	if is_player or is_alliance_member:
+		_selection_ring = Panel.new()
+		var ring_sz := Vector2(204, 204)
+		_selection_ring.custom_minimum_size = ring_sz
+		_selection_ring.size = ring_sz
+		_selection_ring.position = _sprite.position + (SPRITE_SIZE - ring_sz) * 0.5
+		_selection_ring.mouse_filter = MOUSE_FILTER_IGNORE
+
+		var ring_sb := StyleBoxFlat.new()
+		ring_sb.draw_center = false
+		if is_player:
+			ring_sb.border_color = Color(1.0, 0.85, 0.20, 0.70) # Zarif Altın Çerçeve
+			ring_sb.shadow_color = Color(1.0, 0.82, 0.10, 0.25)
+		else:
+			ring_sb.border_color = Color(0.35, 0.75, 1.0, 0.70) # Müttefik Mavi Çerçeve
+			ring_sb.shadow_color = Color(0.15, 0.50, 0.95, 0.25)
+		ring_sb.set_border_width_all(2)
+		ring_sb.set_corner_radius_all(102)
+		ring_sb.shadow_size = 6
+		_selection_ring.add_theme_stylebox_override("panel", ring_sb)
+		add_child(_selection_ring)
+
+	# 4) Bilgi Plaketi (3 Kategori: Kendi Köyün / İttifak Üyelerin / Düşman)
+	_info_card = PanelContainer.new()
+	_info_card.custom_minimum_size = Vector2(280, 76)
+	_info_card.size = Vector2(280, 76)
+	_info_card.position = Vector2((size.x - 280.0) * 0.5, 312.0)
+	_info_card.pivot_offset = Vector2(140, 38)
+	_info_card.mouse_filter = MOUSE_FILTER_IGNORE
+
+	var card_sb := StyleBoxFlat.new()
+	card_sb.bg_color = Color(0.10, 0.09, 0.13, 0.94)
 	if is_player:
-		_banner_icon.text = "👑"
-	elif is_barbarian:
-		_banner_icon.text = "⛺"
+		card_sb.border_color = Color(1.0, 0.88, 0.40, 1.0) # Canlı Altın
+		card_sb.set_border_width_all(2)
+		card_sb.shadow_color = Color(0.40, 0.30, 0.05, 0.7)
+	elif is_alliance_member:
+		card_sb.border_color = Color(0.35, 0.75, 1.0, 1.0) # Müttefik Mavi
+		card_sb.set_border_width_all(2)
+		card_sb.shadow_color = Color(0.08, 0.25, 0.50, 0.7)
 	else:
-		_banner_icon.text = "🚩"
-	add_child(_banner_icon)
+		card_sb.border_color = Color(0.95, 0.45, 0.38, 0.95) # Düşman Kırmızı
+		card_sb.set_border_width_all(2)
+		card_sb.shadow_color = Color(0.45, 0.08, 0.08, 0.7)
 
-	# 5) İsim + koordinat plaketi
-	_panel_info = PanelContainer.new()
-	_panel_info.position = Vector2((size.x - PLATE_W) * 0.5, TOKEN_SIZE + 6.0)
-	_panel_info.custom_minimum_size = Vector2(PLATE_W, PLATE_H)
-	_panel_info.size = Vector2(PLATE_W, PLATE_H)
-	_panel_info.mouse_filter = MOUSE_FILTER_IGNORE
+	card_sb.set_corner_radius_all(10)
+	card_sb.shadow_size = 6
+	card_sb.content_margin_left = 10
+	card_sb.content_margin_right = 10
+	card_sb.content_margin_top = 4
+	card_sb.content_margin_bottom = 4
+	_info_card.add_theme_stylebox_override("panel", card_sb)
 
-	var plate_sb := StyleBoxFlat.new()
-	plate_sb.bg_color = _plate_bg()
-	plate_sb.border_color = _accent_color()
-	plate_sb.set_border_width_all(1)
-	plate_sb.set_corner_radius_all(8)
-	plate_sb.content_margin_left = 6
-	plate_sb.content_margin_right = 6
-	plate_sb.content_margin_top = 2
-	plate_sb.content_margin_bottom = 2
-	plate_sb.shadow_color = Color(0.10, 0.07, 0.03, 0.35)
-	plate_sb.shadow_size = 3
-	_panel_info.add_theme_stylebox_override("panel", plate_sb)
+	var vbox := VBoxContainer.new()
+	vbox.add_theme_constant_override("separation", 2)
+	vbox.mouse_filter = MOUSE_FILTER_IGNORE
 
+	# Satır 1: Kullanıcı / Sahip İsmi
+	var owner_name: String = str(village_data.get("owner", ""))
+	if owner_name.is_empty():
+		owner_name = "Lord Gorkem" if is_player else "Düşman"
+
+	_owner_label = Label.new()
+	if is_player:
+		_owner_label.text = "👑 " + owner_name
+		_owner_label.add_theme_color_override("font_color", Color(1.0, 0.92, 0.45))
+	elif is_alliance_member:
+		var tag_prefix := ("[" + alliance_tag + "] ") if not alliance_tag.is_empty() else ""
+		_owner_label.text = "🤝 " + tag_prefix + owner_name
+		_owner_label.add_theme_color_override("font_color", Color(0.55, 0.85, 1.0))
+	else:
+		_owner_label.text = "⚔️ " + owner_name
+		_owner_label.add_theme_color_override("font_color", Color(1.0, 0.65, 0.60))
+
+	_owner_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_owner_label.add_theme_font_override("font", FontNunitoBold)
+	_owner_label.add_theme_font_size_override("font_size", 24)
+	_owner_label.add_theme_constant_override("outline_size", 4)
+	_owner_label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 1.0))
+	_owner_label.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.95))
+	_owner_label.add_theme_constant_override("shadow_offset_y", 2)
+	vbox.add_child(_owner_label)
+
+	# Satır 2: Köy İsmi ve Koordinat
 	var v_name: String = str(village_data.get("name", "Köy"))
 	var vx: int = int(village_data.get("x", 0))
 	var vy: int = int(village_data.get("y", 0))
 
-	_label_name = Label.new()
-	_label_name.text = "%s  (%d|%d)" % [v_name, vx, vy]
-	_label_name.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_label_name.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	_label_name.add_theme_font_size_override("font_size", 12)
-	_label_name.add_theme_color_override("font_color", Color(1, 0.98, 0.92, 1.0))
-	_label_name.add_theme_color_override("font_outline_color", Color(0.06, 0.04, 0.02, 0.85))
-	_label_name.add_theme_constant_override("outline_size", 3)
-	_panel_info.add_child(_label_name)
-	add_child(_panel_info)
+	_name_coord_label = Label.new()
+	_name_coord_label.text = "%s (%d|%d)" % [v_name, vx, vy]
+	_name_coord_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_name_coord_label.add_theme_font_override("font", FontNunitoBold)
+	_name_coord_label.add_theme_font_size_override("font_size", 26)
+	_name_coord_label.add_theme_constant_override("outline_size", 4)
+	_name_coord_label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 1.0))
+	_name_coord_label.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.95))
+	_name_coord_label.add_theme_constant_override("shadow_offset_y", 2)
+	_name_coord_label.add_theme_color_override("font_color", Color(1.0, 1.0, 1.0))
+
+	vbox.add_child(_name_coord_label)
+
+	_info_card.add_child(vbox)
+	add_child(_info_card)
 
 
-# ---------------------------------------------------------------- etkileşim
 func _on_mouse_enter() -> void:
-	_animate_lift(true)
+	if _hover_tween != null and _hover_tween.is_valid():
+		_hover_tween.kill()
+	_hover_tween = create_tween().set_parallel(true).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	_hover_tween.tween_property(_sprite, "scale", Vector2(1.08, 1.08), 0.15)
+	_hover_tween.tween_property(_sprite, "position:y", 2.0, 0.15)
+	_hover_tween.tween_property(_info_card, "scale", Vector2(1.04, 1.04), 0.15)
 
 
 func _on_mouse_exit() -> void:
-	_animate_lift(false)
-
-
-func _animate_lift(up: bool) -> void:
 	if _hover_tween != null and _hover_tween.is_valid():
 		_hover_tween.kill()
-	var dy := -5.0 if up else 0.0
-	var sc := 1.07 if up else 1.0
-	_hover_tween = create_tween().set_parallel(true).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
-	_hover_tween.tween_property(_token, "position:y", 2.0 + dy, 0.14)
-	_hover_tween.tween_property(_sprite, "position:y", 2.0 + (TOKEN_SIZE - ICON_SIZE) * 0.5 + dy, 0.14)
-	_hover_tween.tween_property(_banner_icon, "position:y", -10.0 + dy, 0.14)
-	_hover_tween.tween_property(_token, "scale", Vector2(sc, sc), 0.14)
-	_hover_tween.tween_property(_sprite, "scale", Vector2(sc, sc), 0.14)
+	_hover_tween = create_tween().set_parallel(true).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	_hover_tween.tween_property(_sprite, "scale", Vector2(1.0, 1.0), 0.15)
+	_hover_tween.tween_property(_sprite, "position:y", 6.0, 0.15)
+	_hover_tween.tween_property(_info_card, "scale", Vector2(1.0, 1.0), 0.15)
 
 
 func get_button() -> Button:

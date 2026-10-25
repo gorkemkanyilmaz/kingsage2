@@ -519,7 +519,21 @@ static func _share_alliance(state: Dictionary, a: String, b: String) -> bool:
 		if typeof(alliance) != TYPE_DICTIONARY:
 			continue
 		var members = (alliance as Dictionary).get("members", [])
-		if typeof(members) == TYPE_ARRAY and (members as Array).has(a) and (members as Array).has(b):
+		if typeof(members) != TYPE_ARRAY:
+			continue
+		var has_a := false
+		var has_b := false
+		for m in members:
+			var m_name := ""
+			if typeof(m) == TYPE_STRING:
+				m_name = m
+			elif typeof(m) == TYPE_DICTIONARY:
+				m_name = str((m as Dictionary).get("name", ""))
+			if m_name == a:
+				has_a = true
+			if m_name == b:
+				has_b = true
+		if has_a and has_b:
 			return true
 	return false
 

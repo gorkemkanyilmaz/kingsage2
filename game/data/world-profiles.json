@@ -4,7 +4,7 @@
 		"tr": {
 			"label": "Türkiye — s59-tr",
 			"speed": 1,
-			"unit_speed": 1,
+			"unit_speed": 3,
 			"night_bonus_enabled": true,
 			"night_bonus_window": {"start_hour": 0, "end_hour": 6},
 			"night_bonus_multiplier": 2,
@@ -28,7 +28,7 @@
 		"en": {
 			"label": "İngilizce — s59-en",
 			"speed": 1,
-			"unit_speed": 1,
+			"unit_speed": 3,
 			"night_bonus_enabled": false,
 			"night_bonus_window": {"start_hour": 0, "end_hour": 6},
 			"night_bonus_multiplier": 2,

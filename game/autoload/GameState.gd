@@ -77,7 +77,7 @@ func _emit_message_created(message) -> void:
 func reset() -> void:
 	player = {
 		"id": 1,
-		"name": "Kral",
+		"name": "Lord Gorkem",
 		"points": 0,
 		"protection_until_unix": 0,
 		"conquest_protection_until_unix": 0,
@@ -121,6 +121,29 @@ func add_village(village: Dictionary) -> void:
 	_emit_state_changed()
 
 
+func rename_village(vid: int, new_name: String) -> bool:
+	var clean := new_name.strip_edges()
+	if clean.is_empty():
+		return false
+	var found := false
+	for v in villages:
+		if int(v.get("id", -1)) == vid:
+			v["name"] = clean
+			found = true
+			break
+	if world is Dictionary and world.has("villages"):
+		for wv in world["villages"]:
+			if int(wv.get("id", -1)) == vid:
+				wv["name"] = clean
+				break
+	if found:
+		var sm = Engine.get_main_loop().root.get_node_or_null("SaveManager") if Engine.get_main_loop() is SceneTree else null
+		if sm != null:
+			sm.save_game()
+		_emit_state_changed()
+	return found
+
+
 func get_village_count() -> int:
 	return villages.size()
 
@@ -139,8 +162,48 @@ func has_active_village() -> bool:
 
 ## Aktif köyü seçer.
 func set_active_village(village_id: int) -> void:
-	active_village_id = village_id
-	_emit_state_changed()
+	if active_village_id != village_id:
+		active_village_id = village_id
+		_emit_resources_changed(village_id)
+		_emit_state_changed()
+
+
+## Oyuncunun sahip olduğu tüm köyleri döndürür.
+func get_player_villages() -> Array:
+	var list: Array = []
+	var p_name := str(player.get("name", "Kral"))
+	for v in villages:
+		if typeof(v) != TYPE_DICTIONARY:
+			continue
+		var v_owner := str((v as Dictionary).get("owner", ""))
+		if v_owner == p_name:
+			list.append(v)
+	return list
+
+
+
+## Oyuncunun sonraki/önceki köyüne geçer (direction: +1 sonraki, -1 önceki).
+func cycle_active_village(direction: int = 1) -> int:
+	var p_vills := get_player_villages()
+	if p_vills.is_empty():
+		return -1
+	if p_vills.size() == 1:
+		set_active_village(int((p_vills[0] as Dictionary).get("id", -1)))
+		return active_village_id
+
+	var cur_idx := -1
+	for i in range(p_vills.size()):
+		if int((p_vills[i] as Dictionary).get("id", -1)) == active_village_id:
+			cur_idx = i
+			break
+
+	var next_idx := 0
+	if cur_idx >= 0:
+		next_idx = posmod(cur_idx + direction, p_vills.size())
+	var target_id := int((p_vills[next_idx] as Dictionary).get("id", -1))
+	set_active_village(target_id)
+	return target_id
+
 
 
 # --- Yardımcılar: kaynak / vatandaş ----------------------------------------

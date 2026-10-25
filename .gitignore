@@ -35,5 +35,30 @@ Thumbs.db
 Desktop.ini
 .DS_Store
 
-# ---------- Uretilen ekran goruntuleri (arac cikisi) ----------
+# ---------- Gecici Referans Dosyalari (Kok Dizin) ----------
 screenshots/
+/*_crop.png
+/*.jpg
+/*.gif
+gelismemis.png
+gelismis.png
+orta-gelismis.png
+screenshot_*.png
+test_frames/
+session-*.md
+diag_out.txt
+*.mp4
+
+# ---------- Sunucu ve Veritabanı ----------
+server/__pycache__/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.db
+*.sqlite
+*.sqlite3
+.env
+.env.*
+game/scratch/
+

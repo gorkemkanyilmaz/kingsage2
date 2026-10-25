@@ -217,7 +217,9 @@ func _test_raids_and_loot() -> void:
 	}
 
 	var now := 1000000
+	BotWarScript.peace_mode = false
 	var war_res := BotWarScript.think_war(bot_v, bot_v["bot_profile"], state, now)
+	BotWarScript.peace_mode = true
 	_assert(bool(war_res.get("action_taken", false)), "Bot soyguncu köyüne talan gönderdi")
 	_assert(state["movements"].size() == 1, "Hareket listesine 1 talan yazıldı")
 

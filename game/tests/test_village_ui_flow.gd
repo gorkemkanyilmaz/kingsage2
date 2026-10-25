@@ -34,6 +34,10 @@ func _initialize() -> void:
 		print("❌ UI Testleri BAŞARISIZ oldu!")
 	else:
 		print("✅ TÜM KÖY UI FONKSİYONLARI VE TESTLERİ EKSİKSİZ BAŞARILI!")
+
+	var sm = root.get_node_or_null("SaveManager")
+	if sm != null and sm.has_method("delete_save"):
+		sm.delete_save()
 	quit()
 
 
@@ -98,8 +102,8 @@ func _init_test_state() -> Dictionary:
 	var v := {
 		"id": 1,
 		"name": "Şanlı Köy",
-		"x": 500,
-		"y": 500,
+		"x": 100,
+		"y": 100,
 		"points": 100,
 		"realm_of_power": 50,
 		"resources": {
@@ -158,12 +162,12 @@ func _run_all_tests() -> void:
 	_assert_true(not qhud.visible, "Başlangıçta kuyruk boş olduğundan QueueHUD gizli")
 	_assert_true(not bpanel.visible, "Başlangıçta BuildingPanel gizli")
 
-	var wood_lbl: Label = rbar.get_node("HBox/Resources/WoodBox/WoodLabel")
-	var stone_lbl: Label = rbar.get_node("HBox/Resources/StoneBox/StoneLabel")
-	var iron_lbl: Label = rbar.get_node("HBox/Resources/IronBox/IronLabel")
-	_assert_true(wood_lbl.text == "1000", "ResourceBar odun başlangıç değeri 1000 (Görünen: %s)" % wood_lbl.text)
-	_assert_true(stone_lbl.text == "1000", "ResourceBar taş başlangıç değeri 1000 (Görünen: %s)" % stone_lbl.text)
-	_assert_true(iron_lbl.text == "1000", "ResourceBar demir başlangıç değeri 1000 (Görünen: %s)" % iron_lbl.text)
+	var wood_lbl: Label = rbar.wood_label if rbar.wood_label != null else rbar.get_node_or_null("VBox/BottomRow/WoodPill/WoodLabel")
+	var stone_lbl: Label = rbar.stone_label if rbar.stone_label != null else rbar.get_node_or_null("VBox/BottomRow/StonePill/StoneLabel")
+	var iron_lbl: Label = rbar.iron_label if rbar.iron_label != null else rbar.get_node_or_null("VBox/BottomRow/IronPill/IronLabel")
+	_assert_true(wood_lbl != null and wood_lbl.text == "1000", "ResourceBar odun başlangıç değeri 1000")
+	_assert_true(stone_lbl != null and stone_lbl.text == "1000", "ResourceBar taş başlangıç değeri 1000")
+	_assert_true(iron_lbl != null and iron_lbl.text == "1000", "ResourceBar demir başlangıç değeri 1000")
 
 	print("\n--- Test 2: Bina Seçimi ve BuildingPanel Açılışı (Oduncu Kampı) ---")
 	village_inst._on_building_selected("wood")
@@ -205,13 +209,14 @@ func _run_all_tests() -> void:
 	_assert_true(stone_lbl.text == str(exp_stone), "ResourceBar taş etiketi anında %d oldu (Görünen: %s)" % [exp_stone, stone_lbl.text])
 	_assert_true(iron_lbl.text == str(exp_iron), "ResourceBar demir etiketi anında %d oldu (Görünen: %s)" % [exp_iron, iron_lbl.text])
 
-	# 3. QueueHUD doğrulaması
+	# 3. QueueHUD doğrulaması (BuildingPanel kapalıyken görünür)
+	bpanel.hide()
 	village_inst._update_queue_ui()
 	_assert_true(qhud.visible, "İnşaat başlayınca QueueHUD görünür oldu")
-	var q_title: Label = qhud.get_node("VBox/TitleLabel")
-	var q_list: VBoxContainer = qhud.get_node("VBox/QueueList")
-	_assert_true(q_title.text.contains("1/3"), "QueueHUD başlığında (1/3) yazıyor: %s" % q_title.text)
-	_assert_true(q_list.get_child_count() == 1, "QueueHUD içinde tam 1 satır var")
+	var q_title: Label = village_inst.queue_title if village_inst.queue_title != null else qhud.get_node("VBox/TitleLabel")
+	var q_list: VBoxContainer = village_inst.queue_list if village_inst.queue_list != null else qhud.get_node("VBox/QueueList")
+	_assert_true(q_title.text.contains("(1)"), "QueueHUD başlığında (1) yazıyor: %s" % q_title.text)
+	_assert_true(q_list != null and q_list.get_child_count() == 1, "QueueHUD içinde tam 1 satır var")
 
 	var row0: HBoxContainer = q_list.get_child(0)
 	var row0_name: Label = row0.get_node("IconNameLabel")
@@ -222,6 +227,7 @@ func _run_all_tests() -> void:
 	_assert_true(row0_cancel != null, "İptal butonu mevcut")
 
 	# 4. BuildingPanel içi aktif inşaat paneli ve sonraki hedef doğrulaması
+	bpanel.show_building(gs.get_active_village(), "wood")
 	bpanel.refresh()
 	_assert_true(active_box.visible, "BuildingPanel içi ActiveBuildBox artık görünür")
 	var act_icon_lbl: Label = active_box.get_node("HBox/IconLabel")
@@ -233,9 +239,10 @@ func _run_all_tests() -> void:
 
 	print("\n--- Test 4: İkinci İnşaatı Kuyruğa Ekleme (Seviye 3) ---")
 	bpanel._on_upgrade_pressed()
+	bpanel.hide()
 	village_inst._update_queue_ui()
 	_assert_true(gs.queues.size() == 2, "GameState kuyruğunda 2 iş var")
-	_assert_true(q_title.text.contains("2/3"), "QueueHUD başlığında (2/3) yazıyor: %s" % q_title.text)
+	_assert_true(q_title.text.contains("(2)"), "QueueHUD başlığında (2) yazıyor: %s" % q_title.text)
 	_assert_true(q_list.get_child_count() == 2, "QueueHUD içinde 2 satır gösteriliyor")
 
 	var row1: HBoxContainer = q_list.get_child(1)
@@ -247,7 +254,7 @@ func _run_all_tests() -> void:
 
 	print("\n--- Test 5: Kuyruktan UI İle İptal Etme ve Taban Hammadde İadesi ---")
 	var item2_id = int(gs.queues[1].get("id", -1))
-	village_inst._on_cancel_button_clicked(item2_id)
+	village_inst._on_cancel_activity_clicked("build", item2_id)
 
 	_assert_true(gs.queues.size() == 1, "İptal sonrası kuyrukta 1 iş kaldı")
 	village_inst._update_queue_ui()

@@ -1,71 +1,191 @@
 [gd_scene format=3 uid="uid://d4g2h7k8m1n9q"]
 
 [ext_resource type="Script" path="res://ui/BottomNav.gd" id="1_bnav"]
-[ext_resource type="Theme" path="res://themes/TahtVeKilic.tres" id="2_theme"]
+[ext_resource type="Texture2D" path="res://assets/sprites/ui/bottom_nav_dock_pixel_perfect.png" id="2_dock_tex"]
 
-[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_nav_bg"]
-content_margin_left = 14.0
-content_margin_top = 8.0
-content_margin_right = 14.0
-content_margin_bottom = 10.0
-bg_color = Color(0.11, 0.10, 0.13, 0.98)
+[sub_resource type="StyleBoxEmpty" id="StyleBoxEmpty_btn"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_badge"]
+content_margin_left = 4.0
+content_margin_top = 1.0
+content_margin_right = 4.0
+content_margin_bottom = 1.0
+bg_color = Color(0.92, 0.14, 0.14, 1.0)
+border_width_left = 2
 border_width_top = 2
-border_color = Color(0.85, 0.72, 0.42, 0.90)
-corner_radius_top_left = 20
-corner_radius_top_right = 20
-shadow_color = Color(0, 0, 0, 0.5)
-shadow_size = 14
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(1, 1, 1, 1.0)
+corner_radius_top_left = 16
+corner_radius_top_right = 16
+corner_radius_bottom_right = 16
+corner_radius_bottom_left = 16
+shadow_color = Color(0, 0, 0, 0.55)
+shadow_size = 5
 
 [node name="BottomNav" type="PanelContainer"]
-custom_minimum_size = Vector2(1080, 108)
-offset_top = 1812.0
-offset_right = 1080.0
-offset_bottom = 1920.0
-theme = ExtResource("2_theme")
-theme_override_styles/panel = SubResource("StyleBoxFlat_nav_bg")
+custom_minimum_size = Vector2(1080, 248)
+anchors_preset = 12
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_top = -248.0
+offset_right = 0.0
+grow_horizontal = 2
+grow_vertical = 0
+mouse_filter = 1
+theme_override_styles/panel = SubResource("StyleBoxEmpty_btn")
 script = ExtResource("1_bnav")
 
+[node name="DockTexture" type="TextureRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+texture = ExtResource("2_dock_tex")
+expand_mode = 1
+stretch_mode = 5
+
 [node name="HBox" type="HBoxContainer" parent="."]
-layout_mode = 2
-theme_override_constants/separation = 12
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 1
+theme_override_constants/separation = 0
 alignment = 1
 
+[node name="SpacerLeft" type="Control" parent="HBox"]
+custom_minimum_size = Vector2(60, 248)
+layout_mode = 2
+mouse_filter = 2
+
 [node name="BtnVillage" type="Button" parent="HBox"]
-custom_minimum_size = Vector2(196, 88)
+custom_minimum_size = Vector2(160, 248)
 layout_mode = 2
 size_flags_horizontal = 3
-theme_override_font_sizes/font_size = 19
-text = "🏰
-Köy"
+mouse_default_cursor_shape = 2
+theme_override_styles/normal = SubResource("StyleBoxEmpty_btn")
+theme_override_styles/hover = SubResource("StyleBoxEmpty_btn")
+theme_override_styles/pressed = SubResource("StyleBoxEmpty_btn")
+theme_override_styles/disabled = SubResource("StyleBoxEmpty_btn")
+theme_override_styles/focus = SubResource("StyleBoxEmpty_btn")
+flat = true
 
 [node name="BtnMap" type="Button" parent="HBox"]
-custom_minimum_size = Vector2(196, 88)
+custom_minimum_size = Vector2(160, 248)
 layout_mode = 2
 size_flags_horizontal = 3
-theme_override_font_sizes/font_size = 19
-text = "🗺️
-Harita"
+mouse_default_cursor_shape = 2
+theme_override_styles/normal = SubResource("StyleBoxEmpty_btn")
+theme_override_styles/hover = SubResource("StyleBoxEmpty_btn")
+theme_override_styles/pressed = SubResource("StyleBoxEmpty_btn")
+theme_override_styles/disabled = SubResource("StyleBoxEmpty_btn")
+theme_override_styles/focus = SubResource("StyleBoxEmpty_btn")
+flat = true
 
 [node name="BtnReports" type="Button" parent="HBox"]
-custom_minimum_size = Vector2(196, 88)
+custom_minimum_size = Vector2(160, 248)
 layout_mode = 2
 size_flags_horizontal = 3
-theme_override_font_sizes/font_size = 19
-text = "📜
-Rapor"
+mouse_default_cursor_shape = 2
+theme_override_styles/normal = SubResource("StyleBoxEmpty_btn")
+theme_override_styles/hover = SubResource("StyleBoxEmpty_btn")
+theme_override_styles/pressed = SubResource("StyleBoxEmpty_btn")
+theme_override_styles/disabled = SubResource("StyleBoxEmpty_btn")
+theme_override_styles/focus = SubResource("StyleBoxEmpty_btn")
+flat = true
+
+[node name="ReportBadge" type="PanelContainer" parent="HBox/BtnReports"]
+visible = false
+layout_mode = 1
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -44.0
+offset_top = 22.0
+offset_right = -10.0
+offset_bottom = 56.0
+grow_horizontal = 0
+mouse_filter = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_badge")
+
+[node name="BadgeLabel" type="Label" parent="HBox/BtnReports/ReportBadge"]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_colors/font_shadow_color = Color(0, 0, 0, 0.7)
+theme_override_constants/shadow_offset_y = 1
+theme_override_font_sizes/font_size = 22
+text = "1"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="BtnMessages" type="Button" parent="HBox"]
+custom_minimum_size = Vector2(160, 248)
+layout_mode = 2
+size_flags_horizontal = 3
+mouse_default_cursor_shape = 2
+theme_override_styles/normal = SubResource("StyleBoxEmpty_btn")
+theme_override_styles/hover = SubResource("StyleBoxEmpty_btn")
+theme_override_styles/pressed = SubResource("StyleBoxEmpty_btn")
+theme_override_styles/disabled = SubResource("StyleBoxEmpty_btn")
+theme_override_styles/focus = SubResource("StyleBoxEmpty_btn")
+flat = true
+
+[node name="MessageBadge" type="PanelContainer" parent="HBox/BtnMessages"]
+visible = false
+layout_mode = 1
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -44.0
+offset_top = 22.0
+offset_right = -10.0
+offset_bottom = 56.0
+grow_horizontal = 0
+mouse_filter = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_badge")
+
+[node name="BadgeLabel" type="Label" parent="HBox/BtnMessages/MessageBadge"]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_colors/font_shadow_color = Color(0, 0, 0, 0.7)
+theme_override_constants/shadow_offset_y = 1
+theme_override_font_sizes/font_size = 22
+text = "1"
+horizontal_alignment = 1
+vertical_alignment = 1
 
 [node name="BtnRanking" type="Button" parent="HBox"]
-custom_minimum_size = Vector2(196, 88)
+custom_minimum_size = Vector2(160, 248)
 layout_mode = 2
 size_flags_horizontal = 3
-theme_override_font_sizes/font_size = 19
-text = "🏆
-Sıra"
+mouse_default_cursor_shape = 2
+theme_override_styles/normal = SubResource("StyleBoxEmpty_btn")
+theme_override_styles/hover = SubResource("StyleBoxEmpty_btn")
+theme_override_styles/pressed = SubResource("StyleBoxEmpty_btn")
+theme_override_styles/disabled = SubResource("StyleBoxEmpty_btn")
+theme_override_styles/focus = SubResource("StyleBoxEmpty_btn")
+flat = true
 
 [node name="BtnMenu" type="Button" parent="HBox"]
-custom_minimum_size = Vector2(196, 88)
+custom_minimum_size = Vector2(160, 248)
 layout_mode = 2
 size_flags_horizontal = 3
-theme_override_font_sizes/font_size = 19
-text = "⚙️
-Menü"
+mouse_default_cursor_shape = 2
+theme_override_styles/normal = SubResource("StyleBoxEmpty_btn")
+theme_override_styles/hover = SubResource("StyleBoxEmpty_btn")
+theme_override_styles/pressed = SubResource("StyleBoxEmpty_btn")
+theme_override_styles/disabled = SubResource("StyleBoxEmpty_btn")
+theme_override_styles/focus = SubResource("StyleBoxEmpty_btn")
+flat = true
+
+[node name="SpacerRight" type="Control" parent="HBox"]
+custom_minimum_size = Vector2(60, 248)
+layout_mode = 2
+mouse_filter = 2

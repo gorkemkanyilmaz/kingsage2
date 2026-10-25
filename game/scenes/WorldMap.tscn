@@ -5,7 +5,6 @@
 [ext_resource type="PackedScene" path="res://ui/BottomNav.tscn" id="3_bnav"]
 [ext_resource type="PackedScene" path="res://ui/SendTroopsPanel.tscn" id="4_stroops"]
 [ext_resource type="Theme" path="res://themes/TahtVeKilic.tres" id="5_theme"]
-[ext_resource type="Texture2D" path="res://assets/sprites/map/cartography-textures/parchmentAncient.png" id="6_parch"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_header"]
 content_margin_left = 22.0
@@ -43,36 +42,36 @@ grow_vertical = 2
 theme = ExtResource("5_theme")
 script = ExtResource("1_wmap")
 
-[node name="ParchmentBase" type="ColorRect" parent="."]
+[node name="MapContainer" type="Control" parent="."]
+clip_contents = true
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-color = Color(0.917647, 0.843137, 0.694118, 1)
 
-[node name="Background" type="TextureRect" parent="."]
-modulate = Color(1, 1, 1, 0.30)
+[node name="Scroll" type="ScrollContainer" parent="MapContainer"]
+visible = false
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-mouse_filter = 2
-texture = ExtResource("6_parch")
-expand_mode = 1
-stretch_mode = 6
+
+[node name="GridControl" type="Control" parent="MapContainer/Scroll"]
+custom_minimum_size = Vector2(19200, 19200)
+layout_mode = 2
 
 [node name="Header" type="PanelContainer" parent="."]
 layout_mode = 1
 anchors_preset = 10
 anchor_right = 1.0
 offset_left = 20.0
-offset_top = 122.0
+offset_top = 142.0
 offset_right = -20.0
-offset_bottom = 218.0
+offset_bottom = 238.0
 grow_horizontal = 2
 theme_override_styles/panel = SubResource("StyleBoxFlat_header")
 
@@ -127,64 +126,43 @@ layout_mode = 1
 anchors_preset = 5
 anchor_left = 0.5
 anchor_right = 0.5
-offset_left = -250.0
-offset_top = 226.0
-offset_right = 250.0
-offset_bottom = 266.0
+offset_left = -340.0
+offset_top = 246.0
+offset_right = 340.0
+offset_bottom = 290.0
 grow_horizontal = 2
 theme_override_styles/panel = SubResource("StyleBoxFlat_legend")
 
 [node name="HBox" type="HBoxContainer" parent="Legend"]
 layout_mode = 2
-theme_override_constants/separation = 18
+theme_override_constants/separation = 22
 alignment = 1
 
 [node name="Own" type="Label" parent="Legend/HBox"]
 layout_mode = 2
-theme_override_colors/font_color = Color(0.494118, 0.85098, 0.341176, 1)
-theme_override_font_sizes/font_size = 15
-text = "● Kendi köyün"
+theme_override_colors/font_color = Color(0.40, 0.95, 0.55, 1)
+theme_override_font_sizes/font_size = 20
+text = "● Kendi Köyün"
+
+[node name="Ally" type="Label" parent="Legend/HBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.35, 0.75, 1.0, 1)
+theme_override_font_sizes/font_size = 20
+text = "● İttifak Üyelerin"
 
 [node name="Enemy" type="Label" parent="Legend/HBox"]
 layout_mode = 2
-theme_override_colors/font_color = Color(0.94902, 0.439216, 0.364706, 1)
-theme_override_font_sizes/font_size = 15
+theme_override_colors/font_color = Color(1.0, 0.45, 0.40, 1)
+theme_override_font_sizes/font_size = 20
 text = "● Düşman"
-
-[node name="Barb" type="Label" parent="Legend/HBox"]
-layout_mode = 2
-theme_override_colors/font_color = Color(0.690196, 0.631373, 0.541176, 1)
-theme_override_font_sizes/font_size = 15
-text = "● Soyguncu"
-
-[node name="MapContainer" type="Control" parent="."]
-layout_mode = 1
-anchors_preset = 15
-anchor_right = 1.0
-anchor_bottom = 1.0
-offset_top = 274.0
-offset_bottom = -116.0
-grow_horizontal = 2
-grow_vertical = 2
-
-[node name="Scroll" type="ScrollContainer" parent="MapContainer"]
-layout_mode = 1
-anchors_preset = 15
-anchor_right = 1.0
-anchor_bottom = 1.0
-grow_horizontal = 2
-grow_vertical = 2
-
-[node name="GridControl" type="Control" parent="MapContainer/Scroll"]
-custom_minimum_size = Vector2(19200, 19200)
-layout_mode = 2
 
 [node name="ResourceBar" parent="." instance=ExtResource("2_rbar")]
 layout_mode = 1
 anchors_preset = 10
 anchor_right = 1.0
-offset_bottom = 110.0
+offset_bottom = 134.0
 grow_horizontal = 2
+
 
 [node name="SendTroopsPanel" parent="." instance=ExtResource("4_stroops")]
 visible = false
@@ -196,7 +174,7 @@ anchor_bottom = 1.0
 offset_left = 20.0
 offset_top = -800.0
 offset_right = -20.0
-offset_bottom = -130.0
+offset_bottom = -260.0
 grow_horizontal = 2
 grow_vertical = 0
 
@@ -206,7 +184,7 @@ anchors_preset = 12
 anchor_top = 1.0
 anchor_right = 1.0
 anchor_bottom = 1.0
-offset_top = -110.0
+offset_top = -248.0
 offset_bottom = 0.0
 grow_horizontal = 2
 grow_vertical = 0

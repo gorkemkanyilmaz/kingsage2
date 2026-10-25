@@ -80,11 +80,12 @@ theme_override_font_sizes/font_size = 30
 theme_override_fonts/font = ExtResource("6_cinzel")
 text = "Sıralama"
 
-[node name="Subtitle" type="Label" parent="Header/HBox"]
+[node name="BtnAlliance" type="Button" parent="Header/HBox"]
+custom_minimum_size = Vector2(160, 48)
 layout_mode = 2
-theme_override_colors/font_color = Color(0.8, 0.76, 0.66, 1)
-theme_override_font_sizes/font_size = 18
-text = "En güçlü 50 köy"
+theme_override_font_sizes/font_size = 20
+text = "🛡️ İttifakım"
+
 
 [node name="ResourceBar" parent="." instance=ExtResource("2_rbar")]
 layout_mode = 1
@@ -101,7 +102,7 @@ anchor_bottom = 1.0
 offset_left = 40.0
 offset_top = 236.0
 offset_right = -40.0
-offset_bottom = -130.0
+offset_bottom = -260.0
 grow_horizontal = 2
 grow_vertical = 2
 
@@ -124,7 +125,7 @@ anchors_preset = 12
 anchor_top = 1.0
 anchor_right = 1.0
 anchor_bottom = 1.0
-offset_top = -110.0
+offset_top = -248.0
 offset_bottom = 0.0
 grow_horizontal = 2
 grow_vertical = 0

@@ -85,15 +85,21 @@ func _test_full_scenario() -> void:
 		if not bool(v.get("is_bot", false)) and not bool(v.get("is_barbarian", false)) and str(v.get("owner", "")) != "Soyguncular":
 			if player_v.is_empty():
 				player_v = v
-		if bool(v.get("is_barbarian", false)) or str(v.get("owner", "")) == "Soyguncular":
+		elif bool(v.get("is_barbarian", false)) or str(v.get("owner", "")) == "Soyguncular":
 			if barb_v.is_empty():
 				barb_v = v
 
 	if player_v.is_empty():
-		player_v = state["villages"][0]
+		for v in state["villages"]:
+			if v != barb_v:
+				player_v = v
+				break
+		if player_v.is_empty():
+			player_v = state["villages"][0]
 		player_v["is_bot"] = false
+		player_v["owner"] = "Oyuncu"
 
-	if barb_v.is_empty():
+	if barb_v.is_empty() or barb_v == player_v:
 		barb_v = VillageModelScript.create(999, "Soyguncu", 100, 100, "Soyguncular", false)
 		state["villages"].append(barb_v)
 
@@ -189,18 +195,17 @@ func _test_full_scenario() -> void:
 	now = arrive_time + 1
 	_step_sim(state, now, 1)
 
-	# Dönüş hareketini bul ve varışına ilerle
-	var return_mov: Dictionary = {}
+	print("MOVEMENTS COUNT AT 197: ", state.get("movements", []).size())
 	for m in state.get("movements", []):
+		print("FOUND MOV TYPE: ", m.get("type"), " ARRIVE: ", m.get("arrive_unix"), " NOW: ", now)
 		if str(m.get("type", "")) == "return":
-			return_mov = m
+			now = int(m.get("arrive_unix", now + 3600)) + 1
+			var evs = _step_sim(state, now, 1.0)
+			print("RETURN STEP EVENTS: ", evs)
 			break
-	if not return_mov.is_empty():
-		var ret_time: int = int(return_mov.get("arrive_unix", now + 3600))
-		now = ret_time + 1
-		_step_sim(state, now, 1)
 
-	_assert(int(player_v["units"]["bow"]) == 300, "Dönen okçular köye katıldı (200 -> 300)")
+	var current_bows := int(player_v["units"].get("bow", 0))
+	_assert(current_bows == 300, "Dönen okçular köye katıldı (beklenen 300, mevcut %d)" % current_bows)
 
 	# (e) İptal mekanizması ve iade kuralı doğrulaması
 	# Kuyrukta peş peşe 4 iş ekle (4. iş: +%25 ek maliyetli)

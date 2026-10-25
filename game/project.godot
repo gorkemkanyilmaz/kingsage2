@@ -8,7 +8,7 @@ config_version=5
 
 config/name="Taht ve Kılıç"
 config/description="Kralın tahtı, kılıcı ve köyü. KingsAge mekaniklerinin mobil dikey klonu."
-run/main_scene="res://scenes/boot/Boot.tscn"
+run/main_scene="res://scenes/VillageSelect.tscn"
 config/features=PackedStringArray("4.7", "GL Compatibility")
 config/icon="res://icon.svg"
 
@@ -19,7 +19,12 @@ GameConfig="*res://autoload/GameConfig.gd"
 GameData="*res://autoload/GameData.gd"
 GameState="*res://autoload/GameState.gd"
 GameClock="*res://autoload/GameClock.gd"
+GameLoop="*res://scripts/core/GameLoop.gd"
 SaveManager="*res://autoload/SaveManager.gd"
+WorldManager="*res://autoload/WorldManager.gd"
+AuthManager="*res://autoload/AuthManager.gd"
+NetworkManager="*res://autoload/NetworkManager.gd"
+VillageBackgroundCache="*res://autoload/VillageBackgroundCache.gd"
 
 [display]
 
@@ -35,8 +40,16 @@ window/stretch/aspect="expand"
 
 pointing/emulate_touch_from_mouse=true
 
+[gui]
+
+theme/custom="res://themes/TahtVeKilic.tres"
+
 [rendering]
 
+textures/canvas_textures/default_texture_filter=2
 renderer/rendering_method="gl_compatibility"
 renderer/rendering_method.mobile="gl_compatibility"
 textures/vram_compression/import_etc2_astc=true
+2d/snap/snap_2d_transforms_to_pixel=true
+2d/snap/snap_2d_vertices_to_pixel=true
+

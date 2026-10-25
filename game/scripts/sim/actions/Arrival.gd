@@ -380,12 +380,24 @@ static func _battle_report_data(
 	var data: Dictionary = built.duplicate(true)
 	data["type"] = "battle"
 	data["target_village_id"] = int(movement.get("to_village_id", 0))
+	data["from_village_id"] = int(movement.get("from_village_id", 0))
+	data["attacker_name"] = str(attacker.get("name", "Saldıran"))
+	data["defender_name"] = str(defender.get("name", "Savunan"))
 	data["is_raid"] = is_raid
+	data["attacker_units"] = (attacker.get("units", {}) as Dictionary).duplicate(true)
+	data["defender_units"] = (defender.get("units", {}) as Dictionary).duplicate(true)
 	data["attacker_losses"] = (result.get("attacker_losses", {}) as Dictionary).duplicate(true)
 	data["defender_losses"] = (result.get("defender_losses", {}) as Dictionary).duplicate(true)
+	data["attacker_alive"] = (result.get("attacker_alive", {}) as Dictionary).duplicate(true)
+	data["defender_alive"] = (result.get("defender_alive", {}) as Dictionary).duplicate(true)
 	data["loot"] = _normalize_resources(result.get("loot", {}))
+	data["carry_capacity"] = int(result.get("carry_capacity", 0))
 	data["conquered"] = bool(result.get("conquered", false))
 	data["wall_damage_pct"] = float(result.get("wall_damage_pct", 0.0))
+	data["wall_level_before"] = int(result.get("wall_level_before", 0))
+	data["wall_level_after"] = int(result.get("wall_level_after", 0))
+	data["realm_before"] = int(result.get("realm_of_power_before", 0))
+	data["realm_after"] = int(result.get("realm_of_power_after", 0))
 	data["raw"] = result
 	return data
 
@@ -417,14 +429,23 @@ static func _spy_report_data(
 		"hideout_capacity": hideout,
 		"visible_resources_total": visible_total,
 		"units": units,
-		"buildings": (target.get("buildings", {}) as Dictionary).duplicate(true) if typeof(target.get("buildings")) == TYPE_DICTIONARY else {},
 		"spy_survivors": int(spy_data.get("spy_survivors", 0)),
 		"spy_losses": int(spy_data.get("spy_losses", 0)),
 		"defence_spies": int(spy_data.get("defence_spies", 0)),
 		"creeping": creeping,
 	}
-	# Gizli casuslukta "dışarıdaki birlikler" bilgisi VERİLMEZ.
-	if not creeping:
+
+	var survivors_cnt: int = int(spy_data.get("spy_survivors", 0))
+	var losses_cnt: int = int(spy_data.get("spy_losses", 0))
+	var total_spies: int = maxi(1, survivors_cnt + losses_cnt)
+	var surv_ratio: float = float(survivors_cnt) / float(total_spies)
+
+	# KingsAge: %50+ casus sağ kalırsa bina seviyeleri keşfedilir
+	if surv_ratio >= 0.5:
+		data["buildings"] = (target.get("buildings", {}) as Dictionary).duplicate(true) if typeof(target.get("buildings")) == TYPE_DICTIONARY else {}
+
+	# KingsAge: %70+ casus sağ kalırsa ve normal casusluk ise dışarıdaki birlikler keşfedilir
+	if surv_ratio >= 0.7 and not creeping:
 		data["outside_units"] = _collect_outside_units(state, int(target.get("id", 0)))
 	return data
 

@@ -3,7 +3,7 @@
 > 🔴 **SONRAKİ OTURUMDA ÖNCE BU DOSYAYI OKU.**
 > Sonra sırayla: `README.md` → `docs/TERIMLER.md` → `TASKS.md`
 
-**Son güncelleme:** 8. oturum (HARİTA KARTOGRAFYA CİLASI + ORTAK PARŞÖMEN ATMOSFERİ & MENÜ/SAYFA KARTLARI) — bkz. **`TASKS-GRAPHICS.md`** §Faz 7 & **`TASKS-CODE.md`**
+**Son güncelleme:** 9. oturum (UI YAZI & ÇİZGİ NETLİĞİ / CRISPNESS + AYARLAR HIZ SATIRI) — bkz. **`TASKS-GRAPHICS.md`** §Faz 8 & **`TASKS-CODE.md`**
 **Proje:** **Taht ve Kılıç** — King's Age mobil klonu (Godot 4.7.2, dikey, 2.5D, Türkçe)
 **Aşama:** 🟢 **Mobil UI & Etkileşim Fazı Tamamlandı** (%100 Başarılı Testler: test_village_pan_zoom 18/18, test_village_ui_flow 56/56, test_building_upgrades 67/67, test_player_agent 80/80, test_settings_nav PASS, test_all_scenes PASS).
 - **Akıcı Zoom & Pan (Kaydırma):** Çift parmakla sıkıştırma (pinch-to-zoom), fare tekerleğiyle yakınlaşma (1.0x - 2.2x), tek parmakla serbest harita sürükleme ve kenar kenetleme eklendi.
@@ -18,6 +18,9 @@
 - **8. oturum — Ortak Atmosfer:** Yeni `ui/Backdrop.gd` ile tüm menü/panel ekranlarına parşömen dokusu, aquarelle lekeleri, kenar vinyeti ve arma filigranı.
 - **8. oturum — Ekran Kartları:** Ana Menü / Köy Seçim / Ayarlar kart (plaque) düzeni + Cinzel başlıklar; Sıralama'da altın/gümüş/bronz madalya + oyuncu vurgusu; Raporlar'da tür renkli kartlar + boş-durum görünümü.
 - **8. oturum — Araç:** `tools/capture_screens.gd` 8 ekranı (kaydırılmış harita dahil) `screenshots/`'a yakalıyor; `screenshots/` git dışında. 14 test paketi + `test_all_scenes` → tamamı PASS.
+- **9. oturum — Yazı & Çizgi Netliği (MSDF):** 540×960 pencere / 1080×1920 tasarım yarı ölçek küçültmesinden doğan "bulanıklık" giderildi; kullanılan 4 tema fontu (`Nunito-Regular/Bold/SemiBold`, `Cinzel-Bold`) `multichannel_signed_distance_field=true` + `msdf_size=64` (mesafe alanı → her ölçekte net glif). Küçük yazılar büyütüldü: köy üst çubuğu (24–28), bina paneli (24–32), alt nav 22, kuyruk HUD 22/20, harita lejantı 20 + cetvel 24 + köy jetonu 18, Ayarlar etiketleri 26.
+- **9. oturum — Ayarlar hız satırı:** SpinBox okları gizlenip yerine net `−` / `+` düğmeleri, ortalanmış 30 px rakamlar; `OptionButton`/`PopupMenu` parşömen temaları (chevron oku + gölgeli panel) ve tema artık `project.godot` üzerinden global uygulanıyor.
+- **9. oturum — Regresyon:** `test_all_scenes` + 15 test dosyası (army 66, bot 20, economy 126, integration 26, rules 159, save 18, village_ui_flow 56, building_upgrades 67, player_agent 80, pan_zoom 18, settings_nav, actions, battle, world) → **tamamı EXIT=0**.
 
 ---
 

@@ -300,6 +300,8 @@ func _run_player_journey() -> void:
 	# (b) Kont 80 alan mesafe kapısı testi (Köyde 1 Kont olsun)
 	player_v["units"]["snob"] = 1
 	var far_target: Dictionary = VillageModelScript.create(9999, "Uzak Kale", spot.x + 90, spot.y + 90, "Düşman", false)
+	far_target["protection_until"] = 0
+	far_target["conquest_protection_until"] = 0
 	state["villages"].append(far_target)
 	var check_far_count = MovementScript.can_send(state, p_id, 9999, MovementScript.TYPE_ATTACK, {"snob": 1, "bow": 20}, {}, now)
 	_assert(not bool(check_far_count.get("ok", false)), "80 alandan uzak hedefe Kont gönderilemedi (beklenen red)")

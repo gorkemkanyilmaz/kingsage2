@@ -2,26 +2,7 @@
 
 [ext_resource type="Script" path="res://scenes/VillageSelect.gd" id="1_vselect"]
 [ext_resource type="Theme" path="res://themes/TahtVeKilic.tres" id="2_theme"]
-[ext_resource type="Script" path="res://ui/Backdrop.gd" id="3_backdrop"]
-[ext_resource type="FontFile" path="res://assets/fonts/Cinzel-Bold.ttf" id="4_cinzel"]
-
-[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_card"]
-content_margin_left = 40.0
-content_margin_top = 36.0
-content_margin_right = 40.0
-content_margin_bottom = 36.0
-bg_color = Color(0.984314, 0.956863, 0.886275, 0.82)
-border_width_left = 3
-border_width_top = 3
-border_width_right = 3
-border_width_bottom = 3
-border_color = Color(0.603922, 0.392157, 0.215686, 0.55)
-corner_radius_top_left = 22
-corner_radius_top_right = 22
-corner_radius_bottom_right = 22
-corner_radius_bottom_left = 22
-shadow_color = Color(0.419608, 0.262745, 0.164706, 0.28)
-shadow_size = 10
+[ext_resource type="Texture2D" path="res://assets/sprites/ui/world_select_art.png" id="3_bg"]
 
 [node name="VillageSelect" type="Control"]
 layout_mode = 3
@@ -33,16 +14,18 @@ grow_vertical = 2
 theme = ExtResource("2_theme")
 script = ExtResource("1_vselect")
 
-[node name="Background" type="ColorRect" parent="."]
+[node name="Background" type="TextureRect" parent="."]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-color = Color(0.992157, 0.964706, 0.890196, 1)
+texture = ExtResource("3_bg")
+expand_mode = 1
+stretch_mode = 0
 
-[node name="Backdrop" type="Control" parent="."]
+[node name="RowsContainer" type="Control" parent="."]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -50,29 +33,10 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
-script = ExtResource("3_backdrop")
-emblem_path = "res://assets/sprites/icons/cartography/2x/compass.png"
-emblem_alpha = 0.11
-emblem_size = 440.0
-emblem_center = Vector2(0.5, 0.24)
-
-[node name="Card" type="Panel" parent="."]
-layout_mode = 1
-anchors_preset = 8
-anchor_left = 0.5
-anchor_top = 0.5
-anchor_right = 0.5
-anchor_bottom = 0.5
-offset_left = -440.0
-offset_top = -390.0
-offset_right = 440.0
-offset_bottom = 390.0
-grow_horizontal = 2
-grow_vertical = 2
-mouse_filter = 2
-theme_override_styles/panel = SubResource("StyleBoxFlat_card")
 
 [node name="Center" type="CenterContainer" parent="."]
+visible = false
+z_index = 500
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -80,28 +44,31 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 
-[node name="VBox" type="VBoxContainer" parent="Center"]
-custom_minimum_size = Vector2(760, 0)
+[node name="Dimmer" type="ColorRect" parent="Center"]
+custom_minimum_size = Vector2(1080, 1920)
 layout_mode = 2
-theme_override_constants/separation = 32
+color = Color(0.04, 0.03, 0.05, 0.88)
+
+[node name="CardPanel" type="Panel" parent="Center"]
+custom_minimum_size = Vector2(860, 920)
+layout_mode = 2
+
+[node name="VBox" type="VBoxContainer" parent="Center"]
+custom_minimum_size = Vector2(780, 0)
+layout_mode = 2
+theme_override_constants/separation = 28
 alignment = 1
 
 [node name="Title" type="Label" parent="Center/VBox"]
 layout_mode = 2
-theme_override_colors/font_color = Color(0.239216, 0.152941, 0.058824, 1)
-theme_override_colors/font_outline_color = Color(0.980392, 0.921569, 0.733333, 0.9)
-theme_override_constants/outline_size = 8
-theme_override_font_sizes/font_size = 52
-theme_override_fonts/font = ExtResource("4_cinzel")
 text = "Başlangıç Yönü Seçin"
 horizontal_alignment = 1
 
 [node name="Desc" type="Label" parent="Center/VBox"]
 layout_mode = 2
-theme_override_colors/font_color = Color(0.486275, 0.45098, 0.407843, 1)
-theme_override_font_sizes/font_size = 22
 text = "Yeni krallığınız haritanın hangi bölgesinde kurulsun?"
 horizontal_alignment = 1
+autowrap_mode = 2
 
 [node name="Grid" type="GridContainer" parent="Center/VBox"]
 layout_mode = 2
@@ -110,31 +77,31 @@ theme_override_constants/v_separation = 20
 columns = 2
 
 [node name="BtnNW" type="Button" parent="Center/VBox/Grid"]
-custom_minimum_size = Vector2(360, 110)
+custom_minimum_size = Vector2(380, 110)
 layout_mode = 2
-theme_override_font_sizes/font_size = 26
 text = "↖ Kuzeybatı"
 
 [node name="BtnNE" type="Button" parent="Center/VBox/Grid"]
-custom_minimum_size = Vector2(360, 110)
+custom_minimum_size = Vector2(380, 110)
 layout_mode = 2
-theme_override_font_sizes/font_size = 26
 text = "↗ Kuzeydoğu"
 
 [node name="BtnSW" type="Button" parent="Center/VBox/Grid"]
-custom_minimum_size = Vector2(360, 110)
+custom_minimum_size = Vector2(380, 110)
 layout_mode = 2
-theme_override_font_sizes/font_size = 26
 text = "↙ Güneybatı"
 
 [node name="BtnSE" type="Button" parent="Center/VBox/Grid"]
-custom_minimum_size = Vector2(360, 110)
+custom_minimum_size = Vector2(380, 110)
 layout_mode = 2
-theme_override_font_sizes/font_size = 26
 text = "↘ Güneydoğu"
 
 [node name="BtnRandom" type="Button" parent="Center/VBox"]
 custom_minimum_size = Vector2(0, 100)
 layout_mode = 2
-theme_override_font_sizes/font_size = 28
 text = "🎲 Rastgele Bölge"
+
+[node name="BtnCancel" type="Button" parent="Center/VBox"]
+custom_minimum_size = Vector2(0, 68)
+layout_mode = 2
+text = "✖ Vazgeç / Dünyalara Dön"

@@ -29,13 +29,14 @@ const CONTINENT_SIZE := 100
 const CLUSTER_SIZE := 25
 
 ## Bir köyün küme merkezinden en fazla sapması (± alan).
-const CLUSTER_SPREAD := 9
+const CLUSTER_SPREAD := 12
 
 ## Küme merkezlerinin ızgara düzenini kırmak için ± sapma (alan).
 const CLUSTER_JITTER := 3
 
 ## Aynı köy için yerleştirme denemesi (küme içinde).
-const MAX_PLACEMENT_ATTEMPTS := 40
+const MAX_PLACEMENT_ATTEMPTS := 50
+
 
 ## Terkedilmiş (soyguncu) köy / bot köyü oranı. **VARSAYIM** (bkz. ASSUMPTIONS.md §4).
 const BARBARIAN_RATIO := 1.0
@@ -67,8 +68,8 @@ const BONUS_TRAINING_PERCENT := 10
 ## Nötr hammadde çarpanları (bonus yoksa).
 const NEUTRAL_PRODUCTION := {"wood": 1.0, "stone": 1.0, "iron": 1.0}
 
-## İki köy arasındaki en az alan mesafesi. 1 = yalnızca **aynı alan** yasak (karar: aynı alana iki köy konamaz).
-const MIN_VILLAGE_DISTANCE := 1
+## İki köy arasındaki en az alan mesafesi (haritada 296px köy boyutu ve 280px plaket çakışmasını önler).
+const MIN_VILLAGE_DISTANCE := 6
 
 ## Yeni köyün hammaddeleri (`GameState.START_RESOURCES`).
 const START_RESOURCES := {"wood": 1000, "stone": 1000, "iron": 1000}
@@ -155,13 +156,13 @@ const OWNER_B := ["Bey", "Han", "Ağa", "Paşa", "Kral"]
 ## }
 ## ```
 ## `counts.bot` **her zaman** istenen `bot_count` kadardır.
-static func generate(seed_value: int, bot_count: int, world_size: int = SIZE) -> Dictionary:
+static func generate(seed_value: int, bot_count: int, world_size: int = SIZE, barbarian_ratio: float = BARBARIAN_RATIO, bonus_ratio: float = BONUS_RATIO) -> Dictionary:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = seed_value
 
 	var bots := maxi(0, bot_count)
-	var barbarians := maxi(0, int(round(float(bots) * BARBARIAN_RATIO)))
-	var bonuses := maxi(0, int(round(float(bots) * BONUS_RATIO)))
+	var barbarians := maxi(0, int(round(float(bots) * barbarian_ratio)))
+	var bonuses := maxi(0, int(round(float(bots) * bonus_ratio)))
 	var total := bots + barbarians + bonuses
 
 	var placements := _build_placements(bots, barbarians, bonuses)
@@ -179,16 +180,31 @@ static func generate(seed_value: int, bot_count: int, world_size: int = SIZE) ->
 	var used_owners: Dictionary = {}
 	var next_id := 1
 
+	var max_coord := world_size - 1
+	var current_min_dist := MIN_VILLAGE_DISTANCE
 	for index in total:
 		var placement: Dictionary = placements[index]
 		var center: Vector2i = centers[int(cluster_order[index % cluster_order.size()])]
-		var spot := _spot_in_cluster(tiles, center, world_size, rng)
+		var spot := Vector2i(-1, -1)
+		if current_min_dist == MIN_VILLAGE_DISTANCE:
+			spot = _spot_in_cluster(tiles, center, world_size, rng)
 		if spot.x < 0:
 			# Kümeler tükendiyse dünyanın herhangi bir yerinde ara (deterministik).
-			spot = find_free_spot(
+			spot = find_free_spot_with_dist(
 				tiles,
-				int(rng.randi_range(1, world_size)),
-				int(rng.randi_range(1, world_size)),
+				int(rng.randi_range(1, max_coord)),
+				int(rng.randi_range(1, max_coord)),
+				current_min_dist,
+				world_size
+			)
+		if spot.x < 0 and current_min_dist > 1:
+			# Çok yoğun dünyalarda (ör. bot_count=400 stres testi) doğrudan boş herhangi bir alan bul (O(1))
+			current_min_dist = 1
+			spot = find_free_spot_with_dist(
+				tiles,
+				int(rng.randi_range(1, max_coord)),
+				int(rng.randi_range(1, max_coord)),
+				1,
 				world_size
 			)
 		if spot.x < 0:
@@ -363,42 +379,57 @@ static func is_inside(x: int, y: int, world_size: int = SIZE) -> bool:
 
 ## Alan boş mu? (Üzerinde köy yok + sınır içinde.)
 static func is_spot_free(tiles: Dictionary, x: int, y: int, world_size: int = SIZE) -> bool:
+	return is_spot_free_dist(tiles, x, y, MIN_VILLAGE_DISTANCE, world_size)
+
+
+static func is_spot_free_dist(tiles: Dictionary, x: int, y: int, min_dist: int, world_size: int = SIZE) -> bool:
 	if not is_inside(x, y, world_size):
 		return false
 	if tiles.has(tile_key(x, y)):
 		return false
-	if MIN_VILLAGE_DISTANCE <= 1:
+	if min_dist <= 1:
 		return true
-	var pad := MIN_VILLAGE_DISTANCE - 1
+	var pad := min_dist - 1
 	for dy in range(-pad, pad + 1):
 		for dx in range(-pad, pad + 1):
-			if dx == 0 and dy == 0:
+			var tx := x + dx
+			var ty := y + dy
+			if tx < 1 or tx > world_size or ty < 1 or ty > world_size:
 				continue
-			if tiles.has(tile_key(x + dx, y + dy)):
+			if tiles.has(tile_key(tx, ty)):
 				return false
 	return true
+
+
+static func find_free_spot_with_dist(tiles: Dictionary, x: int, y: int, min_dist: int, world_size: int = SIZE) -> Vector2i:
+	var cx := clampi(x, 1, world_size)
+	var cy := clampi(y, 1, world_size)
+	if is_spot_free_dist(tiles, cx, cy, min_dist, world_size):
+		return Vector2i(cx, cy)
+	var max_r := mini(world_size, 25 if min_dist > 1 else world_size)
+	for radius in range(1, max_r + 1):
+		for dy in range(-radius, radius + 1):
+			for dx in range(-radius, radius + 1):
+				if maxi(absi(dx), absi(dy)) != radius:
+					continue
+				var nx := cx + dx
+				var ny := cy + dy
+				if nx >= 1 and nx <= world_size and ny >= 1 and ny <= world_size:
+					if is_spot_free_dist(tiles, nx, ny, min_dist, world_size):
+						return Vector2i(nx, ny)
+	# Güvenlik ağı: min_dist 1 iken tüm haritayı satır satır tara
+	if min_dist <= 1:
+		for ny in range(1, world_size + 1):
+			for nx in range(1, world_size + 1):
+				if is_spot_free_dist(tiles, nx, ny, min_dist, world_size):
+					return Vector2i(nx, ny)
+	return Vector2i(-1, -1)
 
 
 ## `(x, y)`'ye **en yakın boş alanı** bulur (`docs/19` §6). Halkalar hâlinde deterministik tarar.
 ## Dünya doluysa `Vector2i(-1, -1)` döner.
 static func find_free_spot(tiles: Dictionary, x: int, y: int, world_size: int = SIZE) -> Vector2i:
-	var cx := clampi(x, 1, world_size)
-	var cy := clampi(y, 1, world_size)
-	if is_spot_free(tiles, cx, cy, world_size):
-		return Vector2i(cx, cy)
-	for radius in range(1, world_size + 1):
-		for dy in range(-radius, radius + 1):
-			for dx in range(-radius, radius + 1):
-				if maxi(absi(dx), absi(dy)) != radius:
-					continue
-				if is_spot_free(tiles, cx + dx, cy + dy, world_size):
-					return Vector2i(cx + dx, cy + dy)
-	# Güvenlik ağı: satır satır tara (yalnızca çok yoğun dünyalarda gerekir).
-	for ny in range(1, world_size + 1):
-		for nx in range(1, world_size + 1):
-			if is_spot_free(tiles, nx, ny, world_size):
-				return Vector2i(nx, ny)
-	return Vector2i(-1, -1)
+	return find_free_spot_with_dist(tiles, x, y, MIN_VILLAGE_DISTANCE, world_size)
 
 
 # --- Yardımcılar: sınıflandırma --------------------------------------------
@@ -466,9 +497,10 @@ static func _cluster_centers(world_size: int, rng: RandomNumberGenerator) -> Arr
 
 
 static func _spot_in_cluster(tiles: Dictionary, center: Vector2i, world_size: int, rng: RandomNumberGenerator) -> Vector2i:
+	var max_coord := world_size - 1
 	for attempt in MAX_PLACEMENT_ATTEMPTS:
-		var x := clampi(center.x + rng.randi_range(-CLUSTER_SPREAD, CLUSTER_SPREAD), 1, world_size)
-		var y := clampi(center.y + rng.randi_range(-CLUSTER_SPREAD, CLUSTER_SPREAD), 1, world_size)
+		var x := clampi(center.x + rng.randi_range(-CLUSTER_SPREAD, CLUSTER_SPREAD), 1, max_coord)
+		var y := clampi(center.y + rng.randi_range(-CLUSTER_SPREAD, CLUSTER_SPREAD), 1, max_coord)
 		if is_spot_free(tiles, x, y, world_size):
 			return Vector2i(x, y)
 	return Vector2i(-1, -1)

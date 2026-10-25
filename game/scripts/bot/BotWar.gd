@@ -15,9 +15,15 @@ const TravelScript := preload("res://scripts/world/Travel.gd")
 const BotProfileScript := preload("res://scripts/bot/BotProfile.gd")
 
 
+static var peace_mode: bool = true
+
+
 ## Bot için yağma/talan kararı verir ve uygunsa başlatır.
 ## Dönüş: {"action_taken": bool, "target_id": int, "units": Dictionary}
 static func think_war(village: Dictionary, profile: Dictionary, state: Dictionary, now_unix: int) -> Dictionary:
+	if peace_mode:
+		return {"action_taken": false, "reason": "bots_do_not_attack"}
+
 	var buildings: Dictionary = village.get("buildings", {})
 	var barracks_lvl: int = int(buildings.get("barracks", 0))
 	var min_units: int = RE.min_attack_units(barracks_lvl)

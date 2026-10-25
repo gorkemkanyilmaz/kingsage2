@@ -23,6 +23,10 @@ var elapsed_seconds := 0.0
 var _accumulator := 0.0
 
 
+func _ready() -> void:
+	start()
+
+
 func _process(delta: float) -> void:
 	if not running:
 		return

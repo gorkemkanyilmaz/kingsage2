@@ -85,11 +85,11 @@ func _initialize() -> void:
 	scene._reset_view()
 	_assert_true(scene._current_zoom == 1.0, "Reset sonrası zoom 1.0 oldu")
 
-	print("\n--- Test 4: Yüzen Zoom Kontrol Arayüzü (ZoomHUD) ---")
+	print("\n--- Test 4: Yüzen Zoom Kontrol Arayüzü Kaldırıldı (Mobil Parmak Hareketi) ---")
 	var zoom_hud = scene.get_node_or_null("ZoomHUD")
-	_assert_true(zoom_hud != null, "ZoomHUD yüzen paneli ekranda mevcut")
-	var zoom_vbox = zoom_hud.get_child(0)
-	_assert_true(zoom_vbox != null and zoom_vbox.get_child_count() >= 3, "ZoomHUD içinde 3 adet buton var (+, -, reset)")
+	_assert_true(zoom_hud == null, "ZoomHUD yüzen paneli mobilde parmakla zoom/pan için ekrandan kaldırıldı")
+	_assert_true(scene._current_zoom >= scene.MIN_ZOOM and scene._current_zoom <= scene.MAX_ZOOM, "Zoom durumu geçerli sınırlarda")
+
 
 	print("\n--- Test 5: Modern Pastel ResourceBar & BottomNav Doğrulaması ---")
 	var rbar = scene.get_node("ResourceBar")

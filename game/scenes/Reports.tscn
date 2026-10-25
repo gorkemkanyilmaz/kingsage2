@@ -101,56 +101,148 @@ anchor_bottom = 1.0
 offset_left = 30.0
 offset_top = 236.0
 offset_right = -30.0
-offset_bottom = -130.0
+offset_bottom = -260.0
 grow_horizontal = 2
 grow_vertical = 2
 
-[node name="Scroll" type="ScrollContainer" parent="Container"]
+[node name="MainVBox" type="VBoxContainer" parent="Container"]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
+theme_override_constants/separation = 12
 
-[node name="List" type="VBoxContainer" parent="Container/Scroll"]
+[node name="TabBar" type="HBoxContainer" parent="Container/MainVBox"]
+custom_minimum_size = Vector2(0, 56)
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="BtnTabReports" type="Button" parent="Container/MainVBox/TabBar"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 22
+text = "📜 Savaş Raporları"
+
+[node name="BtnTabMessages" type="Button" parent="Container/MainVBox/TabBar"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 22
+text = "✉️ Mesajlar"
+
+[node name="BtnTabNewMessage" type="Button" parent="Container/MainVBox/TabBar"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 22
+text = "✍️ Yeni Mesaj"
+
+[node name="Scroll" type="ScrollContainer" parent="Container/MainVBox"]
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="List" type="VBoxContainer" parent="Container/MainVBox/Scroll"]
 layout_mode = 2
 size_flags_horizontal = 3
 theme_override_constants/separation = 16
 
+[node name="ComposerPanel" type="PanelContainer" parent="Container/MainVBox"]
+visible = false
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="VBox" type="VBoxContainer" parent="Container/MainVBox/ComposerPanel"]
+layout_mode = 2
+theme_override_constants/separation = 14
+
+[node name="RecipientLabel" type="Label" parent="Container/MainVBox/ComposerPanel/VBox"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 22
+text = "Alıcı Lord / Oyuncu:"
+
+[node name="RecipientInput" type="LineEdit" parent="Container/MainVBox/ComposerPanel/VBox"]
+custom_minimum_size = Vector2(0, 52)
+layout_mode = 2
+theme_override_font_sizes/font_size = 22
+placeholder_text = "Örn: Lord Edward, Baron Roland, Kont Vlad..."
+
+[node name="SubjectLabel" type="Label" parent="Container/MainVBox/ComposerPanel/VBox"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 22
+text = "Konu:"
+
+[node name="SubjectInput" type="LineEdit" parent="Container/MainVBox/ComposerPanel/VBox"]
+custom_minimum_size = Vector2(0, 52)
+layout_mode = 2
+theme_override_font_sizes/font_size = 22
+placeholder_text = "Mesaj konusu..."
+
+[node name="BodyLabel" type="Label" parent="Container/MainVBox/ComposerPanel/VBox"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 22
+text = "Mesaj İçeriği:"
+
+[node name="BodyInput" type="TextEdit" parent="Container/MainVBox/ComposerPanel/VBox"]
+custom_minimum_size = Vector2(0, 180)
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_font_sizes/font_size = 20
+placeholder_text = "Mektubunuzu buraya yazınız..."
+
+[node name="StatusLabel" type="Label" parent="Container/MainVBox/ComposerPanel/VBox"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 20
+
+[node name="SendBtn" type="Button" parent="Container/MainVBox/ComposerPanel/VBox"]
+custom_minimum_size = Vector2(0, 58)
+layout_mode = 2
+theme_override_font_sizes/font_size = 24
+text = "✉️ Mektubu Gönder"
+
+
 [node name="DetailPanel" type="PanelContainer" parent="."]
 visible = false
-custom_minimum_size = Vector2(980, 800)
+custom_minimum_size = Vector2(1020, 1400)
 layout_mode = 1
 anchors_preset = 8
 anchor_left = 0.5
 anchor_top = 0.5
 anchor_right = 0.5
 anchor_bottom = 0.5
-offset_left = -490.0
-offset_top = -400.0
-offset_right = 490.0
-offset_bottom = 400.0
+offset_left = -510.0
+offset_top = -700.0
+offset_right = 510.0
+offset_bottom = 700.0
 grow_horizontal = 2
 grow_vertical = 2
 
 [node name="VBox" type="VBoxContainer" parent="DetailPanel"]
 layout_mode = 2
+theme_override_constants/separation = 12
 
 [node name="Scroll" type="ScrollContainer" parent="DetailPanel/VBox"]
 layout_mode = 2
 size_flags_vertical = 3
+horizontal_scroll_mode = 0
 
-[node name="DetailText" type="Label" parent="DetailPanel/VBox/Scroll"]
+[node name="ContentBox" type="VBoxContainer" parent="DetailPanel/VBox/Scroll"]
 layout_mode = 2
 size_flags_horizontal = 3
 size_flags_vertical = 3
+theme_override_constants/separation = 14
+
+[node name="DetailText" type="Label" parent="DetailPanel/VBox/Scroll/ContentBox"]
+visible = false
+layout_mode = 2
+size_flags_horizontal = 3
 theme_override_font_sizes/font_size = 20
 text = "Detay"
+autowrap_mode = 3
 
 [node name="CloseBtn" type="Button" parent="DetailPanel/VBox"]
-custom_minimum_size = Vector2(0, 88)
+custom_minimum_size = Vector2(0, 80)
 layout_mode = 2
+theme_override_font_sizes/font_size = 28
 text = "Kapat"
 
 [node name="BottomNav" parent="." instance=ExtResource("3_bnav")]
@@ -159,7 +251,7 @@ anchors_preset = 12
 anchor_top = 1.0
 anchor_right = 1.0
 anchor_bottom = 1.0
-offset_top = -110.0
+offset_top = -248.0
 offset_bottom = 0.0
 grow_horizontal = 2
 grow_vertical = 0
