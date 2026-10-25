@@ -10,11 +10,12 @@ const FontNunitoBold: Font = preload("res://assets/fonts/Nunito-Bold.ttf")
 const FontCinzelBold: Font = preload("res://assets/fonts/Cinzel-Bold.ttf")
 
 const ROW_X_LEFT := 230
-const ROW_X_BTN := 550
-const ROW_Y_START := 570
-const ROW_Y_STEP := 111
+const ROW_X_BTN := 530
+const ROW_Y_START_BANNER := 460
+const ROW_Y_START_BTN := 465
+const ROW_Y_STEP := 110
 const ROW_BANNER_SIZE := Vector2(295, 100)
-const ROW_BTN_SIZE := Vector2(305, 94)
+const ROW_BTN_SIZE := Vector2(305, 90)
 
 @onready var background_rect: TextureRect = $Background
 @onready var rows_container: Control = $RowsContainer
@@ -381,11 +382,16 @@ func _build_world_rows() -> void:
 	var wm = root.get_node_or_null("WorldManager") if root != null else null
 	var p_name := _get_player_name()
 
-	var vp_width := get_viewport_rect().size.x if is_inside_tree() else 1080.0
-	var offset_x := maxf(0.0, (vp_width - 1080.0) * 0.5)
+	var vp_size := get_viewport_rect().size if is_inside_tree() else Vector2(1080.0, 1920.0)
+	var scale_factor: float = maxf(vp_size.x / 1080.0, vp_size.y / 1920.0)
+	var bg_offset: Vector2 = (vp_size - Vector2(1080.0, 1920.0) * scale_factor) * 0.5
+
+	rows_container.position = bg_offset
+	rows_container.scale = Vector2(scale_factor, scale_factor)
 
 	for i in range(1, 11):
-		var y_pos := ROW_Y_START + (i - 1) * ROW_Y_STEP
+		var y_banner := ROW_Y_START_BANNER + (i - 1) * ROW_Y_STEP
+		var y_btn := ROW_Y_START_BTN + (i - 1) * ROW_Y_STEP
 		var is_active := false
 		var has_village := false
 
@@ -401,7 +407,7 @@ func _build_world_rows() -> void:
 			# Aktif Dünya: Sol canlı banner ve Sağ altın buton
 			var banner_rect := TextureRect.new()
 			banner_rect.name = "Banner_%d" % i
-			banner_rect.position = Vector2(offset_x + ROW_X_LEFT, y_pos)
+			banner_rect.position = Vector2(ROW_X_LEFT, y_banner)
 			banner_rect.size = ROW_BANNER_SIZE
 			banner_rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 			banner_rect.stretch_mode = TextureRect.STRETCH_SCALE
@@ -413,7 +419,7 @@ func _build_world_rows() -> void:
 
 			var btn := TextureButton.new()
 			btn.name = "BtnWorld_%d" % i
-			btn.position = Vector2(offset_x + ROW_X_BTN, y_pos + 3)
+			btn.position = Vector2(ROW_X_BTN, y_btn)
 			btn.size = ROW_BTN_SIZE
 			btn.ignore_texture_size = true
 			btn.stretch_mode = TextureButton.STRETCH_SCALE
@@ -437,7 +443,7 @@ func _build_world_rows() -> void:
 			# Pasif Gri Dünya: Arka planda gri olarak basılıdır, üzerine tıklanamaz buton yerleştirilir
 			var btn := TextureButton.new()
 			btn.name = "BtnWorld_%d" % i
-			btn.position = Vector2(offset_x + ROW_X_BTN, y_pos + 3)
+			btn.position = Vector2(ROW_X_BTN, y_btn)
 			btn.size = ROW_BTN_SIZE
 			btn.disabled = true
 			btn.mouse_default_cursor_shape = Control.CURSOR_FORBIDDEN
