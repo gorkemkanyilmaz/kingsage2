@@ -19,11 +19,28 @@ from fastapi import FastAPI, HTTPException, Header, Depends, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
+import re
+
 # -----------------------------------------------------------------------------
 # Evrensel Veritabanı Yapılandırması (Supabase PostgreSQL & SQLite Çift Desteği)
 # -----------------------------------------------------------------------------
 IS_VERCEL = bool(os.getenv("VERCEL"))
-DATABASE_URL = os.getenv("DATABASE_URL", "")
+
+def sanitize_db_url(url: str) -> str:
+    """Vercel AWS Lambda ortamlarında IPv6 direct connection yerine IPv4 pooler kullanır."""
+    if not url:
+        return url
+    m = re.search(r'db\.([a-z0-9]+)\.supabase\.co', url)
+    if m:
+        ref = m.group(1)
+        if f"postgres.{ref}" not in url:
+            url = url.replace("postgres:", f"postgres.{ref}:", 1)
+        url = re.sub(r'db\.[a-z0-9]+\.supabase\.co(?::\d+)?', 'aws-0-eu-west-1.pooler.supabase.com:6543', url)
+        if "sslmode=" not in url:
+            url += ("&" if "?" in url else "?") + "sslmode=require"
+    return url
+
+DATABASE_URL = sanitize_db_url(os.getenv("DATABASE_URL", ""))
 IS_POSTGRES = DATABASE_URL.startswith("postgres://") or DATABASE_URL.startswith("postgresql://")
 
 try:
@@ -33,10 +50,11 @@ try:
 except ImportError:
     HAS_PSYCOPG2 = False
 
-if IS_VERCEL and not DATABASE_URL:
+if IS_VERCEL:
     DB_PATH = "/tmp/kingsage_serverless.db"
 else:
     DB_PATH = os.path.join(os.path.dirname(__file__), "..", "kingsage.db")
+
 
 
 class RowDict(dict):
@@ -295,8 +313,12 @@ def init_db():
 # -----------------------------------------------------------------------------
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    init_db()
+    try:
+        init_db()
+    except Exception as e:
+        print(f"[UYARI] init_db başlatma hatası: {e}", file=sys.stderr)
     yield
+
 
 app = FastAPI(
     title="Taht ve Kılıç (KingsAge 2) Yetkili Sunucusu",
@@ -445,24 +467,35 @@ def simulate_village_lazy(v_dict: Dict[str, Any], now: int, conn: sqlite3.Connec
 @app.get("/")
 @app.get("/api/health")
 def health():
-    conn = get_db()
-    cursor = conn.cursor()
-    cursor.execute("SELECT COUNT(*) FROM users")
-    u_count = cursor.fetchone()[0]
-    cursor.execute("SELECT COUNT(*) FROM villages WHERE is_bot = 0")
-    real_villages = cursor.fetchone()[0]
-    conn.close()
+    db_status = "ok"
+    u_count = 0
+    real_villages = 0
+    err_msg = None
+    try:
+        conn = get_db()
+        cursor = conn.cursor()
+        cursor.execute("SELECT COUNT(*) FROM users")
+        u_count = cursor.fetchone()[0]
+        cursor.execute("SELECT COUNT(*) FROM villages WHERE is_bot = 0")
+        real_villages = cursor.fetchone()[0]
+        conn.close()
+    except Exception as e:
+        db_status = "error"
+        err_msg = str(e)
 
     return {
         "status": "online",
         "game": "Taht ve Kılıç (KingsAge 2)",
         "engine": "Authoritative Serverless Engine (Vercel/Cloudflare)",
-        "db_mode": "Serverless LibSQL / SQLite WAL",
+        "db_mode": "Supabase PostgreSQL (Pooler)" if IS_POSTGRES else "SQLite WAL",
+        "db_status": db_status,
+        "db_error": err_msg,
         "registered_players": u_count,
         "real_player_villages": real_villages,
         "server_time_unix": int(time.time()),
         "security": "100% Parameterized SQL (Injection-Proof), Bearer Auth, Server-Authoritative"
     }
+
 
 @app.post("/api/auth/login")
 def auth_login(req: AuthLoginRequest):
