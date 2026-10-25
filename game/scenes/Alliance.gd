@@ -52,10 +52,10 @@ func refresh_view() -> void:
 	var alliance: Dictionary = AllianceModelScript.get_player_alliance(state, p_name)
 
 	if alliance.is_empty():
-		header_title.text = "️ İTTİFAK MERKEZİ"
+		header_title.text = " İTTİFAK MERKEZİ"
 		_build_non_member_view(gs, p_name)
 	else:
-		header_title.text = "️ [%s] %s" % [str(alliance.get("tag", "")), str(alliance.get("name", ""))]
+		header_title.text = " [%s] %s" % [str(alliance.get("tag", "")), str(alliance.get("name", ""))]
 		_build_member_view(gs, alliance, p_name)
 
 
@@ -75,7 +75,7 @@ func _build_non_member_view(gs: Node, player_name: String) -> void:
 	tab_bar.add_theme_constant_override("separation", 12)
 	vbox.add_child(tab_bar)
 
-	var btn_tab_create := _make_tab_button("️ İttifak Kur", _non_member_tab == "create")
+	var btn_tab_create := _make_tab_button(" İttifak Kur", _non_member_tab == "create")
 	btn_tab_create.pressed.connect(func():
 		_non_member_tab = "create"
 		refresh_view()
@@ -187,7 +187,7 @@ func _build_create_alliance_form(parent: Control, gs: Node, player_name: String)
 			_active_tab = "chat"
 			refresh_view()
 		else:
-			err_label.text = "️ " + str(res.get("message", "Hata oluştu."))
+			err_label.text = " " + str(res.get("message", "Hata oluştu."))
 	)
 	card_vbox.add_child(create_btn)
 
@@ -235,7 +235,7 @@ func _build_browse_alliances_view(parent: Control, gs: Node, player_name: String
 			var info_lbl := Label.new()
 			info_lbl.size_flags_horizontal = SIZE_EXPAND_FILL
 			info_lbl.add_theme_font_size_override("font_size", 22)
-			info_lbl.text = "️ [%s] %s (Lider: %s)" % [str(ally.get("tag", "")), str(ally.get("name", "")), str(ally.get("leader", ""))]
+			info_lbl.text = " [%s] %s (Lider: %s)" % [str(ally.get("tag", "")), str(ally.get("name", "")), str(ally.get("leader", ""))]
 			row.add_child(info_lbl)
 
 			var accept_btn := Button.new()
@@ -387,7 +387,7 @@ func _build_member_view(gs: Node, alliance: Dictionary, player_name: String) -> 
 	t_members.pressed.connect(func(): _active_tab = "members"; refresh_view())
 	tab_bar.add_child(t_members)
 
-	var t_invite := _make_tab_button("️ Davet Gönder", _active_tab == "invite")
+	var t_invite := _make_tab_button(" Davet Gönder", _active_tab == "invite")
 	t_invite.pressed.connect(func(): _active_tab = "invite"; refresh_view())
 	tab_bar.add_child(t_invite)
 
@@ -558,7 +558,7 @@ func _build_members_tab(parent: Control, gs: Node, alliance: Dictionary, player_
 		card.add_child(hbox)
 
 		var icon_lbl := Label.new()
-		icon_lbl.text = "" if m_is_lead else "️"
+		icon_lbl.text = "" if m_is_lead else ""
 		icon_lbl.add_theme_font_size_override("font_size", 28)
 		hbox.add_child(icon_lbl)
 
@@ -628,7 +628,7 @@ func _build_invite_tab(parent: Control, gs: Node, alliance: Dictionary, player_n
 	c_vbox.add_child(msg_lbl)
 
 	var send_inv_btn := Button.new()
-	send_inv_btn.text = "️ Davet Gönder"
+	send_inv_btn.text = " Davet Gönder"
 	send_inv_btn.custom_minimum_size = Vector2(0, 52)
 	_style_gold_btn(send_inv_btn)
 	send_inv_btn.pressed.connect(func():
@@ -643,7 +643,7 @@ func _build_invite_tab(parent: Control, gs: Node, alliance: Dictionary, player_n
 			msg_lbl.add_theme_color_override("font_color", Color(0.40, 0.90, 0.50))
 			input.text = ""
 		else:
-			msg_lbl.text = "️ " + str(res.get("message", "Hata"))
+			msg_lbl.text = " " + str(res.get("message", "Hata"))
 			msg_lbl.add_theme_color_override("font_color", Color(1.0, 0.40, 0.40))
 	)
 	c_vbox.add_child(send_inv_btn)
@@ -668,7 +668,7 @@ func _build_diplomacy_tab(parent: Control, gs: Node, alliance: Dictionary, playe
 	card.add_child(c_vbox)
 
 	var t1 := Label.new()
-	t1.text = "️ Diplomasi İlişkileri"
+	t1.text = " Diplomasi İlişkileri"
 	t1.add_theme_font_override("font", FontCinzelBold)
 	t1.add_theme_font_size_override("font_size", 22)
 	t1.add_theme_color_override("font_color", Color(1.0, 0.90, 0.45))

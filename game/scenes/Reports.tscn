@@ -123,19 +123,19 @@ theme_override_constants/separation = 12
 layout_mode = 2
 size_flags_horizontal = 3
 theme_override_font_sizes/font_size = 22
-text = "📜 Savaş Raporları"
+text = "Savaş Raporları"
 
 [node name="BtnTabMessages" type="Button" parent="Container/MainVBox/TabBar"]
 layout_mode = 2
 size_flags_horizontal = 3
 theme_override_font_sizes/font_size = 22
-text = "✉️ Mesajlar"
+text = "Mesajlar"
 
 [node name="BtnTabNewMessage" type="Button" parent="Container/MainVBox/TabBar"]
 layout_mode = 2
 size_flags_horizontal = 3
 theme_override_font_sizes/font_size = 22
-text = "✍️ Yeni Mesaj"
+text = "Yeni Mesaj"
 
 [node name="Scroll" type="ScrollContainer" parent="Container/MainVBox"]
 layout_mode = 2
@@ -197,7 +197,7 @@ theme_override_font_sizes/font_size = 20
 custom_minimum_size = Vector2(0, 58)
 layout_mode = 2
 theme_override_font_sizes/font_size = 24
-text = "✉️ Mektubu Gönder"
+text = "Mektubu Gönder"
 
 
 [node name="DetailPanel" type="PanelContainer" parent="."]

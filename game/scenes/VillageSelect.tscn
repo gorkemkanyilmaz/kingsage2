@@ -79,29 +79,29 @@ columns = 2
 [node name="BtnNW" type="Button" parent="Center/VBox/Grid"]
 custom_minimum_size = Vector2(380, 110)
 layout_mode = 2
-text = "↖ Kuzeybatı"
+text = "Kuzeybatı"
 
 [node name="BtnNE" type="Button" parent="Center/VBox/Grid"]
 custom_minimum_size = Vector2(380, 110)
 layout_mode = 2
-text = "↗ Kuzeydoğu"
+text = "Kuzeydoğu"
 
 [node name="BtnSW" type="Button" parent="Center/VBox/Grid"]
 custom_minimum_size = Vector2(380, 110)
 layout_mode = 2
-text = "↙ Güneybatı"
+text = "Güneybatı"
 
 [node name="BtnSE" type="Button" parent="Center/VBox/Grid"]
 custom_minimum_size = Vector2(380, 110)
 layout_mode = 2
-text = "↘ Güneydoğu"
+text = "Güneydoğu"
 
 [node name="BtnRandom" type="Button" parent="Center/VBox"]
 custom_minimum_size = Vector2(0, 100)
 layout_mode = 2
-text = "🎲 Rastgele Bölge"
+text = "Rastgele Bölge"
 
 [node name="BtnCancel" type="Button" parent="Center/VBox"]
 custom_minimum_size = Vector2(0, 68)
 layout_mode = 2
-text = "✖ Vazgeç / Dünyalara Dön"
+text = "Vazgeç / Dünyalara Dön"

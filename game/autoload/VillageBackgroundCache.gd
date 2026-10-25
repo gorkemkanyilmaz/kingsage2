@@ -3,8 +3,8 @@ extends Node
 ## sıfır gecikme (0-latency) ile önbelleğe alıp hem Web'de hem mobilde kesintisiz
 ## oynatan tekil yönetici (Autoload).
 
-const TOTAL_FRAMES: int = 24
-const TARGET_FPS: float = 10.0
+const TOTAL_FRAMES: int = 48
+const TARGET_FPS: float = 12.0
 const FRAME_DURATION: float = 1.0 / TARGET_FPS
 const LOOP_DURATION: float = float(TOTAL_FRAMES) / TARGET_FPS
 
@@ -16,8 +16,7 @@ var _loaded_count: int = 0
 func _init() -> void:
 	_frames.resize(TOTAL_FRAMES)
 	for i in range(TOTAL_FRAMES):
-		var frame_num := i * 4
-		var path := "res://assets/sprites/village/animated_bg/f_%03d.webp" % frame_num
+		var path := "res://assets/sprites/village/animated_bg/f_%03d.webp" % i
 		if ResourceLoader.exists(path):
 			var tex: Texture2D = load(path)
 			if tex != null:

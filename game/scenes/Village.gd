@@ -239,10 +239,10 @@ func _on_building_panel_visibility_changed() -> void:
 var _progress_timer: float = 0.0
 var _bg_frame_idx: int = 0
 var _bg_frame_timer: float = 0.0
-const BG_TOTAL_FRAMES: int = 96 # İlk 8 saniye (8 sn * 12 FPS = 96 kare, son 2 sn kırpıldı)
-const BG_FPS: float = 12.0 # Akıcı video akış hızı (12 FPS akıcı, kesintisiz 8 saniye)
-const BG_FRAME_TIME: float = 1.0 / BG_FPS # 1.0 / 12.0 = ~0.0833 sn
-const BG_LOOP_DURATION: float = float(BG_TOTAL_FRAMES) / BG_FPS # 96 / 12.0 = 8.0 sn
+const BG_TOTAL_FRAMES: int = 48 # 48 kare, 12 FPS = kesintisiz 4.0 saniyelik akıcı döngü
+const BG_FPS: float = 12.0
+const BG_FRAME_TIME: float = 1.0 / BG_FPS
+const BG_LOOP_DURATION: float = float(BG_TOTAL_FRAMES) / BG_FPS
 
 
 func _init_animated_background() -> void:
@@ -453,21 +453,21 @@ func refresh_all() -> void:
 func _get_building_icon(key: String) -> String:
 	match key:
 		"main": return ""
-		"wood": return "🪓"
-		"stone": return "⛏️"
-		"iron": return "⚒️"
-		"storage": return "📦"
-		"hide": return "🗝️"
-		"farm": return "🌾"
+		"wood": return ""
+		"stone": return ""
+		"iron": return ""
+		"storage": return ""
+		"hide": return ""
+		"farm": return ""
 		"barracks": return ""
-		"wall": return "🧱"
-		"market": return "⚖️"
-		"stable": return "🐴"
-		"garage": return "🧪"
+		"wall": return ""
+		"market": return ""
+		"stable": return ""
+		"garage": return ""
 		"snob": return ""
-		"smith": return "💍"
-		"statue": return "🗿"
-		_: return "🏠"
+		"smith": return ""
+		"statue": return ""
+		_: return ""
 
 
 func _on_building_started(_village_id: int, _key: String, _level: int) -> void:
@@ -504,7 +504,7 @@ func _update_queue_ui() -> void:
 	var activities: Array = []
 	var now := _current_now()
 
-	# 1) Gelen Saldırılar / Akınlar (🚨 En yüksek öncelik)
+	# 1) Gelen Saldırılar / Akınlar ( En yüksek öncelik)
 	var incoming_count := 0
 	for m in gs.movements:
 		if typeof(m) == TYPE_DICTIONARY:
@@ -560,7 +560,7 @@ func _update_queue_ui() -> void:
 
 	queue_hud.show()
 	if incoming_count > 0:
-		queue_title.text = "🚨 ALARM: %d Düşman Saldırısı! | Aktiviteler (%d)" % [incoming_count, activities.size()]
+		queue_title.text = " ALARM: %d Düşman Saldırısı! | Aktiviteler (%d)" % [incoming_count, activities.size()]
 		queue_title.add_theme_color_override("font_color", Color(1.0, 0.40, 0.40))
 	else:
 		queue_title.text = " Aktiviteler ve Askeri Durum (%d)" % activities.size()
@@ -644,7 +644,7 @@ func _create_queue_row() -> HBoxContainer:
 
 	var cancel_btn := Button.new()
 	cancel_btn.name = "CancelButton"
-	cancel_btn.text = "✕ İptal"
+	cancel_btn.text = "X İptal"
 	cancel_btn.custom_minimum_size = Vector2(110, 44)
 	cancel_btn.add_theme_font_size_override("font_size", 20)
 	var c_sb := StyleBoxFlat.new()
@@ -681,7 +681,7 @@ func _bind_queue_row(row: HBoxContainer, activity: Dictionary, now: int) -> void
 			var total_dur := maxi(1, arr_u - dep_u)
 			var pct := clampf(float(total_dur - rem) / float(total_dur) * 100.0, 0.0, 100.0)
 
-			icon_name_lbl.text = "🚨 DÜŞMAN SALDIRISI! (#%d)" % from_id
+			icon_name_lbl.text = " DÜŞMAN SALDIRISI! (#%d)" % from_id
 			icon_name_lbl.add_theme_color_override("font_color", Color(1.0, 0.40, 0.40))
 			time_lbl.text = "%02d:%02d" % [rem / 60, rem % 60]
 			time_lbl.add_theme_color_override("font_color", Color(1.0, 0.35, 0.35))
@@ -706,10 +706,10 @@ func _bind_queue_row(row: HBoxContainer, activity: Dictionary, now: int) -> void
 			var pct := clampf(float(total_dur - rem) / float(total_dur) * 100.0, 0.0, 100.0)
 
 			if m_state == "returning":
-				icon_name_lbl.text = "↩️ Ordu Dönüyor (#%d)" % to_id
+				icon_name_lbl.text = "Ordu Dönüyor (#%d)" % to_id
 				icon_name_lbl.add_theme_color_override("font_color", Color(0.80, 0.85, 0.95))
 			else:
-				icon_name_lbl.text = " Sefer: Hedef Köy #%d" % to_id
+				icon_name_lbl.text = "Sefer: Hedef Köy #%d" % to_id
 				icon_name_lbl.add_theme_color_override("font_color", Color(1.0, 0.85, 0.40))
 
 			time_lbl.text = "%02d:%02d" % [rem / 60, rem % 60]
@@ -717,7 +717,7 @@ func _bind_queue_row(row: HBoxContainer, activity: Dictionary, now: int) -> void
 			progress.value = pct
 
 			var can_cancel := (m_state == "outgoing" and (now - dep_u) <= 90)
-			cancel_btn.text = "↩️ Çek" if can_cancel else " Seferde"
+			cancel_btn.text = "Çek" if can_cancel else "Seferde"
 			cancel_btn.disabled = not can_cancel
 
 			var old_meta = cancel_btn.get_meta("act_key", "")
@@ -733,7 +733,6 @@ func _bind_queue_row(row: HBoxContainer, activity: Dictionary, now: int) -> void
 			var tgt: int = int(data.get("target_level", 1))
 			var b_data := RulesEngineScript.building_data(key)
 			var b_name := str(b_data.get("name", key))
-			var icon := _get_building_icon(key)
 
 			var start := int(data.get("start_unix", now))
 			var finish := int(data.get("finish_unix", now))
@@ -742,7 +741,7 @@ func _bind_queue_row(row: HBoxContainer, activity: Dictionary, now: int) -> void
 			var rem := maxi(0, finish - now) if is_active else total_dur
 			var pct := clampf(float(total_dur - rem) / float(total_dur) * 100.0, 0.0, 100.0) if is_active else 0.0
 
-			icon_name_lbl.text = "%s %s (Sv. %d)" % [icon, b_name, tgt]
+			icon_name_lbl.text = "%s (Sv. %d)" % [b_name, tgt]
 			icon_name_lbl.add_theme_color_override("font_color", Color(1.0, 0.95, 0.88))
 			if is_active:
 				time_lbl.text = "%02d:%02d" % [rem / 60, rem % 60]
@@ -752,7 +751,7 @@ func _bind_queue_row(row: HBoxContainer, activity: Dictionary, now: int) -> void
 				time_lbl.add_theme_color_override("font_color", Color(1.0, 0.85, 0.40))
 
 			progress.value = pct
-			cancel_btn.text = "✕ İptal"
+			cancel_btn.text = "İptal"
 			cancel_btn.disabled = false
 
 			var old_meta = cancel_btn.get_meta("act_key", "")
@@ -771,13 +770,13 @@ func _bind_queue_row(row: HBoxContainer, activity: Dictionary, now: int) -> void
 			var rem := maxi(0, finish - now)
 			var pct := clampf(float(total_dur - rem) / float(total_dur) * 100.0, 0.0, 100.0)
 
-			icon_name_lbl.text = "🔬 %s (Araştırma)" % u_name
+			icon_name_lbl.text = "%s (Araştırma)" % u_name
 			icon_name_lbl.add_theme_color_override("font_color", Color(0.55, 0.90, 1.0))
 			time_lbl.text = "%02d:%02d" % [rem / 60, rem % 60]
 			time_lbl.add_theme_color_override("font_color", Color(0.42, 0.90, 1.0))
 
 			progress.value = pct
-			cancel_btn.text = "✕ İptal"
+			cancel_btn.text = "İptal"
 			cancel_btn.disabled = false
 
 			var old_meta = cancel_btn.get_meta("act_key", "")
@@ -797,13 +796,13 @@ func _bind_queue_row(row: HBoxContainer, activity: Dictionary, now: int) -> void
 			var rem := maxi(0, finish - now)
 			var pct := clampf(float(total_dur - rem) / float(total_dur) * 100.0, 0.0, 100.0)
 
-			icon_name_lbl.text = " %d %s (Eğitim)" % [count, u_name]
+			icon_name_lbl.text = "%d %s (Eğitim)" % [count, u_name]
 			icon_name_lbl.add_theme_color_override("font_color", Color(0.60, 1.0, 0.65))
 			time_lbl.text = "%02d:%02d" % [rem / 60, rem % 60]
 			time_lbl.add_theme_color_override("font_color", Color(0.50, 0.95, 0.60))
 
 			progress.value = pct
-			cancel_btn.text = "✕ İptal"
+			cancel_btn.text = "İptal"
 			cancel_btn.disabled = false
 
 			var old_meta = cancel_btn.get_meta("act_key", "")
@@ -888,7 +887,7 @@ func _clamp_village_area() -> void:
 	if village_area == null:
 		return
 	var vp_size := get_viewport_rect().size if is_inside_tree() else Vector2(1080, 1920)
-	var center_x := maxf(0.0, (vp_size.x - 1080.0) * 0.5)
+	var center_x := (vp_size.x - 1080.0) * 0.5
 	village_area.scale = Vector2.ONE
 	village_area.position = Vector2(center_x, BASE_OFFSET_Y)
 

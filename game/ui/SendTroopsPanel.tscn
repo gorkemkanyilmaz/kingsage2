@@ -79,7 +79,7 @@ layout_mode = 2
 size_flags_horizontal = 3
 theme_override_colors/font_color = Color(1, 0.92, 0.75, 1)
 theme_override_font_sizes/font_size = 28
-text = "️ Sefer & Sevkiyat"
+text = " Sefer & Sevkiyat"
 
 [node name="CloseButton" type="Button" parent="VBox/Header"]
 custom_minimum_size = Vector2(72, 72)
@@ -119,7 +119,7 @@ layout_mode = 2
 size_flags_horizontal = 3
 theme_override_colors/font_color = Color(0.7, 0.88, 1, 1)
 theme_override_font_sizes/font_size = 22
-text = "️ İttifak: Yok"
+text = " İttifak: Yok"
 
 [node name="PointsLabel" type="Label" parent="VBox/TargetCard/TargetDetailsVBox/TargetSubGrid"]
 layout_mode = 2
@@ -186,13 +186,13 @@ theme_override_styles/panel = SubResource("StyleBoxFlat_est_card")
 layout_mode = 2
 theme_override_colors/font_color = Color(1.0, 0.95, 0.80, 1)
 theme_override_font_sizes/font_size = 24
-text = "⏱️ En Yavaş Birim: - | ⏳ Yolculuk Süresi: 00:00 |  Varış Saati: --:--:--"
+text = "⏱ En Yavaş Birim: - | ⏳ Yolculuk Süresi: 00:00 |  Varış Saati: --:--:--"
 
 [node name="WarningLabel" type="Label" parent="VBox"]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.95, 0.45, 0.35, 1)
 theme_override_font_sizes/font_size = 18
-text = "️ Sefer için birlik seçiniz."
+text = " Sefer için birlik seçiniz."
 
 [node name="ActionButtons" type="HBoxContainer" parent="VBox"]
 layout_mode = 2
@@ -210,7 +210,7 @@ custom_minimum_size = Vector2(0, 72)
 layout_mode = 2
 size_flags_horizontal = 3
 theme_override_font_sizes/font_size = 22
-text = "️ Saldır"
+text = " Saldır"
 
 [node name="BtnTrade" type="Button" parent="VBox/ActionButtons"]
 visible = false

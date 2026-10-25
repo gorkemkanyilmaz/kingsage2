@@ -142,19 +142,19 @@ alignment = 1
 layout_mode = 2
 theme_override_colors/font_color = Color(0.40, 0.95, 0.55, 1)
 theme_override_font_sizes/font_size = 20
-text = "● Kendi Köyün"
+text = "Kendi Köyün"
 
 [node name="Ally" type="Label" parent="Legend/HBox"]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.35, 0.75, 1.0, 1)
 theme_override_font_sizes/font_size = 20
-text = "● İttifak Üyelerin"
+text = "İttifak Üyelerin"
 
 [node name="Enemy" type="Label" parent="Legend/HBox"]
 layout_mode = 2
 theme_override_colors/font_color = Color(1.0, 0.45, 0.40, 1)
 theme_override_font_sizes/font_size = 20
-text = "● Düşman"
+text = "Düşman"
 
 [node name="ResourceBar" parent="." instance=ExtResource("2_rbar")]
 layout_mode = 1

@@ -17,17 +17,6 @@ grow_vertical = 2
 theme = ExtResource("5_theme")
 script = ExtResource("1_vil")
 
-[node name="Background" type="TextureRect" parent="."]
-layout_mode = 1
-anchors_preset = 15
-anchor_right = 1.0
-anchor_bottom = 1.0
-grow_horizontal = 2
-grow_vertical = 2
-texture = ExtResource("6_landscape")
-expand_mode = 1
-stretch_mode = 6
-
 [node name="VillageArea" type="Control" parent="."]
 custom_minimum_size = Vector2(1080, 1920)
 layout_mode = 1
@@ -35,6 +24,15 @@ anchors_preset = 0
 offset_top = 138.0
 offset_right = 1080.0
 offset_bottom = 2058.0
+
+[node name="Background" type="TextureRect" parent="VillageArea"]
+custom_minimum_size = Vector2(1080, 1920)
+layout_mode = 0
+offset_right = 1080.0
+offset_bottom = 1920.0
+texture = ExtResource("6_landscape")
+expand_mode = 1
+stretch_mode = 6
 
 [node name="BuildingsContainer" type="Control" parent="VillageArea"]
 custom_minimum_size = Vector2(1080, 1920)
@@ -106,17 +104,15 @@ visible = false
 z_index = 500
 z_as_relative = false
 layout_mode = 1
-anchors_preset = 12
-anchor_top = 1.0
+anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
-
 offset_left = 20.0
-offset_top = -780.0
+offset_top = 145.0
 offset_right = -20.0
-offset_bottom = -256.0
+offset_bottom = -255.0
 grow_horizontal = 2
-grow_vertical = 0
+grow_vertical = 2
 
 [node name="BottomNav" parent="." instance=ExtResource("3_bnav")]
 layout_mode = 1

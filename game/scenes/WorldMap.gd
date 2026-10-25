@@ -123,9 +123,9 @@ func _style_header() -> void:
 	if gs != null and AllianceModelScript != null:
 		var p_ally: Dictionary = AllianceModelScript.get_player_alliance(gs.to_dict(), player_name)
 		if not p_ally.is_empty():
-			ally_info = "  •  ️ [%s] %s" % [str(p_ally.get("tag", "")), str(p_ally.get("name", ""))]
+			ally_info = "  •   [%s] %s" % [str(p_ally.get("tag", "")), str(p_ally.get("name", ""))]
 		else:
-			ally_info = "  •  ️ İttifak: Yok"
+			ally_info = "  •   İttifak: Yok"
 
 	title.text = "Dünya Haritası" + ally_info
 	title.add_theme_font_override("font", FontNunitoBold)
@@ -207,7 +207,7 @@ func _style_legend() -> void:
 
 		var own: Label = legend.get_node_or_null("HBox/Own")
 		if own != null:
-			own.text = "● Kendi Köyün"
+			own.text = "• Kendi Köyün"
 			own.add_theme_font_override("font", FontNunitoBold)
 			own.add_theme_font_size_override("font_size", 22)
 			own.add_theme_constant_override("outline_size", 3)
@@ -216,7 +216,7 @@ func _style_legend() -> void:
 
 		var ally: Label = legend.get_node_or_null("HBox/Ally")
 		if ally != null:
-			ally.text = "● İttifak Üyelerin"
+			ally.text = "• İttifak Üyelerin"
 			ally.add_theme_font_override("font", FontNunitoBold)
 			ally.add_theme_font_size_override("font_size", 22)
 			ally.add_theme_constant_override("outline_size", 3)
@@ -225,7 +225,7 @@ func _style_legend() -> void:
 
 		var enemy: Label = legend.get_node_or_null("HBox/Enemy")
 		if enemy != null:
-			enemy.text = "● Düşman"
+			enemy.text = "• Düşman"
 			enemy.add_theme_font_override("font", FontNunitoBold)
 			enemy.add_theme_font_size_override("font_size", 22)
 			enemy.add_theme_constant_override("outline_size", 3)
@@ -615,10 +615,10 @@ func _create_floating_controls() -> void:
 	btn_zin.pressed.connect(func(): _smooth_zoom(1.25))
 	add_child(btn_zin)
 
-	# Küçült (−) Butonu
+	# Küçült (-) Butonu
 	var btn_zout := Button.new()
 	btn_zout.name = "BtnZoomOut"
-	btn_zout.text = "−"
+	btn_zout.text = "-"
 	btn_zout.custom_minimum_size = Vector2(72, 72)
 	btn_zout.size = Vector2(72, 72)
 	btn_zout.position = Vector2(1080 - 96, 1920 - 248 - 96)
@@ -629,7 +629,7 @@ func _create_floating_controls() -> void:
 	# Haritada Köye Odaklan Butonu (Alt menüdeki Köy sekmesiyle çakışmaz)
 	var btn_home := Button.new()
 	btn_home.name = "BtnCenterHome"
-	btn_home.text = "⌖ Odaklan"
+	btn_home.text = "Odaklan"
 	btn_home.custom_minimum_size = Vector2(160, 56)
 	btn_home.size = Vector2(160, 56)
 	btn_home.position = Vector2(24, 1920 - 248 - 80)
@@ -817,9 +817,9 @@ func _on_draw_movements() -> void:
 		movements_layer.draw_circle(current_march_pos, token_radius, Color(0.10, 0.09, 0.14, 0.96))
 		movements_layer.draw_arc(current_march_pos, token_radius, 0.0, TAU, 32, line_color, 3.0, true)
 
-		var icon_str := "️"
+		var icon_str := ""
 		if is_returning:
-			icon_str = "↩️"
+			icon_str = ""
 		elif is_trade:
 			icon_str = ""
 
@@ -830,11 +830,11 @@ func _on_draw_movements() -> void:
 		var time_str := "%02d:%02d" % [rem_secs / 60, rem_secs % 60]
 		var banner_txt := ""
 		if is_returning:
-			banner_txt = "↩️ Dönüş: " + time_str
+			banner_txt = " Dönüş: " + time_str
 		elif is_trade:
 			banner_txt = " Katır: " + time_str
 		else:
-			banner_txt = "️ Varış: " + time_str
+			banner_txt = " Varış: " + time_str
 
 		var banner_w := 240.0
 		var banner_h := 46.0
@@ -892,7 +892,7 @@ func _setup_movement_status_bar() -> void:
 	hbox.add_child(btn_track)
 
 	var btn_detail := Button.new()
-	btn_detail.text = "️ Detay & İptal"
+	btn_detail.text = " Detay & İptal"
 	btn_detail.custom_minimum_size = Vector2(150, 42)
 	btn_detail.add_theme_font_override("font", FontNunitoBold)
 	btn_detail.add_theme_font_size_override("font_size", 18)
@@ -955,13 +955,13 @@ func _refresh_movement_status_bar() -> void:
 	var time_str := "%02d:%02d" % [rem_secs / 60, rem_secs % 60]
 
 	if is_returning:
-		movement_status_label.text = "↩️ Birlik Dönüş Yolunda! Üsse Kalan Süre: %s (Toplam %d)" % [time_str, my_movements.size()]
+		movement_status_label.text = " Birlik Dönüş Yolunda! Üsse Kalan Süre: %s (Toplam %d)" % [time_str, my_movements.size()]
 		movement_status_label.add_theme_color_override("font_color", Color(0.3, 0.9, 1.0))
 	elif is_trade:
 		movement_status_label.text = " Katır Kervanı Sevkiyatta! Kalan Süre: %s (Toplam %d)" % [time_str, my_movements.size()]
 		movement_status_label.add_theme_color_override("font_color", Color(1.0, 0.85, 0.3))
 	else:
-		movement_status_label.text = "️ Ordu Seferde! Hedefe Kalan Süre: %s (Toplam %d)" % [time_str, my_movements.size()]
+		movement_status_label.text = " Ordu Seferde! Hedefe Kalan Süre: %s (Toplam %d)" % [time_str, my_movements.size()]
 		movement_status_label.add_theme_color_override("font_color", Color(1.0, 0.5, 0.3))
 
 
@@ -1100,7 +1100,7 @@ func _create_movement_detail_panel() -> void:
 	# 1) Üst Başlık & Kapat Butonu
 	var header_hbox := HBoxContainer.new()
 	_detail_title_lbl = Label.new()
-	_detail_title_lbl.text = "️ Sefer Detayları"
+	_detail_title_lbl.text = " Sefer Detayları"
 	_detail_title_lbl.add_theme_font_override("font", FontNunitoBold)
 	_detail_title_lbl.add_theme_font_size_override("font_size", 30)
 	_detail_title_lbl.add_theme_constant_override("outline_size", 3)
@@ -1192,7 +1192,7 @@ func _create_movement_detail_panel() -> void:
 
 	# 4) Seferdeki Birlikler Başlığı ve Izgara
 	var units_title := Label.new()
-	units_title.text = "️ Seferdeki Birlikler / Sevkiyat:"
+	units_title.text = " Seferdeki Birlikler / Sevkiyat:"
 	units_title.add_theme_font_override("font", FontNunitoBold)
 	units_title.add_theme_font_size_override("font_size", 24)
 	units_title.add_theme_constant_override("outline_size", 3)
@@ -1296,11 +1296,11 @@ func _refresh_movement_detail_content() -> void:
 	var is_trade := (m_type == "trade")
 
 	if is_returning:
-		_detail_title_lbl.text = "↩️ Birlik Dönüş Hareketi Detayı"
+		_detail_title_lbl.text = " Birlik Dönüş Hareketi Detayı"
 	elif is_trade:
 		_detail_title_lbl.text = " Katır Kervanı Sevkiyat Detayı"
 	else:
-		_detail_title_lbl.text = "️ Ordu Seferi Detayları (Saldırı)"
+		_detail_title_lbl.text = " Ordu Seferi Detayları (Saldırı)"
 
 	var from_id := int(m.get("from_village_id", m.get("village_id", 0)))
 	var to_id := int(m.get("to_village_id", 0))
@@ -1317,11 +1317,11 @@ func _refresh_movement_detail_content() -> void:
 
 	if is_returning:
 		_detail_route_lbl.text = " Konum: (%.1f|%.1f)   Üs: %s (%d|%d)" % [float(m.get("from_x", orig_x)), float(m.get("from_y", orig_y)), orig_name, orig_x, orig_y]
-		_detail_status_lbl.text = "● Durum: Köye Geri Dönüyor"
+		_detail_status_lbl.text = "• Durum: Köye Geri Dönüyor"
 		_detail_status_lbl.add_theme_color_override("font_color", Color(0.35, 0.90, 1.0))
 	else:
 		_detail_route_lbl.text = " Çıkış: %s (%d|%d)   Hedef: %s (%d|%d)" % [orig_name, orig_x, orig_y, tgt_name, tgt_x, tgt_y]
-		_detail_status_lbl.text = "● Durum: Hedefe İlerliyor"
+		_detail_status_lbl.text = "• Durum: Hedefe İlerliyor"
 		_detail_status_lbl.add_theme_color_override("font_color", Color(1.0, 0.50, 0.30))
 
 	_update_movement_detail_timer()
@@ -1351,7 +1351,7 @@ func _refresh_movement_detail_content() -> void:
 
 			var plbl := Label.new()
 			var u_tr: String = UNIT_NAMES_MAP.get(u_key, u_key)
-			plbl.text = "️ %s: %d" % [u_tr, count]
+			plbl.text = " %s: %d" % [u_tr, count]
 			plbl.add_theme_font_override("font", FontNunitoBold)
 			plbl.add_theme_font_size_override("font_size", 22)
 			plbl.add_theme_constant_override("outline_size", 3)
@@ -1379,7 +1379,7 @@ func _refresh_movement_detail_content() -> void:
 
 				var plbl := Label.new()
 				var r_tr := "Odun" if r_key == "wood" else ("Taş" if r_key == "stone" else "Demir")
-				var r_icon := "" if r_key == "wood" else ("" if r_key == "stone" else "️")
+				var r_icon := "" if r_key == "wood" else ("" if r_key == "stone" else "")
 				plbl.text = "%s %s: %d" % [r_icon, r_tr, amt]
 				plbl.add_theme_font_override("font", FontNunitoBold)
 				plbl.add_theme_font_size_override("font_size", 22)
@@ -1398,11 +1398,11 @@ func _refresh_movement_detail_content() -> void:
 
 	if is_returning:
 		_detail_btn_cancel.hide()
-		_detail_cancel_note.text = "↩️ Birlikler geri dönüş yolundadır, tekrar iptal edilemez."
+		_detail_cancel_note.text = " Birlikler geri dönüş yolundadır, tekrar iptal edilemez."
 		_detail_cancel_note.show()
 	else:
 		_detail_btn_cancel.show()
-		_detail_cancel_note.text = "️ İptal edildiğinde birlikler bulundukları noktadan derhal üsse geri dönerler."
+		_detail_cancel_note.text = " İptal edildiğinde birlikler bulundukları noktadan derhal üsse geri dönerler."
 		_detail_cancel_note.show()
 
 
