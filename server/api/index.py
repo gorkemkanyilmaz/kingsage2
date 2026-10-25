@@ -471,7 +471,8 @@ def simulate_village_lazy(v_dict: Dict[str, Any], now: int, conn: sqlite3.Connec
 # API Endpointleri (100+ Eşzamanlı Oyuncu Desteği)
 # -----------------------------------------------------------------------------
 
-@app.get("/")
+@app.get("/api")
+@app.get("/api/")
 @app.get("/api/health")
 def health():
     db_status = "ok"

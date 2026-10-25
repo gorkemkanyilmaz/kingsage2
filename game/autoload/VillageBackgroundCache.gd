@@ -29,13 +29,19 @@ func _init() -> void:
 
 
 func _ready() -> void:
-	# Kalan kareleri ana iş parçacığını ve render akışını ASLA kilitlemeyecek şekilde
-	# arka plan iş parçacığında (dedicated background thread) asenkron yükle
+	# Web exportunda veya tek kare modunda ek iş parçacığı çalıştırma
+	if OS.has_feature("web"):
+		_is_fully_loaded = true
+		return
 	_start_background_loading()
 
 
 func _start_background_loading() -> void:
 	if _thread_active or _is_fully_loaded:
+		return
+	# Sadece ek kareler diskte varsa iş parçacığı başlat
+	if not ResourceLoader.exists("res://assets/sprites/village/animated_bg/f_002.webp"):
+		_is_fully_loaded = true
 		return
 	_thread_active = true
 	_thread = Thread.new()

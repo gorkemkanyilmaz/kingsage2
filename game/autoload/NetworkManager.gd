@@ -15,9 +15,13 @@ var _http: HTTPRequest
 
 
 func _ready() -> void:
+	if OS.has_feature("web"):
+		var web_origin = JavaScriptBridge.eval("window.location.origin")
+		if web_origin != null and str(web_origin).begins_with("http"):
+			server_url = str(web_origin)
 	_http = HTTPRequest.new()
 	add_child(_http)
-	_http.timeout = 3.0
+	_http.timeout = 5.0
 
 
 func check_server(callback: Callable = Callable()) -> void:
