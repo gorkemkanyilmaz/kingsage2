@@ -22,6 +22,19 @@ func _ready() -> void:
 	_http = HTTPRequest.new()
 	add_child(_http)
 	_http.timeout = 5.0
+	call_deferred("_auto_connect_cloud")
+
+
+func _auto_connect_cloud() -> void:
+	if not OS.has_feature("web"):
+		return
+	var loop = Engine.get_main_loop()
+	if not (loop is SceneTree):
+		return
+	var auth = loop.root.get_node_or_null("AuthManager")
+	if auth != null and bool(auth.is_logged_in) and not str(auth.display_name).strip_edges().is_empty():
+		var prov: String = str(auth.auth_provider) if not str(auth.auth_provider).is_empty() else "google"
+		login_online(prov, str(auth.display_name))
 
 
 func check_server(callback: Callable = Callable()) -> void:
@@ -63,6 +76,17 @@ func login_online(provider: String, display_name: String, callback: Callable = C
 			if test_json.parse(json_str) == OK and typeof(test_json.data) == TYPE_DICTIONARY:
 				res_data = test_json.data
 				auth_token = str(res_data.get("token", ""))
+				var loop = Engine.get_main_loop()
+				if loop is SceneTree:
+					var auth = loop.root.get_node_or_null("AuthManager")
+					if auth != null:
+						auth.auth_token = auth_token
+						if res_data.has("user_id") and not str(res_data.get("user_id", "")).is_empty():
+							auth.user_id = str(res_data.get("user_id"))
+						auth.save_session()
+					var wm = loop.root.get_node_or_null("WorldManager")
+					if wm != null and wm.has_method("apply_cloud_sync"):
+						wm.apply_cloud_sync(res_data)
 
 		if callback.is_valid():
 			callback.call(success, res_data)
@@ -90,6 +114,11 @@ func sync_state_from_cloud(token: String, callback: Callable = Callable()) -> vo
 			var test_json := JSON.new()
 			if test_json.parse(json_str) == OK and typeof(test_json.data) == TYPE_DICTIONARY:
 				res_data = test_json.data
+				var loop = Engine.get_main_loop()
+				if loop is SceneTree:
+					var wm = loop.root.get_node_or_null("WorldManager")
+					if wm != null and wm.has_method("apply_cloud_sync"):
+						wm.apply_cloud_sync(res_data)
 
 		if callback.is_valid():
 			callback.call(success, res_data)

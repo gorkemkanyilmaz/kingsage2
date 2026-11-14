@@ -57,6 +57,19 @@ func _ready() -> void:
 	var vp := get_viewport()
 	if vp != null and not vp.size_changed.is_connected(_on_viewport_resized):
 		vp.size_changed.connect(_on_viewport_resized)
+	var net = root.get_node_or_null("NetworkManager") if root != null else null
+	if net != null:
+		if net.has_signal("auth_completed") and not net.auth_completed.is_connected(_on_cloud_sync_finished):
+			net.auth_completed.connect(_on_cloud_sync_finished)
+		if net.has_signal("sync_completed") and not net.sync_completed.is_connected(_on_cloud_sync_finished):
+			net.sync_completed.connect(_on_cloud_sync_finished)
+
+
+func _on_cloud_sync_finished(success: bool, _data: Dictionary) -> void:
+	if not success or not is_inside_tree():
+		return
+	_build_world_rows()
+	_update_profile_continue_button()
 
 
 func _is_authenticated() -> bool:

@@ -511,6 +511,51 @@ def health():
     }
 
 
+def ensure_cloud_saves_table(cursor, is_pg: bool) -> None:
+    bigint_t = "BIGINT" if is_pg else "INTEGER"
+    cursor.execute("""CREATE TABLE IF NOT EXISTS cloud_saves (
+        user_id TEXT PRIMARY KEY,
+        state_json TEXT NOT NULL,
+        updated_unix {0} NOT NULL
+    )""".format(bigint_t))
+
+
+def _serialize_server_village(v_row) -> Optional[Dict[str, Any]]:
+    if not v_row:
+        return None
+    v = dict(v_row)
+    for src_key, dst_key in (("buildings_json", "buildings"), ("resources_json", "resources"), ("units_json", "units")):
+        raw = v.get(src_key)
+        if isinstance(raw, str):
+            try:
+                v[dst_key] = json.loads(raw)
+            except Exception:
+                v[dst_key] = {}
+        elif isinstance(raw, dict):
+            v[dst_key] = raw
+        else:
+            v[dst_key] = {}
+    return v
+
+
+def _fetch_cloud_and_village(cursor, user_id: str, display_name: str):
+    cursor.execute("SELECT state_json, updated_unix FROM cloud_saves WHERE user_id = ?", (user_id,))
+    c_row = cursor.fetchone()
+    cloud_state = None
+    cloud_updated_unix = 0
+    if c_row:
+        cloud_updated_unix = int(c_row["updated_unix"])
+        try:
+            cloud_state = json.loads(c_row["state_json"])
+        except Exception:
+            cloud_state = None
+
+    cursor.execute("SELECT * FROM villages WHERE owner = ? AND is_bot = 0 ORDER BY id ASC LIMIT 1", (display_name,))
+    v_row = cursor.fetchone()
+    server_village = _serialize_server_village(v_row)
+    return cloud_state, cloud_updated_unix, server_village
+
+
 @app.post("/api/auth/login")
 def auth_login(req: AuthLoginRequest):
     display_name = html.escape(req.display_name.strip())
@@ -524,6 +569,7 @@ def auth_login(req: AuthLoginRequest):
 
     conn = get_db()
     cursor = conn.cursor()
+    ensure_cloud_saves_table(cursor, conn.is_pg)
     cursor.execute("SELECT * FROM users WHERE display_name = ?", (display_name,))
     existing = cursor.fetchone()
 
@@ -536,9 +582,8 @@ def auth_login(req: AuthLoginRequest):
             VALUES (?, ?, ?, ?, ?, ?, ?)
         """, (user_id, req.provider, email, display_name, token, now, now))
 
-    # Kullanıcının köyü var mı kontrol et
-    cursor.execute("SELECT id FROM villages WHERE owner = ?", (display_name,))
-    has_village = cursor.fetchone() is not None
+    cloud_state, cloud_updated_unix, server_village = _fetch_cloud_and_village(cursor, user_id, display_name)
+    has_village = bool(server_village is not None or cloud_state is not None)
 
     conn.commit()
     conn.close()
@@ -548,7 +593,10 @@ def auth_login(req: AuthLoginRequest):
         "token": token,
         "user_id": user_id,
         "display_name": display_name,
-        "has_village": has_village
+        "has_village": has_village,
+        "cloud_state": cloud_state,
+        "updated_unix": cloud_updated_unix,
+        "server_village": server_village
     }
 
 @app.get("/api/auth/me")
@@ -883,31 +931,43 @@ def send_message(req: SendMessageRequest, user: Dict[str, Any] = Depends(get_cur
 def get_cloud_state(user: Dict[str, Any] = Depends(get_current_user)):
     conn = get_db()
     cursor = conn.cursor()
-    cursor.execute("SELECT state_json, updated_unix FROM cloud_saves WHERE user_id = ?", (user["id"],))
-    row = cursor.fetchone()
+    ensure_cloud_saves_table(cursor, conn.is_pg)
+    cloud_state, cloud_updated_unix, server_village = _fetch_cloud_and_village(
+        cursor, user["id"], user["display_name"]
+    )
+    conn.commit()
     conn.close()
-    if not row:
-        return {"ok": True, "has_save": False, "state": None, "updated_unix": 0}
-    try:
-        parsed_state = json.loads(row["state_json"])
-    except Exception:
-        parsed_state = {}
-    return {
-        "ok": True,
-        "has_save": True,
-        "state": parsed_state,
-        "updated_unix": int(row["updated_unix"])
-    }
+    if cloud_state is not None:
+        return {
+            "ok": True,
+            "has_save": True,
+            "state": cloud_state,
+            "server_village": server_village,
+            "updated_unix": cloud_updated_unix
+        }
+    if server_village is not None:
+        return {
+            "ok": True,
+            "has_save": True,
+            "state": None,
+            "server_village": server_village,
+            "updated_unix": int(server_village.get("last_calc_unix", 0))
+        }
+    return {"ok": True, "has_save": False, "state": None, "server_village": None, "updated_unix": 0}
 
 
 @app.post("/api/game/save")
 def post_cloud_save(payload: Dict[str, Any], user: Dict[str, Any] = Depends(get_current_user)):
     now = int(time.time())
-    state_obj = payload.get("state", payload) if isinstance(payload, dict) else {}
+    if isinstance(payload, dict) and isinstance(payload.get("state"), dict) and "world_id" not in payload:
+        state_obj = payload["state"]
+    else:
+        state_obj = payload if isinstance(payload, dict) else {}
     state_json = json.dumps(state_obj, ensure_ascii=False)
     conn = get_db()
     with conn:
         cursor = conn.cursor()
+        ensure_cloud_saves_table(cursor, conn.is_pg)
         cursor.execute("SELECT user_id FROM cloud_saves WHERE user_id = ?", (user["id"],))
         if cursor.fetchone():
             cursor.execute(

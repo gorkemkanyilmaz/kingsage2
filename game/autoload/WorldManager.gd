@@ -27,6 +27,7 @@ const WEB_WORLD_PREFIX := "tvk_world_"
 var current_world_id: int = 1
 var worlds_meta: Array = []
 var _last_autosave_unix: int = 0
+var _last_cloud_save_unix: int = 0
 
 
 func _ready() -> void:
@@ -381,6 +382,12 @@ func join_world(world_id: int, player_name: String, target_x: int = 100, target_
 	var sm = Engine.get_main_loop().root.get_node_or_null("SaveManager") if Engine.get_main_loop() is SceneTree else null
 	if sm != null and sm.has_method("save_game"):
 		sm.save_game()
+	if OS.has_feature("web") and Engine.get_main_loop() is SceneTree:
+		var net = Engine.get_main_loop().root.get_node_or_null("NetworkManager")
+		if net != null and not str(net.auth_token).is_empty():
+			net.api_join_world(world_id, free_spot.x, free_spot.y, Callable())
+			_last_cloud_save_unix = now
+			net.save_state_to_cloud(net.auth_token, w_data)
 	return true
 
 
@@ -537,7 +544,112 @@ func save_active_world() -> bool:
 		reg_list.append(p_name)
 		w_data["registered_real_players"] = reg_list
 
-	return save_world_dict(current_world_id, w_data)
+	var ok := save_world_dict(current_world_id, w_data)
+	if ok and OS.has_feature("web") and Engine.get_main_loop() is SceneTree:
+		var net = Engine.get_main_loop().root.get_node_or_null("NetworkManager")
+		if net != null and not str(net.auth_token).is_empty() and (now - _last_cloud_save_unix) >= 3:
+			_last_cloud_save_unix = now
+			net.save_state_to_cloud(net.auth_token, w_data)
+	return ok
+
+
+func apply_cloud_sync(res_data: Dictionary) -> bool:
+	var loop = Engine.get_main_loop()
+	var auth = loop.root.get_node_or_null("AuthManager") if loop is SceneTree else null
+	var raw_name: String = str(auth.display_name) if (auth != null and not str(auth.display_name).is_empty()) else str(res_data.get("display_name", "Lord Gorkem"))
+	var p_name := _norm_name(raw_name)
+	if p_name.is_empty():
+		p_name = "Lord Gorkem"
+
+	var raw_cs = res_data.get("cloud_state", null)
+	if raw_cs == null and res_data.has("state"):
+		raw_cs = res_data.get("state", null)
+
+	if typeof(raw_cs) == TYPE_DICTIONARY and not (raw_cs as Dictionary).is_empty():
+		var cs_dict: Dictionary = raw_cs
+		var w_id := int(cs_dict.get("world_id", cs_dict.get("world", {}).get("world_id", 1)))
+		if w_id < 1 or w_id > WORLDS_COUNT:
+			w_id = 1
+		var cloud_w: Dictionary
+		if cs_dict.has("state") and typeof(cs_dict.get("state")) == TYPE_DICTIONARY:
+			cloud_w = cs_dict.duplicate(true)
+		else:
+			cloud_w = {
+				"world_id": w_id,
+				"world_name": "Dünya %d" % w_id,
+				"seed": BASE_SEED + w_id,
+				"created_unix": int(res_data.get("updated_unix", Time.get_unix_time_from_system())),
+				"last_saved_unix": int(res_data.get("updated_unix", Time.get_unix_time_from_system())),
+				"registered_real_players": [p_name],
+				"state": cs_dict.duplicate(true),
+			}
+		var local_w := load_world_dict(w_id)
+		var local_has := has_player_village(w_id, p_name)
+		var local_ts := int(local_w.get("last_saved_unix", 0))
+		var cloud_ts := int(cloud_w.get("last_saved_unix", res_data.get("updated_unix", 0)))
+		if not local_has or cloud_ts > local_ts:
+			save_world_dict(w_id, cloud_w)
+			current_world_id = w_id
+			_save_meta()
+			return true
+		elif local_has and local_ts > cloud_ts and OS.has_feature("web") and loop is SceneTree:
+			var net = loop.root.get_node_or_null("NetworkManager")
+			if net != null and not str(net.auth_token).is_empty():
+				net.save_state_to_cloud(net.auth_token, local_w)
+		return false
+
+	var sv = res_data.get("server_village", null)
+	if typeof(sv) == TYPE_DICTIONARY and not (sv as Dictionary).is_empty():
+		var sv_dict: Dictionary = sv
+		var w_id := int(sv_dict.get("world_id", 1))
+		if w_id < 1 or w_id > WORLDS_COUNT:
+			w_id = 1
+		if has_player_village(w_id, p_name):
+			return false
+		var w_data := load_world_dict(w_id)
+		if w_data.is_empty():
+			w_data = _create_and_save_world(w_id, BASE_SEED + w_id, BOTS_PER_WORLD)
+		var state: Dictionary = w_data.get("state", {})
+		var world_dict: Dictionary = state.get("world", {})
+		var tiles: Dictionary = world_dict.get("tiles", {})
+		var villages_list: Array = state.get("villages", [])
+
+		var sv_id := int(sv_dict.get("id", 51))
+		var vx := int(sv_dict.get("x", 100))
+		var vy := int(sv_dict.get("y", 100))
+		var v_name := str(sv_dict.get("name", "Başkent"))
+		var player_v := VillageModelScript.create(sv_id, v_name, vx, vy, p_name, false)
+		player_v["is_bot"] = false
+		player_v["is_barbarian"] = false
+		if typeof(sv_dict.get("buildings")) == TYPE_DICTIONARY and not (sv_dict["buildings"] as Dictionary).is_empty():
+			player_v["buildings"] = (sv_dict["buildings"] as Dictionary).duplicate(true)
+		if typeof(sv_dict.get("resources")) == TYPE_DICTIONARY and not (sv_dict["resources"] as Dictionary).is_empty():
+			player_v["resources"] = (sv_dict["resources"] as Dictionary).duplicate(true)
+		if typeof(sv_dict.get("units")) == TYPE_DICTIONARY and not (sv_dict["units"] as Dictionary).is_empty():
+			player_v["units"] = (sv_dict["units"] as Dictionary).duplicate(true)
+		player_v["points"] = int(sv_dict.get("points", player_v.get("points", 110)))
+		player_v["protection_until_unix"] = int(sv_dict.get("protection_until_unix", 0))
+		player_v["conquest_protection_until_unix"] = int(sv_dict.get("conquest_protection_until_unix", 0))
+
+		villages_list.append(player_v)
+		tiles[WorldGeneratorScript.tile_key(vx, vy)] = sv_id
+		world_dict["tiles"] = tiles
+		world_dict["villages"] = villages_list
+		state["villages"] = villages_list
+		state["world"] = world_dict
+		state["active_village_id"] = sv_id
+		w_data["state"] = state
+		var reg_list: Array = w_data.get("registered_real_players", [])
+		if not (p_name in reg_list):
+			reg_list.append(p_name)
+			w_data["registered_real_players"] = reg_list
+		w_data["last_saved_unix"] = int(sv_dict.get("last_calc_unix", Time.get_unix_time_from_system()))
+		save_world_dict(w_id, w_data)
+		current_world_id = w_id
+		_save_meta()
+		return true
+
+	return false
 
 
 var game_state: Node = null

@@ -58,6 +58,18 @@ func _ready() -> void:
 	_setup_profile_bar()
 	_setup_auth_overlay()
 	_refresh_auth_state()
+	var net = root.get_node_or_null("NetworkManager") if root != null else null
+	if net != null and net.has_signal("auth_completed") and not net.auth_completed.is_connected(_on_cloud_auth_completed):
+		net.auth_completed.connect(_on_cloud_auth_completed)
+
+
+func _on_cloud_auth_completed(success: bool, _data: Dictionary) -> void:
+	if not success or not is_inside_tree():
+		return
+	var root = Engine.get_main_loop().root if Engine.get_main_loop() is SceneTree else null
+	var sm = root.get_node_or_null("SaveManager") if root != null else null
+	if sm != null and btn_continue != null:
+		btn_continue.disabled = not bool(sm.has_save())
 
 
 func _is_authenticated() -> bool:
