@@ -72,6 +72,28 @@ func _sync_player_name() -> void:
 		gs.player["name"] = auth.display_name
 
 
+func _get_player_name() -> String:
+	var root = Engine.get_main_loop().root if Engine.get_main_loop() is SceneTree else null
+	var auth = root.get_node_or_null("AuthManager") if root != null else null
+	if auth != null and not str(auth.display_name).strip_edges().is_empty():
+		return _clean_lord_name(str(auth.display_name))
+	var gs = root.get_node_or_null("GameState") if root != null else null
+	if gs != null and typeof(gs.player) == TYPE_DICTIONARY:
+		var gs_name := str(gs.player.get("name", "")).strip_edges()
+		if not gs_name.is_empty() and gs_name != "Kral":
+			return _clean_lord_name(gs_name)
+	return "Lord Gorkem"
+
+
+func _clean_lord_name(raw_name: String) -> String:
+	var n := raw_name.strip_edges()
+	while n.begins_with("Lord Lord "):
+		n = n.substr(5)
+	if n.is_empty():
+		return "Lord Gorkem"
+	return n if n.begins_with("Lord ") else ("Lord " + n)
+
+
 func _refresh_auth_state() -> void:
 	var auth = Engine.get_main_loop().root.get_node_or_null("AuthManager") if Engine.get_main_loop() is SceneTree else null
 	var is_logged := bool(auth.is_logged_in) if auth != null else false
@@ -84,8 +106,13 @@ func _refresh_auth_state() -> void:
 			var lbl = _profile_bar.get_node_or_null("HBox/ProfileLabel") as Label
 			if lbl != null and auth != null:
 				var prov_name := "Google" if auth.auth_provider == "google" else "Apple"
-				lbl.text = "Lord %s (%s)" % [auth.display_name, prov_name]
+				lbl.text = "%s (%s)" % [_clean_lord_name(str(auth.display_name)), prov_name]
 		_sync_player_name()
+		var cont = get("btn_continue")
+		if cont is Button:
+			var sm = Engine.get_main_loop().root.get_node_or_null("SaveManager") if Engine.get_main_loop() is SceneTree else null
+			if sm != null:
+				cont.visible = sm.has_save()
 	else:
 		if _profile_bar != null:
 			_profile_bar.hide()
@@ -165,7 +192,7 @@ func _setup_profile_bar() -> void:
 func _setup_auth_overlay() -> void:
 	_auth_overlay = Control.new()
 	_auth_overlay.name = "AuthOverlay"
-	_auth_overlay.custom_minimum_size = Vector2(1080, 1920)
+	_auth_overlay.z_index = 500
 	add_child(_auth_overlay)
 	_auth_overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_auth_overlay.grow_horizontal = Control.GROW_DIRECTION_BOTH
@@ -175,7 +202,6 @@ func _setup_auth_overlay() -> void:
 	# Koyu karartma arka planı
 	var dim := ColorRect.new()
 	dim.color = Color(0.04, 0.03, 0.06, 0.88)
-	dim.custom_minimum_size = Vector2(1080, 1920)
 	_auth_overlay.add_child(dim)
 	dim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	dim.grow_horizontal = Control.GROW_DIRECTION_BOTH
@@ -184,7 +210,6 @@ func _setup_auth_overlay() -> void:
 
 	# Ortalanmış Medieval Kart
 	var center := CenterContainer.new()
-	center.custom_minimum_size = Vector2(1080, 1920)
 	_auth_overlay.add_child(center)
 	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	center.grow_horizontal = Control.GROW_DIRECTION_BOTH

@@ -21,9 +21,12 @@ const MAX_REAL_PLAYERS_PER_WORLD := 100
 
 const WORLDS_DIR := "user://worlds"
 const META_FILE := "user://worlds_meta.json"
+const WEB_META_KEY := "tvk_worlds_meta"
+const WEB_WORLD_PREFIX := "tvk_world_"
 
 var current_world_id: int = 1
 var worlds_meta: Array = []
+var _last_autosave_unix: int = 0
 
 
 func _ready() -> void:
@@ -32,6 +35,53 @@ func _ready() -> void:
 		reset_all_worlds()
 	else:
 		_load_meta()
+	_sync_save_fallback_to_world()
+	var bus = Engine.get_main_loop().root.get_node_or_null("EventBus") if Engine.get_main_loop() is SceneTree else null
+	if bus != null and bus.has_signal("state_changed") and not bus.state_changed.is_connected(_on_state_changed_autosave):
+		bus.state_changed.connect(_on_state_changed_autosave)
+
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_WM_CLOSE_REQUEST or what == NOTIFICATION_APPLICATION_PAUSED or what == NOTIFICATION_APPLICATION_FOCUS_OUT:
+		var gs = _find_game_state()
+		if gs != null and gs.has_active_village():
+			save_active_world()
+
+
+func _on_state_changed_autosave() -> void:
+	var now := int(Time.get_unix_time_from_system())
+	if now - _last_autosave_unix < 3:
+		return
+	var gs = _find_game_state()
+	if gs != null and gs.has_active_village():
+		_last_autosave_unix = now
+		save_active_world()
+
+
+func _web_set(key: String, val: String) -> void:
+	if not OS.has_feature("web"):
+		return
+	JavaScriptBridge.eval("try{window.localStorage.setItem(" + JSON.stringify(key) + "," + JSON.stringify(val) + ");if(typeof FS!=='undefined'&&FS.syncfs){FS.syncfs(false,function(){});}}catch(e){}", true)
+
+
+func _web_get(key: String) -> String:
+	if not OS.has_feature("web"):
+		return ""
+	var res = JavaScriptBridge.eval("(function(){try{var v=window.localStorage.getItem(" + JSON.stringify(key) + ");return typeof v==='string'?v:'';}catch(e){return '';}})()", true)
+	return str(res) if typeof(res) == TYPE_STRING else ""
+
+
+func _norm_name(raw_name: String) -> String:
+	var n := raw_name.strip_edges()
+	while n.begins_with("Lord Lord "):
+		n = n.substr(5)
+	return n
+
+
+func _matches_player(owner: String, target: String) -> bool:
+	var a := _norm_name(owner)
+	var b := _norm_name(target)
+	return not b.is_empty() and a == b
 
 
 func _ensure_directory() -> void:
@@ -40,7 +90,9 @@ func _ensure_directory() -> void:
 
 
 func _meta_exists() -> bool:
-	return FileAccess.file_exists(META_FILE)
+	if FileAccess.file_exists(META_FILE):
+		return true
+	return not _web_get(WEB_META_KEY).is_empty()
 
 
 ## Tüm dünyaları sıfırlar, Dünya 1'i 50 botla başlatır ve diğerlerini pasif yapar.
@@ -68,22 +120,32 @@ func reset_all_worlds() -> void:
 
 
 func _save_meta() -> void:
+	var data := {
+		"worlds": worlds_meta,
+		"current_world_id": current_world_id,
+		"updated_unix": int(Time.get_unix_time_from_system())
+	}
 	var file := FileAccess.open(META_FILE, FileAccess.WRITE)
 	if file != null:
-		var data := {
-			"worlds": worlds_meta,
-			"current_world_id": current_world_id,
-			"updated_unix": int(Time.get_unix_time_from_system())
-		}
 		file.store_string(JSON.stringify(data, "\t"))
 		file.close()
+	_web_set(WEB_META_KEY, JSON.stringify(data))
 
 
 func _load_meta() -> void:
 	if not _meta_exists():
 		reset_all_worlds()
 		return
-	var text := FileAccess.get_file_as_string(META_FILE)
+	var text := ""
+	if FileAccess.file_exists(META_FILE):
+		text = FileAccess.get_file_as_string(META_FILE)
+	if text.is_empty():
+		text = _web_get(WEB_META_KEY)
+		if not text.is_empty():
+			var mf := FileAccess.open(META_FILE, FileAccess.WRITE)
+			if mf != null:
+				mf.store_string(text)
+				mf.close()
 	var parsed = JSON.parse_string(text)
 	if typeof(parsed) == TYPE_DICTIONARY:
 		worlds_meta = parsed.get("worlds", [])
@@ -109,17 +171,27 @@ func get_world_meta(world_id: int) -> Dictionary:
 	return {}
 
 
-## Dünyanın diskteki kayıt dosyasını okur (varsa).
+## Dünyanın diskteki (veya web localStorage'daki) kayıt dosyasını okur (varsa).
 func load_world_dict(world_id: int) -> Dictionary:
 	var path := get_world_file_path(world_id)
-	if not FileAccess.file_exists(path):
+	var text := ""
+	if FileAccess.file_exists(path):
+		text = FileAccess.get_file_as_string(path)
+	if text.is_empty():
+		text = _web_get(WEB_WORLD_PREFIX + str(world_id))
+		if not text.is_empty():
+			_ensure_directory()
+			var wf := FileAccess.open(path, FileAccess.WRITE)
+			if wf != null:
+				wf.store_string(text)
+				wf.close()
+	if text.is_empty():
 		return {}
-	var text := FileAccess.get_file_as_string(path)
 	var parsed = JSON.parse_string(text)
 	return parsed if typeof(parsed) == TYPE_DICTIONARY else {}
 
 
-## Dünyayı diske kaydeder.
+## Dünyayı diske ve web localStorage'a kaydeder.
 func save_world_dict(world_id: int, data: Dictionary) -> bool:
 	_ensure_directory()
 	var path := get_world_file_path(world_id)
@@ -129,6 +201,7 @@ func save_world_dict(world_id: int, data: Dictionary) -> bool:
 		return false
 	file.store_string(JSON.stringify(data, "\t"))
 	file.close()
+	_web_set(WEB_WORLD_PREFIX + str(world_id), JSON.stringify(data))
 	return true
 
 
@@ -170,14 +243,14 @@ func has_player_village(world_id: int, player_name: String) -> bool:
 		return false
 
 	var gs = _find_game_state()
-	if gs != null and current_world_id == world_id and gs.villages != null and not gs.villages.is_empty():
+	if gs != null and current_world_id == world_id and int(gs.world.get("world_id", -1)) == world_id and _matches_player(str(gs.player.get("name", "")), player_name) and gs.villages != null and not gs.villages.is_empty():
 		for v in gs.villages:
 			if typeof(v) != TYPE_DICTIONARY:
 				continue
 			var v_dict: Dictionary = v
 			if bool(v_dict.get("is_bot", false)) or bool(v_dict.get("is_barbarian", false)):
 				continue
-			if str(v_dict.get("owner", "")) == player_name:
+			if _matches_player(str(v_dict.get("owner", "")), player_name):
 				return true
 		return false
 
@@ -193,7 +266,7 @@ func has_player_village(world_id: int, player_name: String) -> bool:
 		if bool(v_dict.get("is_bot", false)) or bool(v_dict.get("is_barbarian", false)):
 			continue
 		var owner: String = str(v_dict.get("owner", ""))
-		if owner == player_name:
+		if _matches_player(owner, player_name):
 			return true
 	return false
 
@@ -203,15 +276,18 @@ func is_player_conquered(world_id: int, player_name: String) -> bool:
 	var w_data := load_world_dict(world_id)
 	if w_data.is_empty():
 		return false
+	var norm_p := _norm_name(player_name)
 	var reg_list: Array = w_data.get("registered_real_players", [])
-	if player_name in reg_list:
-		return not has_player_village(world_id, player_name)
+	for reg_name in reg_list:
+		if _norm_name(str(reg_name)) == norm_p:
+			return not has_player_village(world_id, norm_p)
 	return false
 
 
 ## Oyuncunun bir dünyaya katılması (yeni köy açılması).
 func join_world(world_id: int, player_name: String, target_x: int = 100, target_y: int = 100) -> bool:
-	if player_name.strip_edges().is_empty():
+	player_name = _norm_name(player_name)
+	if player_name.is_empty():
 		player_name = "Lord Gorkem"
 
 	var w_meta := get_world_meta(world_id)
@@ -287,7 +363,7 @@ func join_world(world_id: int, player_name: String, target_x: int = 100, target_
 			"id": now * 1000 + 1,
 			"from": "Taht ve Kılıç Konseyi",
 			"to": player_name,
-			"subject": " Dünya %d'ye Hoş Geldiniz, Sayın Lord" % world_id,
+			"subject": "👑 Dünya %d'ye Hoş Geldiniz, Sayın Lord" % world_id,
 			"body": "Selamlar Sayın %s,\n\nDünya %d topraklarına hoş geldiniz! 15 günlük fetih korumanız aktif durumdadır. Bu süre zarfında köylerinizi geliştirebilir ve ordunuzu kurabilirsiniz.\n\nKılıcınız keskin, krallığınız daim olsun.\n\nSaygılarımızla,\nTaht ve Kılıç Konseyi" % [player_name, world_id],
 			"created_unix": now,
 			"read": false
@@ -299,14 +375,19 @@ func join_world(world_id: int, player_name: String, target_x: int = 100, target_
 
 	# GameState yüklemesi
 	current_world_id = world_id
+	_save_meta()
 	_apply_to_game_state(w_data, player_name, player_vid)
 	save_active_world()
+	var sm = Engine.get_main_loop().root.get_node_or_null("SaveManager") if Engine.get_main_loop() is SceneTree else null
+	if sm != null and sm.has_method("save_game"):
+		sm.save_game()
 	return true
 
 
 ## Dünyaya devam et (var olan köyü ile oyuna bağlanma ve çevrimdışı telafi).
 func enter_world(world_id: int, player_name: String) -> bool:
-	if player_name.strip_edges().is_empty():
+	player_name = _norm_name(player_name)
+	if player_name.is_empty():
 		player_name = "Lord Gorkem"
 
 	var w_data := load_world_dict(world_id)
@@ -322,7 +403,7 @@ func enter_world(world_id: int, player_name: String) -> bool:
 		if typeof(v) == TYPE_DICTIONARY:
 			var vd: Dictionary = v
 			if not bool(vd.get("is_bot", false)) and not bool(vd.get("is_barbarian", false)):
-				if str(vd.get("owner", "")) == player_name:
+				if _matches_player(str(vd.get("owner", "")), player_name):
 					player_vid = int(vd.get("id", -1))
 					break
 
@@ -330,6 +411,7 @@ func enter_world(world_id: int, player_name: String) -> bool:
 		return false
 
 	current_world_id = world_id
+	_save_meta()
 	var saved_unix := int(w_data.get("last_saved_unix", 0))
 	_apply_to_game_state(w_data, player_name, player_vid)
 
@@ -339,8 +421,52 @@ func enter_world(world_id: int, player_name: String) -> bool:
 	if sm != null and gs != null:
 		sm._apply_offline_catchup(gs, saved_unix)
 		save_active_world()
+		if sm.has_method("save_game"):
+			sm.save_game()
 
 	return true
+
+
+func _sync_save_fallback_to_world() -> void:
+	var loop = Engine.get_main_loop()
+	if not (loop is SceneTree):
+		return
+	var sm = loop.root.get_node_or_null("SaveManager")
+	if sm == null or not sm.has_method("_read_raw_save_json"):
+		return
+	var raw: String = sm._read_raw_save_json()
+	if raw.is_empty():
+		return
+	var parsed = JSON.parse_string(raw)
+	if typeof(parsed) != TYPE_DICTIONARY:
+		return
+	var saved_state: Dictionary = parsed.get("state", {})
+	var saved_villages: Array = saved_state.get("villages", [])
+	var has_human := false
+	for v in saved_villages:
+		if typeof(v) == TYPE_DICTIONARY and not bool(v.get("is_bot", false)) and not bool(v.get("is_barbarian", false)):
+			has_human = true
+			break
+	if not has_human:
+		return
+	var w_id := int(saved_state.get("world", {}).get("world_id", current_world_id))
+	if w_id < 1 or w_id > WORLDS_COUNT:
+		w_id = 1
+	var w_data := load_world_dict(w_id)
+	var existing_villages: Array = w_data.get("state", {}).get("villages", []) if not w_data.is_empty() else []
+	for v in existing_villages:
+		if typeof(v) == TYPE_DICTIONARY and not bool(v.get("is_bot", false)) and not bool(v.get("is_barbarian", false)):
+			return # Dünya dosyasında zaten gerçek oyuncu köyü var
+	var payload := {
+		"world_id": w_id,
+		"world_name": "Dünya %d" % w_id,
+		"seed": BASE_SEED + w_id,
+		"created_unix": int(parsed.get("savedAtUnix", Time.get_unix_time_from_system())),
+		"last_saved_unix": int(parsed.get("savedAtUnix", Time.get_unix_time_from_system())),
+		"registered_real_players": [],
+		"state": saved_state,
+	}
+	save_world_dict(w_id, payload)
 
 
 ## Sıradaki dünyayı aktifleştirir ve 50 botla başlatır.

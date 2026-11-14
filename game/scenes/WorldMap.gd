@@ -48,6 +48,7 @@ var _camera_tween: Tween
 var _touch_points: Dictionary = {}
 var _initial_pinch_dist: float = 0.0
 var _initial_pinch_zoom: float = 1.0
+var _last_touch_ms: int = -10000
 
 # ScrollContainer uyumluluğu için
 @onready var map_scroll: ScrollContainer = $MapContainer/Scroll
@@ -536,6 +537,8 @@ func _center_on_pos(target_pos: Vector2, animated: bool = true) -> void:
 # ---------------------------------------------------------------- Giriş Olayları (Touch / Drag / Pinch / Wheel)
 func _on_map_gui_input(event: InputEvent) -> void:
 	if event is InputEventMouseButton:
+		if not _touch_points.is_empty() or (Time.get_ticks_msec() - _last_touch_ms) < 250:
+			return
 		var mb := event as InputEventMouseButton
 		if mb.button_index == MOUSE_BUTTON_LEFT:
 			if mb.pressed:
@@ -555,6 +558,8 @@ func _on_map_gui_input(event: InputEvent) -> void:
 			_zoom_at(mb.position, 1.0 / 1.15)
 
 	elif event is InputEventMouseMotion:
+		if not _touch_points.is_empty() or (Time.get_ticks_msec() - _last_touch_ms) < 250:
+			return
 		var mm := event as InputEventMouseMotion
 		if _is_dragging:
 			var delta: Vector2 = mm.position - _drag_start_mouse
@@ -563,6 +568,7 @@ func _on_map_gui_input(event: InputEvent) -> void:
 			_update_camera_transform()
 
 	elif event is InputEventScreenTouch:
+		_last_touch_ms = Time.get_ticks_msec()
 		var st := event as InputEventScreenTouch
 		if st.pressed:
 			_touch_points[st.index] = st.position
@@ -575,6 +581,7 @@ func _on_map_gui_input(event: InputEvent) -> void:
 				var pts = _touch_points.values()
 				_initial_pinch_dist = pts[0].distance_to(pts[1])
 				_initial_pinch_zoom = _zoom
+				_total_drag_dist = 999.0
 		else:
 			_touch_points.erase(st.index)
 			if _touch_points.is_empty():
@@ -585,11 +592,13 @@ func _on_map_gui_input(event: InputEvent) -> void:
 					_check_movement_click(st.position)
 
 	elif event is InputEventScreenDrag:
+		_last_touch_ms = Time.get_ticks_msec()
 		var sd := event as InputEventScreenDrag
 		if _touch_points.size() == 2:
 			_touch_points[sd.index] = sd.position
 			var pts = _touch_points.values()
 			var cur_dist: float = pts[0].distance_to(pts[1])
+			_total_drag_dist = 999.0
 			if _initial_pinch_dist > 10.0:
 				_set_zoom(_initial_pinch_zoom * (cur_dist / _initial_pinch_dist))
 		else:
@@ -609,8 +618,11 @@ func _create_floating_controls() -> void:
 	btn_zin.name = "BtnZoomIn"
 	btn_zin.text = "+"
 	btn_zin.custom_minimum_size = Vector2(72, 72)
-	btn_zin.size = Vector2(72, 72)
-	btn_zin.position = Vector2(1080 - 96, 1920 - 248 - 180)
+	btn_zin.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
+	btn_zin.offset_left = -96.0
+	btn_zin.offset_top = -428.0
+	btn_zin.offset_right = -24.0
+	btn_zin.offset_bottom = -356.0
 	_style_floating_btn(btn_zin, 32)
 	btn_zin.pressed.connect(func(): _smooth_zoom(1.25))
 	add_child(btn_zin)
@@ -620,8 +632,11 @@ func _create_floating_controls() -> void:
 	btn_zout.name = "BtnZoomOut"
 	btn_zout.text = "-"
 	btn_zout.custom_minimum_size = Vector2(72, 72)
-	btn_zout.size = Vector2(72, 72)
-	btn_zout.position = Vector2(1080 - 96, 1920 - 248 - 96)
+	btn_zout.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
+	btn_zout.offset_left = -96.0
+	btn_zout.offset_top = -344.0
+	btn_zout.offset_right = -24.0
+	btn_zout.offset_bottom = -272.0
 	_style_floating_btn(btn_zout, 32)
 	btn_zout.pressed.connect(func(): _smooth_zoom(1.0 / 1.25))
 	add_child(btn_zout)
@@ -631,8 +646,11 @@ func _create_floating_controls() -> void:
 	btn_home.name = "BtnCenterHome"
 	btn_home.text = "Odaklan"
 	btn_home.custom_minimum_size = Vector2(160, 56)
-	btn_home.size = Vector2(160, 56)
-	btn_home.position = Vector2(24, 1920 - 248 - 80)
+	btn_home.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
+	btn_home.offset_left = 24.0
+	btn_home.offset_top = -328.0
+	btn_home.offset_right = 184.0
+	btn_home.offset_bottom = -272.0
 	_style_floating_btn(btn_home, 24)
 	btn_home.pressed.connect(func(): _center_on_home(true))
 	add_child(btn_home)
@@ -1100,7 +1118,7 @@ func _create_movement_detail_panel() -> void:
 	# 1) Üst Başlık & Kapat Butonu
 	var header_hbox := HBoxContainer.new()
 	_detail_title_lbl = Label.new()
-	_detail_title_lbl.text = " Sefer Detayları"
+	_detail_title_lbl.text = "⚔️ Sefer Detayları"
 	_detail_title_lbl.add_theme_font_override("font", FontNunitoBold)
 	_detail_title_lbl.add_theme_font_size_override("font_size", 30)
 	_detail_title_lbl.add_theme_constant_override("outline_size", 3)
@@ -1110,7 +1128,7 @@ func _create_movement_detail_panel() -> void:
 	header_hbox.add_child(_detail_title_lbl)
 
 	var btn_close := Button.new()
-	btn_close.text = ""
+	btn_close.text = "✕"
 	btn_close.custom_minimum_size = Vector2(50, 50)
 	btn_close.add_theme_font_override("font", FontNunitoBold)
 	btn_close.add_theme_font_size_override("font_size", 28)

@@ -136,6 +136,12 @@ var _pan_start_mouse: Vector2 = Vector2.ZERO
 var _pan_start_pos: Vector2 = Vector2.ZERO
 var _active_touches: Dictionary = {}
 var _prev_touch_dist: float = 0.0
+var _prev_pinch_mid: Vector2 = Vector2.ZERO
+var _touch_start_pos: Vector2 = Vector2.ZERO
+var _touch_drag_total: float = 0.0
+var _was_gesture: bool = false
+var _last_touch_ms: int = -10000
+var _overscan_bg: ColorRect = null
 
 var _game_loop: Node = null
 var _building_nodes: Dictionary = {}
@@ -201,12 +207,15 @@ func _ready() -> void:
 		if not btn_alliance.pressed.is_connected(_on_alliance_btn_pressed):
 			btn_alliance.pressed.connect(_on_alliance_btn_pressed)
 
+	_setup_overscan_bg()
+
 	# Arka plan ve binalar ResourceBar (138px) bitiminden başlar, kale tamamen görünür
 	if village_area != null:
 		village_area.position = Vector2(0.0, BASE_OFFSET_Y)
 		_clamp_village_area()
-		if not get_viewport().size_changed.is_connected(_clamp_village_area):
-			get_viewport().size_changed.connect(_clamp_village_area)
+		var vp := get_viewport()
+		if vp != null and not vp.size_changed.is_connected(_clamp_village_area):
+			vp.size_changed.connect(_clamp_village_area)
 
 	building_panel.hide()
 	if not building_panel.building_switched.is_connected(_on_building_selected):
@@ -239,8 +248,8 @@ func _on_building_panel_visibility_changed() -> void:
 var _progress_timer: float = 0.0
 var _bg_frame_idx: int = 0
 var _bg_frame_timer: float = 0.0
-const BG_TOTAL_FRAMES: int = 48 # 48 kare, 12 FPS = kesintisiz 4.0 saniyelik akıcı döngü
-const BG_FPS: float = 12.0
+const BG_TOTAL_FRAMES: int = 192 # 192 kare, 24 FPS = kesintisiz 8.0 saniyelik orijinal akıcı döngü
+const BG_FPS: float = 24.0
 const BG_FRAME_TIME: float = 1.0 / BG_FPS
 const BG_LOOP_DURATION: float = float(BG_TOTAL_FRAMES) / BG_FPS
 
@@ -866,31 +875,213 @@ func _on_cancel_activity_clicked(category: String, item_id: int) -> void:
 
 
 
+func _setup_overscan_bg() -> void:
+	if _overscan_bg != null and is_instance_valid(_overscan_bg):
+		return
+	var bg_fill := ColorRect.new()
+	bg_fill.name = "OverscanBg"
+	bg_fill.color = Color(0.055, 0.075, 0.055, 1.0)
+	bg_fill.set_anchors_preset(Control.PRESET_FULL_RECT)
+	bg_fill.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(bg_fill)
+	move_child(bg_fill, 0)
+	_overscan_bg = bg_fill
+
+
 func _on_building_dragged(rel: Vector2) -> void:
+	if _is_recent_touch():
+		return
 	_pan_by(rel)
 
 
-func _unhandled_input(_event: InputEvent) -> void:
-	# Kullanıcı isteği: Köy içerisinde pan ve zoom devre dışı, en yukarı kilitli
-	pass
+func _is_recent_touch() -> bool:
+	if not _active_touches.is_empty():
+		return true
+	return (Time.get_ticks_msec() - _last_touch_ms) < 250
 
 
-func _pan_by(_rel: Vector2) -> void:
-	pass
+func _cancel_all_building_presses() -> void:
+	for k in _building_nodes:
+		var v = _building_nodes[k].get("view")
+		if v != null and v.has_method("cancel_press"):
+			v.cancel_press()
 
 
-func _apply_zoom(_delta_zoom: float, _focal: Vector2) -> void:
-	pass
+func _is_point_over_hud(pos: Vector2) -> bool:
+	var hud_nodes: Array = [resource_bar, bottom_nav, btn_alliance]
+	if building_panel != null and building_panel.visible:
+		hud_nodes.append(building_panel)
+	if queue_hud != null and queue_hud.visible:
+		hud_nodes.append(queue_hud)
+	for n in hud_nodes:
+		if n is Control and (n as Control).visible:
+			if (n as Control).get_global_rect().has_point(pos):
+				return true
+	return false
+
+
+func _input(event: InputEvent) -> void:
+	if event is InputEventScreenTouch:
+		var st := event as InputEventScreenTouch
+		_last_touch_ms = Time.get_ticks_msec()
+		if st.pressed:
+			if _active_touches.is_empty() and _is_point_over_hud(st.position):
+				return
+			_active_touches[st.index] = st.position
+			if _active_touches.size() == 1:
+				_is_panning = false
+				_was_gesture = false
+				_touch_start_pos = st.position
+				_touch_drag_total = 0.0
+			elif _active_touches.size() >= 2:
+				_is_panning = false
+				_was_gesture = true
+				_cancel_all_building_presses()
+				var vals = _active_touches.values()
+				var p0: Vector2 = vals[0]
+				var p1: Vector2 = vals[1]
+				_prev_touch_dist = p0.distance_to(p1)
+				_prev_pinch_mid = (p0 + p1) * 0.5
+				get_viewport().set_input_as_handled()
+		else:
+			var had_touch := _active_touches.has(st.index)
+			_active_touches.erase(st.index)
+			if _active_touches.size() < 2:
+				_prev_touch_dist = 0.0
+			if _active_touches.is_empty():
+				var handled := _was_gesture
+				_is_panning = false
+				_was_gesture = false
+				if handled and had_touch:
+					get_viewport().set_input_as_handled()
+	elif event is InputEventScreenDrag:
+		var sd := event as InputEventScreenDrag
+		_last_touch_ms = Time.get_ticks_msec()
+		if not _active_touches.has(sd.index):
+			return
+		_active_touches[sd.index] = sd.position
+		if _active_touches.size() >= 2:
+			_cancel_all_building_presses()
+			var vals = _active_touches.values()
+			var p0: Vector2 = vals[0]
+			var p1: Vector2 = vals[1]
+			var cur_dist: float = p0.distance_to(p1)
+			var cur_mid: Vector2 = (p0 + p1) * 0.5
+			if _prev_touch_dist > 1.0:
+				var pan_delta := cur_mid - _prev_pinch_mid
+				if pan_delta.length_squared() > 0.0:
+					_pan_by(pan_delta)
+				var scale_ratio := cur_dist / _prev_touch_dist
+				var target := clampf(_current_zoom * scale_ratio, MIN_ZOOM, MAX_ZOOM)
+				_apply_zoom(target - _current_zoom, cur_mid)
+			_prev_touch_dist = cur_dist
+			_prev_pinch_mid = cur_mid
+			_was_gesture = true
+			get_viewport().set_input_as_handled()
+		elif _active_touches.size() == 1:
+			_touch_drag_total += sd.relative.length()
+			if _is_panning or _touch_drag_total > 14.0 or _touch_start_pos.distance_to(sd.position) > 14.0:
+				if not _is_panning:
+					_is_panning = true
+					_was_gesture = true
+					_cancel_all_building_presses()
+				_pan_by(sd.relative)
+				get_viewport().set_input_as_handled()
+
+
+func _unhandled_input(event: InputEvent) -> void:
+	if _is_recent_touch():
+		return
+	if event is InputEventMouseButton:
+		var mb := event as InputEventMouseButton
+		if mb.button_index == MOUSE_BUTTON_WHEEL_UP and mb.pressed:
+			_apply_zoom(0.12, mb.position)
+		elif mb.button_index == MOUSE_BUTTON_WHEEL_DOWN and mb.pressed:
+			_apply_zoom(-0.12, mb.position)
+		elif mb.button_index == MOUSE_BUTTON_LEFT or mb.button_index == MOUSE_BUTTON_RIGHT:
+			if mb.pressed:
+				_is_panning = true
+				_pan_start_mouse = mb.position
+				_pan_start_pos = village_area.position if village_area != null else Vector2(0.0, BASE_OFFSET_Y)
+			else:
+				_is_panning = false
+	elif event is InputEventMouseMotion:
+		var mm := event as InputEventMouseMotion
+		if _is_panning:
+			_pan_by(mm.relative)
+
+
+func _get_base_scale(vp_size: Vector2) -> float:
+	var nav_h := bottom_nav.size.y if (bottom_nav != null and bottom_nav.size.y > 0.0) else 256.0
+	var v_cover := (vp_size.y - nav_h - BASE_OFFSET_Y) / 1920.0
+	var h_cover := (vp_size.x / 1080.0) if vp_size.x <= vp_size.y * 0.85 else 1.0
+	return maxf(1.0, maxf(h_cover, v_cover))
+
+
+func _effective_zoom() -> float:
+	var vp_size := get_viewport_rect().size if is_inside_tree() else Vector2(1080.0, 1920.0)
+	if vp_size.x <= 0.0 or vp_size.y <= 0.0:
+		vp_size = Vector2(1080.0, 1920.0)
+	return _get_base_scale(vp_size) * _current_zoom
+
+
+func _pan_by(rel: Vector2) -> void:
+	if village_area == null:
+		return
+	village_area.position += rel
+	_clamp_village_area()
+
+
+func _apply_zoom(delta_zoom: float, focal: Vector2) -> void:
+	if village_area == null:
+		return
+	var old_eff := _effective_zoom()
+	var target_zoom := clampf(_current_zoom + delta_zoom, MIN_ZOOM, MAX_ZOOM)
+	if is_equal_approx(target_zoom, _current_zoom):
+		return
+	_current_zoom = target_zoom
+	var new_eff := _effective_zoom()
+	var ratio := new_eff / maxf(0.001, old_eff)
+	var new_pos := focal - (focal - village_area.position) * ratio
+	village_area.scale = Vector2(new_eff, new_eff)
+	village_area.position = new_pos
+	_clamp_village_area()
 
 
 func _clamp_village_area() -> void:
 	if village_area == null:
 		return
-	var vp_size := get_viewport_rect().size if is_inside_tree() else Vector2(1080, 1920)
-	var center_x := (vp_size.x - 1080.0) * 0.5
-	village_area.scale = Vector2.ONE
-	village_area.position = Vector2(center_x, BASE_OFFSET_Y)
+	var vp_size := get_viewport_rect().size if is_inside_tree() else Vector2(1080.0, 1920.0)
+	if vp_size.x <= 0.0 or vp_size.y <= 0.0:
+		vp_size = Vector2(1080.0, 1920.0)
+	var eff := _effective_zoom()
+	var scaled_size := Vector2(1080.0, 1920.0) * eff
+	village_area.scale = Vector2(eff, eff)
+
+	var min_x: float
+	var max_x: float
+	if scaled_size.x <= vp_size.x:
+		var center_x := (vp_size.x - scaled_size.x) * 0.5
+		min_x = center_x
+		max_x = center_x
+	else:
+		min_x = vp_size.x - scaled_size.x
+		max_x = 0.0
+
+	var nav_h := bottom_nav.size.y if (bottom_nav != null and bottom_nav.size.y > 0.0) else 256.0
+	var min_y := minf(BASE_OFFSET_Y, (vp_size.y - nav_h) - scaled_size.y)
+	var max_y := BASE_OFFSET_Y
+
+	village_area.position.x = clampf(village_area.position.x, min_x, max_x)
+	village_area.position.y = clampf(village_area.position.y, min_y, max_y)
 
 
 func _reset_view() -> void:
-	_clamp_village_area()
+	_current_zoom = 1.0
+	if village_area != null:
+		var vp_size := get_viewport_rect().size if is_inside_tree() else Vector2(1080.0, 1920.0)
+		var eff := _effective_zoom()
+		var center_x := (vp_size.x - 1080.0 * eff) * 0.5
+		village_area.scale = Vector2(eff, eff)
+		village_area.position = Vector2(center_x, BASE_OFFSET_Y)
+		_clamp_village_area()

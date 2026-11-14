@@ -73,9 +73,9 @@ anchor_top = 1.0
 anchor_right = 1.0
 anchor_bottom = 1.0
 offset_left = 20.0
-offset_top = -420.0
+offset_top = -530.0
 offset_right = -20.0
-offset_bottom = -124.0
+offset_bottom = -256.0
 grow_horizontal = 2
 grow_vertical = 0
 
@@ -104,15 +104,16 @@ visible = false
 z_index = 500
 z_as_relative = false
 layout_mode = 1
-anchors_preset = 15
+anchors_preset = 12
+anchor_top = 1.0
 anchor_right = 1.0
 anchor_bottom = 1.0
-offset_left = 20.0
-offset_top = 145.0
-offset_right = -20.0
-offset_bottom = -255.0
+offset_left = 12.0
+offset_top = -780.0
+offset_right = -12.0
+offset_bottom = -256.0
 grow_horizontal = 2
-grow_vertical = 2
+grow_vertical = 0
 
 [node name="BottomNav" parent="." instance=ExtResource("3_bnav")]
 layout_mode = 1

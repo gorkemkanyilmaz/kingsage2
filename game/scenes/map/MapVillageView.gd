@@ -143,7 +143,7 @@ func _build_ui() -> void:
 		_shield_badge.add_theme_stylebox_override("panel", s_badge_sb)
 
 		var s_lbl := Label.new()
-		s_lbl.text = "️ Koruma"
+		s_lbl.text = "🛡️ Koruma"
 		s_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		s_lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 		s_lbl.add_theme_font_override("font", FontNunitoBold)
@@ -219,14 +219,14 @@ func _build_ui() -> void:
 
 	_owner_label = Label.new()
 	if is_player:
-		_owner_label.text = " " + owner_name
+		_owner_label.text = "👑 " + owner_name
 		_owner_label.add_theme_color_override("font_color", Color(1.0, 0.92, 0.45))
 	elif is_alliance_member:
 		var tag_prefix := ("[" + alliance_tag + "] ") if not alliance_tag.is_empty() else ""
-		_owner_label.text = " " + tag_prefix + owner_name
+		_owner_label.text = "🤝 " + tag_prefix + owner_name
 		_owner_label.add_theme_color_override("font_color", Color(0.55, 0.85, 1.0))
 	else:
-		_owner_label.text = "️ " + owner_name
+		_owner_label.text = "⚔️ " + owner_name
 		_owner_label.add_theme_color_override("font_color", Color(1.0, 0.65, 0.60))
 
 	_owner_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER

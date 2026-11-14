@@ -9,10 +9,42 @@ extends Node
 const SAVE_VERSION := 1
 
 const SAVE_PATH := "user://taht_ve_kilic_save.json"
+const WEB_SAVE_KEY := "tvk_save_game"
 
 
 func _ready() -> void:
 	pass
+
+
+func _web_set(key: String, val: String) -> void:
+	if not OS.has_feature("web"):
+		return
+	JavaScriptBridge.eval("try{window.localStorage.setItem(" + JSON.stringify(key) + "," + JSON.stringify(val) + ");if(typeof FS!=='undefined'&&FS.syncfs){FS.syncfs(false,function(){});}}catch(e){}", true)
+
+
+func _web_get(key: String) -> String:
+	if not OS.has_feature("web"):
+		return ""
+	var res = JavaScriptBridge.eval("(function(){try{var v=window.localStorage.getItem(" + JSON.stringify(key) + ");return typeof v==='string'?v:'';}catch(e){return '';}})()", true)
+	return str(res) if typeof(res) == TYPE_STRING else ""
+
+
+func _web_remove(key: String) -> void:
+	if not OS.has_feature("web"):
+		return
+	JavaScriptBridge.eval("try{window.localStorage.removeItem(" + JSON.stringify(key) + ");if(typeof FS!=='undefined'&&FS.syncfs){FS.syncfs(false,function(){});}}catch(e){}", true)
+
+
+func _read_raw_save_json() -> String:
+	if FileAccess.file_exists(SAVE_PATH):
+		return FileAccess.get_file_as_string(SAVE_PATH)
+	var web_text := _web_get(WEB_SAVE_KEY)
+	if not web_text.is_empty():
+		var f := FileAccess.open(SAVE_PATH, FileAccess.WRITE)
+		if f != null:
+			f.store_string(web_text)
+			f.close()
+	return web_text
 
 
 # --- Sorgu ------------------------------------------------------------------
@@ -25,7 +57,7 @@ func has_save() -> bool:
 		var p_name: String = auth.display_name if auth != null and not auth.display_name.is_empty() else "Lord Gorkem"
 		if wm != null and wm.has_player_village(wm.current_world_id, p_name):
 			return true
-	return FileAccess.file_exists(SAVE_PATH)
+	return not _read_raw_save_json().is_empty()
 
 
 func get_save_path() -> String:
@@ -36,8 +68,9 @@ func get_save_path() -> String:
 func get_save_meta() -> Dictionary:
 	if not has_save():
 		return {}
-	if FileAccess.file_exists(SAVE_PATH):
-		var parsed = JSON.parse_string(FileAccess.get_file_as_string(SAVE_PATH))
+	var raw := _read_raw_save_json()
+	if not raw.is_empty():
+		var parsed = JSON.parse_string(raw)
 		if typeof(parsed) == TYPE_DICTIONARY:
 			return {
 				"saveVersion": int(parsed.get("saveVersion", 0)),
@@ -109,6 +142,7 @@ func save_game() -> bool:
 		return false
 	file.store_string(JSON.stringify(payload, "\t"))
 	file.close()
+	_web_set(WEB_SAVE_KEY, JSON.stringify(payload))
 
 	if bus != null and bus.has_signal("game_saved"):
 		bus.game_saved.emit()
@@ -127,11 +161,12 @@ func load_game() -> bool:
 		if wm != null and wm.has_player_village(wm.current_world_id, p_name):
 			return wm.enter_world(wm.current_world_id, p_name)
 
-	if not FileAccess.file_exists(SAVE_PATH):
+	var raw := _read_raw_save_json()
+	if raw.is_empty():
 		return false
 
 	var bus := _event_bus()
-	var parsed = JSON.parse_string(FileAccess.get_file_as_string(SAVE_PATH))
+	var parsed = JSON.parse_string(raw)
 	if typeof(parsed) != TYPE_DICTIONARY:
 		push_error("SaveManager: kayıt dosyası bozuk -> " + SAVE_PATH)
 		if bus != null and bus.has_signal("error_occurred"):
@@ -246,7 +281,8 @@ func _apply_offline_catchup(gs: Node, saved_unix: int) -> void:
 # --- Sil --------------------------------------------------------------------
 
 func delete_save() -> bool:
-	if not has_save():
+	_web_remove(WEB_SAVE_KEY)
+	if not FileAccess.file_exists(SAVE_PATH):
 		return false
 	var dir := DirAccess.open("user://")
 	if dir == null:

@@ -39,16 +39,16 @@ const UNIT_CLASS_NAMES := {
 	"kata": "Kuşatma (Bina Yıkıcı)"
 }
 const UNIT_ICONS := {
-	"farmer": "",
-	"spear": "",
-	"sword": "",
-	"axe": "",
-	"bow": "",
-	"spy": "",
-	"light": "",
-	"heavy": "",
-	"ram": "",
-	"kata": ""
+	"farmer": "⚔️",
+	"spear": "🛡️",
+	"sword": "⚔️",
+	"axe": "⚔️",
+	"bow": "🏹",
+	"spy": "🕵️",
+	"light": "🐎",
+	"heavy": "♞",
+	"ram": "🏛️",
+	"kata": "🎯"
 }
 
 const BUILDING_DESCRIPTIONS := {
@@ -682,11 +682,11 @@ func _update_tab_buttons_styling(barracks_level: int) -> void:
 			btn.add_theme_constant_override("shadow_offset_y", 2)
 
 	if barracks_level < 1:
-		tab_research_btn.text = " Birim Araştır"
-		tab_train_btn.text = " Birim Eğit"
+		tab_research_btn.text = "🔒 Birim Araştır"
+		tab_train_btn.text = "🔒 Birim Eğit"
 	else:
-		tab_research_btn.text = " Birim Araştır"
-		tab_train_btn.text = " Birim Eğit"
+		tab_research_btn.text = "📜 Birim Araştır"
+		tab_train_btn.text = "⚔️ Birim Eğit"
 
 
 func refresh() -> void:
@@ -816,7 +816,7 @@ func _refresh_upgrade_view(state: Dictionary, cur_lvl: int, max_lvl: int) -> voi
 	if cur_lvl >= max_lvl and max_lvl > 0:
 		level_label.text = "Seviye: %d / %d (Maksimum)" % [cur_lvl, max_lvl]
 	elif active_in_queue:
-		level_label.text = "Seviye: %d (İnşaat: Sv. %d  Sıradaki: Sv. %d)" % [cur_lvl, active_tgt, tgt_lvl]
+		level_label.text = "Seviye: %d (İnşaat: Sv. %d ➔ Sıradaki: Sv. %d)" % [cur_lvl, active_tgt, tgt_lvl]
 	else:
 		level_label.text = "Seviye: %d  (Hedef: %d / %d)" % [cur_lvl, tgt_lvl, max_lvl]
 
@@ -845,7 +845,7 @@ func _refresh_upgrade_view(state: Dictionary, cur_lvl: int, max_lvl: int) -> voi
 		time_label.text = "İnşa Süresi: %d sn" % int(ceil(dur_secs))
 
 	if extra_pct > 0:
-		extra_cost_label.text = " Kuyruk Ek Maliyeti: +%%%d" % extra_pct
+		extra_cost_label.text = "⚠️ Kuyruk Ek Maliyeti: +%%%d" % extra_pct
 		extra_cost_label.show()
 	else:
 		extra_cost_label.hide()
@@ -994,7 +994,7 @@ func _populate_chain_list(chain: Array) -> void:
 		row.add_child(lbl)
 
 		var goto_btn := Button.new()
-		goto_btn.text = "Binaya Git "
+		goto_btn.text = "Binaya Git ➔"
 		goto_btn.custom_minimum_size = Vector2(175, 52)
 		goto_btn.add_theme_font_override("font", FontNunitoBold)
 		goto_btn.add_theme_font_size_override("font_size", 22)
@@ -1080,11 +1080,11 @@ func _update_active_build_info() -> void:
 	var pct := clampf(float(total_dur - rem) / float(total_dur) * 100.0, 0.0, 100.0) if is_active else 0.0
 
 	if is_active:
-		active_build_icon_lbl.text = " İnşaat Sürüyor: Seviye %d" % tgt
+		active_build_icon_lbl.text = "🔨 İnşaat Sürüyor: Seviye %d" % tgt
 		active_build_time_lbl.text = "Kalan: %02d:%02d" % [rem / 60, rem % 60]
 		active_build_time_lbl.add_theme_color_override("font_color", Color(0.42, 0.90, 1.0))
 	else:
-		active_build_icon_lbl.text = " Sırada Bekliyor: Seviye %d" % tgt
+		active_build_icon_lbl.text = "⏳ Sırada Bekliyor: Seviye %d" % tgt
 		active_build_time_lbl.text = "Süre: %02d:%02d (Sırada)" % [rem / 60, rem % 60]
 		active_build_time_lbl.add_theme_color_override("font_color", Color(1.0, 0.85, 0.40))
 
@@ -1197,7 +1197,7 @@ func _populate_research_list() -> void:
 
 	for u_key in BARRACKS_UNITS:
 		var u_name: String = GameDataScript.get_singleton().get_unit_name(u_key)
-		var u_icon: String = UNIT_ICONS.get(u_key, "")
+		var u_icon: String = UNIT_ICONS.get(u_key, "⚔️")
 		var u_class: String = UNIT_CLASS_NAMES.get(u_key, "Piyade")
 
 		var req_barracks := RulesEngineScript.research_requirement(u_key)
@@ -1265,10 +1265,10 @@ func _populate_research_list() -> void:
 		req_lbl.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.95))
 		req_lbl.add_theme_constant_override("shadow_offset_y", 2)
 		if cur_barracks_lvl >= req_barracks:
-			req_lbl.text = " Kışla Sv. %d" % req_barracks
+			req_lbl.text = "✓ Kışla Sv. %d" % req_barracks
 			req_lbl.add_theme_color_override("font_color", Color(0.40, 0.95, 0.52))
 		else:
-			req_lbl.text = " Kışla Sv. %d Gerekli" % req_barracks
+			req_lbl.text = "✗ Kışla Sv. %d Gerekli" % req_barracks
 			req_lbl.add_theme_color_override("font_color", Color(1.0, 0.45, 0.40))
 		top_row.add_child(req_lbl)
 
@@ -1281,7 +1281,7 @@ func _populate_research_list() -> void:
 		var settlers := RulesEngineScript.unit_settlers(u_key)
 
 		var stats_lbl := Label.new()
-		stats_lbl.text = " Saldırı: %d  |   Sav: %d (Süv:%d / Okç:%d)  |   Hız: %.1f dk/alan  |   Taşıma: %d  |   Nüfus: %d" % [
+		stats_lbl.text = "⚔️ Saldırı: %d  |  🛡️ Sav: %d (Süv:%d / Okç:%d)  |  ⏱️ Hız: %.1f dk/alan  |  🎒 Taşıma: %d  |  👥 Nüfus: %d" % [
 			combat.attack, combat.def_inf, combat.def_cav, combat.def_arch, spd, carry, settlers
 		]
 		stats_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -1311,7 +1311,7 @@ func _populate_research_list() -> void:
 		cost_hbox.add_child(i_pill)
 
 		var time_info := Label.new()
-		time_info.text = " %s" % _format_time_str(r_secs)
+		time_info.text = "⏱️ %s" % _format_time_str(r_secs)
 		time_info.add_theme_font_override("font", FontNunitoBold)
 		time_info.add_theme_font_size_override("font_size", 21)
 		time_info.add_theme_constant_override("outline_size", 2)
@@ -1325,7 +1325,7 @@ func _populate_research_list() -> void:
 		# Button or Status Badge
 		if is_researched:
 			var badge := Label.new()
-			badge.text = " Araştırıldı"
+			badge.text = "✓ Araştırıldı"
 			badge.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 			badge.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 			badge.custom_minimum_size = Vector2(185, 52)
@@ -1343,7 +1343,7 @@ func _populate_research_list() -> void:
 			bottom_row.add_child(badge)
 		elif active_research_unit == u_key:
 			var badge := Label.new()
-			badge.text = " Araştırılıyor..."
+			badge.text = "⏳ Araştırılıyor..."
 			badge.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 			badge.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 			badge.custom_minimum_size = Vector2(185, 52)
@@ -1373,7 +1373,7 @@ func _populate_research_list() -> void:
 			var reason := ArmyAPI.research_block_reason(_village, u_key, state)
 
 			if can_res:
-				res_btn.text = " Araştır"
+				res_btn.text = "🔬 Araştır"
 				var r_sb := StyleBoxFlat.new()
 				r_sb.bg_color = Color(0.20, 0.58, 0.32, 1.0)
 				r_sb.border_color = Color(0.60, 0.95, 0.70, 1.0)
@@ -1477,7 +1477,7 @@ func _update_active_research_info() -> void:
 	var total_dur := maxi(1, finish - start)
 	var rem := maxi(0, finish - now)
 
-	active_research_icon_lbl.text = " Araştırma Sürüyor: %s" % u_name
+	active_research_icon_lbl.text = "🔬 Araştırma Sürüyor: %s" % u_name
 	active_research_time_lbl.text = "Kalan: %02d:%02d" % [rem / 60, rem % 60]
 
 	var pct := float(total_dur - rem) / float(total_dur) * 100.0
@@ -1605,11 +1605,11 @@ func _populate_train_list() -> void:
 	var max_pop := RulesEngineScript.max_population(farm_lvl)
 
 	if citizen_label != null:
-		citizen_label.text = " Müsait Vatandaş: %d  (Toplam Değirmen Kapasitesi: %d)" % [free_cit, max_pop]
+		citizen_label.text = "👥 Müsait Vatandaş: %d  (Toplam Değirmen Kapasitesi: %d)" % [free_cit, max_pop]
 
 	for u_key in BARRACKS_UNITS:
 		var u_name: String = GameDataScript.get_singleton().get_unit_name(u_key)
-		var u_icon: String = UNIT_ICONS.get(u_key, "")
+		var u_icon: String = UNIT_ICONS.get(u_key, "⚔️")
 		var u_class: String = UNIT_CLASS_NAMES.get(u_key, "Piyade")
 		var is_researched := RulesEngineScript.is_researched(_village, u_key)
 		var req_barracks := RulesEngineScript.research_requirement(u_key)
@@ -1679,7 +1679,7 @@ func _populate_train_list() -> void:
 
 			var lock_lbl := Label.new()
 			lock_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-			lock_lbl.text = " Bu birim henüz araştırılmadı. (Gereken: Kışla Seviye %d)" % req_barracks
+			lock_lbl.text = "🔒 Bu birim henüz araştırılmadı. (Gereken: Kışla Seviye %d)" % req_barracks
 			lock_lbl.add_theme_font_override("font", FontNunitoBold)
 			lock_lbl.add_theme_font_size_override("font_size", 24)
 			lock_lbl.add_theme_constant_override("outline_size", 2)
@@ -1688,7 +1688,7 @@ func _populate_train_list() -> void:
 			lock_row.add_child(lock_lbl)
 
 			var goto_res_btn := Button.new()
-			goto_res_btn.text = "Birim Araştır "
+			goto_res_btn.text = "Birim Araştır ➔"
 			goto_res_btn.custom_minimum_size = Vector2(185, 52)
 			goto_res_btn.add_theme_font_override("font", FontNunitoBold)
 			goto_res_btn.add_theme_font_size_override("font_size", 24)
@@ -1762,7 +1762,7 @@ func _populate_train_list() -> void:
 			cost_row.add_child(c_pill)
 
 			var time_info := Label.new()
-			time_info.text = " %s" % _format_time_str(single_sec)
+			time_info.text = "⏱️ %s" % _format_time_str(single_sec)
 			time_info.add_theme_font_override("font", FontNunitoBold)
 			time_info.add_theme_font_size_override("font_size", 24)
 			time_info.add_theme_constant_override("outline_size", 2)
@@ -1806,7 +1806,7 @@ func _populate_train_list() -> void:
 			input_row.add_child(spin)
 
 			var train_btn := Button.new()
-			train_btn.text = " Eğit"
+			train_btn.text = "⚔️ Eğit"
 			train_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 			train_btn.custom_minimum_size = Vector2(160, 54)
 			train_btn.add_theme_font_override("font", FontNunitoBold)
@@ -1867,17 +1867,17 @@ func _populate_train_list() -> void:
 					calc_summary.text = "Eğitilecek miktarı seçin. (Maksimum üretilebilir: %d Adet)" % max_train
 					calc_summary.add_theme_color_override("font_color", Color(0.85, 0.82, 0.75))
 					train_btn.disabled = true
-					train_btn.text = " Eğit"
+					train_btn.text = "⚔️ Eğit"
 				else:
 					var can_t := (c <= max_train and c > 0)
-					calc_summary.text = "Toplam (%d Adet): %d Odun, %d Taş, %d Demir | %d Nüfus |  %s" % [
+					calc_summary.text = "Toplam (%d Adet): %d Odun, %d Taş, %d Demir | %d Nüfus | ⏱️ %s" % [
 						c, int(tot_cost.get("wood", 0)), int(tot_cost.get("stone", 0)), int(tot_cost.get("iron", 0)),
 						tot_cit, _format_time_str(tot_sec)
 					]
 					if can_t:
 						calc_summary.add_theme_color_override("font_color", Color(0.45, 0.98, 0.58))
 						train_btn.disabled = false
-						train_btn.text = " Eğit (%d Adet)" % c
+						train_btn.text = "⚔️ Eğit (%d Adet)" % c
 					else:
 						calc_summary.add_theme_color_override("font_color", Color(1.0, 0.45, 0.42))
 						train_btn.disabled = true
@@ -2002,7 +2002,7 @@ func _update_active_train_info() -> void:
 
 		var c_btn := Button.new()
 		c_btn.name = "CancelButton"
-		c_btn.text = " İptal"
+		c_btn.text = "✕ İptal"
 		c_btn.custom_minimum_size = Vector2(110, 48)
 		c_btn.add_theme_font_override("font", FontNunitoBold)
 		c_btn.add_theme_font_size_override("font_size", 22)
@@ -2039,7 +2039,7 @@ func _update_active_train_info() -> void:
 		var rem := maxi(0, finish - now)
 
 		var name_lbl: Label = row.get_node("NameLabel")
-		name_lbl.text = " %d %s" % [count, u_name]
+		name_lbl.text = "⚔️ %d %s" % [count, u_name]
 
 		var time_lbl: Label = row.get_node("TimeLabel")
 		time_lbl.text = "%02d:%02d" % [rem / 60, rem % 60]

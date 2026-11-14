@@ -79,13 +79,13 @@ layout_mode = 2
 size_flags_horizontal = 3
 theme_override_colors/font_color = Color(1, 0.92, 0.75, 1)
 theme_override_font_sizes/font_size = 28
-text = " Sefer & Sevkiyat"
+text = "⚔️ Sefer & Sevkiyat"
 
 [node name="CloseButton" type="Button" parent="VBox/Header"]
 custom_minimum_size = Vector2(72, 72)
 layout_mode = 2
 theme_override_font_sizes/font_size = 26
-text = ""
+text = "✕"
 
 [node name="TargetCard" type="PanelContainer" parent="VBox"]
 layout_mode = 2

@@ -2,18 +2,22 @@
 <html lang="en">
 	<head>
 		<meta charset="utf-8">
-		<meta name="viewport" content="width=device-width, user-scalable=no, initial-scale=1.0, viewport-fit=cover">
+		<meta name="viewport" content="width=device-width, user-scalable=no, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover">
 		<meta name="apple-mobile-web-app-capable" content="yes">
 		<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+		<meta name="mobile-web-app-capable" content="yes">
 		<meta name="theme-color" content="#0b0d12">
 		<title>Taht ve Kılıç</title>
 		<style>
-html, body {
+html, body, #canvas {
 	margin: 0;
 	padding: 0;
 	border: 0;
+}
+
+html, body {
 	width: 100%;
-	height: 100%;
+	height: 100dvh;
 	overflow: hidden;
 	background-color: #0b0d12;
 }
@@ -21,6 +25,7 @@ html, body {
 body {
 	color: white;
 	touch-action: none;
+	overscroll-behavior: none;
 	-webkit-touch-callout: none;
 	-webkit-user-select: none;
 	user-select: none;
@@ -29,13 +34,12 @@ body {
 #canvas {
 	display: block;
 	position: fixed;
-	top: 0;
-	left: 0;
-	width: 100% !important;
-	height: 100% !important;
+	inset: 0;
+	width: 100vw !important;
+	height: 100dvh !important;
 	margin: 0 !important;
 	padding: 0 !important;
-	object-fit: cover;
+	touch-action: none;
 }
 
 #canvas:focus {
@@ -127,7 +131,7 @@ body {
 
 		<script src="index.js"></script>
 		<script>
-const GODOT_CONFIG = {"args":[],"canvasResizePolicy":2,"emscriptenPoolSize":8,"ensureCrossOriginIsolationHeaders":false,"executable":"index","experimentalVK":false,"fileSizes":{"index.pck":51524328,"index.wasm":39514754},"focusCanvas":true,"gdextensionLibs":[],"godotPoolSize":4};
+const GODOT_CONFIG = {"args":[],"canvasResizePolicy":2,"emscriptenPoolSize":8,"ensureCrossOriginIsolationHeaders":false,"executable":"index","experimentalVK":false,"fileSizes":{"index.pck":70765368,"index.wasm":39514754},"focusCanvas":true,"gdextensionLibs":[],"godotPoolSize":4};
 const GODOT_THREADS_ENABLED = false;
 const engine = new Engine(GODOT_CONFIG);
 
@@ -229,6 +233,23 @@ const engine = new Engine(GODOT_CONFIG);
 			setStatusMode('hidden');
 		}, displayFailureNotice);
 	}
+}());
+
+(function () {
+	function flushFs() {
+		try {
+			if (typeof FS !== 'undefined' && FS.syncfs) {
+				FS.syncfs(false, function () {});
+			}
+		} catch (e) {}
+	}
+	window.addEventListener('pagehide', flushFs);
+	window.addEventListener('beforeunload', flushFs);
+	document.addEventListener('visibilitychange', function () {
+		if (document.visibilityState === 'hidden') {
+			flushFs();
+		}
+	});
 }());
 		</script>
 	</body>

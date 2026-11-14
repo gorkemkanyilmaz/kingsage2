@@ -23,7 +23,7 @@ grow_horizontal = 2
 grow_vertical = 2
 texture = ExtResource("3_bg")
 expand_mode = 1
-stretch_mode = 6
+stretch_mode = 0
 
 [node name="RowsContainer" type="Control" parent="."]
 layout_mode = 1

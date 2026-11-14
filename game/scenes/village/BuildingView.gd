@@ -33,6 +33,7 @@ var click_polygon: PackedVector2Array = []
 var _mouse_press_pos := Vector2.ZERO
 var _touch_press_pos := Vector2.ZERO
 var _is_dragging := false
+var _touch_active := false
 var _last_click_frame: int = -1
 
 # Düğümler
@@ -206,6 +207,10 @@ func _update_button_size() -> void:
 		phb.building_view = self
 
 
+func cancel_press() -> void:
+	_is_dragging = true
+
+
 func _trigger_click() -> void:
 	var current_frame := Engine.get_process_frames()
 	if current_frame > 0 and current_frame == _last_click_frame:
@@ -215,7 +220,24 @@ func _trigger_click() -> void:
 
 
 func _on_btn_gui_input(event: InputEvent) -> void:
-	if event is InputEventMouseButton:
+	if event is InputEventScreenTouch:
+		var st := event as InputEventScreenTouch
+		if st.pressed:
+			_touch_active = true
+			_touch_press_pos = st.position
+			_is_dragging = false
+		else:
+			if not _is_dragging:
+				_trigger_click()
+			_is_dragging = false
+			_touch_active = false
+	elif event is InputEventScreenDrag:
+		var sd := event as InputEventScreenDrag
+		if not _is_dragging and (sd.position - _touch_press_pos).length() > 16.0:
+			_is_dragging = true
+	elif event is InputEventMouseButton:
+		if _touch_active:
+			return
 		var mb := event as InputEventMouseButton
 		if mb.button_index == MOUSE_BUTTON_LEFT:
 			if mb.pressed:
@@ -226,27 +248,14 @@ func _on_btn_gui_input(event: InputEvent) -> void:
 					_trigger_click()
 				_is_dragging = false
 	elif event is InputEventMouseMotion:
+		if _touch_active:
+			return
 		var mm := event as InputEventMouseMotion
 		if mm.button_mask & MOUSE_BUTTON_MASK_LEFT:
-			if not _is_dragging and (mm.global_position - _mouse_press_pos).length() > 20.0:
+			if not _is_dragging and (mm.global_position - _mouse_press_pos).length() > 16.0:
 				_is_dragging = true
 			if _is_dragging:
 				dragged.emit(mm.relative)
-	elif event is InputEventScreenTouch:
-		var st := event as InputEventScreenTouch
-		if st.pressed:
-			_touch_press_pos = st.position
-			_is_dragging = false
-		else:
-			if not _is_dragging:
-				_trigger_click()
-			_is_dragging = false
-	elif event is InputEventScreenDrag:
-		var sd := event as InputEventScreenDrag
-		if not _is_dragging and (sd.position - _touch_press_pos).length() > 20.0:
-			_is_dragging = true
-		if _is_dragging:
-			dragged.emit(sd.relative)
 
 
 func _update_badge_position() -> void:

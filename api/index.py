@@ -266,7 +266,13 @@ def init_db():
                 user_name TEXT NOT NULL,
                 invited_by TEXT NOT NULL,
                 created_unix {1} NOT NULL
-            )""".format(pk_auto, bigint_t)
+            )""".format(pk_auto, bigint_t),
+
+            """CREATE TABLE IF NOT EXISTS cloud_saves (
+                user_id TEXT PRIMARY KEY,
+                state_json TEXT NOT NULL,
+                updated_unix {0} NOT NULL
+            )""".format(bigint_t)
         ]
 
         for stmt in tables:
@@ -872,6 +878,49 @@ def send_message(req: SendMessageRequest, user: Dict[str, Any] = Depends(get_cur
     conn.close()
 
     return {"ok": True, "sent_unix": now}
+
+@app.get("/api/game/state")
+def get_cloud_state(user: Dict[str, Any] = Depends(get_current_user)):
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("SELECT state_json, updated_unix FROM cloud_saves WHERE user_id = ?", (user["id"],))
+    row = cursor.fetchone()
+    conn.close()
+    if not row:
+        return {"ok": True, "has_save": False, "state": None, "updated_unix": 0}
+    try:
+        parsed_state = json.loads(row["state_json"])
+    except Exception:
+        parsed_state = {}
+    return {
+        "ok": True,
+        "has_save": True,
+        "state": parsed_state,
+        "updated_unix": int(row["updated_unix"])
+    }
+
+
+@app.post("/api/game/save")
+def post_cloud_save(payload: Dict[str, Any], user: Dict[str, Any] = Depends(get_current_user)):
+    now = int(time.time())
+    state_obj = payload.get("state", payload) if isinstance(payload, dict) else {}
+    state_json = json.dumps(state_obj, ensure_ascii=False)
+    conn = get_db()
+    with conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT user_id FROM cloud_saves WHERE user_id = ?", (user["id"],))
+        if cursor.fetchone():
+            cursor.execute(
+                "UPDATE cloud_saves SET state_json = ?, updated_unix = ? WHERE user_id = ?",
+                (state_json, now, user["id"])
+            )
+        else:
+            cursor.execute(
+                "INSERT INTO cloud_saves (user_id, state_json, updated_unix) VALUES (?, ?, ?)",
+                (user["id"], state_json, now)
+            )
+    return {"ok": True, "updated_unix": now}
+
 
 @app.get("/api/reports")
 def get_reports(user: Dict[str, Any] = Depends(get_current_user)):

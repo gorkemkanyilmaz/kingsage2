@@ -31,6 +31,7 @@ const ROW_BTN_SIZE := Vector2(305, 90)
 @onready var btn_cancel: Button = $Center/VBox/BtnCancel
 
 var _profile_bar: PanelContainer
+var _btn_profile_continue: Button
 var _auth_overlay: Control
 var _name_input: LineEdit
 var _status_lbl: Label
@@ -52,8 +53,10 @@ func _ready() -> void:
 	_setup_region_modal()
 	_refresh_auth_state()
 	_build_world_rows()
-	if not get_viewport().size_changed.is_connected(_build_world_rows):
-		get_viewport().size_changed.connect(_build_world_rows)
+	_on_viewport_resized()
+	var vp := get_viewport()
+	if vp != null and not vp.size_changed.is_connected(_on_viewport_resized):
+		vp.size_changed.connect(_on_viewport_resized)
 
 
 func _is_authenticated() -> bool:
@@ -94,12 +97,20 @@ func _refresh_auth_state() -> void:
 			var lbl = _profile_bar.get_node_or_null("HBox/ProfileLabel") as Label
 			if lbl != null and auth != null:
 				var prov_name := "Google" if auth.auth_provider == "google" else "Apple"
-				lbl.text = "Lord %s (%s)" % [auth.display_name, prov_name]
+				var title_name := str(auth.display_name).strip_edges()
+				while title_name.begins_with("Lord Lord "):
+					title_name = title_name.substr(5)
+				if not title_name.begins_with("Lord "):
+					title_name = "Lord " + title_name
+				lbl.text = "%s (%s)" % [title_name, prov_name]
 		_sync_player_name()
 		_build_world_rows()
+		_update_profile_continue_button()
 	else:
 		if _profile_bar != null:
 			_profile_bar.hide()
+		if _btn_profile_continue != null:
+			_btn_profile_continue.hide()
 		if _auth_overlay != null:
 			_auth_overlay.show()
 
@@ -148,6 +159,29 @@ func _setup_profile_bar() -> void:
 	server_dot.add_theme_font_size_override("font_size", 20)
 	server_dot.add_theme_color_override("font_color", Color(0.40, 0.95, 0.55))
 	hbox.add_child(server_dot)
+
+	_btn_profile_continue = Button.new()
+	_btn_profile_continue.name = "BtnProfileContinue"
+	_btn_profile_continue.text = "▶ Oyuna Devam Et"
+	_btn_profile_continue.custom_minimum_size = Vector2(210, 44)
+	_btn_profile_continue.visible = false
+	_btn_profile_continue.add_theme_font_override("font", FontNunitoBold)
+	_btn_profile_continue.add_theme_font_size_override("font_size", 19)
+	_btn_profile_continue.add_theme_color_override("font_color", Color(1.0, 0.95, 0.78))
+	_btn_profile_continue.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	var c_sb := StyleBoxFlat.new()
+	c_sb.bg_color = Color(0.14, 0.42, 0.22, 0.92)
+	c_sb.border_color = Color(0.88, 0.75, 0.35, 0.95)
+	c_sb.set_border_width_all(2)
+	c_sb.set_corner_radius_all(10)
+	c_sb.set_content_margin_all(8)
+	_btn_profile_continue.add_theme_stylebox_override("normal", c_sb)
+	var c_hover := c_sb.duplicate() as StyleBoxFlat
+	c_hover.bg_color = Color(0.20, 0.54, 0.30, 0.98)
+	_btn_profile_continue.add_theme_stylebox_override("hover", c_hover)
+	_btn_profile_continue.add_theme_stylebox_override("pressed", c_hover)
+	_btn_profile_continue.pressed.connect(_on_profile_continue_pressed)
+	hbox.add_child(_btn_profile_continue)
 
 	var btn_logout := Button.new()
 	btn_logout.text = "Çıkış"
@@ -383,11 +417,51 @@ func _build_world_rows() -> void:
 	var p_name := _get_player_name()
 
 	var vp_size := get_viewport_rect().size if is_inside_tree() else Vector2(1080.0, 1920.0)
-	var scale_factor: float = maxf(vp_size.x / 1080.0, vp_size.y / 1920.0)
-	var bg_offset: Vector2 = (vp_size - Vector2(1080.0, 1920.0) * scale_factor) * 0.5
+	if vp_size.x <= 0.0 or vp_size.y <= 0.0:
+		vp_size = Vector2(1080.0, 1920.0)
+	rows_container.position = Vector2.ZERO
+	rows_container.scale = Vector2(vp_size.x / 1080.0, vp_size.y / 1920.0)
+	_update_profile_continue_button()
 
-	rows_container.position = bg_offset
-	rows_container.scale = Vector2(scale_factor, scale_factor)
+
+func _on_viewport_resized() -> void:
+	if rows_container == null:
+		return
+	var vp_size := get_viewport_rect().size if is_inside_tree() else Vector2(1080.0, 1920.0)
+	if vp_size.x <= 0.0 or vp_size.y <= 0.0:
+		return
+	rows_container.position = Vector2.ZERO
+	rows_container.scale = Vector2(vp_size.x / 1080.0, vp_size.y / 1920.0)
+
+
+func _update_profile_continue_button() -> void:
+	if _btn_profile_continue == null:
+		return
+	var root = Engine.get_main_loop().root if Engine.get_main_loop() is SceneTree else null
+	var wm = root.get_node_or_null("WorldManager") if root != null else null
+	var sm = root.get_node_or_null("SaveManager") if root != null else null
+	var auth = root.get_node_or_null("AuthManager") if root != null else null
+	var p_name: String = auth.display_name if (auth != null and not str(auth.display_name).is_empty()) else "Lord Gorkem"
+	var has_v := false
+	if wm != null and wm.has_player_village(wm.current_world_id, p_name):
+		has_v = true
+	elif sm != null and sm.has_save():
+		has_v = true
+	_btn_profile_continue.visible = has_v
+
+
+func _on_profile_continue_pressed() -> void:
+	var root = Engine.get_main_loop().root if Engine.get_main_loop() is SceneTree else null
+	var wm = root.get_node_or_null("WorldManager") if root != null else null
+	var sm = root.get_node_or_null("SaveManager") if root != null else null
+	var auth = root.get_node_or_null("AuthManager") if root != null else null
+	var p_name: String = auth.display_name if (auth != null and not str(auth.display_name).is_empty()) else "Lord Gorkem"
+	if wm != null and wm.has_player_village(wm.current_world_id, p_name):
+		if wm.enter_world(wm.current_world_id, p_name):
+			get_tree().change_scene_to_file("res://scenes/Village.tscn")
+			return
+	if sm != null and sm.has_save() and sm.load_game():
+		get_tree().change_scene_to_file("res://scenes/Village.tscn")
 
 	for i in range(1, 11):
 		var y_banner := ROW_Y_START_BANNER + (i - 1) * ROW_Y_STEP

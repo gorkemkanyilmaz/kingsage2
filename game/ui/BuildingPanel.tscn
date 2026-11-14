@@ -245,18 +245,18 @@ text = "Seviye: 1 (Hedef: 2)"
 vertical_alignment = 1
 
 [node name="CloseButton" type="Button" parent="VBox/Header"]
-custom_minimum_size = Vector2(52, 52)
+custom_minimum_size = Vector2(48, 48)
 layout_mode = 2
 theme_override_colors/font_color = Color(1, 0.98, 0.92, 1)
 theme_override_colors/font_hover_color = Color(1, 1, 1, 1)
 theme_override_colors/font_pressed_color = Color(1, 0.95, 0.70, 1)
 theme_override_colors/font_focus_color = Color(1, 0.98, 0.92, 1)
 theme_override_colors/font_shadow_color = Color(0, 0, 0, 0.6)
-theme_override_font_sizes/font_size = 28
+theme_override_font_sizes/font_size = 24
 theme_override_styles/normal = SubResource("StyleBoxFlat_close_normal")
 theme_override_styles/hover = SubResource("StyleBoxFlat_close_hover")
 theme_override_styles/pressed = SubResource("StyleBoxFlat_close_normal")
-text = "X"
+text = "✕"
 
 [node name="TabBar" type="HBoxContainer" parent="VBox"]
 visible = false
@@ -279,7 +279,7 @@ theme_override_constants/shadow_offset_y = 2
 theme_override_styles/normal = SubResource("StyleBoxFlat_tab_active")
 theme_override_styles/hover = SubResource("StyleBoxFlat_tab_hover")
 theme_override_styles/pressed = SubResource("StyleBoxFlat_tab_active")
-text = " Bina Yükselt"
+text = "🏛️ Bina Yükselt"
 
 [node name="TabResearchBtn" type="Button" parent="VBox/TabBar"]
 custom_minimum_size = Vector2(0, 60)
@@ -295,7 +295,7 @@ theme_override_constants/shadow_offset_y = 2
 theme_override_styles/normal = SubResource("StyleBoxFlat_tab_inactive")
 theme_override_styles/hover = SubResource("StyleBoxFlat_tab_hover")
 theme_override_styles/pressed = SubResource("StyleBoxFlat_tab_active")
-text = " Birim Araştır"
+text = "📜 Birim Araştır"
 
 [node name="TabTrainBtn" type="Button" parent="VBox/TabBar"]
 custom_minimum_size = Vector2(0, 60)
@@ -311,7 +311,7 @@ theme_override_constants/shadow_offset_y = 2
 theme_override_styles/normal = SubResource("StyleBoxFlat_tab_inactive")
 theme_override_styles/hover = SubResource("StyleBoxFlat_tab_hover")
 theme_override_styles/pressed = SubResource("StyleBoxFlat_tab_active")
-text = " Birim Eğit"
+text = "⚔️ Birim Eğit"
 
 [node name="LockedBanner" type="PanelContainer" parent="VBox"]
 visible = false
@@ -330,7 +330,7 @@ theme_override_colors/font_shadow_color = Color(0, 0, 0, 0.95)
 theme_override_constants/shadow_offset_y = 2
 theme_override_fonts/font = ExtResource("7_nunito_bold")
 theme_override_font_sizes/font_size = 26
-text = " Bu özelliği kullanabilmek için önce Kışla'yı inşa etmelisiniz!"
+text = "⚠️ Bu özelliği kullanabilmek için önce Kışla'yı inşa etmelisiniz!"
 horizontal_alignment = 1
 autowrap_mode = 2
 
@@ -345,7 +345,7 @@ theme_override_colors/font_hover_color = Color(1, 1, 1, 1)
 theme_override_colors/font_pressed_color = Color(1, 0.95, 0.70, 1)
 theme_override_colors/font_focus_color = Color(1, 1, 1, 1)
 theme_override_styles/normal = SubResource("StyleBoxFlat_upg_normal")
-text = "Kışla'yı İnşa Et "
+text = "Kışla'yı İnşa Et ➔"
 
 [node name="ActiveBuildBox" type="PanelContainer" parent="VBox"]
 visible = false
@@ -367,7 +367,7 @@ theme_override_colors/font_outline_color = Color(0.12, 0.08, 0.02, 0.95)
 theme_override_constants/outline_size = 4
 theme_override_fonts/font = ExtResource("7_nunito_bold")
 theme_override_font_sizes/font_size = 30
-text = " İnşaat Sürüyor: Seviye 2"
+text = "🔨 İnşaat Sürüyor: Seviye 2"
 
 [node name="TimeLabel" type="Label" parent="VBox/ActiveBuildBox/HBox"]
 layout_mode = 2
@@ -403,7 +403,7 @@ theme_override_colors/font_shadow_color = Color(0, 0, 0, 0.95)
 theme_override_constants/shadow_offset_y = 2
 theme_override_fonts/font = ExtResource("7_nunito_bold")
 theme_override_font_sizes/font_size = 24
-text = " İptal"
+text = "✕ İptal"
 
 [node name="CostContainer" type="HBoxContainer" parent="VBox"]
 layout_mode = 2
@@ -521,7 +521,7 @@ theme_override_colors/font_shadow_color = Color(0, 0, 0, 0.8)
 theme_override_constants/shadow_offset_y = 1
 theme_override_fonts/font = ExtResource("7_nunito_bold")
 theme_override_font_sizes/font_size = 26
-text = " Kuyruk Ek Maliyeti: +%25"
+text = "⚠️ Kuyruk Ek Maliyeti: +%25"
 
 [node name="UpgradeButton" type="Button" parent="VBox"]
 custom_minimum_size = Vector2(0, 88)
@@ -585,7 +585,7 @@ theme_override_colors/font_outline_color = Color(0.12, 0.08, 0.02, 0.95)
 theme_override_constants/outline_size = 4
 theme_override_fonts/font = ExtResource("7_nunito_bold")
 theme_override_font_sizes/font_size = 28
-text = " Araştırma Sürüyor"
+text = "🔬 Araştırma Sürüyor"
 
 [node name="TimeLabel" type="Label" parent="VBox/ResearchSection/ActiveResearchBox/HBox"]
 layout_mode = 2
@@ -618,7 +618,7 @@ theme_override_constants/shadow_offset_y = 2
 theme_override_fonts/font = ExtResource("7_nunito_bold")
 theme_override_font_sizes/font_size = 24
 theme_override_styles/normal = SubResource("StyleBoxFlat_cancel_btn")
-text = " İptal"
+text = "✕ İptal"
 
 [node name="ResearchScroll" type="ScrollContainer" parent="VBox/ResearchSection"]
 custom_minimum_size = Vector2(0, 480)
@@ -654,7 +654,7 @@ theme_override_colors/font_shadow_color = Color(0, 0, 0, 0.98)
 theme_override_constants/shadow_offset_y = 2
 theme_override_fonts/font = ExtResource("7_nunito_bold")
 theme_override_font_sizes/font_size = 26
-text = " Devam Eden Eğitimler:"
+text = "⚔️ Devam Eden Eğitimler:"
 
 [node name="QueueList" type="VBoxContainer" parent="VBox/TrainSection/ActiveTrainBox/VBox"]
 layout_mode = 2
