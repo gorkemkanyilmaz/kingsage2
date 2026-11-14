@@ -131,18 +131,18 @@ func _style_header() -> void:
 	title.text = "Dünya Haritası" + ally_info
 	title.add_theme_font_override("font", FontNunitoBold)
 	title.add_theme_font_size_override("font_size", 24)
-	title.add_theme_constant_override("outline_size", 3)
-	title.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.98))
+	title.add_theme_constant_override("outline_size", 1)
+	title.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.85))
 	title.add_theme_color_override("font_color", Color(1.0, 0.94, 0.82))
-	title.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.9))
-	title.add_theme_constant_override("shadow_offset_y", 2)
+	title.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0))
 
 	for lbl in [$Header/HBox/LabelX, $Header/HBox/LabelY]:
 		if lbl != null:
 			lbl.add_theme_font_override("font", FontNunitoBold)
 			lbl.add_theme_font_size_override("font_size", 24)
-			lbl.add_theme_constant_override("outline_size", 3)
-			lbl.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.98))
+			lbl.add_theme_constant_override("outline_size", 1)
+			lbl.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.85))
+			lbl.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0))
 			lbl.add_theme_color_override("font_color", Color(1.0, 0.88, 0.65))
 
 	for sb in [coord_x_input, coord_y_input]:
@@ -456,7 +456,8 @@ func _update_camera_transform() -> void:
 		_camera_pos.y = clampf(_camera_pos.y, half_h, MAP_HEIGHT - half_h)
 
 	world_root.scale = Vector2(_zoom, _zoom)
-	world_root.position = (view_size * 0.5) - (_camera_pos * _zoom)
+	var target_pos := (view_size * 0.5) - (_camera_pos * _zoom)
+	world_root.position = Vector2(roundf(target_pos.x), roundf(target_pos.y))
 
 
 func _set_zoom(new_zoom: float) -> void:

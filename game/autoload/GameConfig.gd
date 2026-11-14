@@ -17,11 +17,11 @@ const PROFILES_PATH := "res://data/world-profiles.json"
 
 # --- Hız / üretim -----------------------------------------------------------
 
-## Dünya hızı (üretim, inşaat süreleri vb. için çarpan). "Hız".
+## Dünya hızı (üretim, inşaat süreleri vb. için çarpan). "Hız" (KingsAge s59-tr verileri 1× tabanında birebirdir).
 var speed: float = 1.0
 
-## Birim hızı (orduların harita üzerinde ilerleme hızı). "Birim hızı". 3 kat hızlandırıldı.
-var unit_speed: float = 3.0
+## Birim hızı (orduların harita üzerinde ilerleme hızı). "Birim hızı".
+var unit_speed: float = 1.0
 
 # --- Gece bonusu ------------------------------------------------------------
 
@@ -321,7 +321,11 @@ func load_from_file(path: String = CONFIG_PATH) -> bool:
 	if typeof(parsed) != TYPE_DICTIONARY:
 		push_error("GameConfig: ayar dosyası ayrıştırılamadı -> " + path)
 		return false
-	from_dict(parsed)
+	var cfg_dict: Dictionary = parsed
+	# Hız çarpanı kullanıcı tarafından değiştirilemez; KingsAge profilinden sabitlenir.
+	cfg_dict.erase("speed")
+	cfg_dict.erase("unit_speed")
+	from_dict(cfg_dict)
 	return true
 
 

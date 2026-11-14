@@ -18,6 +18,7 @@ const IconIron := preload("res://assets/sprites/ui/nano_banana/sharp_icon_iron.t
 const IconCitizens := preload("res://assets/sprites/ui/nano_banana/sharp_icon_citizens.tres")
 const IconStorage := preload("res://assets/sprites/ui/nano_banana/sharp_icon_storage.tres")
 const FontNunitoBold := preload("res://assets/fonts/Nunito-Bold.ttf")
+const FontNunitoSemiBold := preload("res://assets/fonts/Nunito-SemiBold.ttf")
 
 enum Tab { UPGRADE, RESEARCH, TRAIN }
 var _current_tab: Tab = Tab.UPGRADE
@@ -199,13 +200,11 @@ func _ensure_description_and_production_nodes() -> void:
 		_desc_label = Label.new()
 		_desc_label.name = "DescriptionLabel"
 		_desc_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		_desc_label.add_theme_font_override("font", FontNunitoBold)
+		_desc_label.add_theme_font_override("font", FontNunitoSemiBold)
 		_desc_label.add_theme_font_size_override("font_size", 24)
-		_desc_label.add_theme_color_override("font_color", Color(0.96, 0.92, 0.84))
-		_desc_label.add_theme_constant_override("outline_size", 2)
-		_desc_label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.95))
-		_desc_label.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.8))
-		_desc_label.add_theme_constant_override("shadow_offset_y", 1)
+		_desc_label.add_theme_color_override("font_color", Color(0.95, 0.90, 0.78, 1.0))
+		_desc_label.add_theme_constant_override("outline_size", 0)
+		_desc_label.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0))
 		_desc_box.add_child(_desc_label)
 
 		vbox.add_child(_desc_box)
@@ -791,6 +790,25 @@ func _set_upgrade_nodes_visible(p_visible: bool) -> void:
 		active_build_box.hide()
 
 
+## Tutorial ve odaklama yardımcısı: araştırma veya eğitim sekmesindeki birim kartına kaydırır.
+func scroll_to_unit_card(u_key: String) -> void:
+	_ensure_nodes()
+	if _current_tab == Tab.RESEARCH and research_list != null:
+		var scroll := get_node_or_null("VBox/ResearchSection/ResearchScroll") as ScrollContainer
+		var card := research_list.get_node_or_null("ResearchCard_" + u_key) as Control
+		if scroll != null and card != null:
+			var target_y := int(maxf(0.0, card.position.y - 16.0))
+			if abs(scroll.scroll_vertical - target_y) > 4:
+				scroll.scroll_vertical = target_y
+	elif _current_tab == Tab.TRAIN and train_list != null:
+		var scroll := get_node_or_null("VBox/TrainSection/TrainScroll") as ScrollContainer
+		var card := train_list.get_node_or_null("TrainCard_" + u_key) as Control
+		if scroll != null and card != null:
+			var target_y := int(maxf(0.0, card.position.y - 16.0))
+			if abs(scroll.scroll_vertical - target_y) > 4:
+				scroll.scroll_vertical = target_y
+
+
 # =============================================================================
 #  BİNA YÜKSELTME SEKMESİ (UPGRADE TAB)
 # =============================================================================
@@ -978,6 +996,7 @@ func _populate_chain_list(chain: Array) -> void:
 		var req_cur: int = int(req_dict.get("current", 0))
 
 		var row := HBoxContainer.new()
+		row.name = "ReqRow_" + req_key
 		row.add_theme_constant_override("separation", 12)
 
 		var req_b_data: Dictionary = RulesEngineScript.building_data(req_key)
@@ -985,23 +1004,24 @@ func _populate_chain_list(chain: Array) -> void:
 
 		var lbl := Label.new()
 		lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		lbl.text = "• %s (Gereken: %d, Şu an: %d)" % [req_name, req_tgt, req_cur]
-		lbl.add_theme_font_override("font", FontNunitoBold)
-		lbl.add_theme_font_size_override("font_size", 24)
-		lbl.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.95))
-		lbl.add_theme_constant_override("shadow_offset_y", 2)
-		lbl.add_theme_color_override("font_color", Color(0.40, 0.95, 0.55, 1) if req_cur >= req_tgt else Color(1.0, 0.52, 0.42, 1))
+		lbl.add_theme_font_override("font", FontNunitoSemiBold)
+		lbl.add_theme_font_size_override("font_size", 23)
+		lbl.add_theme_constant_override("outline_size", 0)
+		lbl.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0))
+		lbl.add_theme_color_override("font_color", Color(0.50, 0.92, 0.55, 1) if req_cur >= req_tgt else Color(0.98, 0.72, 0.56, 1))
 		row.add_child(lbl)
 
 		var goto_btn := Button.new()
+		goto_btn.name = "GotoBtn_" + req_key
 		goto_btn.text = "Binaya Git ➔"
 		goto_btn.custom_minimum_size = Vector2(175, 52)
 		goto_btn.add_theme_font_override("font", FontNunitoBold)
 		goto_btn.add_theme_font_size_override("font_size", 22)
-		goto_btn.add_theme_constant_override("outline_size", 3)
-		goto_btn.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.95))
-		goto_btn.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.95))
-		goto_btn.add_theme_constant_override("shadow_offset_y", 2)
+		goto_btn.add_theme_constant_override("outline_size", 1)
+		goto_btn.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.85))
+		goto_btn.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0))
 		goto_btn.add_theme_color_override("font_color", Color(1.0, 1.0, 1.0, 1.0))
 		goto_btn.add_theme_color_override("font_hover_color", Color(1.0, 1.0, 1.0))
 		goto_btn.add_theme_color_override("font_pressed_color", Color(1.0, 0.95, 0.75))
@@ -1211,6 +1231,7 @@ func _populate_research_list() -> void:
 		var cur_i: int = int(res_dict.get("iron", 0))
 
 		var card := PanelContainer.new()
+		card.name = "ResearchCard_" + u_key
 		card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		var card_sb := StyleBoxFlat.new()
 		card_sb.bg_color = Color(0.12, 0.11, 0.15, 0.98)
@@ -1237,19 +1258,17 @@ func _populate_research_list() -> void:
 		name_lbl.text = "%s %s" % [u_icon, u_name]
 		name_lbl.add_theme_font_override("font", FontNunitoBold)
 		name_lbl.add_theme_font_size_override("font_size", 26)
-		name_lbl.add_theme_constant_override("outline_size", 3)
-		name_lbl.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.95))
+		name_lbl.add_theme_constant_override("outline_size", 0)
 		name_lbl.add_theme_color_override("font_color", Color(1.0, 0.95, 0.82))
-		name_lbl.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.95))
-		name_lbl.add_theme_constant_override("shadow_offset_y", 2)
+		name_lbl.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0))
 		top_row.add_child(name_lbl)
 
 		var class_badge := Label.new()
 		class_badge.text = "[%s]" % u_class
-		class_badge.add_theme_font_override("font", FontNunitoBold)
+		class_badge.add_theme_font_override("font", FontNunitoSemiBold)
 		class_badge.add_theme_font_size_override("font_size", 20)
-		class_badge.add_theme_constant_override("outline_size", 2)
-		class_badge.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.95))
+		class_badge.add_theme_constant_override("outline_size", 0)
+		class_badge.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0))
 		class_badge.add_theme_color_override("font_color", Color(0.75, 0.88, 1.0))
 		top_row.add_child(class_badge)
 
@@ -1260,16 +1279,14 @@ func _populate_research_list() -> void:
 		var req_lbl := Label.new()
 		req_lbl.add_theme_font_override("font", FontNunitoBold)
 		req_lbl.add_theme_font_size_override("font_size", 22)
-		req_lbl.add_theme_constant_override("outline_size", 3)
-		req_lbl.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.95))
-		req_lbl.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.95))
-		req_lbl.add_theme_constant_override("shadow_offset_y", 2)
+		req_lbl.add_theme_constant_override("outline_size", 0)
+		req_lbl.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0))
 		if cur_barracks_lvl >= req_barracks:
 			req_lbl.text = "✓ Kışla Sv. %d" % req_barracks
-			req_lbl.add_theme_color_override("font_color", Color(0.40, 0.95, 0.52))
+			req_lbl.add_theme_color_override("font_color", Color(0.45, 0.95, 0.56))
 		else:
 			req_lbl.text = "✗ Kışla Sv. %d Gerekli" % req_barracks
-			req_lbl.add_theme_color_override("font_color", Color(1.0, 0.45, 0.40))
+			req_lbl.add_theme_color_override("font_color", Color(1.0, 0.55, 0.48))
 		top_row.add_child(req_lbl)
 
 		vbox.add_child(top_row)
@@ -1286,10 +1303,10 @@ func _populate_research_list() -> void:
 		]
 		stats_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		stats_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		stats_lbl.add_theme_font_override("font", FontNunitoBold)
-		stats_lbl.add_theme_font_size_override("font_size", 19)
-		stats_lbl.add_theme_constant_override("outline_size", 2)
-		stats_lbl.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.95))
+		stats_lbl.add_theme_font_override("font", FontNunitoSemiBold)
+		stats_lbl.add_theme_font_size_override("font_size", 20)
+		stats_lbl.add_theme_constant_override("outline_size", 0)
+		stats_lbl.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0))
 		stats_lbl.add_theme_color_override("font_color", Color(0.90, 0.88, 0.82))
 		vbox.add_child(stats_lbl)
 
@@ -1361,6 +1378,7 @@ func _populate_research_list() -> void:
 			bottom_row.add_child(badge)
 		else:
 			var res_btn := Button.new()
+			res_btn.name = "ResearchBtn_" + u_key
 			res_btn.custom_minimum_size = Vector2(185, 52)
 			res_btn.add_theme_font_override("font", FontNunitoBold)
 			res_btn.add_theme_font_size_override("font_size", 24)
@@ -1434,10 +1452,8 @@ func _create_mini_resource_pill(icon_tex: Texture2D, req_amount: int, cur_amount
 	lbl.text = str(req_amount)
 	lbl.add_theme_font_override("font", FontNunitoBold)
 	lbl.add_theme_font_size_override("font_size", 21)
-	lbl.add_theme_constant_override("outline_size", 3)
-	lbl.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.95))
-	lbl.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.95))
-	lbl.add_theme_constant_override("shadow_offset_y", 2)
+	lbl.add_theme_constant_override("outline_size", 0)
+	lbl.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0))
 	if cur_amount >= 0 and cur_amount < req_amount:
 		lbl.add_theme_color_override("font_color", Color(1.0, 0.42, 0.38))
 	else:
@@ -1615,6 +1631,7 @@ func _populate_train_list() -> void:
 		var req_barracks := RulesEngineScript.research_requirement(u_key)
 
 		var card := PanelContainer.new()
+		card.name = "TrainCard_" + u_key
 		var card_sb := StyleBoxFlat.new()
 		card_sb.bg_color = Color(0.12, 0.11, 0.15, 0.98)
 		card_sb.border_color = Color(0.48, 0.42, 0.34, 0.9)
@@ -1638,19 +1655,17 @@ func _populate_train_list() -> void:
 		name_lbl.text = "%s %s" % [u_icon, u_name]
 		name_lbl.add_theme_font_override("font", FontNunitoBold)
 		name_lbl.add_theme_font_size_override("font_size", 28)
-		name_lbl.add_theme_constant_override("outline_size", 3)
-		name_lbl.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.95))
+		name_lbl.add_theme_constant_override("outline_size", 0)
 		name_lbl.add_theme_color_override("font_color", Color(1.0, 0.95, 0.82))
-		name_lbl.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.95))
-		name_lbl.add_theme_constant_override("shadow_offset_y", 2)
+		name_lbl.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0))
 		top_row.add_child(name_lbl)
 
 		var class_badge := Label.new()
 		class_badge.text = "[%s]" % u_class
-		class_badge.add_theme_font_override("font", FontNunitoBold)
+		class_badge.add_theme_font_override("font", FontNunitoSemiBold)
 		class_badge.add_theme_font_size_override("font_size", 22)
-		class_badge.add_theme_constant_override("outline_size", 2)
-		class_badge.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.95))
+		class_badge.add_theme_constant_override("outline_size", 0)
+		class_badge.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0))
 		class_badge.add_theme_color_override("font_color", Color(0.75, 0.88, 1.0))
 		top_row.add_child(class_badge)
 
@@ -1663,11 +1678,9 @@ func _populate_train_list() -> void:
 		have_lbl.text = "Mevcut: %d Adet" % have_units
 		have_lbl.add_theme_font_override("font", FontNunitoBold)
 		have_lbl.add_theme_font_size_override("font_size", 26)
-		have_lbl.add_theme_constant_override("outline_size", 3)
-		have_lbl.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.95))
+		have_lbl.add_theme_constant_override("outline_size", 0)
 		have_lbl.add_theme_color_override("font_color", Color(1.0, 0.88, 0.45))
-		have_lbl.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.95))
-		have_lbl.add_theme_constant_override("shadow_offset_y", 2)
+		have_lbl.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0))
 		top_row.add_child(have_lbl)
 
 		vbox.add_child(top_row)
@@ -1679,15 +1692,17 @@ func _populate_train_list() -> void:
 
 			var lock_lbl := Label.new()
 			lock_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			lock_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 			lock_lbl.text = "🔒 Bu birim henüz araştırılmadı. (Gereken: Kışla Seviye %d)" % req_barracks
-			lock_lbl.add_theme_font_override("font", FontNunitoBold)
-			lock_lbl.add_theme_font_size_override("font_size", 24)
-			lock_lbl.add_theme_constant_override("outline_size", 2)
-			lock_lbl.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.95))
-			lock_lbl.add_theme_color_override("font_color", Color(0.95, 0.60, 0.45))
+			lock_lbl.add_theme_font_override("font", FontNunitoSemiBold)
+			lock_lbl.add_theme_font_size_override("font_size", 23)
+			lock_lbl.add_theme_constant_override("outline_size", 0)
+			lock_lbl.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0))
+			lock_lbl.add_theme_color_override("font_color", Color(0.95, 0.65, 0.50))
 			lock_row.add_child(lock_lbl)
 
 			var goto_res_btn := Button.new()
+			goto_res_btn.name = "GotoResearchBtn_" + u_key
 			goto_res_btn.text = "Birim Araştır ➔"
 			goto_res_btn.custom_minimum_size = Vector2(185, 52)
 			goto_res_btn.add_theme_font_override("font", FontNunitoBold)
@@ -1779,9 +1794,13 @@ func _populate_train_list() -> void:
 
 			# Quick buttons (+1, +5, +10, Maks)
 			var btn_p1 := _create_quick_button("+1")
+			btn_p1.name = "BtnPlus1_" + u_key
 			var btn_p5 := _create_quick_button("+5")
+			btn_p5.name = "BtnPlus5_" + u_key
 			var btn_p10 := _create_quick_button("+10")
+			btn_p10.name = "BtnPlus10_" + u_key
 			var btn_max := _create_quick_button("Maks")
+			btn_max.name = "BtnMax_" + u_key
 
 			input_row.add_child(btn_p1)
 			input_row.add_child(btn_p5)
@@ -1790,6 +1809,7 @@ func _populate_train_list() -> void:
 
 			# SpinBox for quantity
 			var spin := SpinBox.new()
+			spin.name = "Spin_" + u_key
 			spin.min_value = 0
 			spin.max_value = 99999
 			spin.step = 1
@@ -1806,6 +1826,7 @@ func _populate_train_list() -> void:
 			input_row.add_child(spin)
 
 			var train_btn := Button.new()
+			train_btn.name = "TrainBtn_" + u_key
 			train_btn.text = "⚔️ Eğit"
 			train_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 			train_btn.custom_minimum_size = Vector2(160, 54)

@@ -331,6 +331,8 @@ func join_world(world_id: int, player_name: String, target_x: int = 100, target_
 	world_dict["villages"] = villages_list
 	state["villages"] = villages_list
 	state["world"] = world_dict
+	_enforce_min_village_distance(w_data, player_vid)
+	var placed_spot := Vector2i(int(player_v.get("x", free_spot.x)), int(player_v.get("y", free_spot.y)))
 	state["active_village_id"] = player_vid
 	state["player"] = {
 		"id": 1,
@@ -385,7 +387,7 @@ func join_world(world_id: int, player_name: String, target_x: int = 100, target_
 	if OS.has_feature("web") and Engine.get_main_loop() is SceneTree:
 		var net = Engine.get_main_loop().root.get_node_or_null("NetworkManager")
 		if net != null and not str(net.auth_token).is_empty():
-			net.api_join_world(world_id, free_spot.x, free_spot.y, Callable())
+			net.api_join_world(world_id, placed_spot.x, placed_spot.y, Callable())
 			_last_cloud_save_unix = now
 			net.save_state_to_cloud(net.auth_token, w_data)
 	return true
@@ -416,6 +418,9 @@ func enter_world(world_id: int, player_name: String) -> bool:
 
 	if player_vid < 0:
 		return false
+
+	if _enforce_min_village_distance(w_data, player_vid):
+		save_world_dict(world_id, w_data)
 
 	current_world_id = world_id
 	_save_meta()
@@ -588,6 +593,7 @@ func apply_cloud_sync(res_data: Dictionary) -> bool:
 		var local_ts := int(local_w.get("last_saved_unix", 0))
 		var cloud_ts := int(cloud_w.get("last_saved_unix", res_data.get("updated_unix", 0)))
 		if not local_has or cloud_ts > local_ts:
+			_enforce_min_village_distance(cloud_w)
 			save_world_dict(w_id, cloud_w)
 			current_world_id = w_id
 			_save_meta()
@@ -639,6 +645,7 @@ func apply_cloud_sync(res_data: Dictionary) -> bool:
 		state["world"] = world_dict
 		state["active_village_id"] = sv_id
 		w_data["state"] = state
+		_enforce_min_village_distance(w_data, sv_id)
 		var reg_list: Array = w_data.get("registered_real_players", [])
 		if not (p_name in reg_list):
 			reg_list.append(p_name)
@@ -653,6 +660,63 @@ func apply_cloud_sync(res_data: Dictionary) -> bool:
 
 
 var game_state: Node = null
+
+
+## Haritadaki tüm köylerin birbirine en az MIN_VILLAGE_DISTANCE mesafede olmasını sağlar.
+## Önce öncelikli köy ve gerçek oyuncu köylerini yerleştirir; çakışan bot/barbar köyleri boş alana kaydırır.
+func _enforce_min_village_distance(w_data: Dictionary, priority_vid: int = -1) -> bool:
+	var state_val = w_data.get("state", {})
+	if typeof(state_val) != TYPE_DICTIONARY:
+		return false
+	var state: Dictionary = state_val
+	var villages_val = state.get("villages", [])
+	if typeof(villages_val) != TYPE_ARRAY:
+		return false
+	var villages_list: Array = villages_val
+	var world_val = state.get("world", {})
+	if typeof(world_val) != TYPE_DICTIONARY:
+		world_val = {}
+		state["world"] = world_val
+	var world_dict: Dictionary = world_val
+
+	var world_size: int = int(world_dict.get("size", WorldGeneratorScript.SIZE))
+	var min_dist: int = WorldGeneratorScript.MIN_VILLAGE_DISTANCE
+
+	var ordered: Array = []
+	for v in villages_list:
+		if typeof(v) == TYPE_DICTIONARY and int(v.get("id", -1)) == priority_vid:
+			ordered.append(v)
+	for v in villages_list:
+		if typeof(v) == TYPE_DICTIONARY and int(v.get("id", -1)) != priority_vid:
+			if not bool(v.get("is_bot", false)) and not bool(v.get("is_barbarian", false)):
+				ordered.append(v)
+	for v in villages_list:
+		if typeof(v) == TYPE_DICTIONARY and int(v.get("id", -1)) != priority_vid:
+			if bool(v.get("is_bot", false)) or bool(v.get("is_barbarian", false)):
+				ordered.append(v)
+
+	var placed_tiles: Dictionary = {}
+	var changed := false
+	for v in ordered:
+		var vd: Dictionary = v
+		var vid := int(vd.get("id", 0))
+		var vx := clampi(int(vd.get("x", 1)), 1, world_size)
+		var vy := clampi(int(vd.get("y", 1)), 1, world_size)
+		if not WorldGeneratorScript.is_spot_free_dist(placed_tiles, vx, vy, min_dist, world_size):
+			var new_spot := WorldGeneratorScript.find_free_spot_with_dist(placed_tiles, vx, vy, min_dist, world_size)
+			if new_spot.x < 1:
+				new_spot = WorldGeneratorScript.find_free_spot_with_dist(placed_tiles, vx, vy, 1, world_size)
+			if new_spot.x >= 1 and (new_spot.x != vx or new_spot.y != vy):
+				vx = new_spot.x
+				vy = new_spot.y
+				vd["x"] = vx
+				vd["y"] = vy
+				changed = true
+		placed_tiles[WorldGeneratorScript.tile_key(vx, vy)] = vid
+
+	world_dict["tiles"] = placed_tiles
+	world_dict["villages"] = villages_list
+	return changed
 
 
 func _find_game_state() -> Node:

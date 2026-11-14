@@ -29,7 +29,7 @@ const CONTINENT_SIZE := 100
 const CLUSTER_SIZE := 25
 
 ## Bir köyün küme merkezinden en fazla sapması (± alan).
-const CLUSTER_SPREAD := 12
+const CLUSTER_SPREAD := 18
 
 ## Küme merkezlerinin ızgara düzenini kırmak için ± sapma (alan).
 const CLUSTER_JITTER := 3
@@ -68,8 +68,8 @@ const BONUS_TRAINING_PERCENT := 10
 ## Nötr hammadde çarpanları (bonus yoksa).
 const NEUTRAL_PRODUCTION := {"wood": 1.0, "stone": 1.0, "iron": 1.0}
 
-## İki köy arasındaki en az alan mesafesi (haritada 296px köy boyutu ve 280px plaket çakışmasını önler).
-const MIN_VILLAGE_DISTANCE := 6
+## İki köy arasındaki en az alan mesafesi (haritada 360x410px köy görünümü ve plaket çakışmasını önler).
+const MIN_VILLAGE_DISTANCE := 9
 
 ## Yeni köyün hammaddeleri (`GameState.START_RESOURCES`).
 const START_RESOURCES := {"wood": 1000, "stone": 1000, "iron": 1000}
@@ -406,7 +406,7 @@ static func find_free_spot_with_dist(tiles: Dictionary, x: int, y: int, min_dist
 	var cy := clampi(y, 1, world_size)
 	if is_spot_free_dist(tiles, cx, cy, min_dist, world_size):
 		return Vector2i(cx, cy)
-	var max_r := mini(world_size, 25 if min_dist > 1 else world_size)
+	var max_r := mini(world_size, 80 if min_dist > 1 else world_size)
 	for radius in range(1, max_r + 1):
 		for dy in range(-radius, radius + 1):
 			for dx in range(-radius, radius + 1):

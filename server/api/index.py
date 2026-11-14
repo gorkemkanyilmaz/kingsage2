@@ -309,9 +309,19 @@ def init_db():
             initial_resources = json.dumps({"wood": 800, "stone": 800, "iron": 800})
             initial_units = json.dumps({"spear": 10, "sword": 5})
 
+            placed_bots = []
             for idx, bname in enumerate(bot_names, start=1):
-                bx = random.randint(15, 185)
-                by = random.randint(15, 185)
+                bx, by = 15, 15
+                for _ in range(250):
+                    cx = random.randint(15, 185)
+                    cy = random.randint(15, 185)
+                    if all(max(abs(cx - ox), abs(cy - oy)) >= 9 for ox, oy in placed_bots):
+                        bx, by = cx, cy
+                        break
+                else:
+                    bx = random.randint(15, 185)
+                    by = random.randint(15, 185)
+                placed_bots.append((bx, by))
                 cursor.execute("""
                     INSERT INTO villages (
                         id, world_id, user_id, name, x, y, owner, points, is_bot, is_barbarian,
@@ -631,17 +641,20 @@ def join_world(req: JoinWorldRequest, user: Dict[str, Any] = Depends(get_current
     max_id = cursor.fetchone()[0] or 0
     new_vid = max_id + 1
 
-    # Hedef bölgede boş nokta bul
+    # Hedef bölgede boş nokta bul (köyler arası en az 9 kare mesafe)
     cursor.execute("SELECT x, y FROM villages WHERE world_id = ?", (req.world_id,))
-    taken = {(r["x"], r["y"]) for r in cursor.fetchall()}
+    taken = [(r["x"], r["y"]) for r in cursor.fetchall()]
 
     tx, ty = req.target_x, req.target_y
+    min_dist = 9
     spot = None
-    for r in range(1, 50):
+    for r in range(0, 90):
         for dx in range(-r, r + 1):
             for dy in range(-r, r + 1):
+                if r > 0 and max(abs(dx), abs(dy)) != r:
+                    continue
                 cx, cy = max(5, min(195, tx + dx)), max(5, min(195, ty + dy))
-                if (cx, cy) not in taken:
+                if all(max(abs(cx - ox), abs(cy - oy)) >= min_dist for ox, oy in taken):
                     spot = (cx, cy)
                     break
             if spot: break

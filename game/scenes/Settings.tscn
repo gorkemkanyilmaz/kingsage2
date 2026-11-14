@@ -64,9 +64,9 @@ anchor_top = 0.5
 anchor_right = 0.5
 anchor_bottom = 0.5
 offset_left = -460.0
-offset_top = -390.0
+offset_top = -380.0
 offset_right = 460.0
-offset_bottom = 390.0
+offset_bottom = 380.0
 grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
@@ -110,38 +110,15 @@ custom_minimum_size = Vector2(0, 76)
 layout_mode = 2
 theme_override_font_sizes/font_size = 24
 
-[node name="SpeedRow" type="HBoxContainer" parent="Center/VBox"]
-layout_mode = 2
-theme_override_constants/separation = 20
-
-[node name="Label" type="Label" parent="Center/VBox/SpeedRow"]
-layout_mode = 2
-size_flags_horizontal = 3
-theme_override_font_sizes/font_size = 26
-text = "Oyun Hızı Çarpanı (1× - 10×):"
-
-[node name="BtnMinus" type="Button" parent="Center/VBox/SpeedRow"]
-custom_minimum_size = Vector2(76, 72)
-layout_mode = 2
-theme_override_font_sizes/font_size = 40
-text = "-"
-
-[node name="Spin" type="SpinBox" parent="Center/VBox/SpeedRow"]
-custom_minimum_size = Vector2(140, 72)
-layout_mode = 2
-min_value = 1.0
-max_value = 10.0
-value = 1.0
-
-[node name="BtnPlus" type="Button" parent="Center/VBox/SpeedRow"]
-custom_minimum_size = Vector2(76, 72)
-layout_mode = 2
-theme_override_font_sizes/font_size = 40
-text = "+"
-
 [node name="Spacer" type="Control" parent="Center/VBox"]
-custom_minimum_size = Vector2(0, 40)
+custom_minimum_size = Vector2(0, 24)
 layout_mode = 2
+
+[node name="BtnTutorialReplay" type="Button" parent="Center/VBox"]
+custom_minimum_size = Vector2(0, 96)
+layout_mode = 2
+theme_override_font_sizes/font_size = 26
+text = "🎓 Başlangıç Rehberini Tekrarla"
 
 [node name="BtnBack" type="Button" parent="Center/VBox"]
 custom_minimum_size = Vector2(0, 96)

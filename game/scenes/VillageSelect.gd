@@ -52,7 +52,8 @@ func _ready() -> void:
 	_setup_auth_overlay()
 	_setup_region_modal()
 	_refresh_auth_state()
-	_build_world_rows()
+	if _world_buttons.is_empty():
+		_build_world_rows()
 	_on_viewport_resized()
 	var vp := get_viewport()
 	if vp != null and not vp.size_changed.is_connected(_on_viewport_resized):
@@ -422,6 +423,7 @@ func _do_login(provider: String) -> void:
 
 func _build_world_rows() -> void:
 	for child in rows_container.get_children():
+		rows_container.remove_child(child)
 		child.queue_free()
 	_world_buttons.clear()
 
@@ -435,6 +437,73 @@ func _build_world_rows() -> void:
 	rows_container.position = Vector2.ZERO
 	rows_container.scale = Vector2(vp_size.x / 1080.0, vp_size.y / 1920.0)
 	_update_profile_continue_button()
+
+	for i in range(1, 11):
+		var y_banner := ROW_Y_START_BANNER + (i - 1) * ROW_Y_STEP
+		var y_btn := ROW_Y_START_BTN + (i - 1) * ROW_Y_STEP
+		var is_active := false
+		var has_village := false
+
+		if wm != null:
+			var w_meta = wm.get_world_meta(i)
+			is_active = bool(w_meta.get("is_active", false))
+			if is_active:
+				has_village = wm.has_player_village(i, p_name)
+		else:
+			is_active = (i == 1)
+
+		if is_active:
+			# Aktif Dünya: Sol canlı banner (da tıklanabilir) ve Sağ altın buton
+			var action_cb: Callable = _on_continue_world.bind(i) if has_village else _on_join_world.bind(i)
+
+			var banner_btn := TextureButton.new()
+			banner_btn.name = "Banner_%d" % i
+			banner_btn.position = Vector2(ROW_X_LEFT, y_banner)
+			banner_btn.size = ROW_BANNER_SIZE
+			banner_btn.ignore_texture_size = true
+			banner_btn.stretch_mode = TextureButton.STRETCH_SCALE
+			banner_btn.disabled = false
+			banner_btn.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+			var banner_path := "res://assets/sprites/ui/banner_world_%d_active.png" % i
+			if ResourceLoader.exists(banner_path):
+				var b_tex := load(banner_path)
+				banner_btn.texture_normal = b_tex
+				banner_btn.texture_hover = b_tex
+				banner_btn.texture_pressed = b_tex
+			banner_btn.pressed.connect(action_cb)
+			rows_container.add_child(banner_btn)
+
+			var btn := TextureButton.new()
+			btn.name = "BtnWorld_%d" % i
+			btn.position = Vector2(ROW_X_BTN, y_btn)
+			btn.size = ROW_BTN_SIZE
+			btn.ignore_texture_size = true
+			btn.stretch_mode = TextureButton.STRETCH_SCALE
+			btn.disabled = false
+			btn.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+
+			if has_village:
+				btn.texture_normal = load("res://assets/sprites/ui/btn_devam_active.png")
+				btn.texture_hover = load("res://assets/sprites/ui/btn_devam_hover.png")
+				btn.texture_pressed = load("res://assets/sprites/ui/btn_devam_pressed.png")
+			else:
+				btn.texture_normal = load("res://assets/sprites/ui/btn_katil_active.png")
+				btn.texture_hover = load("res://assets/sprites/ui/btn_katil_hover.png")
+				btn.texture_pressed = load("res://assets/sprites/ui/btn_katil_pressed.png")
+			btn.pressed.connect(action_cb)
+
+			rows_container.add_child(btn)
+			_world_buttons[i] = btn
+		else:
+			# Pasif Gri Dünya: Arka planda gri olarak basılıdır, üzerine tıklanamaz buton yerleştirilir
+			var btn := TextureButton.new()
+			btn.name = "BtnWorld_%d" % i
+			btn.position = Vector2(ROW_X_BTN, y_btn)
+			btn.size = ROW_BTN_SIZE
+			btn.disabled = true
+			btn.mouse_default_cursor_shape = Control.CURSOR_FORBIDDEN
+			rows_container.add_child(btn)
+			_world_buttons[i] = btn
 
 
 func _on_viewport_resized() -> void:
@@ -475,67 +544,6 @@ func _on_profile_continue_pressed() -> void:
 			return
 	if sm != null and sm.has_save() and sm.load_game():
 		get_tree().change_scene_to_file("res://scenes/Village.tscn")
-
-	for i in range(1, 11):
-		var y_banner := ROW_Y_START_BANNER + (i - 1) * ROW_Y_STEP
-		var y_btn := ROW_Y_START_BTN + (i - 1) * ROW_Y_STEP
-		var is_active := false
-		var has_village := false
-
-		if wm != null:
-			var w_meta = wm.get_world_meta(i)
-			is_active = bool(w_meta.get("is_active", false))
-			if is_active:
-				has_village = wm.has_player_village(i, p_name)
-		else:
-			is_active = (i == 1)
-
-		if is_active:
-			# Aktif Dünya: Sol canlı banner ve Sağ altın buton
-			var banner_rect := TextureRect.new()
-			banner_rect.name = "Banner_%d" % i
-			banner_rect.position = Vector2(ROW_X_LEFT, y_banner)
-			banner_rect.size = ROW_BANNER_SIZE
-			banner_rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-			banner_rect.stretch_mode = TextureRect.STRETCH_SCALE
-			banner_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
-			var banner_path := "res://assets/sprites/ui/banner_world_%d_active.png" % i
-			if ResourceLoader.exists(banner_path):
-				banner_rect.texture = load(banner_path)
-			rows_container.add_child(banner_rect)
-
-			var btn := TextureButton.new()
-			btn.name = "BtnWorld_%d" % i
-			btn.position = Vector2(ROW_X_BTN, y_btn)
-			btn.size = ROW_BTN_SIZE
-			btn.ignore_texture_size = true
-			btn.stretch_mode = TextureButton.STRETCH_SCALE
-			btn.disabled = false
-			btn.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
-
-			if has_village:
-				btn.texture_normal = load("res://assets/sprites/ui/btn_devam_active.png")
-				btn.texture_hover = load("res://assets/sprites/ui/btn_devam_hover.png")
-				btn.texture_pressed = load("res://assets/sprites/ui/btn_devam_pressed.png")
-				btn.pressed.connect(func(): _on_continue_world(i))
-			else:
-				btn.texture_normal = load("res://assets/sprites/ui/btn_katil_active.png")
-				btn.texture_hover = load("res://assets/sprites/ui/btn_katil_hover.png")
-				btn.texture_pressed = load("res://assets/sprites/ui/btn_katil_pressed.png")
-				btn.pressed.connect(func(): _on_join_world(i))
-
-			rows_container.add_child(btn)
-			_world_buttons[i] = btn
-		else:
-			# Pasif Gri Dünya: Arka planda gri olarak basılıdır, üzerine tıklanamaz buton yerleştirilir
-			var btn := TextureButton.new()
-			btn.name = "BtnWorld_%d" % i
-			btn.position = Vector2(ROW_X_BTN, y_btn)
-			btn.size = ROW_BTN_SIZE
-			btn.disabled = true
-			btn.mouse_default_cursor_shape = Control.CURSOR_FORBIDDEN
-			rows_container.add_child(btn)
-			_world_buttons[i] = btn
 
 
 # =============================================================================

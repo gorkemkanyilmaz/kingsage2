@@ -25,6 +25,7 @@ WorldManager="*res://autoload/WorldManager.gd"
 AuthManager="*res://autoload/AuthManager.gd"
 NetworkManager="*res://autoload/NetworkManager.gd"
 VillageBackgroundCache="*res://autoload/VillageBackgroundCache.gd"
+TutorialManager="*res://autoload/TutorialManager.gd"
 
 [display]
 
@@ -32,6 +33,7 @@ window/size/viewport_width=1080
 window/size/viewport_height=1920
 window/size/window_width_override=540
 window/size/window_height_override=960
+window/dpi/allow_hidpi=true
 window/handheld/orientation=1
 window/stretch/mode="canvas_items"
 window/stretch/aspect="expand"
@@ -42,14 +44,13 @@ pointing/emulate_touch_from_mouse=true
 
 [gui]
 
+common/snap_controls_to_pixels=true
 theme/custom="res://themes/TahtVeKilic.tres"
 
 [rendering]
 
-textures/canvas_textures/default_texture_filter=2
+textures/canvas_textures/default_texture_filter=1
 renderer/rendering_method="gl_compatibility"
 renderer/rendering_method.mobile="gl_compatibility"
 textures/vram_compression/import_etc2_astc=true
-2d/snap/snap_2d_transforms_to_pixel=true
-2d/snap/snap_2d_vertices_to_pixel=true
 

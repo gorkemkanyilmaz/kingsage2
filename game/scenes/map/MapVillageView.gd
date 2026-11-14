@@ -147,9 +147,9 @@ func _build_ui() -> void:
 		s_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		s_lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 		s_lbl.add_theme_font_override("font", FontNunitoBold)
-		s_lbl.add_theme_font_size_override("font_size", 20)
-		s_lbl.add_theme_constant_override("outline_size", 3)
-		s_lbl.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.95))
+		s_lbl.add_theme_font_size_override("font_size", 21)
+		s_lbl.add_theme_constant_override("outline_size", 0)
+		s_lbl.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0))
 		s_lbl.add_theme_color_override("font_color", Color(0.85, 0.96, 1.0))
 		_shield_badge.add_child(s_lbl)
 		add_child(_shield_badge)
@@ -231,11 +231,10 @@ func _build_ui() -> void:
 
 	_owner_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_owner_label.add_theme_font_override("font", FontNunitoBold)
-	_owner_label.add_theme_font_size_override("font_size", 24)
-	_owner_label.add_theme_constant_override("outline_size", 4)
-	_owner_label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 1.0))
-	_owner_label.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.95))
-	_owner_label.add_theme_constant_override("shadow_offset_y", 2)
+	_owner_label.add_theme_font_size_override("font_size", 22)
+	_owner_label.add_theme_constant_override("outline_size", 1)
+	_owner_label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.85))
+	_owner_label.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0))
 	vbox.add_child(_owner_label)
 
 	# Satır 2: Köy İsmi ve Koordinat
@@ -247,11 +246,10 @@ func _build_ui() -> void:
 	_name_coord_label.text = "%s (%d|%d)" % [v_name, vx, vy]
 	_name_coord_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_name_coord_label.add_theme_font_override("font", FontNunitoBold)
-	_name_coord_label.add_theme_font_size_override("font_size", 26)
-	_name_coord_label.add_theme_constant_override("outline_size", 4)
-	_name_coord_label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 1.0))
-	_name_coord_label.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.95))
-	_name_coord_label.add_theme_constant_override("shadow_offset_y", 2)
+	_name_coord_label.add_theme_font_size_override("font_size", 25)
+	_name_coord_label.add_theme_constant_override("outline_size", 1)
+	_name_coord_label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.85))
+	_name_coord_label.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0))
 	_name_coord_label.add_theme_color_override("font_color", Color(1.0, 1.0, 1.0))
 
 	vbox.add_child(_name_coord_label)

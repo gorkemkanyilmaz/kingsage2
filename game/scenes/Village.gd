@@ -1085,3 +1085,37 @@ func _reset_view() -> void:
 		village_area.scale = Vector2(eff, eff)
 		village_area.position = Vector2(center_x, BASE_OFFSET_Y)
 		_clamp_village_area()
+
+
+## Tutorial ve yardımcı erişim: bina anahtarına göre BuildingView Control düğümünü döndürür.
+func get_building_view(b_key: String) -> Control:
+	if _building_nodes.has(b_key):
+		return _building_nodes[b_key].get("view", null) as Control
+	return null
+
+
+## Tutorial hedef binayı güvenli yakınlaştırma (1.0×) ve görünür alan içinde konumlandırır.
+func focus_building_for_tutorial(b_key: String) -> void:
+	_ensure_nodes()
+	if village_area == null:
+		return
+	_current_zoom = 1.0
+	var vp_size := get_viewport_rect().size if is_inside_tree() else Vector2(1080.0, 1920.0)
+	if vp_size.x <= 0.0 or vp_size.y <= 0.0:
+		vp_size = Vector2(1080.0, 1920.0)
+	var eff := _effective_zoom()
+	var center_x := (vp_size.x - 1080.0 * eff) * 0.5
+	village_area.scale = Vector2(eff, eff)
+	village_area.position = Vector2(center_x, BASE_OFFSET_Y)
+	_clamp_village_area()
+
+	var b_view := get_building_view(b_key)
+	if b_view != null:
+		var grect := b_view.get_global_rect()
+		var safe_top := BASE_OFFSET_Y + 12.0
+		var safe_bot := vp_size.y - 260.0
+		if grect.end.y > safe_bot:
+			village_area.position.y -= (grect.end.y - safe_bot + 24.0)
+		elif grect.position.y < safe_top:
+			village_area.position.y += (safe_top - grect.position.y + 12.0)
+		_clamp_village_area()
