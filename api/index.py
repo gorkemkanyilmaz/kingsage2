@@ -909,10 +909,22 @@ def merge_world_state(server_w: Optional[Dict[str, Any]], client_raw: Dict[str, 
     c_by_id: Dict[int, Dict[str, Any]] = {int(v.get("id", 0)): v for v in c_villages}
     max_vid = max(list(s_by_id.keys()) + list(c_by_id.keys()) + [106])
 
-    # Client raporlarından yeni savaş / fetih raporlarını topla
+    # Client ve server raporlarından yeni savaş / fetih raporlarını topla
     s_report_sigs = {_report_sig(r) for r in (s_state.get("reports") or [])}
+    c_report_sigs = {_report_sig(r) for r in (c_state.get("reports") or []) if isinstance(r, dict)}
     new_client_reports: List[Dict[str, Any]] = []
     all_conquered_target_vids = set()
+    server_conquered_vids = set()
+    unseen_server_battles_by_vid: Dict[int, List[Dict[str, Any]]] = {}
+    for rep in (s_state.get("reports") or []):
+        if isinstance(rep, dict) and rep.get("type") == "battle":
+            rdata = rep.get("data") if isinstance(rep.get("data"), dict) else {}
+            t_vid = int(rdata.get("target_village_id", 0) or 0)
+            if bool(rdata.get("conquered", False)):
+                all_conquered_target_vids.add(t_vid)
+                server_conquered_vids.add(t_vid)
+            if _report_sig(rep) not in c_report_sigs and t_vid > 0:
+                unseen_server_battles_by_vid.setdefault(t_vid, []).append(rep)
     for rep in (c_state.get("reports") or []):
         if isinstance(rep, dict):
             rdata = rep.get("data") if isinstance(rep.get("data"), dict) else {}
@@ -922,6 +934,7 @@ def merge_world_state(server_w: Optional[Dict[str, Any]], client_raw: Dict[str, 
                 new_client_reports.append(rep)
 
     vid_remap: Dict[int, int] = {}
+    stale_conquered_vids = set()
     acting_client_vids_before = {
         int(v.get("id", 0)) for v in c_villages
         if _is_real_player_village(v) and _matches_player(str(v.get("owner", "")), act_name)
@@ -935,8 +948,11 @@ def merge_world_state(server_w: Optional[Dict[str, Any]], client_raw: Dict[str, 
         s_match = s_by_id.get(old_vid)
         is_new_starter_or_collision = False
         if s_match is not None and _is_real_player_village(s_match) and not _matches_player(str(s_match.get("owner", "")), act_name):
-            # Eğer aynı koordinatta gerçek bir fetih raporu yoksa bu iki farklı telefonun aynı ID'yi üretmesidir!
             same_xy = (int(c_v.get("x", -1)) == int(s_match.get("x", -2)) and int(c_v.get("y", -1)) == int(s_match.get("y", -2)))
+            if same_xy and old_vid in server_conquered_vids:
+                # Bu köy başka bir oyuncu tarafından zaten fethedilmiş; eski sahibin bayat kaydı klon oluşturmamalı!
+                stale_conquered_vids.add(old_vid)
+                continue
             if not (same_xy and old_vid in all_conquered_target_vids):
                 is_new_starter_or_collision = True
                 max_vid += 1
@@ -958,17 +974,34 @@ def merge_world_state(server_w: Optional[Dict[str, Any]], client_raw: Dict[str, 
     # Remap edilmiş ID'yi profildeki active_village_id içine de uygula
     if act_name in s_profs and isinstance(s_profs[act_name], dict):
         av = int(s_profs[act_name].get("active_village_id", -1) or -1)
-        if av in vid_remap:
+        if av in stale_conquered_vids:
+            s_profs[act_name]["active_village_id"] = -1
+        elif av in vid_remap:
             s_profs[act_name]["active_village_id"] = vid_remap[av]
 
     # Remap sonrası client köylerini birleştir
     for c_v in c_villages:
         vid = int(c_v.get("id", 0))
+        if vid in stale_conquered_vids:
+            continue
         is_act_v = _is_real_player_village(c_v) and _matches_player(str(c_v.get("owner", "")), act_name)
         s_v = s_by_id.get(vid)
 
         if is_act_v:
-            # Aktif oyuncunun kendi köyü (veya fethettiği köy) her zaman client'tan güncellenir
+            # Aktif oyuncunun kendi köyü (veya fethettiği köy): henüz client'ın görmediği sunucu savaşlarını koru
+            if vid in unseen_server_battles_by_vid:
+                v_units = dict(c_v.get("units") or {})
+                v_res = dict(c_v.get("resources") or {})
+                for urep in unseen_server_battles_by_vid[vid]:
+                    urdata = urep.get("data") if isinstance(urep.get("data"), dict) else {}
+                    for uk, loss in (urdata.get("defender_losses") or {}).items():
+                        v_units[uk] = max(0, int(v_units.get(uk, 0) or 0) - int(loss or 0))
+                    for rk, loot_v in (urdata.get("loot") or {}).items():
+                        v_res[rk] = max(0, int(v_res.get(rk, 0) or 0) - int(loot_v or 0))
+                    if "realm_after" in urdata and int(urdata.get("realm_after", -1)) >= 0:
+                        c_v["realm_of_power"] = int(urdata["realm_after"])
+                c_v["units"] = v_units
+                c_v["resources"] = v_res
             s_by_id[vid] = c_v
             continue
 

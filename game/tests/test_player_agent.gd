@@ -405,7 +405,7 @@ func _run_player_journey() -> void:
 	var wm_scene = load("res://scenes/WorldMap.tscn").instantiate()
 	_assert(wm_scene.has_node("Header/HBox/BtnGoto"), "WorldMap Koordinata Git butonu mevcut")
 	_assert(wm_scene.has_node("SendTroopsPanel/VBox/ActionButtons/BtnAttack"), "Sefer Saldırı butonu mevcut")
-	_assert(wm_scene.has_node("SendTroopsPanel/VBox/ActionButtons/BtnRaid"), "Sefer Talan butonu mevcut")
+	_assert(not wm_scene.has_node("SendTroopsPanel/VBox/ActionButtons/BtnRaid"), "Ayrı Yağma butonu kaldırıldı (Saldırı zaten yağmalar)")
 	wm_scene.queue_free()
 
 	# -------------------------------------------------------------------------

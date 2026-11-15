@@ -767,7 +767,7 @@ func _run_full_playthrough() -> void:
 	stp._unit_inputs["spear"].value = 50
 	stp.call("refresh")
 	_check(stp.btn_support != null and stp.btn_support.visible and not stp.btn_support.disabled, "UI: Müttefik köyde 'Destek Gönder' butonu görünür ve aktif")
-	_check(not stp.btn_attack.visible and not stp.btn_raid.visible, "UI: Müttefik köyde Saldır/Yağmala butonları gizli")
+	_check(not stp.btn_attack.visible, "UI: Müttefik köyde Saldır butonu gizli")
 	# UI butonundan destek gönder
 	stp.btn_support.emit_signal("pressed")
 	await _tick(2)
@@ -789,24 +789,22 @@ func _run_full_playthrough() -> void:
 	stp._unit_inputs["spy"].value = 10
 	stp.call("refresh")
 	_check(stp.btn_attack.visible and stp.btn_attack.text.contains("Casus"), "UI: Yalnız casus seçilince 'Casus Gönder' aktif")
-	_check(not stp.btn_raid.visible, "UI: Yalnız casus seçilince Yağmala gizli")
 
 	# Asgari ordu şartı (< 3 * Kışla): 50 Hafif Süvari ile kilitli olmalı
 	stp._unit_inputs["spy"].value = 0
 	stp._unit_inputs["light"].value = 50
 	stp.call("refresh")
-	_check(stp.btn_attack.visible and stp.btn_attack.disabled, "UI: Asgari ordu (%d) altında 'Saldır' butonu kilitli + uyarı aktif" % min_arthur)
-	_check(stp.btn_raid.visible and stp.btn_raid.disabled and stp.warning_label.visible, "UI: Asgari ordu (%d) altında 'Yağmala' kilitli" % min_arthur)
+	_check(stp.btn_attack.visible and stp.btn_attack.disabled and stp.warning_label.visible, "UI: Asgari ordu (%d) altında 'Saldır' butonu kilitli + uyarı aktif" % min_arthur)
 
-	# Düşman köye (Mordred) asgari şart (>= 3 * Kışla) üzeri savaş birliği seçilince Saldır & Yağmala aktif:
+	# Düşman köye (Mordred) asgari şart (>= 3 * Kışla) üzeri savaş birliği seçilince tek 'Saldır' butonu aktif (zaten yağmalar):
 	stp._unit_inputs["light"].value = maxi(95, min_arthur)
 	stp.call("refresh")
-	_check(stp.btn_attack.visible and not stp.btn_attack.disabled, "UI: Düşman köyde 'Saldır' butonu aktif")
-	_check(stp.btn_raid.visible and not stp.btn_raid.disabled, "UI: Düşman köyde 'Yağmala' butonu aktif")
+	_check(stp.btn_attack.visible and not stp.btn_attack.disabled, "UI: Düşman köyde tek 'Saldır' butonu aktif")
+	_check(stp.get_node_or_null("VBox/ActionButtons/BtnRaid") == null, "UI: Ayrı 'Yağmala' butonu yok")
 	var mv_before_raid: int = gs.movements.size()
-	stp.btn_raid.emit_signal("pressed")
+	stp.btn_attack.emit_signal("pressed")
 	await _tick(2)
-	_check(gs.movements.size() == mv_before_raid + 1, "UI: Yağmala butonu seferi gerçekten başlattı")
+	_check(gs.movements.size() == mv_before_raid + 1, "UI: Saldır butonu seferi gerçekten başlattı")
 
 	stp.queue_free()
 	await _tick(2)

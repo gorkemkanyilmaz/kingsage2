@@ -198,19 +198,12 @@ text = " Sefer için birlik seçiniz."
 layout_mode = 2
 theme_override_constants/separation = 14
 
-[node name="BtnRaid" type="Button" parent="VBox/ActionButtons"]
-custom_minimum_size = Vector2(0, 72)
-layout_mode = 2
-size_flags_horizontal = 3
-theme_override_font_sizes/font_size = 22
-text = " Talan (Yağma)"
-
 [node name="BtnAttack" type="Button" parent="VBox/ActionButtons"]
 custom_minimum_size = Vector2(0, 72)
 layout_mode = 2
 size_flags_horizontal = 3
 theme_override_font_sizes/font_size = 22
-text = " Saldır"
+text = "⚔️ Saldır"
 
 [node name="BtnTrade" type="Button" parent="VBox/ActionButtons"]
 visible = false

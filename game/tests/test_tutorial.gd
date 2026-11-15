@@ -271,6 +271,8 @@ func _run_tests() -> void:
 	_check(tm.call("_resolve_target_control", village, "Village.tscn", gs) == bp.find_child("TrainBtn_spear", true, false), "Sinyal sonrası el/kare hala Eğit butonunu hedefliyor (sola zıplamadı)")
 	_press_button(bp.find_child("TrainBtn_spear", true, false) as BaseButton)
 	await _tick(2)
+	active_v = gs.call("get_active_village")
+	wood_before = int(active_v.get("resources", {}).get("wood", 0))
 	_press_button(btn_speedup)
 	await _tick(3)
 

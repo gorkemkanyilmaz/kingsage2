@@ -618,32 +618,43 @@ func _test_trade() -> void:
 # ============================================================================
 
 func _test_conquest() -> void:
-	_section("Fetih (Kont → Güç Alanı 0)")
+	_section("Fetih (Kont → Güç Alanı 0, en az 2 saldırı)")
 
 	var s := _state_two()
 	_find_village(s, 1)["units"]["axe"] = 500
 	_find_village(s, 1)["units"]["snob"] = 3
 	var target := _find_village(s, 2)
-	target["units"]["spear"] = 5
-	target["realm_of_power"] = 100  # düşük güç alanı → tek Kont yeter
+	target["points"] = 1000
+	target["realm_of_power"] = 1000  # Tam güç alanı → tek Kont saldırısı YETMEZ!
 
-	var sent := MovementScript.send_attack(s, 1, 2, {"axe": 300, "snob": 1}, NOW, {"seed": 7})
-	_check(bool(sent.get("ok", false)), "fetih saldırısı gönderildi")
-	var events := ActionSimulatorScript.process_tick(s, int(sent["movement"]["arrive_unix"]), 1.0)
-	_check(_event_types(events).has("village_conquered"), "köy fethedildi")
+	# 1. Kont saldırısı: maks yarı düşüş (1000 -> 500), fetih olmamalı
+	var sent1 := MovementScript.send_attack(s, 1, 2, {"axe": 200, "snob": 1}, NOW, {"seed": 7})
+	_check(bool(sent1.get("ok", false)), "1. fetih saldırısı gönderildi")
+	var events1 := ActionSimulatorScript.process_tick(s, int(sent1["movement"]["arrive_unix"]), 1.0)
+	_check(not _event_types(events1).has("village_conquered"), "1. Kont saldırısı tam köyü tek seferde FETHEDEMEZ")
+	_check(int(target.get("realm_of_power", 0)) == 500, "1. Kont sonrası Güç Alanı yarıya (500) düştü")
+
+	# 2. ayrı Kont saldırısı: kalan 500 -> 0 ve fetih tamamlanır
+	target["units"]["spear"] = 0
+	var arr1 := int(sent1["movement"]["arrive_unix"])
+	var sent2 := MovementScript.send_attack(s, 1, 2, {"axe": 200, "snob": 1}, arr1 + 10, {"seed": 8})
+	_check(bool(sent2.get("ok", false)), "2. fetih saldırısı gönderildi")
+	var events2 := ActionSimulatorScript.process_tick(s, int(sent2["movement"]["arrive_unix"]), 1.0)
+	_check(_event_types(events2).has("village_conquered"), "2. Kont saldırısıyla köy fethedildi")
 	_check(str(target.get("owner", "")) == "Kral", "köyün sahibi saldırana geçti")
 	_check(int(target.get("realm_of_power", 0)) > 0, "fetih sonrası Güç Alanı > 0")
 	_check(int(target.get("conquest_protection_until", 0)) > 0, "fetih sonrası fetih koruması verildi")
 
 
 func _test_conquest_protection() -> void:
-	_section("Fetih koruması (7 gün) → Güç Alanı düşmez")
+	_section("Fetih koruması → Güç Alanı düşmez")
 
 	var s := _state_two()
 	_find_village(s, 1)["units"]["axe"] = 500
 	_find_village(s, 1)["units"]["snob"] = 3
 	var target := _find_village(s, 2)
 	target["units"]["spear"] = 5
+	target["points"] = 1000
 	target["realm_of_power"] = 100
 	target["conquest_protection_until"] = NOW + 86400
 

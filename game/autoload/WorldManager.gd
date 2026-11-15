@@ -861,7 +861,7 @@ func save_active_world() -> bool:
 
 	var now := int(Time.get_unix_time_from_system())
 	gs.world["last_saved_unix"] = now
-	gs.world["sim_now_unix"] = now
+	gs.world["sim_now_unix"] = maxi(int(gs.world.get("sim_now_unix", 0)), now)
 
 	var prev_world: Dictionary = w_data.get("state", {}).get("world", {}) if typeof(w_data.get("state")) == TYPE_DICTIONARY and typeof(w_data.get("state", {}).get("world")) == TYPE_DICTIONARY else {}
 	var next_state: Dictionary = gs.to_dict()

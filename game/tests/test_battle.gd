@@ -242,6 +242,16 @@ func _test_conquest(BS) -> void:
 	_check(int(r["realm_loss"]) >= 1750 and int(r["realm_loss"]) <= 2750, "Güç Alanı düşüşü 2250–2750 (Anıtsız)")
 	_check(int(r["realm_of_power_after"]) > 0, "fetih sonrası Güç Alanı maksimumun %30'una yükseldi")
 
+	# Tam Güç Alanına sahip küçük/orta köy → TEK Kont saldırısı YETMEZ (en az 2 saldırı gerekir).
+	var defender_full := _defender({"spear": 5}, 1000, 0, 0)
+	defender_full["realm_of_power"] = 1000
+	var r1 = BS.simulate(attacker, defender_full, {"seed": 1})
+	_check(not bool(r1["conquered"]), "Tam Güç Alanı (1000) → tek Kont saldırısı yetmez (en fazla yarısı 500 düşer)")
+	_check(int(r1["realm_loss"]) == 500 and int(r1["realm_of_power_after"]) == 500, "1. Kont vuruşu Güç Alanını 1000 → 500 düşürür")
+	defender_full["realm_of_power"] = int(r1["realm_of_power_after"])
+	var r2 = BS.simulate(attacker, defender_full, {"seed": 1})
+	_check(bool(r2["conquered"]), "2. ayrı Kont saldırısı 500 → 0 düşürüp fetheder")
+
 	# Anıt → düşüş 1750–2250.
 	var defender_mem := _defender({"spear": 5}, 10000, 0, 0)
 	defender_mem["realm_of_power"] = 500

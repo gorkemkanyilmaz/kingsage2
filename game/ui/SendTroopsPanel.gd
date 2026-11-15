@@ -47,7 +47,6 @@ var btn_support: Button = null
 
 # Aksiyon Butonları
 @onready var action_buttons_box: HBoxContainer = $VBox/ActionButtons
-@onready var btn_raid: Button = $VBox/ActionButtons/BtnRaid
 @onready var btn_attack: Button = $VBox/ActionButtons/BtnAttack
 @onready var btn_trade: Button = $VBox/ActionButtons/BtnTrade
 
@@ -58,7 +57,6 @@ func _ready() -> void:
 		closed.emit()
 	)
 	btn_attack.pressed.connect(func(): _dispatch(MovementScript.TYPE_ATTACK))
-	btn_raid.pressed.connect(func(): _dispatch(MovementScript.TYPE_RAID))
 	btn_trade.pressed.connect(func(): _dispatch(MovementScript.TYPE_TRADE))
 
 	btn_support = Button.new()
@@ -218,7 +216,7 @@ func _setup_fonts_and_styles() -> void:
 	warning_label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.98))
 	warning_label.add_theme_color_override("font_color", Color(1.0, 0.78, 0.35))
 
-	for btn in [btn_raid, btn_attack, btn_trade, btn_tab_trade]:
+	for btn in [btn_attack, btn_trade, btn_tab_trade]:
 		_style_action_button(btn)
 	if btn_support != null:
 		_style_action_button(btn_support)
@@ -452,20 +450,17 @@ func _switch_tab(tab: String) -> void:
 		trade_container.hide()
 		btn_trade.hide()
 		if _is_target_friendly():
-			btn_raid.hide()
 			btn_attack.hide()
 			if btn_support != null:
 				btn_support.show()
 		else:
 			if btn_support != null:
 				btn_support.hide()
-			btn_raid.show()
 			btn_attack.show()
 		btn_tab_trade.text = " Hammadde Gönder (Katır)"
 	else:
 		scroll_troops.hide()
 		trade_container.show()
-		btn_raid.hide()
 		btn_attack.hide()
 		if btn_support != null:
 			btn_support.hide()
@@ -533,7 +528,6 @@ func _refresh_troops_mode(state: Dictionary, from_x: int, from_y: int, to_x: int
 
 	if is_friendly:
 		btn_attack.hide()
-		btn_raid.hide()
 		if btn_support != null:
 			btn_support.show()
 		var sup_check: Dictionary = MovementScript.can_send(state, from_id, to_id, MovementScript.TYPE_SUPPORT, selected_units, {}, now)
@@ -558,14 +552,12 @@ func _refresh_troops_mode(state: Dictionary, from_x: int, from_y: int, to_x: int
 	var check_type: String = MovementScript.TYPE_SPY if is_only_spies else MovementScript.TYPE_ATTACK
 	btn_attack.show()
 	btn_attack.text = "🕵️ Casus Gönder" if is_only_spies else "⚔️ Saldır"
-	btn_raid.visible = not is_only_spies
 
 	var check: Dictionary = MovementScript.can_send(state, from_id, to_id, check_type, selected_units, {}, now)
 
 	if not bool(check.get("ok", false)):
 		var code: String = str(check.get("code", ""))
 		btn_attack.disabled = true
-		btn_raid.disabled = true
 		warning_label.show()
 		if code == "min_units":
 			warning_label.text = "Asgari ordu şartı: En az %d birim seçmelisiniz (3 * Kışla)." % min_units
@@ -582,12 +574,6 @@ func _refresh_troops_mode(state: Dictionary, from_x: int, from_y: int, to_x: int
 	else:
 		warning_label.hide()
 		btn_attack.disabled = false
-		if not is_only_spies:
-			var raid_check: Dictionary = MovementScript.can_send(state, from_id, to_id, MovementScript.TYPE_RAID, selected_units, {}, now)
-			btn_raid.disabled = not bool(raid_check.get("ok", false))
-			if not bool(raid_check.get("ok", false)) and int(selected_units.get("snob", 0)) > 0:
-				warning_label.show()
-				warning_label.text = "Kont yağma seferine çıkamaz (yalnızca normal saldırı ile fethedebilir)."
 
 
 func _refresh_trade_mode(state: Dictionary, from_x: int, from_y: int, to_x: int, to_y: int, dist: float, now: int) -> void:

@@ -165,6 +165,11 @@ static func produce(village: Dictionary, delta_seconds: float) -> Dictionary:
 		acc -= float(whole)
 
 		var old := int(res.get(r, 0))
+		if cap > 0 and old >= cap:
+			# Depo tavanı zaten doluysa (görev ödülü/ticaret fazlası vb.) mevcut stoku silme; yeni üretimi durdur.
+			frac[r] = 0.0
+			gained[r] = 0
+			continue
 		var value := old + whole
 		if cap > 0 and value >= cap:
 			value = cap

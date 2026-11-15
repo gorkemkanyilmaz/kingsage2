@@ -217,14 +217,14 @@ const QUEST_DEFS: Array[Dictionary] = [
 		"id": "q_raid_mission",
 		"icon": "💰",
 		"category": "SAVAŞ VE GANİMET",
-		"title": "İlk Yağma Seferini Başlat",
+		"title": "İlk Ganimet Seferini Başlat (Saldırı)",
 		"target": 1,
 		"check_type": "stat_min",
 		"stat_key": "raids_total",
 		"goto_type": "map",
 		"goto_target": "",
 		"reward": {"wood": 2800, "stone": 2800, "iron": 2400},
-		"vizier_desc": "[b][color=#FFD86B]Lordum,[/color][/b] KingsAge'de [b]Yağma[/b] komutu, ordunun yarısı (%50 çarpışma gücüyle) hızlıca vur-kaç yaparak düşman deposundan [b]ganimet taşımasıdır[/b]. Haritadan bir köye [b]Yağma[/b] emri verin!"
+		"vizier_desc": "[b][color=#FFD86B]Lordum,[/color][/b] komşularınızdan ganimet (yağma) elde etmenin yolu [b]Saldır[/b] emrinden geçer! Ordunuz savaşı kazandığında sağ kalan birlikler düşman deposundan otomatik olarak [b]hammadde yağmalar[/b]. Haritadan bir köye [b]Saldır[/b] gönderin!"
 	},
 	{
 		"id": "q_attack_mission",
@@ -353,7 +353,7 @@ const QUEST_DEFS: Array[Dictionary] = [
 		"goto_type": "building",
 		"goto_target": "snob",
 		"reward": {"wood": 45000, "stone": 55000, "iron": 55000},
-		"vizier_desc": "[b][color=#FFD86B]Lordum,[/color][/b] Altın Zırh hazır olduğuna göre artık [b]Köşk[/b]'ten ilk [b]👑 Kont[/b]'unuzu eğitebilirsiniz! Kont yanında güçlü bir koruma ordusuyla gönderilirse düşman köyünün sadakatini her vuruşta [b]20–35 puan[/b] düşürür."
+		"vizier_desc": "[b][color=#FFD86B]Lordum,[/color][/b] Altın Zırh hazır olduğuna göre artık [b]Köşk[/b]'ten ilk [b]👑 Kont[/b]'unuzu eğitebilirsiniz! Kont yanında güçlü bir koruma ordusuyla gönderilirse hayatta kaldığında düşman köyün Güç Alanını her vuruşta en fazla köyün maksimum puanının yarısı kadar ([b]2.250–2.750 puan[/b]; Anıt varsa [b]1.750–2.250[/b]) düşürür. Bu yüzden her fetih için en az [b]2 ayrı Kont saldırısı[/b] gerekir!"
 	},
 	{
 		"id": "q_conquer_village",
@@ -471,6 +471,7 @@ func _on_battle_resolved(ev) -> void:
 			stats["raids_resolved"] = int(stats.get("raids_resolved", 0)) + 1
 		else:
 			stats["attacks_resolved"] = int(stats.get("attacks_resolved", 0)) + 1
+			stats["raids_resolved"] = int(stats.get("raids_resolved", 0)) + 1
 	refresh_quests(true)
 
 
@@ -632,6 +633,7 @@ func _sync_live_stats(gs: Node) -> void:
 				stats["raids_resolved"] = maxi(1, int(stats.get("raids_resolved", 0)))
 			else:
 				stats["attacks_resolved"] = maxi(1, int(stats.get("attacks_resolved", 0)))
+				stats["raids_resolved"] = maxi(1, int(stats.get("raids_resolved", 0)))
 
 	# Peak asker sayıları (askerler yola çıktığında sayaç geriye düşmesin)
 	for u_key in ["spy", "snob"]:
@@ -670,6 +672,7 @@ func _record_movement_stat(gs: Node, mv: Dictionary) -> void:
 			stats["raids_sent"] = int(stats.get("raids_sent", 0)) + 1
 		"attack":
 			stats["attacks_sent"] = int(stats.get("attacks_sent", 0)) + 1
+			stats["raids_sent"] = int(stats.get("raids_sent", 0)) + 1
 
 
 func get_quest_def(quest_id: String) -> Dictionary:

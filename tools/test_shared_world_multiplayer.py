@@ -286,6 +286,67 @@ def main():
     assert len(v108_sup["support"]) == 1
     assert any(m["subject"] == "Destek Geldi" for m in st2_sup["state"]["messages"])
 
+    # 7b. Çok dalgalı Kont fethi + bayat telefon kaydı koruma testi (Dünya 1)
+    # Arthur (107), Mordred'in (109) köyüne 1. Kont saldırısını yapar (fetih henüz gerçekleşmez, realm_of_power düşer)
+    st_war1 = copy.deepcopy(get_state(tok1)["cloud_state"])
+    v109_before = [v for v in st_war1["state"]["villages"] if v["id"] == 109][0]
+    v109_before["realm_of_power"] = 1000
+    st_war1["state"]["reports"].append({
+        "id": 8801,
+        "type": "battle",
+        "village_id": 107,
+        "created_unix": now + 40,
+        "data": {
+            "target_village_id": 109,
+            "from_village_id": 107,
+            "conquered": False,
+            "realm_before": 1000,
+            "realm_after": 500,
+            "defender_losses": {"spear": 5},
+            "loot": {"wood": 200, "stone": 150, "iron": 100},
+        },
+    })
+    post_save(tok1, st_war1)
+    # Mordred eski bayat yerel önbelleğiyle (raporu görmeden!) save yollasa bile Dalga 1 Güç Alanı hasarı silinmemeli!
+    st3_stale = copy.deepcopy(get_state(tok3)["cloud_state"])
+    st3_stale["state"]["reports"] = [r for r in st3_stale["state"].get("reports", []) if r.get("id") != 8801]
+    for v in st3_stale["state"]["villages"]:
+        if v["id"] == 109:
+            v["realm_of_power"] = 1000
+    post_save(tok3, st3_stale)
+    v109_after_stale = [v for v in get_state(tok1)["cloud_state"]["state"]["villages"] if v["id"] == 109][0]
+    assert v109_after_stale["realm_of_power"] == 500, f"Bayat telefon kaydı Dalga 1 hasarını sildi: {v109_after_stale['realm_of_power']}"
+
+    # Arthur 2. Kont saldırısıyla Mordred'in 109 nolu köyünü fetheder!
+    st_war2 = copy.deepcopy(get_state(tok1)["cloud_state"])
+    for v in st_war2["state"]["villages"]:
+        if v["id"] == 109:
+            v["owner"] = "Lord Arthur"
+            v["realm_of_power"] = 300
+    st_war2["state"]["reports"].append({
+        "id": 8802,
+        "type": "battle",
+        "village_id": 107,
+        "created_unix": now + 50,
+        "data": {
+            "target_village_id": 109,
+            "from_village_id": 107,
+            "conquered": True,
+            "realm_before": 500,
+            "realm_after": 300,
+            "defender_losses": {},
+            "loot": {"wood": 100, "stone": 100, "iron": 100},
+        },
+    })
+    post_save(tok1, st_war2)
+    # Mordred fethi görmeden bayat save atsa bile 109 klonlanmamalı, sahip Lord Arthur kalmalı!
+    post_save(tok3, st3_stale)
+    st_after_conq = get_state(tok1)["cloud_state"]
+    real_vills_post = [v for v in st_after_conq["state"]["villages"] if not v["is_bot"] and not v["is_barbarian"]]
+    v109_final = [v for v in real_vills_post if v["id"] == 109][0]
+    assert v109_final["owner"] == "Lord Arthur", f"Fetih sonrası 109 sahibi Arthur kalmalıydı: {v109_final['owner']}"
+    assert len(real_vills_post) == 3, f"Fethedilen köy klonlanmamalıydı (3 gerçek köy bekleniyordu): {len(real_vills_post)}"
+
     # 8. 100 gerçek oyuncu kapasitesi dolunca Dünya 2'nin otomatik açılması
     st_cap = copy.deepcopy(st2_sup)
     next_vid = 200

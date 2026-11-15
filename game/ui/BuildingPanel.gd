@@ -1009,18 +1009,29 @@ func _refresh_upgrade_view(state: Dictionary, cur_lvl: int, max_lvl: int) -> voi
 			offset_top = -1280.0 if has_tall_box else -1020.0
 			_populate_chain_list(chain)
 		elif reason == "resources":
-			upgrade_btn.text = "Yetersiz Hammadde"
-			if details.get("missing", []).size() > 0:
+			var sto_lvl: int = int(_village.get("buildings", {}).get("storage", 1))
+			var sto_cap: int = RulesEngineScript.storage_capacity(sto_lvl)
+			var max_req_res: int = maxi(req_w, maxi(req_s, req_i))
+			if sto_cap > 0 and max_req_res > sto_cap and _current_key != "storage":
+				upgrade_btn.text = "Depo Kapasitesi Yetersiz (Depo Yükselt)"
 				req_section.show()
 				offset_top = -1280.0 if has_tall_box else -1020.0
-				_populate_chain_list(chain)
+				_populate_chain_list([{"key": "storage", "level": sto_lvl + 1, "current": sto_lvl}])
 			else:
-				req_section.hide()
-				offset_top = -980.0 if has_tall_box else -680.0
+				upgrade_btn.text = "Yetersiz Hammadde"
+				if details.get("missing", []).size() > 0:
+					req_section.show()
+					offset_top = -1280.0 if has_tall_box else -1020.0
+					_populate_chain_list(chain)
+				else:
+					req_section.hide()
+					offset_top = -980.0 if has_tall_box else -680.0
 		elif reason == "citizens":
 			upgrade_btn.text = "Yetersiz Vatandaş (Değirmen Gerek)"
-			req_section.hide()
-			offset_top = -980.0 if has_tall_box else -680.0
+			var frm_lvl: int = int(_village.get("buildings", {}).get("farm", 1))
+			req_section.show()
+			offset_top = -1280.0 if has_tall_box else -1020.0
+			_populate_chain_list([{"key": "farm", "level": frm_lvl + 1, "current": frm_lvl}])
 		else:
 			upgrade_btn.text = "Yükseltilemez"
 			req_section.hide()

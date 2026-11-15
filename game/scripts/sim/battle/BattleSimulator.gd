@@ -212,14 +212,15 @@ static func simulate(attacker: Dictionary, defender: Dictionary, options: Dictio
 		var loss_range: Array = _realm_loss_memorial if def_has_statue else _realm_loss_normal
 		var lo := int(loss_range[0])
 		var hi: int = maxi(lo, int(loss_range[1]))
+		var max_pts: int = mini(maxi(1, def_points), _realm_max_points)
+		var village_cap: int = maxi(1, int(floor(float(max_pts) / 2.0)))
 		realm_loss = rng.randi_range(lo, hi)
-		realm_loss = mini(realm_loss, int(_realm_max_points / 2))  # cap: maks/2
+		realm_loss = mini(realm_loss, village_cap)  # cap: köyün maks Güç Alanının yarısı (en az 2 saldırı)
 		var current := int(defender.get("realm_of_power", -1))
 		if current >= 0:
 			realm_after = maxi(0, current - realm_loss)
 			if realm_after <= 0:
 				conquered = true
-				var max_pts: int = mini(maxi(0, def_points), _realm_max_points)
 				realm_after = _round_half_up(float(max_pts) * float(_post_conquest_percent) / 100.0)
 
 	# ========================================================================
