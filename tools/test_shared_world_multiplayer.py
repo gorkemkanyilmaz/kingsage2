@@ -347,6 +347,43 @@ def main():
     assert v109_final["owner"] == "Lord Arthur", f"Fetih sonrası 109 sahibi Arthur kalmalıydı: {v109_final['owner']}"
     assert len(real_vills_post) == 3, f"Fethedilen köy klonlanmamalıydı (3 gerçek köy bekleniyordu): {len(real_vills_post)}"
 
+    # 7c. Tüm köylerini kaybeden Mordred sunucudan active_village_id == -1 alır ve farklı konumda sıfırdan başlar
+    st3_lost = get_state(tok3)["cloud_state"]
+    assert st3_lost["state"]["active_village_id"] == -1, f"Fethedilen oyuncu active_village_id == -1 almalı: {st3_lost['state']['active_village_id']}"
+    assert st3_lost["state"]["player"]["points"] == 0, "Fethedilen oyuncu puanı 0 olmalı"
+
+    st3_restart = copy.deepcopy(st3_lost)
+    new_v110 = {
+        "id": 110,
+        "name": "Başkent",
+        "x": 35,
+        "y": 165,
+        "owner": "Lord Mordred",
+        "is_bot": False,
+        "is_barbarian": False,
+        "points": 110,
+        "realm_of_power": 110,
+        "buildings": {"main": 1, "farm": 1, "wood": 1, "stone": 1, "iron": 1, "storage": 1, "hide": 1},
+        "resources": {"wood": 1000, "stone": 1000, "iron": 1000},
+        "units": {"spear": 0, "sword": 0, "spy": 0, "snob": 0},
+        "researched": {},
+        "support": [],
+    }
+    st3_restart["state"]["villages"].append(new_v110)
+    st3_restart["state"]["active_village_id"] = 110
+    st3_restart["state"]["player"]["tutorial_completed"] = False
+    st3_restart["state"]["player"]["quests"] = {"claimed": [], "stats": {}}
+    st3_restart["last_saved_unix"] = now + 60
+    post_save(tok3, st3_restart)
+
+    st_after_restart = get_state(tok3)["cloud_state"]
+    assert st_after_restart["state"]["active_village_id"] == 110, "Yeniden başlayan oyuncu 110 nolu yeni köyünde aktif olmalı"
+    mordred_vills = [v for v in st_after_restart["state"]["villages"] if v.get("owner") == "Lord Mordred"]
+    assert len(mordred_vills) == 1 and mordred_vills[0]["id"] == 110
+    assert (mordred_vills[0]["x"], mordred_vills[0]["y"]) != (120, 120), "Mordred yeni koordinatta başlamalı"
+    arthur_vills = [v for v in st_after_restart["state"]["villages"] if v.get("owner") == "Lord Arthur"]
+    assert len(arthur_vills) == 2, f"Arthur'un 2 köyü (107 + 109) korunmalıydı: {len(arthur_vills)}"
+
     # 8. 100 gerçek oyuncu kapasitesi dolunca Dünya 2'nin otomatik açılması
     st_cap = copy.deepcopy(st2_sup)
     next_vid = 200

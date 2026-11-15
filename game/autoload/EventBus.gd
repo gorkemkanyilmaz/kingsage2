@@ -44,6 +44,7 @@ signal movement_cancelled(movement)
 signal battle_resolved(report)
 signal spy_mission_resolved(report)
 signal village_conquered(village_id: int, new_owner_name: String)
+signal player_conquered(world_id: int, player_name: String)
 signal realm_of_power_changed(village_id: int, value: int)
 
 # --- Rapor / mesaj ----------------------------------------------------------

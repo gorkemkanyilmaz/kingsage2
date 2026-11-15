@@ -243,6 +243,12 @@ func _ready() -> void:
 	_update_queue_ui()
 	_init_animated_background()
 
+	var wm_init = Engine.get_main_loop().root.get_node_or_null("WorldManager") if Engine.get_main_loop() is SceneTree else null
+	if wm_init != null and gs_init != null:
+		var p_init := str(gs_init.player.get("name", ""))
+		if (not gs_init.has_active_village() or wm_init.is_player_conquered(wm_init.current_world_id, p_init)) and wm_init.has_method("maybe_show_conquered_modal_for_current_scene"):
+			wm_init.call_deferred("maybe_show_conquered_modal_for_current_scene", wm_init.current_world_id, p_init)
+
 
 func _exit_tree() -> void:
 	var wm = Engine.get_main_loop().root.get_node_or_null("WorldManager") if Engine.get_main_loop() is SceneTree else null

@@ -171,12 +171,15 @@ func set_active_village(village_id: int) -> void:
 ## Oyuncunun sahip olduğu tüm köyleri döndürür.
 func get_player_villages() -> Array:
 	var list: Array = []
-	var p_name := str(player.get("name", "Kral"))
+	var p_name := str(player.get("name", "Kral")).strip_edges()
 	for v in villages:
 		if typeof(v) != TYPE_DICTIONARY:
 			continue
-		var v_owner := str((v as Dictionary).get("owner", ""))
-		if v_owner == p_name:
+		var vd: Dictionary = v
+		if bool(vd.get("is_bot", false)) or bool(vd.get("is_barbarian", false)):
+			continue
+		var v_owner := str(vd.get("owner", "")).strip_edges()
+		if not p_name.is_empty() and v_owner == p_name:
 			list.append(v)
 	return list
 
@@ -268,9 +271,12 @@ func from_dict(data: Dictionary) -> bool:
 		return false
 	player = _as_dict(data.get("player", {}))
 	villages = _as_array(data.get("villages", []))
-	active_village_id = int(data.get("active_village_id", -1))
-	if active_village_id < 0 and not villages.is_empty() and typeof(villages[0]) == TYPE_DICTIONARY:
-		active_village_id = int((villages[0] as Dictionary).get("id", -1))
+	if data.has("active_village_id"):
+		active_village_id = int(data.get("active_village_id", -1))
+	else:
+		active_village_id = -1
+		if not villages.is_empty() and typeof(villages[0]) == TYPE_DICTIONARY:
+			active_village_id = int((villages[0] as Dictionary).get("id", -1))
 	queues = _as_array(data.get("queues", []))
 	movements = _as_array(data.get("movements", []))
 	reports = _as_array(data.get("reports", []))

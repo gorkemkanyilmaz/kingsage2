@@ -57,6 +57,8 @@ func has_save() -> bool:
 		if auth != null and auth.is_logged_in and wm != null and not auth.display_name.is_empty():
 			if wm.has_player_village(wm.current_world_id, auth.display_name):
 				return true
+			if wm.is_player_conquered(wm.current_world_id, auth.display_name):
+				return false
 	return not _read_raw_save_json().is_empty()
 
 
@@ -160,6 +162,8 @@ func load_game() -> bool:
 		if auth != null and auth.is_logged_in and wm != null and not auth.display_name.is_empty():
 			if wm.has_player_village(wm.current_world_id, auth.display_name):
 				return wm.enter_world(wm.current_world_id, auth.display_name)
+			if wm.is_player_conquered(wm.current_world_id, auth.display_name):
+				return false
 
 	var raw := _read_raw_save_json()
 	if raw.is_empty():

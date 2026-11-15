@@ -620,10 +620,13 @@ func _sync_live_stats(gs: Node) -> void:
 				_record_movement_stat(gs, mv as Dictionary)
 
 	# Raporlardan casus/yağma/saldırı geçmişini senkronize et
+	var restart_cutoff := int(gs.player.get("restarted_unix", 0))
 	for rep in gs.reports:
 		if typeof(rep) != TYPE_DICTIONARY:
 			continue
 		var r := rep as Dictionary
+		if restart_cutoff > 0 and int(r.get("unix", r.get("created_unix", 0))) < restart_cutoff:
+			continue
 		var r_type := str(r.get("type", ""))
 		var owner_vid := int(r.get("village_id", r.get("from_village_id", -1)))
 		if r_type == "spy" and _is_player_village_id(gs, owner_vid):
@@ -1900,17 +1903,22 @@ func _tm() -> Node:
 
 
 func _player_villages(gs: Node) -> Array:
-	var p_name := str(gs.player.get("name", ""))
+	var p_name := str(gs.player.get("name", "")).strip_edges()
 	var out: Array = []
-	if not p_name.is_empty():
-		for item in gs.villages:
-			if typeof(item) != TYPE_DICTIONARY:
-				continue
-			var v := item as Dictionary
-			if str(v.get("owner", "")) == p_name:
-				out.append(v)
-		if not out.is_empty():
-			return out
+	var has_named_human_village := false
+	for item in gs.villages:
+		if typeof(item) != TYPE_DICTIONARY:
+			continue
+		var v := item as Dictionary
+		if bool(v.get("is_bot", false)) or bool(v.get("is_barbarian", false)):
+			continue
+		var vo := str(v.get("owner", "")).strip_edges()
+		if not vo.is_empty() and vo != "Kral":
+			has_named_human_village = true
+		if not p_name.is_empty() and vo == p_name:
+			out.append(v)
+	if not p_name.is_empty() and (not out.is_empty() or has_named_human_village):
+		return out
 	for item in gs.villages:
 		if typeof(item) != TYPE_DICTIONARY:
 			continue

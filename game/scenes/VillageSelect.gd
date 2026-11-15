@@ -71,6 +71,7 @@ func _on_cloud_sync_finished(success: bool, _data: Dictionary) -> void:
 		return
 	_build_world_rows()
 	_update_profile_continue_button()
+	_check_conquered_state()
 
 
 func _is_authenticated() -> bool:
@@ -120,6 +121,7 @@ func _refresh_auth_state() -> void:
 		_sync_player_name()
 		_build_world_rows()
 		_update_profile_continue_button()
+		call_deferred("_check_conquered_state")
 	else:
 		if _profile_bar != null:
 			_profile_bar.hide()
@@ -520,12 +522,25 @@ func _update_profile_continue_button() -> void:
 	var sm = root.get_node_or_null("SaveManager") if root != null else null
 	var auth = root.get_node_or_null("AuthManager") if root != null else null
 	var p_name: String = auth.display_name if (auth != null and not str(auth.display_name).is_empty()) else "Lord Gorkem"
+	var is_conquered := (wm != null and wm.has_method("is_player_conquered") and wm.is_player_conquered(wm.current_world_id, p_name))
 	var has_v := false
 	if wm != null and wm.has_player_village(wm.current_world_id, p_name):
 		has_v = true
-	elif sm != null and sm.has_save():
+	elif not is_conquered and sm != null and sm.has_save():
 		has_v = true
 	_btn_profile_continue.visible = has_v
+
+
+func _check_conquered_state() -> void:
+	if not is_inside_tree() or not _is_authenticated():
+		return
+	var root = Engine.get_main_loop().root if Engine.get_main_loop() is SceneTree else null
+	var wm = root.get_node_or_null("WorldManager") if root != null else null
+	if wm == null:
+		return
+	var p_name := _get_player_name()
+	if wm.is_player_conquered(wm.current_world_id, p_name):
+		wm.maybe_show_conquered_modal_for_current_scene(wm.current_world_id, p_name)
 
 
 func _on_profile_continue_pressed() -> void:
@@ -677,7 +692,8 @@ func _select_direction(target_x: int, target_y: int) -> void:
 	var p_name := _get_player_name()
 
 	if wm != null:
-		var success: bool = wm.join_world(_selected_world_id, p_name, target_x, target_y)
+		var was_conquered := bool(wm.has_method("is_player_conquered") and wm.is_player_conquered(_selected_world_id, p_name))
+		var success: bool = wm.restart_after_conquest(_selected_world_id, p_name, target_x, target_y) if was_conquered else wm.join_world(_selected_world_id, p_name, target_x, target_y)
 		if success:
 			get_tree().change_scene_to_file("res://scenes/Village.tscn")
 	else:

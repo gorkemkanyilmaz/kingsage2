@@ -123,8 +123,13 @@ func _refresh_auth_state() -> void:
 		var cont = get("btn_continue")
 		if cont is Button:
 			var sm = Engine.get_main_loop().root.get_node_or_null("SaveManager") if Engine.get_main_loop() is SceneTree else null
+			var wm = Engine.get_main_loop().root.get_node_or_null("WorldManager") if Engine.get_main_loop() is SceneTree else null
+			var p_name := _get_player_name()
+			var conquered := (wm != null and wm.has_method("is_player_conquered") and wm.is_player_conquered(wm.current_world_id, p_name))
 			if sm != null:
-				cont.visible = sm.has_save()
+				var can_cont := (not conquered) and bool(sm.has_save())
+				cont.visible = can_cont
+				cont.disabled = not can_cont
 	else:
 		if _profile_bar != null:
 			_profile_bar.hide()

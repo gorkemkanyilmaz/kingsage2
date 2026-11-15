@@ -13,6 +13,7 @@ extends Node
 
 const WorldGeneratorScript := preload("res://scripts/world/WorldGenerator.gd")
 const VillageModelScript := preload("res://scripts/model/VillageModel.gd")
+const ConqueredModalScript := preload("res://ui/ConqueredModal.gd")
 
 const WORLDS_COUNT := 10
 const BASE_SEED := 1000
@@ -34,6 +35,7 @@ var _cloud_poll_accum: float = 0.0
 var _cloud_poll_in_flight: bool = false
 var _last_local_mutation_unix: int = 0
 var _is_applying_cloud_sync: bool = false
+var suppress_auto_conquered_prompt: bool = false
 
 
 func _ready() -> void:
@@ -44,8 +46,11 @@ func _ready() -> void:
 		_load_meta()
 	_sync_save_fallback_to_world()
 	var bus = Engine.get_main_loop().root.get_node_or_null("EventBus") if Engine.get_main_loop() is SceneTree else null
-	if bus != null and bus.has_signal("state_changed") and not bus.state_changed.is_connected(_on_state_changed_autosave):
-		bus.state_changed.connect(_on_state_changed_autosave)
+	if bus != null:
+		if bus.has_signal("state_changed") and not bus.state_changed.is_connected(_on_state_changed_autosave):
+			bus.state_changed.connect(_on_state_changed_autosave)
+		if bus.has_signal("village_conquered") and not bus.village_conquered.is_connected(_on_village_conquered_signal):
+			bus.village_conquered.connect(_on_village_conquered_signal)
 
 
 func _notification(what: int) -> void:
@@ -327,8 +332,119 @@ func is_player_conquered(world_id: int, player_name: String) -> bool:
 	return false
 
 
+## Oyuncunun en son hangi koordinatta ve kim tarafından fethedildiğini döndürür.
+func get_last_defeat_info(world_id: int, player_name: String) -> Dictionary:
+	var norm_p := _norm_name(player_name)
+	var w_data := load_world_dict(world_id)
+	if w_data.is_empty() or norm_p.is_empty():
+		return {}
+	var state: Dictionary = w_data.get("state", {}) if typeof(w_data.get("state")) == TYPE_DICTIONARY else {}
+	var w_dict: Dictionary = state.get("world", {}) if typeof(state.get("world")) == TYPE_DICTIONARY else {}
+	var profiles: Dictionary = w_dict.get("player_profiles", {}) if typeof(w_dict.get("player_profiles")) == TYPE_DICTIONARY else {}
+	for pk in profiles.keys():
+		if _matches_player(str(pk), norm_p) and typeof(profiles[pk]) == TYPE_DICTIONARY:
+			var di = (profiles[pk] as Dictionary).get("defeated_info", {})
+			if typeof(di) == TYPE_DICTIONARY and not (di as Dictionary).is_empty():
+				return (di as Dictionary).duplicate(true)
+
+	# Yedek: sunucu/dünya savaş raporlarından son fetih raporunu tara
+	var reps: Array = state.get("reports", []) if typeof(state.get("reports")) == TYPE_ARRAY else []
+	var latest_info := {}
+	var latest_ts := -1
+	for r in reps:
+		if typeof(r) != TYPE_DICTIONARY:
+			continue
+		var rd: Dictionary = r
+		if str(rd.get("type", "")) != "battle":
+			continue
+		var data: Dictionary = rd.get("data", {}) if typeof(rd.get("data")) == TYPE_DICTIONARY else {}
+		if not bool(data.get("conquered", false)):
+			continue
+		if _matches_player(str(data.get("defender_name", "")), norm_p):
+			var r_ts := int(rd.get("unix", rd.get("created_unix", 0)))
+			if r_ts >= latest_ts:
+				latest_ts = r_ts
+				var t_vid := int(data.get("target_village_id", -1))
+				var vx := -1
+				var vy := -1
+				for v in state.get("villages", []):
+					if typeof(v) == TYPE_DICTIONARY and int((v as Dictionary).get("id", -1)) == t_vid:
+						vx = int((v as Dictionary).get("x", -1))
+						vy = int((v as Dictionary).get("y", -1))
+						break
+				latest_info = {
+					"conqueror": str(data.get("attacker_name", "")),
+					"village_id": t_vid,
+					"x": vx,
+					"y": vy,
+					"unix": r_ts,
+				}
+	return latest_info
+
+
+## Tüm köyleri fethedilen oyuncuyu farklı bir lokasyonda sıfırdan başlatır.
+func restart_after_conquest(world_id: int, player_name: String, target_x: int = -1, target_y: int = -1) -> bool:
+	var norm_p := _norm_name(player_name)
+	if norm_p.is_empty():
+		norm_p = "Lord Gorkem"
+	var def_info := get_last_defeat_info(world_id, norm_p)
+	var prev_spot := Vector2i(int(def_info.get("x", -1)), int(def_info.get("y", -1)))
+
+	var chosen_x := target_x
+	var chosen_y := target_y
+	if chosen_x < 1 or chosen_y < 1:
+		var quadrants := [Vector2i(35, 35), Vector2i(165, 35), Vector2i(35, 165), Vector2i(165, 165)]
+		if prev_spot.x >= 0 and prev_spot.y >= 0:
+			var best_dist := -1.0
+			var best_q: Vector2i = quadrants[0]
+			for q in quadrants:
+				var qv: Vector2i = q
+				var d := Vector2(qv).distance_to(Vector2(prev_spot))
+				if d > best_dist:
+					best_dist = d
+					best_q = qv
+			chosen_x = best_q.x
+			chosen_y = best_q.y
+		else:
+			var pick: Vector2i = quadrants[randi() % quadrants.size()]
+			chosen_x = pick.x
+			chosen_y = pick.y
+
+	var ok := join_world(world_id, norm_p, chosen_x, chosen_y, prev_spot)
+	if ok:
+		suppress_auto_conquered_prompt = false
+		var now := int(Time.get_unix_time_from_system())
+		var gs = _find_game_state()
+		if gs != null:
+			gs.player["restarted_unix"] = now
+			gs.player["tutorial_completed"] = false
+			gs.player["tutorial_step"] = 0
+			gs.player["tutorial_reward_claimed"] = false
+			gs.player["quests"] = {"claimed": [], "stats": {}}
+			var prof_w: Dictionary = gs.world.get("player_profiles", {}) if typeof(gs.world.get("player_profiles")) == TYPE_DICTIONARY else {}
+			if prof_w.has(norm_p) and typeof(prof_w[norm_p]) == TYPE_DICTIONARY:
+				(prof_w[norm_p] as Dictionary).erase("defeated_info")
+		save_active_world()
+		var sm = _find_autoload("SaveManager")
+		if sm != null and sm.has_method("save_game"):
+			sm.save_game()
+		var loop = Engine.get_main_loop()
+		if loop is SceneTree and (loop as SceneTree).root != null:
+			ConqueredModalScript.dismiss((loop as SceneTree).root)
+			var tm = _find_autoload("TutorialManager")
+			if tm != null:
+				tm.set("_current_step", 0)
+				tm.set("_shown_step", -1)
+				tm.set("_shown_substate", "")
+				tm.set("_victory_reward_granted", false)
+			var qm = _find_autoload("QuestManager")
+			if qm != null and qm.has_method("refresh_quests"):
+				qm.refresh_quests(true)
+	return ok
+
+
 ## Oyuncunun bir dünyaya katılması (yeni köy açılması).
-func join_world(world_id: int, player_name: String, target_x: int = 100, target_y: int = 100) -> bool:
+func join_world(world_id: int, player_name: String, target_x: int = 100, target_y: int = 100, avoid_spot: Vector2i = Vector2i(-1, -1)) -> bool:
 	player_name = _norm_name(player_name)
 	if player_name.is_empty():
 		player_name = "Lord Gorkem"
@@ -347,10 +463,16 @@ func join_world(world_id: int, player_name: String, target_x: int = 100, target_
 	var tiles: Dictionary = world_dict.get("tiles", {})
 	var villages_list: Array = state.get("villages", [])
 
-	# Seçilen bölgede (target_x, target_y) boş alan bul
-	var free_spot: Vector2i = WorldGeneratorScript.find_free_spot(tiles, target_x, target_y, WorldGeneratorScript.SIZE)
-	if free_spot.x < 0:
-		free_spot = Vector2i(target_x, target_y)
+	# Seçilen bölgede (target_x, target_y) boş alan bul (önceki fethedilen koordinattan farklı)
+	var search_tiles := tiles.duplicate()
+	if avoid_spot.x >= 1 and avoid_spot.y >= 1:
+		search_tiles[WorldGeneratorScript.tile_key(avoid_spot.x, avoid_spot.y)] = -999
+	var free_spot: Vector2i = WorldGeneratorScript.find_free_spot(search_tiles, target_x, target_y, WorldGeneratorScript.SIZE)
+	if free_spot.x < 0 or free_spot == avoid_spot:
+		var alt_x := clampi(WorldGeneratorScript.SIZE + 1 - target_x, 10, WorldGeneratorScript.SIZE - 10)
+		var alt_y := clampi(WorldGeneratorScript.SIZE + 1 - target_y, 10, WorldGeneratorScript.SIZE - 10)
+		var alt_spot := WorldGeneratorScript.find_free_spot(search_tiles, alt_x, alt_y, WorldGeneratorScript.SIZE)
+		free_spot = alt_spot if alt_spot.x >= 1 else Vector2i(alt_x, alt_y)
 
 	var max_vid := 0
 	for v in villages_list:
@@ -1052,6 +1174,11 @@ func _live_sync_game_state_from_world(merged_w: Dictionary, p_name: String) -> v
 
 	_is_applying_cloud_sync = true
 	var remote_villages: Array = st.get("villages", []) if typeof(st.get("villages")) == TYPE_ARRAY else []
+	var prev_owned := false
+	for pv in gs.villages:
+		if _is_real_player_village_dict(pv) and _matches_player(str((pv as Dictionary).get("owner", "")), p_name):
+			prev_owned = true
+			break
 	if not remote_villages.is_empty():
 		gs.villages = remote_villages.duplicate(true)
 	var owns_active := false
@@ -1067,6 +1194,8 @@ func _live_sync_game_state_from_world(merged_w: Dictionary, p_name: String) -> v
 			total_pts += int((v as Dictionary).get("points", 110))
 	if not owns_active and first_owned_vid > 0:
 		gs.active_village_id = first_owned_vid
+	elif first_owned_vid < 0 and (prev_owned or is_player_conquered(w_id, p_name)):
+		gs.active_village_id = -1
 	gs.player["points"] = total_pts
 
 	if typeof(st.get("alliances")) == TYPE_ARRAY:
@@ -1088,6 +1217,11 @@ func _live_sync_game_state_from_world(merged_w: Dictionary, p_name: String) -> v
 		gs.world["villages"] = gs.villages
 	gs._emit_state_changed()
 	_is_applying_cloud_sync = false
+	if first_owned_vid < 0 and (prev_owned or is_player_conquered(w_id, p_name)):
+		var bus = _find_autoload("EventBus")
+		if bus != null and bus.has_signal("player_conquered"):
+			bus.player_conquered.emit(w_id, p_name)
+		maybe_show_conquered_modal_for_current_scene(w_id, p_name)
 
 
 func apply_cloud_sync(res_data: Dictionary, from_save_response: bool = false) -> bool:
@@ -1280,6 +1414,100 @@ func _enforce_min_village_distance(w_data: Dictionary, priority_vid: int = -1) -
 	world_dict["tiles"] = placed_tiles
 	world_dict["villages"] = villages_list
 	return changed
+
+
+func _on_village_conquered_signal(vid: int, new_owner: String) -> void:
+	var gs = _find_game_state()
+	if gs == null:
+		return
+	var p_name := _norm_name(str(gs.player.get("name", "")))
+	if p_name.is_empty() or p_name == "Kral":
+		var auth = _find_autoload("AuthManager")
+		if auth != null and not str(auth.display_name).is_empty():
+			p_name = _norm_name(str(auth.display_name))
+	if p_name.is_empty() or _matches_player(new_owner, p_name):
+		return
+
+	var remaining_owned := 0
+	var conq_vx := -1
+	var conq_vy := -1
+	for v in gs.villages:
+		if typeof(v) != TYPE_DICTIONARY:
+			continue
+		var vd: Dictionary = v
+		if int(vd.get("id", -1)) == vid:
+			conq_vx = int(vd.get("x", -1))
+			conq_vy = int(vd.get("y", -1))
+		if _is_real_player_village_dict(vd) and _matches_player(str(vd.get("owner", "")), p_name):
+			remaining_owned += 1
+
+	if remaining_owned > 0:
+		return
+	if gs.active_village_id != vid and not is_player_conquered(current_world_id, p_name):
+		return
+
+	if typeof(gs.world) != TYPE_DICTIONARY:
+		gs.world = {}
+	if typeof(gs.world.get("player_profiles")) != TYPE_DICTIONARY:
+		gs.world["player_profiles"] = {}
+	var profiles: Dictionary = gs.world["player_profiles"]
+	var prof: Dictionary = profiles.get(p_name, {}) if typeof(profiles.get(p_name)) == TYPE_DICTIONARY else {}
+	prof["defeated_info"] = {
+		"conqueror": str(new_owner).strip_edges(),
+		"village_id": vid,
+		"x": conq_vx,
+		"y": conq_vy,
+		"unix": int(Time.get_unix_time_from_system()),
+	}
+	prof["active_village_id"] = -1
+	prof["points"] = 0
+	profiles[p_name] = prof
+
+	gs.active_village_id = -1
+	gs.player["points"] = 0
+	suppress_auto_conquered_prompt = false
+	save_active_world()
+
+	var bus = _find_autoload("EventBus")
+	if bus != null and bus.has_signal("player_conquered"):
+		bus.player_conquered.emit(current_world_id, p_name)
+	maybe_show_conquered_modal_for_current_scene(current_world_id, p_name, str(new_owner))
+
+
+func maybe_show_conquered_modal_for_current_scene(world_id: int = -1, player_name: String = "", conqueror_name: String = "") -> bool:
+	var loop = Engine.get_main_loop()
+	if not (loop is SceneTree):
+		return false
+	var tree := loop as SceneTree
+	if tree.current_scene == null:
+		return false
+	var s_name := str(tree.current_scene.name)
+	var allowed_scenes := ["Village", "WorldMap", "Reports", "Ranking", "Alliance", "Settings", "VillageSelect"]
+	if not (s_name in allowed_scenes):
+		return false
+
+	var wid := world_id if world_id > 0 else current_world_id
+	var p_name := _norm_name(player_name)
+	if p_name.is_empty():
+		var auth = _find_autoload("AuthManager")
+		if auth != null and not str(auth.display_name).is_empty():
+			p_name = _norm_name(str(auth.display_name))
+	if p_name.is_empty():
+		var gs = _find_game_state()
+		if gs != null:
+			p_name = _norm_name(str(gs.player.get("name", "")))
+	if p_name.is_empty():
+		return false
+
+	if s_name == "VillageSelect" and suppress_auto_conquered_prompt:
+		return false
+
+	var def_info := get_last_defeat_info(wid, p_name)
+	var conq_by := conqueror_name.strip_edges()
+	if conq_by.is_empty():
+		conq_by = str(def_info.get("conqueror", "")).strip_edges()
+	ConqueredModalScript.show_modal(wid, p_name, conq_by)
+	return true
 
 
 func _find_game_state() -> Node:
