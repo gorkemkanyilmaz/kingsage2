@@ -288,7 +288,7 @@ const QUEST_DEFS: Array[Dictionary] = [
 		"goto_type": "building",
 		"goto_target": "garage",
 		"reward": {"wood": 14000, "stone": 14000, "iron": 12000},
-		"vizier_desc": "[b][color=#FFD86B]Lordum,[/color][/b] [b]Simyager[/b] (Kale Sv.10 + Değirmen Sv.10 gerektirir) krallığınızın yüksek bilimler merkezidir. Fetih makamı [b]Köşk[/b]'ü inşa etmek için Simyager'i mutlaka [b]Seviye 5[/b]'e kadar geliştirmeniz gerekecek!"
+		"vizier_desc": "[b][color=#FFD86B]Lordum,[/color][/b] [b]Simyager[/b] (Kışla Sv.5 gerektirir) krallığınızın yüksek bilimler merkezidir. Fetih makamı [b]Köşk[/b]'ü inşa etmek için Simyager'i mutlaka [b]Seviye 5[/b]'e kadar geliştirmeniz gerekecek!"
 	},
 	{
 		"id": "q_siege_weapons",
@@ -314,7 +314,7 @@ const QUEST_DEFS: Array[Dictionary] = [
 		"goto_type": "building",
 		"goto_target": "snob",
 		"reward": {"wood": 28000, "stone": 32000, "iron": 28000},
-		"vizier_desc": "[b][color=#FFD86B]Lordum,[/color][/b] [b]Köşk[/b] fetihlerinizin kalbidir! Yeni köyler ele geçirecek olan [b]👑 Kont[/b] birimleri yalnızca Köşk'te eğitilir.\n\nKurulabilmesi için [b]Kale Sv.20, Simyager Sv.5 ve Market Sv.10[/b] önkoşullarının tamamlanması gerekir. Her Kont, saldırdığı köyün Hakimiyet / Sadakat puanını düşürür!"
+		"vizier_desc": "[b][color=#FFD86B]Lordum,[/color][/b] [b]Köşk[/b] fetihlerinizin kalbidir! Yeni köyler ele geçirecek olan [b]👑 Kont[/b] birimleri yalnızca Köşk'te eğitilir.\n\nKurulabilmesi için [b]Simyager Sv.5[/b] (Kışla Sv.5 gerektirir) önkoşulunun tamamlanması gerekir. Her Kont, saldırdığı köyün Hakimiyet / Sadakat puanını düşürür!"
 	},
 	{
 		"id": "q_unlock_smith",
@@ -328,7 +328,7 @@ const QUEST_DEFS: Array[Dictionary] = [
 		"goto_type": "building",
 		"goto_target": "smith",
 		"reward": {"wood": 32000, "stone": 42000, "iron": 36000},
-		"vizier_desc": "[b][color=#FFD86B]Lordum,[/color][/b] bir asilzade zırhsız tahta çıkmaz! [b]Kuyumcu[/b] binasında Kont eğitebilmek için gereken değerli [b]Altın Zırh[/b] setleri basılır. Köşk Sv.1, Kale Sv.20 ve Depo Sv.20 ile Kuyumcu'yu açın."
+		"vizier_desc": "[b][color=#FFD86B]Lordum,[/color][/b] bir asilzade zırhsız tahta çıkmaz! [b]Kuyumcu[/b] binasında Kont eğitebilmek için gereken değerli [b]Altın Zırh[/b] setleri basılır. [b]Köşk Sv.1[/b] tamamlandıktan sonra Kuyumcu'yu açabilirsiniz."
 	},
 	{
 		"id": "q_mint_gold_armour",
@@ -379,7 +379,7 @@ const QUEST_DEFS: Array[Dictionary] = [
 		"goto_type": "building",
 		"goto_target": "statue",
 		"reward": {"wood": 100000, "stone": 100000, "iron": 100000},
-		"vizier_desc": "[b][color=#FFD86B]Lordum,[/color][/b] [b]Anıt[/b], köy meydanının ortasında yükselerek halkınıza ve düşmanlarınıza kudretinizi ilan eder. [b]Anıt inşa edilen köyde savunma tahkimatı %50 artar![/b] İmparatorluğunuzu taçlandırın."
+		"vizier_desc": "[b][color=#FFD86B]Lordum,[/color][/b] [b]Anıt[/b], köy meydanının ortasında yükselerek halkınıza ve düşmanlarınıza kudretinizi ilan eder (tüm diğer binalar son seviyeye ulaştığında açılır). [b]Anıt inşa edilen köyde savunma tahkimatı %50 artar![/b] İmparatorluğunuzu taçlandırın."
 	},
 ]
 
@@ -1899,11 +1899,20 @@ func _tm() -> Node:
 func _player_villages(gs: Node) -> Array:
 	var p_name := str(gs.player.get("name", ""))
 	var out: Array = []
+	if not p_name.is_empty():
+		for item in gs.villages:
+			if typeof(item) != TYPE_DICTIONARY:
+				continue
+			var v := item as Dictionary
+			if str(v.get("owner", "")) == p_name:
+				out.append(v)
+		if not out.is_empty():
+			return out
 	for item in gs.villages:
 		if typeof(item) != TYPE_DICTIONARY:
 			continue
 		var v := item as Dictionary
-		if not bool(v.get("is_bot", true)) or (not p_name.is_empty() and str(v.get("owner", "")) == p_name):
+		if not bool(v.get("is_bot", true)) and not bool(v.get("is_barbarian", false)) and str(v.get("bonus_type", "")).is_empty():
 			out.append(v)
 	return out
 

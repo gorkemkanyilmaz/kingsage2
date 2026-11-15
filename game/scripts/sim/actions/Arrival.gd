@@ -80,8 +80,11 @@ static func _resolve_battle(
 	}
 	var result: Dictionary = BS.simulate(attacker, defender, options)
 
-	# --- Savunan kayıpları (birim) ---
-	_subtract_units(target, result.get("defender_losses", {}))
+	# --- Savunan kayıpları (birim + destek kayıtları) ---
+	var def_losses = result.get("defender_losses", {})
+	var def_before := _normalize_units(target.get("units", {}))
+	_subtract_units(target, def_losses)
+	_subtract_support_losses(target, def_before, def_losses)
 
 	# --- Bina hasarı (kalıcı) ---
 	var buildings_after = result.get("buildings_after", {})
@@ -130,8 +133,14 @@ static func _resolve_battle(
 		"defender_losses": (result.get("defender_losses", {}) as Dictionary).duplicate(true),
 	})
 
-	# --- Dönüş: hayatta kalan birlikler + ganimet ---
+	# --- Dönüş: hayatta kalan birlikler (fetih başarılıysa 1 Kont köyü yönetmek için kalır) + ganimet ---
 	var survivors := _normalize_units(result.get("attacker_alive", {}))
+	if conquered and int(survivors.get("snob", 0)) > 0:
+		var rem_snob := int(survivors.get("snob", 0)) - 1
+		if rem_snob > 0:
+			survivors["snob"] = rem_snob
+		else:
+			survivors.erase("snob")
 	var return_movement := _make_return(state, movement, origin, survivors, loot)
 	return {"events": events, "return": return_movement}
 
@@ -339,6 +348,8 @@ static func _fizzle(
 static func _attacker_payload(state: Dictionary, origin: Dictionary, units: Dictionary) -> Dictionary:
 	var owner := str(origin.get("owner", ""))
 	return {
+		"name": owner if not owner.is_empty() else "Saldıran",
+		"village_name": str(origin.get("name", "")),
 		"units": units.duplicate(true),
 		"buildings": (origin.get("buildings", {}) as Dictionary).duplicate(true) if typeof(origin.get("buildings")) == TYPE_DICTIONARY else {},
 		"points": Protection.player_points(state, owner),
@@ -353,7 +364,10 @@ static func _defender_payload(target: Dictionary, movement: Dictionary) -> Dicti
 	var def_points := int(movement.get("target_points", 0))
 	if def_points <= 0:
 		def_points = int(target.get("points", 0))
+	var def_owner := str(target.get("owner", ""))
 	return {
+		"name": def_owner if not def_owner.is_empty() else "Savunan",
+		"village_name": str(target.get("name", "")),
 		"units": _normalize_units(target.get("units", {})),
 		"buildings": (buildings as Dictionary).duplicate(true) if typeof(buildings) == TYPE_DICTIONARY else {},
 		"wall_level": _building_level(target, "wall"),
@@ -383,6 +397,8 @@ static func _battle_report_data(
 	data["from_village_id"] = int(movement.get("from_village_id", 0))
 	data["attacker_name"] = str(attacker.get("name", "Saldıran"))
 	data["defender_name"] = str(defender.get("name", "Savunan"))
+	data["attacker_village_name"] = str(attacker.get("village_name", ""))
+	data["defender_village_name"] = str(defender.get("village_name", ""))
 	data["is_raid"] = is_raid
 	data["attacker_units"] = (attacker.get("units", {}) as Dictionary).duplicate(true)
 	data["defender_units"] = (defender.get("units", {}) as Dictionary).duplicate(true)
@@ -628,6 +644,40 @@ static func _subtract_units(village: Dictionary, losses) -> void:
 		return
 	for key in (losses as Dictionary).keys():
 		units[str(key)] = maxi(0, int(units.get(str(key), 0)) - int((losses as Dictionary)[key]))
+
+
+static func _subtract_support_losses(target: Dictionary, units_before: Dictionary, losses) -> void:
+	var support_list = target.get("support", null)
+	if typeof(support_list) != TYPE_ARRAY or (support_list as Array).is_empty():
+		return
+	if typeof(losses) != TYPE_DICTIONARY:
+		return
+	var remaining_units: Dictionary = target.get("units", {})
+	var arr: Array = support_list
+	for i in range(arr.size() - 1, -1, -1):
+		var item = arr[i]
+		if typeof(item) != TYPE_DICTIONARY:
+			continue
+		var entry: Dictionary = item
+		var s_units = entry.get("units", null)
+		if typeof(s_units) != TYPE_DICTIONARY:
+			continue
+		var u_dict: Dictionary = s_units
+		var total_left := 0
+		for uk in u_dict.keys():
+			var key := str(uk)
+			var sup_have := maxi(0, int(u_dict.get(key, 0)))
+			var tot_before := maxi(0, int(units_before.get(key, 0)))
+			var lost_total := maxi(0, int((losses as Dictionary).get(key, 0)))
+			if sup_have > 0 and tot_before > 0 and lost_total > 0:
+				var sup_lost := int(round(float(sup_have) * float(lost_total) / float(tot_before)))
+				sup_have = maxi(0, sup_have - mini(sup_have, sup_lost))
+			var cap_left := maxi(0, int(remaining_units.get(key, 0)))
+			sup_have = mini(sup_have, cap_left)
+			u_dict[key] = sup_have
+			total_left += sup_have
+		if total_left <= 0:
+			arr.remove_at(i)
 
 
 static func _add_units(village: Dictionary, units: Dictionary) -> void:

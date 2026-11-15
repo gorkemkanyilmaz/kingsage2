@@ -52,6 +52,17 @@ var _hammer_tween: Tween
 var _progress_bar: ProgressBar
 var _countdown_label: Label
 var _level_up_popup: Node = null
+var _level_up_tween: Tween = null
+
+
+func _exit_tree() -> void:
+	_stop_hammer_anim()
+	if _level_up_tween != null and _level_up_tween.is_valid():
+		_level_up_tween.kill()
+		_level_up_tween = null
+	if _level_up_popup != null and is_instance_valid(_level_up_popup):
+		_level_up_popup.queue_free()
+		_level_up_popup = null
 
 
 func _init() -> void:
@@ -438,6 +449,9 @@ func _stop_hammer_anim() -> void:
 
 
 func trigger_level_up(new_level: int) -> void:
+	if _level_up_tween != null and _level_up_tween.is_valid():
+		_level_up_tween.kill()
+		_level_up_tween = null
 	if _level_up_popup != null and is_instance_valid(_level_up_popup):
 		_level_up_popup.queue_free()
 		_level_up_popup = null
@@ -479,18 +493,14 @@ func trigger_level_up(new_level: int) -> void:
 	# 0.25 - 1.50s: 1.25s boyunca ekranda tam net ve sabit kalış
 	# 1.50 - 2.00s: 0.5s yumuşak kayboluş ve yukarı hafif süzülüş
 	# 2.00s: queue_free()
-	var pt := create_tween()
+	var pt := popup.create_tween()
+	_level_up_tween = pt
 	pt.tween_property(popup, "scale", Vector2(1.0, 1.0), 0.25).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 	pt.parallel().tween_property(popup, "modulate:a", 1.0, 0.20)
 	pt.tween_property(popup, "position:y", -35.0, 1.25).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
 	pt.tween_property(popup, "modulate:a", 0.0, 0.50).set_ease(Tween.EASE_IN)
 	pt.parallel().tween_property(popup, "position:y", -55.0, 0.50)
-	pt.tween_callback(func():
-		if _level_up_popup == popup:
-			_level_up_popup = null
-		if is_instance_valid(popup):
-			popup.queue_free()
-	)
+	pt.tween_callback(popup.queue_free)
 
 
 func _on_mouse_entered() -> void:

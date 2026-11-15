@@ -162,6 +162,7 @@ static func on_attack_sent(village: Dictionary, now_unix: int) -> Dictionary:
 	if int(village.get("protection_until", 0)) <= now_unix:
 		return {}
 	village["protection_until"] = 0
+	village["protection_until_unix"] = 0
 	var conquest_until := now_unix + conquest_protection_days() * DAY_SECONDS
 	if int(village.get("conquest_protection_until", 0)) < conquest_until:
 		village["conquest_protection_until"] = conquest_until

@@ -801,6 +801,7 @@ func _process(delta: float) -> void:
 
 func _sync_from_gamestate(gs: Node) -> void:
 	_current_step = clampi(int(gs.player.get("tutorial_step", Step.WELCOME_INTRO)), 0, Step.GRADUATION_MODAL)
+	_victory_reward_granted = bool(gs.player.get("tutorial_reward_claimed", false))
 
 
 func _advance_to(next_step: int, gs: Node, scene_node: Node = null) -> void:

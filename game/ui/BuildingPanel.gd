@@ -2255,9 +2255,9 @@ func _update_special_building_actions(_cur_lvl: int) -> void:
 	if _current_key == "smith":
 		var avail_armour := ArmyAPI.gold_armour(_village)
 		var g_cost := ArmyAPI.gold_armour_cost(_village)
-		var req_w := int(g_cost.get("wood", 30000))
-		var req_s := int(g_cost.get("stone", 50000))
-		var req_i := int(g_cost.get("iron", 40000))
+		var req_w := int(g_cost.get("wood", 12000))
+		var req_s := int(g_cost.get("stone", 10000))
+		var req_i := int(g_cost.get("iron", 8000))
 
 		var hdr := Label.new()
 		hdr.text = "🛡️ Altın Zırh Darphanesi   •   Mevcut Stok: %d Set" % avail_armour

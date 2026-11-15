@@ -15,6 +15,7 @@ var _unit_inputs: Dictionary = {}
 var _resource_inputs: Dictionary = {}
 var _current_tab: String = "troops" # "troops" | "trade"
 var _btn_switch_to_village: Button = null
+var btn_support: Button = null
 
 @onready var title_label: Label = $VBox/Header/TitleLabel
 @onready var close_btn: Button = $VBox/Header/CloseButton
@@ -59,6 +60,15 @@ func _ready() -> void:
 	btn_attack.pressed.connect(func(): _dispatch(MovementScript.TYPE_ATTACK))
 	btn_raid.pressed.connect(func(): _dispatch(MovementScript.TYPE_RAID))
 	btn_trade.pressed.connect(func(): _dispatch(MovementScript.TYPE_TRADE))
+
+	btn_support = Button.new()
+	btn_support.name = "BtnSupport"
+	btn_support.text = "🛡️ Destek Gönder"
+	btn_support.custom_minimum_size = btn_attack.custom_minimum_size
+	btn_support.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	btn_support.hide()
+	btn_support.pressed.connect(func(): _dispatch(MovementScript.TYPE_SUPPORT))
+	action_buttons_box.add_child(btn_support)
 
 	btn_tab_trade.pressed.connect(func():
 		if _current_tab == "troops":
@@ -210,6 +220,8 @@ func _setup_fonts_and_styles() -> void:
 
 	for btn in [btn_raid, btn_attack, btn_trade, btn_tab_trade]:
 		_style_action_button(btn)
+	if btn_support != null:
+		_style_action_button(btn_support)
 
 
 func _ensure_switch_button() -> void:
@@ -427,23 +439,46 @@ func _populate_resources() -> void:
 		_resource_inputs[r_key] = spin
 
 
+func _is_target_friendly() -> bool:
+	var gs = Engine.get_main_loop().root.get_node_or_null("GameState") if Engine.get_main_loop() is SceneTree else null
+	var state: Dictionary = gs.to_dict() if gs != null else {}
+	return MovementScript._is_friendly(state, _from_village, _to_village)
+
+
 func _switch_tab(tab: String) -> void:
 	_current_tab = tab
 	if tab == "troops":
 		scroll_troops.show()
 		trade_container.hide()
-		btn_raid.hide()
-		btn_attack.show()
 		btn_trade.hide()
+		if _is_target_friendly():
+			btn_raid.hide()
+			btn_attack.hide()
+			if btn_support != null:
+				btn_support.show()
+		else:
+			if btn_support != null:
+				btn_support.hide()
+			btn_raid.show()
+			btn_attack.show()
 		btn_tab_trade.text = " Hammadde Gönder (Katır)"
 	else:
 		scroll_troops.hide()
 		trade_container.show()
 		btn_raid.hide()
 		btn_attack.hide()
+		if btn_support != null:
+			btn_support.hide()
 		btn_trade.show()
 		btn_tab_trade.text = " Birlik Gönder (Saldırı)"
 	refresh()
+
+
+func _effective_now(state: Dictionary) -> int:
+	var real_now := int(Time.get_unix_time_from_system())
+	var w = state.get("world", {})
+	var sim_now := int((w as Dictionary).get("sim_now_unix", 0)) if typeof(w) == TYPE_DICTIONARY else 0
+	return maxi(real_now, sim_now)
 
 
 func refresh() -> void:
@@ -455,7 +490,7 @@ func refresh() -> void:
 
 	var gs = Engine.get_main_loop().root.get_node_or_null("GameState") if Engine.get_main_loop() is SceneTree else null
 	var state: Dictionary = gs.to_dict() if gs != null else {}
-	var now := int(Time.get_unix_time_from_system())
+	var now := _effective_now(state)
 
 	if _current_tab == "troops":
 		_refresh_troops_mode(state, from_x, from_y, to_x, to_y, dist, now)
@@ -492,12 +527,40 @@ func _refresh_troops_mode(state: Dictionary, from_x: int, from_y: int, to_x: int
 
 	var barracks_lvl: int = int(_from_village.get("buildings", {}).get("barracks", 0))
 	var min_units: int = RulesEngineScript.min_attack_units(barracks_lvl)
+	var from_id := int(_from_village.get("id", -1))
+	var to_id := int(_to_village.get("id", -1))
+	var is_friendly := MovementScript._is_friendly(state, _from_village, _to_village)
 
+	if is_friendly:
+		btn_attack.hide()
+		btn_raid.hide()
+		if btn_support != null:
+			btn_support.show()
+		var sup_check: Dictionary = MovementScript.can_send(state, from_id, to_id, MovementScript.TYPE_SUPPORT, selected_units, {}, now)
+		if not bool(sup_check.get("ok", false)):
+			if btn_support != null:
+				btn_support.disabled = true
+			warning_label.show()
+			var scode := str(sup_check.get("code", ""))
+			if scode == "units_empty":
+				warning_label.text = "Destek için birlik seçiniz."
+			else:
+				warning_label.text = "Uyarı: " + str(sup_check.get("message", "Geçersiz destek gönderimi"))
+		else:
+			if btn_support != null:
+				btn_support.disabled = false
+			warning_label.hide()
+		return
+
+	if btn_support != null:
+		btn_support.hide()
 	var is_only_spies: bool = total_selected > 0 and int(selected_units.get("spy", 0)) == total_selected
 	var check_type: String = MovementScript.TYPE_SPY if is_only_spies else MovementScript.TYPE_ATTACK
-	btn_attack.text = " Casus Gönder" if is_only_spies else " Saldır"
+	btn_attack.show()
+	btn_attack.text = "🕵️ Casus Gönder" if is_only_spies else "⚔️ Saldır"
+	btn_raid.visible = not is_only_spies
 
-	var check: Dictionary = MovementScript.can_send(state, int(_from_village.get("id", -1)), int(_to_village.get("id", -1)), check_type, selected_units, {}, now)
+	var check: Dictionary = MovementScript.can_send(state, from_id, to_id, check_type, selected_units, {}, now)
 
 	if not bool(check.get("ok", false)):
 		var code: String = str(check.get("code", ""))
@@ -519,7 +582,12 @@ func _refresh_troops_mode(state: Dictionary, from_x: int, from_y: int, to_x: int
 	else:
 		warning_label.hide()
 		btn_attack.disabled = false
-		btn_raid.disabled = false
+		if not is_only_spies:
+			var raid_check: Dictionary = MovementScript.can_send(state, from_id, to_id, MovementScript.TYPE_RAID, selected_units, {}, now)
+			btn_raid.disabled = not bool(raid_check.get("ok", false))
+			if not bool(raid_check.get("ok", false)) and int(selected_units.get("snob", 0)) > 0:
+				warning_label.show()
+				warning_label.text = "Kont yağma seferine çıkamaz (yalnızca normal saldırı ile fethedebilir)."
 
 
 func _refresh_trade_mode(state: Dictionary, from_x: int, from_y: int, to_x: int, to_y: int, dist: float, now: int) -> void:
@@ -568,7 +636,7 @@ func _refresh_trade_mode(state: Dictionary, from_x: int, from_y: int, to_x: int,
 func _dispatch(type: String) -> void:
 	var gs = Engine.get_main_loop().root.get_node_or_null("GameState") if Engine.get_main_loop() is SceneTree else null
 	var state: Dictionary = gs.to_dict() if gs != null else {}
-	var now := int(Time.get_unix_time_from_system())
+	var now := _effective_now(state)
 	var res: Dictionary = {}
 
 	if type == MovementScript.TYPE_TRADE:
@@ -585,6 +653,13 @@ func _dispatch(type: String) -> void:
 			if count > 0:
 				selected_units[u_key] = count
 		res = MovementScript.send_raid(state, int(_from_village["id"]), int(_to_village["id"]), selected_units, now)
+	elif type == MovementScript.TYPE_SUPPORT:
+		var selected_units: Dictionary = {}
+		for u_key in _unit_inputs.keys():
+			var count: int = int(_unit_inputs[u_key].value)
+			if count > 0:
+				selected_units[u_key] = count
+		res = MovementScript.send_support(state, int(_from_village["id"]), int(_to_village["id"]), selected_units, now)
 	else:
 		var selected_units: Dictionary = {}
 		var total_selected := 0
@@ -602,6 +677,13 @@ func _dispatch(type: String) -> void:
 
 	if bool(res.get("ok", false)) and gs != null:
 		gs.from_dict(state)
+		var wm = Engine.get_main_loop().root.get_node_or_null("WorldManager") if Engine.get_main_loop() is SceneTree else null
+		if wm != null and wm.has_method("save_active_world"):
+			wm.save_active_world()
+		else:
+			var sm = Engine.get_main_loop().root.get_node_or_null("SaveManager") if Engine.get_main_loop() is SceneTree else null
+			if sm != null and sm.has_method("save_game"):
+				sm.save_game()
 		var bus = Engine.get_main_loop().root.get_node_or_null("EventBus") if Engine.get_main_loop() is SceneTree else null
 		if bus != null and bus.has_signal("army_sent"):
 			var mv: Dictionary = res.get("movement", {})

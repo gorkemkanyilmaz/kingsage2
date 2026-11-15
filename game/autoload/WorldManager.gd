@@ -212,7 +212,7 @@ func save_world_dict(world_id: int, data: Dictionary) -> bool:
 ## Bir dünyayı sıfırdan 50 botla oluşturur ve diske kaydeder.
 func _create_and_save_world(world_id: int, seed_val: int, bot_count: int) -> Dictionary:
 	var now := int(Time.get_unix_time_from_system())
-	var gen_world: Dictionary = WorldGeneratorScript.generate(seed_val, bot_count, WorldGeneratorScript.SIZE, 0.0, 0.0)
+	var gen_world: Dictionary = WorldGeneratorScript.generate(seed_val, bot_count, WorldGeneratorScript.SIZE)
 	gen_world["created_unix"] = now
 	gen_world["last_saved_unix"] = now
 	gen_world["sim_now_unix"] = now
@@ -358,6 +358,7 @@ func join_world(world_id: int, player_name: String, target_x: int = 100, target_
 	_enforce_min_village_distance(w_data, player_vid)
 	var placed_spot := Vector2i(int(player_v.get("x", free_spot.x)), int(player_v.get("y", free_spot.y)))
 	state["active_village_id"] = player_vid
+	_sync_player_profile_to_world(state)
 	var loop_j = Engine.get_main_loop()
 	var auth_j = loop_j.root.get_node_or_null("AuthManager") if loop_j is SceneTree else null
 	var p_provider := str(auth_j.auth_provider) if (auth_j != null and bool(auth_j.is_logged_in)) else ""
@@ -372,8 +373,13 @@ func join_world(world_id: int, player_name: String, target_x: int = 100, target_
 		"starter_boost_until_unix": now + (7 * 86400),
 		"protection_until_unix": player_v["protection_until_unix"],
 		"conquest_protection_until_unix": player_v["conquest_protection_until_unix"],
+		"tutorial_completed": false,
+		"tutorial_step": 0,
+		"quests": {"claimed": [], "stats": {}},
+		"gold_armour": 0,
 		"premium": false,
 	}
+	_sync_player_profile_to_world(state)
 	_sync_game_config_speed(state, now)
 
 	# Gerçek oyuncu kaydı ve kapasite kontrolü
@@ -440,7 +446,13 @@ func enter_world(world_id: int, player_name: String) -> bool:
 	var villages: Array = state.get("villages", [])
 
 	# Oyuncunun aktif veya birincil köyünü bul (çoklu köy fethi sonrası seçili köy korunur)
-	var saved_active_id := int(state.get("active_village_id", -1))
+	var profiles: Dictionary = state.get("world", {}).get("player_profiles", {}) if typeof(state.get("world")) == TYPE_DICTIONARY else {}
+	var profile_active_id := -1
+	for pk in profiles.keys():
+		if _matches_player(str(pk), player_name) and typeof(profiles[pk]) == TYPE_DICTIONARY:
+			profile_active_id = int((profiles[pk] as Dictionary).get("active_village_id", -1))
+			break
+	var saved_active_id := profile_active_id if profile_active_id > 0 else int(state.get("active_village_id", -1))
 	var first_vid := -1
 	var player_vid := -1
 	for v in villages:
@@ -676,15 +688,103 @@ func _sync_game_config_speed(state: Dictionary, now_unix: int = 0) -> void:
 		gc.sync_from_world(w_dict, now_unix)
 
 
+## Oyuncu profilini (tutorial, görevler, altın zırh, seçili köy vb.) dünya haritasına yazar.
+func _sync_player_profile_to_world(state_dict: Dictionary) -> void:
+	if typeof(state_dict) != TYPE_DICTIONARY:
+		return
+	var p_raw = state_dict.get("player", {})
+	if typeof(p_raw) != TYPE_DICTIONARY or (p_raw as Dictionary).is_empty():
+		return
+	var p: Dictionary = p_raw
+	var p_name := _norm_name(str(p.get("name", "")))
+	if p_name.is_empty():
+		return
+	if typeof(state_dict.get("world")) != TYPE_DICTIONARY:
+		state_dict["world"] = {}
+	var w_dict: Dictionary = state_dict["world"]
+	if typeof(w_dict.get("player_profiles")) != TYPE_DICTIONARY:
+		w_dict["player_profiles"] = {}
+	var profiles: Dictionary = w_dict["player_profiles"]
+	var quests_copy: Dictionary = {"claimed": [], "stats": {}}
+	if typeof(p.get("quests")) == TYPE_DICTIONARY:
+		quests_copy = (p["quests"] as Dictionary).duplicate(true)
+	var prof := {
+		"name": p_name,
+		"provider": str(p.get("provider", "")),
+		"auth_id": str(p.get("auth_id", "")),
+		"points": int(p.get("points", 0)),
+		"created_unix": int(p.get("created_unix", 0)),
+		"starter_boost_until_unix": int(p.get("starter_boost_until_unix", 0)),
+		"protection_until_unix": int(p.get("protection_until_unix", 0)),
+		"conquest_protection_until_unix": int(p.get("conquest_protection_until_unix", 0)),
+		"tutorial_completed": bool(p.get("tutorial_completed", false)),
+		"tutorial_step": int(p.get("tutorial_step", 0)),
+		"tutorial_reward_claimed": bool(p.get("tutorial_reward_claimed", false)),
+		"quests": quests_copy,
+		"gold_armour": int(p.get("gold_armour", 0)),
+		"active_village_id": int(state_dict.get("active_village_id", -1)),
+	}
+	profiles[p_name] = prof
+
+
+## İlgili oyuncunun profilini dünya haritasından `state_dict["player"]` içine yükler.
+func _restore_player_profile_from_world(state_dict: Dictionary, player_name: String) -> void:
+	if typeof(state_dict) != TYPE_DICTIONARY:
+		return
+	var norm_p := _norm_name(player_name)
+	if norm_p.is_empty():
+		return
+	var w_dict: Dictionary = state_dict.get("world", {}) if typeof(state_dict.get("world")) == TYPE_DICTIONARY else {}
+	var profiles: Dictionary = w_dict.get("player_profiles", {}) if typeof(w_dict.get("player_profiles")) == TYPE_DICTIONARY else {}
+	var found: Dictionary = {}
+	for k in profiles.keys():
+		if _matches_player(str(k), norm_p) and typeof(profiles[k]) == TYPE_DICTIONARY:
+			found = (profiles[k] as Dictionary).duplicate(true)
+			break
+	var cur_p: Dictionary = state_dict.get("player", {}) if typeof(state_dict.get("player")) == TYPE_DICTIONARY else {}
+	var cur_same := _matches_player(str(cur_p.get("name", "")), norm_p)
+	if found.is_empty() and cur_same:
+		found = cur_p.duplicate(true)
+	var boost_rec: Dictionary = {}
+	var psb: Dictionary = w_dict.get("player_starter_boost", {}) if typeof(w_dict.get("player_starter_boost")) == TYPE_DICTIONARY else {}
+	for bk in psb.keys():
+		if _matches_player(str(bk), norm_p) and typeof(psb[bk]) == TYPE_DICTIONARY:
+			boost_rec = psb[bk]
+			break
+	var q_dict: Dictionary = {"claimed": [], "stats": {}}
+	if typeof(found.get("quests")) == TYPE_DICTIONARY:
+		q_dict = (found["quests"] as Dictionary).duplicate(true)
+	var restored := {
+		"id": 1,
+		"name": norm_p,
+		"auth_id": str(found.get("auth_id", cur_p.get("auth_id", "") if cur_same else "")),
+		"provider": str(found.get("provider", cur_p.get("provider", "") if cur_same else "")),
+		"points": int(found.get("points", 0)),
+		"created_unix": int(found.get("created_unix", boost_rec.get("created_unix", 0))),
+		"starter_boost_until_unix": int(found.get("starter_boost_until_unix", boost_rec.get("starter_boost_until_unix", 0))),
+		"protection_until_unix": int(found.get("protection_until_unix", 0)),
+		"conquest_protection_until_unix": int(found.get("conquest_protection_until_unix", 0)),
+		"tutorial_completed": bool(found.get("tutorial_completed", false)),
+		"tutorial_step": int(found.get("tutorial_step", 0)),
+		"tutorial_reward_claimed": bool(found.get("tutorial_reward_claimed", false)),
+		"quests": q_dict,
+		"gold_armour": int(found.get("gold_armour", 0)),
+		"premium": false,
+	}
+	state_dict["player"] = restored
+
+
 ## Aktif dünya durumunu GameState'e aktarır.
 func _apply_to_game_state(w_data: Dictionary, player_name: String, active_vid: int) -> void:
 	var gs = _find_game_state()
 	if gs == null:
 		return
 
-	var state: Dictionary = w_data.get("state", {})
+	var state: Dictionary = (w_data.get("state", {}) as Dictionary).duplicate(true)
 	var now := int(Time.get_unix_time_from_system())
+	_restore_player_profile_from_world(state, player_name)
 	_ensure_starter_boost(state, int(w_data.get("created_unix", now)), now, player_name)
+	state["active_village_id"] = active_vid
 	gs.from_dict(state)
 	gs.player["name"] = player_name
 	gs.player["id"] = 1
@@ -729,8 +829,27 @@ func save_active_world() -> bool:
 	gs.world["last_saved_unix"] = now
 	gs.world["sim_now_unix"] = now
 
+	var prev_world: Dictionary = w_data.get("state", {}).get("world", {}) if typeof(w_data.get("state")) == TYPE_DICTIONARY and typeof(w_data.get("state", {}).get("world")) == TYPE_DICTIONARY else {}
+	var next_state: Dictionary = gs.to_dict()
+	if typeof(next_state.get("world")) != TYPE_DICTIONARY:
+		next_state["world"] = {}
+	var nw: Dictionary = next_state["world"]
+	if typeof(prev_world.get("player_profiles")) == TYPE_DICTIONARY:
+		var merged_p: Dictionary = (prev_world["player_profiles"] as Dictionary).duplicate(true)
+		if typeof(nw.get("player_profiles")) == TYPE_DICTIONARY:
+			for k in (nw["player_profiles"] as Dictionary).keys():
+				merged_p[k] = nw["player_profiles"][k]
+		nw["player_profiles"] = merged_p
+	if typeof(prev_world.get("player_starter_boost")) == TYPE_DICTIONARY:
+		var merged_b: Dictionary = (prev_world["player_starter_boost"] as Dictionary).duplicate(true)
+		if typeof(nw.get("player_starter_boost")) == TYPE_DICTIONARY:
+			for k in (nw["player_starter_boost"] as Dictionary).keys():
+				merged_b[k] = nw["player_starter_boost"][k]
+		nw["player_starter_boost"] = merged_b
+	_sync_player_profile_to_world(next_state)
+
 	w_data["last_saved_unix"] = now
-	w_data["state"] = gs.to_dict()
+	w_data["state"] = next_state
 
 	var p_name := str(gs.player.get("name", "Lord Gorkem"))
 	var reg_list: Array = w_data.get("registered_real_players", [])
