@@ -29,6 +29,12 @@ var worlds_meta: Array = []
 var _last_autosave_unix: int = 0
 var _last_cloud_save_unix: int = 0
 
+const CLOUD_POLL_INTERVAL_SEC := 8.0
+var _cloud_poll_accum: float = 0.0
+var _cloud_poll_in_flight: bool = false
+var _last_local_mutation_unix: int = 0
+var _is_applying_cloud_sync: bool = false
+
 
 func _ready() -> void:
 	_ensure_directory()
@@ -50,13 +56,40 @@ func _notification(what: int) -> void:
 
 
 func _on_state_changed_autosave() -> void:
+	if _is_applying_cloud_sync:
+		return
 	var now := int(Time.get_unix_time_from_system())
+	_last_local_mutation_unix = now
 	if now - _last_autosave_unix < 3:
 		return
 	var gs = _find_game_state()
 	if gs != null and gs.has_active_village():
 		_last_autosave_unix = now
 		save_active_world()
+
+
+func _process(delta: float) -> void:
+	if not OS.has_feature("web") or _cloud_poll_in_flight:
+		return
+	var loop = Engine.get_main_loop()
+	if not (loop is SceneTree):
+		return
+	var net = loop.root.get_node_or_null("NetworkManager")
+	if net == null or str(net.auth_token).is_empty():
+		return
+	_cloud_poll_accum += delta
+	if _cloud_poll_accum < CLOUD_POLL_INTERVAL_SEC:
+		return
+	_cloud_poll_accum = 0.0
+	var gs = _find_game_state()
+	var has_active: bool = (gs != null and bool(gs.has_active_village()))
+	if has_active and (_last_local_mutation_unix > _last_cloud_save_unix):
+		save_active_world()
+	elif net.has_method("pull_shared_world_from_cloud"):
+		_cloud_poll_in_flight = true
+		net.pull_shared_world_from_cloud(func(_ok: bool, _data: Dictionary):
+			_cloud_poll_in_flight = false
+		)
 
 
 func _web_set(key: String, val: String) -> void:
@@ -420,6 +453,7 @@ func join_world(world_id: int, player_name: String, target_x: int = 100, target_
 	_save_meta()
 	_apply_to_game_state(w_data, player_name, player_vid)
 	save_active_world()
+	_last_local_mutation_unix = now
 	var sm = Engine.get_main_loop().root.get_node_or_null("SaveManager") if Engine.get_main_loop() is SceneTree else null
 	if sm != null and sm.has_method("save_game"):
 		sm.save_game()
@@ -866,13 +900,206 @@ func save_active_world() -> bool:
 	return ok
 
 
-func apply_cloud_sync(res_data: Dictionary) -> bool:
+func _is_real_player_village_dict(v) -> bool:
+	if typeof(v) != TYPE_DICTIONARY:
+		return false
+	var vd: Dictionary = v
+	var owner := _norm_name(str(vd.get("owner", "")))
+	return (
+		not bool(vd.get("is_bot", false))
+		and not bool(vd.get("is_barbarian", false))
+		and str(vd.get("bonus_type", "")).is_empty()
+		and not owner.is_empty()
+		and owner != "Barbar"
+		and owner != "Terk Edilmiş"
+		and owner != "Soyguncular"
+		and owner != "Usta"
+	)
+
+
+func _sync_worlds_meta_from_server(meta_list, target_wid: int = -1, reg_count: int = -1) -> void:
+	var changed := false
+	if worlds_meta.is_empty():
+		_load_meta()
+	if typeof(meta_list) == TYPE_ARRAY and not (meta_list as Array).is_empty():
+		for item in (meta_list as Array):
+			if typeof(item) != TYPE_DICTIONARY:
+				continue
+			var sd: Dictionary = item
+			var wid := int(sd.get("id", 0))
+			if wid < 1 or wid > WORLDS_COUNT:
+				continue
+			for wm in worlds_meta:
+				if typeof(wm) == TYPE_DICTIONARY and int((wm as Dictionary).get("id", 0)) == wid:
+					var s_active := int(sd.get("is_active", 0)) != 0
+					var s_reg := int(sd.get("registered_players", 0))
+					if bool(wm.get("is_active", false)) != s_active:
+						wm["is_active"] = s_active
+						changed = true
+					if int(wm.get("registered_real_players", 0)) != s_reg:
+						wm["registered_real_players"] = s_reg
+						changed = true
+					break
+	if target_wid >= 1 and target_wid <= WORLDS_COUNT and reg_count >= 0:
+		for wm in worlds_meta:
+			if typeof(wm) == TYPE_DICTIONARY and int((wm as Dictionary).get("id", 0)) == target_wid:
+				if int(wm.get("registered_real_players", 0)) != reg_count:
+					wm["registered_real_players"] = reg_count
+					changed = true
+				if reg_count >= MAX_REAL_PLAYERS_PER_WORLD:
+					_unlock_next_world(target_wid + 1)
+				break
+	if changed:
+		_save_meta()
+
+
+func _merge_shared_world_data(local_w: Dictionary, cloud_w: Dictionary, p_name: String, local_ts: int, cloud_ts: int, from_save_response: bool) -> Dictionary:
+	if local_w.is_empty() or not has_player_village(int(cloud_w.get("world_id", 1)), p_name):
+		return cloud_w.duplicate(true)
+
+	# Eğer sunucu bu kaydedişten hemen sonra döndüyse ve yerel ekstra mutasyon olmadıysa sunucunun ortak dünyası kanoniktir.
+	if from_save_response and _last_local_mutation_unix <= _last_cloud_save_unix:
+		return cloud_w.duplicate(true)
+
+	# Yerel değişiklik sunucudan eskiyse veya eşitse doğrudan ortak dünyayı al.
+	if cloud_ts >= local_ts and not from_save_response:
+		return cloud_w.duplicate(true)
+
+	# Yerel durum sunucudan daha yeni ise: ortak dünyadaki diğer oyuncuları/ittifakları/mesajları al, kendi köylerimizi ve kuyruklarımızı koru!
+	var merged: Dictionary = cloud_w.duplicate(true)
+	var m_state: Dictionary = merged.get("state", {}) if typeof(merged.get("state")) == TYPE_DICTIONARY else {}
+	var l_state: Dictionary = local_w.get("state", {}) if typeof(local_w.get("state")) == TYPE_DICTIONARY else {}
+	var c_villages: Array = m_state.get("villages", []) if typeof(m_state.get("villages")) == TYPE_ARRAY else []
+	var l_villages: Array = l_state.get("villages", []) if typeof(l_state.get("villages")) == TYPE_ARRAY else []
+
+	# Sunucunun başka gerçek oyuncuya verdiği ID ile yerel ID çakışmış mı kontrol et
+	var c_by_id: Dictionary = {}
+	for v in c_villages:
+		if typeof(v) == TYPE_DICTIONARY:
+			c_by_id[int((v as Dictionary).get("id", 0))] = v
+
+	var local_vids: Dictionary = {}
+	var id_remapped_by_server := false
+	for lv in l_villages:
+		if _is_real_player_village_dict(lv) and _matches_player(str((lv as Dictionary).get("owner", "")), p_name):
+			var lvid := int((lv as Dictionary).get("id", 0))
+			local_vids[lvid] = true
+			if c_by_id.has(lvid) and _is_real_player_village_dict(c_by_id[lvid]) and not _matches_player(str((c_by_id[lvid] as Dictionary).get("owner", "")), p_name):
+				id_remapped_by_server = true
+				break
+
+	if id_remapped_by_server:
+		return cloud_w.duplicate(true)
+
+	# Kendi yerel köylerimizi koru, diğer gerçek oyuncuların köylerini cloud_w'den koru
+	for lv in l_villages:
+		if _is_real_player_village_dict(lv) and _matches_player(str((lv as Dictionary).get("owner", "")), p_name):
+			c_by_id[int((lv as Dictionary).get("id", 0))] = (lv as Dictionary).duplicate(true)
+
+	var combined_villages: Array = []
+	for vid_k in c_by_id.keys():
+		combined_villages.append(c_by_id[vid_k])
+	combined_villages.sort_custom(func(a, b): return int(a.get("id", 0)) < int(b.get("id", 0)))
+	m_state["villages"] = combined_villages
+
+	# Yerel kuyrukları koru, diğer köylerin sunucudaki kuyruklarını tut
+	var c_queues: Array = m_state.get("queues", []) if typeof(m_state.get("queues")) == TYPE_ARRAY else []
+	var l_queues: Array = l_state.get("queues", []) if typeof(l_state.get("queues")) == TYPE_ARRAY else []
+	var combined_queues: Array = []
+	for q in c_queues:
+		if typeof(q) == TYPE_DICTIONARY and not local_vids.has(int((q as Dictionary).get("village_id", 0))):
+			combined_queues.append((q as Dictionary).duplicate(true))
+	for q in l_queues:
+		if typeof(q) == TYPE_DICTIONARY and local_vids.has(int((q as Dictionary).get("village_id", 0))):
+			combined_queues.append((q as Dictionary).duplicate(true))
+	m_state["queues"] = combined_queues
+
+	# Kendi yerel profilimizi koru, diğer profilleri sunucudan tut
+	var m_world: Dictionary = m_state.get("world", {}) if typeof(m_state.get("world")) == TYPE_DICTIONARY else {}
+	var l_world: Dictionary = l_state.get("world", {}) if typeof(l_state.get("world")) == TYPE_DICTIONARY else {}
+	if typeof(l_world.get("player_profiles")) == TYPE_DICTIONARY and typeof(m_world.get("player_profiles")) == TYPE_DICTIONARY:
+		for pk in (l_world["player_profiles"] as Dictionary).keys():
+			if _matches_player(str(pk), p_name):
+				m_world["player_profiles"][pk] = (l_world["player_profiles"][pk] as Dictionary).duplicate(true)
+	if typeof(l_state.get("player")) == TYPE_DICTIONARY and not (l_state["player"] as Dictionary).is_empty():
+		m_state["player"] = (l_state["player"] as Dictionary).duplicate(true)
+	if int(l_state.get("active_village_id", -1)) > 0:
+		m_state["active_village_id"] = int(l_state["active_village_id"])
+
+	# Yerel yeni ittifaklar/sohbet/hareketler varsa birleştir
+	var tiles: Dictionary = {}
+	for v in combined_villages:
+		if typeof(v) == TYPE_DICTIONARY:
+			tiles[WorldGeneratorScript.tile_key(int(v.get("x", 1)), int(v.get("y", 1)))] = int(v.get("id", 0))
+	m_world["tiles"] = tiles
+	m_world["villages"] = combined_villages
+	m_state["world"] = m_world
+	merged["state"] = m_state
+	merged["last_saved_unix"] = maxi(local_ts, cloud_ts)
+	return merged
+
+
+func _live_sync_game_state_from_world(merged_w: Dictionary, p_name: String) -> void:
+	var gs = _find_game_state()
+	if gs == null or not gs.has_active_village():
+		return
+	var w_id := int(merged_w.get("world_id", current_world_id))
+	if w_id != current_world_id:
+		return
+	var st: Dictionary = merged_w.get("state", {}) if typeof(merged_w.get("state")) == TYPE_DICTIONARY else {}
+	if st.is_empty():
+		return
+
+	_is_applying_cloud_sync = true
+	var remote_villages: Array = st.get("villages", []) if typeof(st.get("villages")) == TYPE_ARRAY else []
+	if not remote_villages.is_empty():
+		gs.villages = remote_villages.duplicate(true)
+	var owns_active := false
+	var first_owned_vid := -1
+	var total_pts := 0
+	for v in gs.villages:
+		if _is_real_player_village_dict(v) and _matches_player(str((v as Dictionary).get("owner", "")), p_name):
+			var vid := int((v as Dictionary).get("id", -1))
+			if first_owned_vid < 0:
+				first_owned_vid = vid
+			if vid == gs.active_village_id:
+				owns_active = true
+			total_pts += int((v as Dictionary).get("points", 110))
+	if not owns_active and first_owned_vid > 0:
+		gs.active_village_id = first_owned_vid
+	gs.player["points"] = total_pts
+
+	if typeof(st.get("alliances")) == TYPE_ARRAY:
+		gs.alliances = (st["alliances"] as Array).duplicate(true)
+	if typeof(st.get("movements")) == TYPE_ARRAY:
+		gs.movements = (st["movements"] as Array).duplicate(true)
+	if typeof(st.get("messages")) == TYPE_ARRAY:
+		gs.messages = (st["messages"] as Array).duplicate(true)
+	if typeof(st.get("reports")) == TYPE_ARRAY:
+		gs.reports = (st["reports"] as Array).duplicate(true)
+	if typeof(st.get("world")) == TYPE_DICTIONARY:
+		var rw: Dictionary = st["world"]
+		if typeof(rw.get("tiles")) == TYPE_DICTIONARY:
+			gs.world["tiles"] = (rw["tiles"] as Dictionary).duplicate(true)
+		if typeof(rw.get("player_profiles")) == TYPE_DICTIONARY:
+			gs.world["player_profiles"] = (rw["player_profiles"] as Dictionary).duplicate(true)
+		if typeof(rw.get("player_starter_boost")) == TYPE_DICTIONARY:
+			gs.world["player_starter_boost"] = (rw["player_starter_boost"] as Dictionary).duplicate(true)
+		gs.world["villages"] = gs.villages
+	gs._emit_state_changed()
+	_is_applying_cloud_sync = false
+
+
+func apply_cloud_sync(res_data: Dictionary, from_save_response: bool = false) -> bool:
 	var loop = Engine.get_main_loop()
 	var auth = loop.root.get_node_or_null("AuthManager") if loop is SceneTree else null
 	var raw_name: String = str(auth.display_name) if (auth != null and not str(auth.display_name).is_empty()) else str(res_data.get("display_name", "Lord Gorkem"))
 	var p_name := _norm_name(raw_name)
 	if p_name.is_empty():
 		p_name = "Lord Gorkem"
+
+	if res_data.has("worlds_meta"):
+		_sync_worlds_meta_from_server(res_data.get("worlds_meta", []))
 
 	var raw_cs = res_data.get("cloud_state", null)
 	if raw_cs == null and res_data.has("state"):
@@ -900,17 +1127,25 @@ func apply_cloud_sync(res_data: Dictionary) -> bool:
 		var local_has := has_player_village(w_id, p_name)
 		var local_ts := int(local_w.get("last_saved_unix", 0))
 		var cloud_ts := int(cloud_w.get("last_saved_unix", res_data.get("updated_unix", 0)))
-		if not local_has or cloud_ts > local_ts:
-			_enforce_min_village_distance(cloud_w)
-			save_world_dict(w_id, cloud_w)
+
+		var merged_w := _merge_shared_world_data(local_w, cloud_w, p_name, local_ts, cloud_ts, from_save_response)
+		_enforce_min_village_distance(merged_w)
+		save_world_dict(w_id, merged_w)
+		var reg_arr: Array = merged_w.get("registered_real_players", []) if typeof(merged_w.get("registered_real_players")) == TYPE_ARRAY else []
+		_sync_worlds_meta_from_server(res_data.get("worlds_meta", []), w_id, reg_arr.size())
+
+		if not local_has and has_player_village(w_id, p_name):
 			current_world_id = w_id
 			_save_meta()
-			return true
-		elif local_has and local_ts > cloud_ts and OS.has_feature("web") and loop is SceneTree:
+
+		_live_sync_game_state_from_world(merged_w, p_name)
+
+		if not from_save_response and local_has and local_ts > cloud_ts and OS.has_feature("web") and loop is SceneTree:
 			var net = loop.root.get_node_or_null("NetworkManager")
 			if net != null and not str(net.auth_token).is_empty():
-				net.save_state_to_cloud(net.auth_token, local_w)
-		return false
+				_last_cloud_save_unix = int(Time.get_unix_time_from_system())
+				net.save_state_to_cloud(net.auth_token, merged_w)
+		return true
 
 	var sv = res_data.get("server_village", null)
 	if typeof(sv) == TYPE_DICTIONARY and not (sv as Dictionary).is_empty():
@@ -975,6 +1210,14 @@ func apply_cloud_sync(res_data: Dictionary) -> bool:
 		current_world_id = w_id
 		_save_meta()
 		return true
+
+	# Sunucu henüz hiç dünya kaydı içermiyorsa ve oyuncunun yerelde bir köyü varsa buluta yükle
+	if not from_save_response and has_player_village(current_world_id, p_name) and OS.has_feature("web") and loop is SceneTree:
+		var local_cur := load_world_dict(current_world_id)
+		var net = loop.root.get_node_or_null("NetworkManager")
+		if not local_cur.is_empty() and net != null and not str(net.auth_token).is_empty():
+			_last_cloud_save_unix = int(Time.get_unix_time_from_system())
+			net.save_state_to_cloud(net.auth_token, local_cur)
 
 	return false
 

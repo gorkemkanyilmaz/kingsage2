@@ -129,6 +129,12 @@ func sync_state_from_cloud(token: String, callback: Callable = Callable()) -> vo
 	req.request(server_url + "/api/game/state", headers, HTTPClient.METHOD_GET)
 
 
+func pull_shared_world_from_cloud(callback: Callable = Callable()) -> void:
+	if auth_token.is_empty():
+		return
+	sync_state_from_cloud(auth_token, callback)
+
+
 func save_state_to_cloud(token: String, state_dict: Dictionary, callback: Callable = Callable()) -> void:
 	var req := HTTPRequest.new()
 	add_child(req)
@@ -143,8 +149,21 @@ func save_state_to_cloud(token: String, state_dict: Dictionary, callback: Callab
 
 	req.request_completed.connect(func(result: int, response_code: int, _hdrs: PackedStringArray, body: PackedByteArray):
 		var success := (result == HTTPRequest.RESULT_SUCCESS and response_code == 200)
+		var res_data := {}
+		if success:
+			var json_str := body.get_string_from_utf8()
+			var test_json := JSON.new()
+			if test_json.parse(json_str) == OK and typeof(test_json.data) == TYPE_DICTIONARY:
+				res_data = test_json.data
+				var loop = Engine.get_main_loop()
+				if loop is SceneTree:
+					var wm = loop.root.get_node_or_null("WorldManager")
+					if wm != null and wm.has_method("apply_cloud_sync"):
+						wm.apply_cloud_sync(res_data, true)
 		if callback.is_valid():
 			callback.call(success)
+		if success and not res_data.is_empty():
+			sync_completed.emit(true, res_data)
 		req.queue_free()
 	)
 

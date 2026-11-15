@@ -5,6 +5,7 @@ Vercel Serverless ve Cloudflare ile uyumlu, SQL Injection Korumalı, 500+ Eşzam
 
 import os
 import sys
+import copy
 import json
 import time
 import math
@@ -271,6 +272,12 @@ def init_db():
 
             """CREATE TABLE IF NOT EXISTS cloud_saves (
                 user_id TEXT PRIMARY KEY,
+                state_json TEXT NOT NULL,
+                updated_unix {0} NOT NULL
+            )""".format(bigint_t),
+
+            """CREATE TABLE IF NOT EXISTS world_states (
+                world_id INTEGER PRIMARY KEY,
                 state_json TEXT NOT NULL,
                 updated_unix {0} NOT NULL
             )""".format(bigint_t)
@@ -580,6 +587,631 @@ def health():
     }
 
 
+MAX_REAL_PLAYERS_PER_WORLD = 100
+WORLDS_COUNT = 10
+MAP_SIZE = 200
+MIN_VILLAGE_DISTANCE = 9
+
+
+def _norm_p_name(raw_name: str) -> str:
+    n = html.unescape(str(raw_name or "")).strip()
+    n = re.sub(r"\s+", " ", n)
+    while len(n) >= 10 and n[:10].lower() == "lord lord ":
+        n = n[5:].strip()
+    return n
+
+
+def _matches_player(a: str, b: str) -> bool:
+    na = _norm_p_name(a)
+    nb = _norm_p_name(b)
+    return bool(nb) and na.lower() == nb.lower()
+
+
+def _is_real_player_village(v: Any) -> bool:
+    if not isinstance(v, dict):
+        return False
+    owner = _norm_p_name(str(v.get("owner", "")))
+    return (
+        not bool(v.get("is_bot", False))
+        and not bool(v.get("is_barbarian", False))
+        and str(v.get("bonus_type", "")) == ""
+        and owner.lower() not in ("", "barbar", "terk edilmiş", "terk edilmis", "soyguncular", "usta")
+    )
+
+
+def _is_spot_free_dist(occupied: set, x: int, y: int, min_dist: int = MIN_VILLAGE_DISTANCE, map_size: int = MAP_SIZE) -> bool:
+    if x < 1 or x > map_size or y < 1 or y > map_size:
+        return False
+    if (x, y) in occupied:
+        return False
+    if min_dist <= 1:
+        return True
+    pad = min_dist - 1
+    for ox, oy in occupied:
+        if abs(x - ox) <= pad and abs(y - oy) <= pad:
+            return False
+    return True
+
+
+def _find_free_spot_on_server(villages: List[Dict[str, Any]], pref_x: int = 100, pref_y: int = 100, min_dist: int = MIN_VILLAGE_DISTANCE, map_size: int = MAP_SIZE) -> tuple:
+    occupied = {(int(v.get("x", 0)), int(v.get("y", 0))) for v in villages if isinstance(v, dict)}
+    cx = max(1, min(map_size, int(pref_x)))
+    cy = max(1, min(map_size, int(pref_y)))
+    for d in (min_dist, 6, 4, 1):
+        if _is_spot_free_dist(occupied, cx, cy, d, map_size):
+            return (cx, cy)
+        max_r = min(map_size, 80 if d > 1 else map_size)
+        for radius in range(1, max_r + 1):
+            for dy in range(-radius, radius + 1):
+                for dx in range(-radius, radius + 1):
+                    if max(abs(dx), abs(dy)) != radius:
+                        continue
+                    nx, ny = cx + dx, cy + dy
+                    if _is_spot_free_dist(occupied, nx, ny, d, map_size):
+                        return (nx, ny)
+    for ny in range(1, map_size + 1):
+        for nx in range(1, map_size + 1):
+            if (nx, ny) not in occupied:
+                return (nx, ny)
+    return (cx, cy)
+
+
+def _ensure_worlds_rows(cursor, now: int) -> None:
+    for wid in range(1, WORLDS_COUNT + 1):
+        cursor.execute("SELECT id FROM worlds WHERE id = ?", (wid,))
+        if not cursor.fetchone():
+            cursor.execute(
+                """INSERT INTO worlds (id, name, seed, is_active, created_unix, registered_players)
+                   VALUES (?, ?, ?, ?, ?, 0)""",
+                (wid, f"Dünya {wid}", 1000 + wid, 1 if wid == 1 else 0, now)
+            )
+
+
+def _unwrap_world_payload(raw_w: Dict[str, Any], default_wid: int = 1, now: int = 0) -> Dict[str, Any]:
+    if not isinstance(raw_w, dict):
+        return {}
+    if isinstance(raw_w.get("state"), dict):
+        w = copy.deepcopy(raw_w)
+        wid = int(w.get("world_id", w.get("id", default_wid)) or default_wid)
+        w["world_id"] = wid
+        w.setdefault("world_name", f"Dünya {wid}")
+        w.setdefault("seed", 1000 + wid)
+        w.setdefault("created_unix", now)
+        w.setdefault("last_saved_unix", now)
+        if not isinstance(w.get("registered_real_players"), list):
+            w["registered_real_players"] = []
+        return w
+    wid = int(raw_w.get("world_id", raw_w.get("world", {}).get("world_id", default_wid)) or default_wid)
+    return {
+        "world_id": wid,
+        "world_name": f"Dünya {wid}",
+        "seed": 1000 + wid,
+        "created_unix": now,
+        "last_saved_unix": now,
+        "registered_real_players": [],
+        "state": copy.deepcopy(raw_w),
+    }
+
+
+def _collect_real_players(w_data: Dict[str, Any]) -> List[str]:
+    seen = {}
+    out: List[str] = []
+    for name in (w_data.get("registered_real_players") or []):
+        n = _norm_p_name(str(name))
+        if n and n.lower() not in seen:
+            seen[n.lower()] = True
+            out.append(n)
+    state = w_data.get("state") or {}
+    for v in (state.get("villages") or []):
+        if _is_real_player_village(v):
+            n = _norm_p_name(str(v.get("owner", "")))
+            if n and n.lower() not in seen:
+                seen[n.lower()] = True
+                out.append(n)
+    return out
+
+
+def _player_has_village_in_world(w_data: Optional[Dict[str, Any]], player_name: str) -> bool:
+    if not isinstance(w_data, dict):
+        return False
+    state = w_data.get("state") or {}
+    for v in (state.get("villages") or []):
+        if _is_real_player_village(v) and _matches_player(str(v.get("owner", "")), player_name):
+            return True
+    return False
+
+
+def _prepare_world_for_player(world_w: Optional[Dict[str, Any]], player_name: str) -> Optional[Dict[str, Any]]:
+    if not isinstance(world_w, dict):
+        return None
+    w = copy.deepcopy(world_w)
+    state = w.setdefault("state", {})
+    w_dict = state.setdefault("world", {})
+    norm_p = _norm_p_name(player_name)
+
+    profiles = w_dict.get("player_profiles")
+    if not isinstance(profiles, dict):
+        profiles = {}
+        w_dict["player_profiles"] = profiles
+
+    found_prof: Dict[str, Any] = {}
+    for pk, pv in profiles.items():
+        if _matches_player(pk, norm_p) and isinstance(pv, dict):
+            found_prof = copy.deepcopy(pv)
+            break
+
+    psb = w_dict.get("player_starter_boost")
+    if not isinstance(psb, dict):
+        psb = {}
+        w_dict["player_starter_boost"] = psb
+    boost_rec: Dict[str, Any] = {}
+    for bk, bv in psb.items():
+        if _matches_player(bk, norm_p) and isinstance(bv, dict):
+            boost_rec = bv
+            break
+
+    villages = state.get("villages") or []
+    first_vid = -1
+    owned_vids: List[int] = []
+    total_points = 0
+    for v in villages:
+        if _is_real_player_village(v) and _matches_player(str(v.get("owner", "")), norm_p):
+            vid = int(v.get("id", -1))
+            if first_vid < 0:
+                first_vid = vid
+            owned_vids.append(vid)
+            total_points += int(v.get("points", 110))
+
+    prof_active = int(found_prof.get("active_village_id", -1) or -1)
+    if prof_active in owned_vids:
+        active_vid = prof_active
+    elif first_vid > 0:
+        active_vid = first_vid
+    else:
+        active_vid = -1
+
+    q_dict = found_prof.get("quests")
+    if not isinstance(q_dict, dict):
+        q_dict = {"claimed": [], "stats": {}}
+
+    created_u = int(found_prof.get("created_unix", boost_rec.get("created_unix", 0)) or 0)
+    boost_u = int(found_prof.get("starter_boost_until_unix", boost_rec.get("starter_boost_until_unix", 0)) or 0)
+    if boost_u <= 0 and created_u > 0:
+        boost_u = created_u + STARTER_BOOST_SECONDS
+
+    state["active_village_id"] = active_vid
+    state["player"] = {
+        "id": 1,
+        "name": norm_p or str(player_name),
+        "auth_id": str(found_prof.get("auth_id", "")),
+        "provider": str(found_prof.get("provider", "")),
+        "points": total_points,
+        "created_unix": created_u,
+        "starter_boost_until_unix": boost_u,
+        "protection_until_unix": int(found_prof.get("protection_until_unix", 0) or 0),
+        "conquest_protection_until_unix": int(found_prof.get("conquest_protection_until_unix", 0) or 0),
+        "tutorial_completed": bool(found_prof.get("tutorial_completed", False)),
+        "tutorial_step": int(found_prof.get("tutorial_step", 0) or 0),
+        "tutorial_reward_claimed": bool(found_prof.get("tutorial_reward_claimed", False)),
+        "quests": copy.deepcopy(q_dict),
+        "gold_armour": int(found_prof.get("gold_armour", 0) or 0),
+        "premium": False,
+    }
+    w["registered_real_players"] = _collect_real_players(w)
+    return w
+
+
+def _rebuild_tiles(state: Dict[str, Any]) -> None:
+    w_dict = state.setdefault("world", {})
+    tiles: Dict[str, int] = {}
+    for v in (state.get("villages") or []):
+        if isinstance(v, dict):
+            tiles[f"{int(v.get('x', 1))},{int(v.get('y', 1))}"] = int(v.get("id", 0))
+    w_dict["tiles"] = tiles
+    w_dict["villages"] = state.get("villages") or []
+
+
+def _report_sig(rep: Any) -> tuple:
+    if not isinstance(rep, dict):
+        return ("",)
+    data = rep.get("data") if isinstance(rep.get("data"), dict) else {}
+    return (
+        str(rep.get("type", "")),
+        int(rep.get("village_id", 0) or 0),
+        int(rep.get("unix", rep.get("created_unix", 0)) or 0),
+        int(data.get("target_village_id", 0) or 0),
+        int(data.get("from_village_id", 0) or 0),
+    )
+
+
+def _message_sig(msg: Any) -> tuple:
+    if not isinstance(msg, dict):
+        return ("",)
+    return (
+        str(msg.get("from", msg.get("from_name", ""))).strip(),
+        str(msg.get("to", msg.get("to_name", ""))).strip(),
+        str(msg.get("subject", "")).strip(),
+        int(msg.get("created_unix", 0) or 0),
+    )
+
+
+def _movement_sig(mov: Any) -> tuple:
+    if not isinstance(mov, dict):
+        return ("",)
+    return (
+        int(mov.get("from_village_id", mov.get("village_id", 0)) or 0),
+        int(mov.get("to_village_id", 0) or 0),
+        str(mov.get("type", "")),
+        int(mov.get("depart_unix", mov.get("start_unix", 0)) or 0),
+        int(mov.get("arrive_unix", mov.get("arrival_unix", 0)) or 0),
+    )
+
+
+def merge_world_state(server_w: Optional[Dict[str, Any]], client_raw: Dict[str, Any], acting_player: str, now: int) -> Dict[str, Any]:
+    """Birden fazla oyuncunun aynı ortak dünyadaki hamlelerini güvenli şekilde birleştirir."""
+    act_name = _norm_p_name(acting_player)
+    c_w = _unwrap_world_payload(client_raw, int((server_w or {}).get("world_id", 1) or 1), now)
+    c_state = c_w.setdefault("state", {})
+    c_w_dict = c_state.setdefault("world", {})
+
+    # Güncel oyuncu profilini client'ın state.player'ından player_profiles içine yansıt
+    c_player = c_state.get("player")
+    if isinstance(c_player, dict) and act_name:
+        c_profs = c_w_dict.setdefault("player_profiles", {})
+        c_profs[act_name] = {
+            "name": act_name,
+            "provider": str(c_player.get("provider", "")),
+            "auth_id": str(c_player.get("auth_id", "")),
+            "points": int(c_player.get("points", 0) or 0),
+            "created_unix": int(c_player.get("created_unix", 0) or 0),
+            "starter_boost_until_unix": int(c_player.get("starter_boost_until_unix", 0) or 0),
+            "protection_until_unix": int(c_player.get("protection_until_unix", 0) or 0),
+            "conquest_protection_until_unix": int(c_player.get("conquest_protection_until_unix", 0) or 0),
+            "tutorial_completed": bool(c_player.get("tutorial_completed", False)),
+            "tutorial_step": int(c_player.get("tutorial_step", 0) or 0),
+            "tutorial_reward_claimed": bool(c_player.get("tutorial_reward_claimed", False)),
+            "quests": copy.deepcopy(c_player.get("quests") if isinstance(c_player.get("quests"), dict) else {"claimed": [], "stats": {}}),
+            "gold_armour": int(c_player.get("gold_armour", 0) or 0),
+            "active_village_id": int(c_state.get("active_village_id", -1) or -1),
+        }
+
+    if not server_w or not isinstance(server_w.get("state"), dict) or not (server_w["state"].get("villages")):
+        merged = copy.deepcopy(c_w)
+        merged["last_saved_unix"] = now
+        merged["registered_real_players"] = _collect_real_players(merged)
+        _rebuild_tiles(merged["state"])
+        return merged
+
+    merged = copy.deepcopy(server_w)
+    s_state = merged.setdefault("state", {})
+    s_w_dict = s_state.setdefault("world", {})
+    s_last = int(merged.get("last_saved_unix", 0) or 0)
+    c_last = int(c_w.get("last_saved_unix", now) or now)
+
+    # 1. Profiller ve başlangıç bonusları (her oyuncunun verisi ayrı korunur)
+    s_profs = s_w_dict.setdefault("player_profiles", {})
+    c_profs = c_w_dict.get("player_profiles") if isinstance(c_w_dict.get("player_profiles"), dict) else {}
+    for pk, pv in c_profs.items():
+        if isinstance(pv, dict) and (_matches_player(pk, act_name) or pk not in s_profs):
+            s_profs[pk] = copy.deepcopy(pv)
+
+    s_psb = s_w_dict.setdefault("player_starter_boost", {})
+    c_psb = c_w_dict.get("player_starter_boost") if isinstance(c_w_dict.get("player_starter_boost"), dict) else {}
+    for bk, bv in c_psb.items():
+        if isinstance(bv, dict) and (_matches_player(bk, act_name) or bk not in s_psb):
+            s_psb[bk] = copy.deepcopy(bv)
+
+    # 2. Köyleri indeksle ve eşzamanlı yeni köy ID / mesafe çakışmalarını çöz
+    s_villages: List[Dict[str, Any]] = [copy.deepcopy(v) for v in (s_state.get("villages") or []) if isinstance(v, dict)]
+    c_villages: List[Dict[str, Any]] = [copy.deepcopy(v) for v in (c_state.get("villages") or []) if isinstance(v, dict)]
+
+    s_by_id: Dict[int, Dict[str, Any]] = {int(v.get("id", 0)): v for v in s_villages}
+    c_by_id: Dict[int, Dict[str, Any]] = {int(v.get("id", 0)): v for v in c_villages}
+    max_vid = max(list(s_by_id.keys()) + list(c_by_id.keys()) + [106])
+
+    # Client raporlarından yeni savaş / fetih raporlarını topla
+    s_report_sigs = {_report_sig(r) for r in (s_state.get("reports") or [])}
+    new_client_reports: List[Dict[str, Any]] = []
+    all_conquered_target_vids = set()
+    for rep in (c_state.get("reports") or []):
+        if isinstance(rep, dict):
+            rdata = rep.get("data") if isinstance(rep.get("data"), dict) else {}
+            if rep.get("type") == "battle" and bool(rdata.get("conquered", False)):
+                all_conquered_target_vids.add(int(rdata.get("target_village_id", 0) or 0))
+            if _report_sig(rep) not in s_report_sigs:
+                new_client_reports.append(rep)
+
+    vid_remap: Dict[int, int] = {}
+    acting_client_vids_before = {
+        int(v.get("id", 0)) for v in c_villages
+        if _is_real_player_village(v) and _matches_player(str(v.get("owner", "")), act_name)
+    }
+
+    # Client'taki aktif oyuncunun köylerini kontrol et: başka bir gerçek oyuncunun köy ID'siyle çakışıyor mu veya < 9 mesafede mi?
+    for c_v in c_villages:
+        if not (_is_real_player_village(c_v) and _matches_player(str(c_v.get("owner", "")), act_name)):
+            continue
+        old_vid = int(c_v.get("id", 0))
+        s_match = s_by_id.get(old_vid)
+        is_new_starter_or_collision = False
+        if s_match is not None and _is_real_player_village(s_match) and not _matches_player(str(s_match.get("owner", "")), act_name):
+            # Eğer aynı koordinatta gerçek bir fetih raporu yoksa bu iki farklı telefonun aynı ID'yi üretmesidir!
+            same_xy = (int(c_v.get("x", -1)) == int(s_match.get("x", -2)) and int(c_v.get("y", -1)) == int(s_match.get("y", -2)))
+            if not (same_xy and old_vid in all_conquered_target_vids):
+                is_new_starter_or_collision = True
+                max_vid += 1
+                vid_remap[old_vid] = max_vid
+                c_v["id"] = max_vid
+                old_vid = max_vid
+        elif s_match is None:
+            is_new_starter_or_collision = True
+
+        if is_new_starter_or_collision:
+            occupied = {(int(v.get("x", 0)), int(v.get("y", 0))) for v in s_villages}
+            vx, vy = int(c_v.get("x", 100)), int(c_v.get("y", 100))
+            if not _is_spot_free_dist(occupied, vx, vy, MIN_VILLAGE_DISTANCE, MAP_SIZE):
+                nx, ny = _find_free_spot_on_server(s_villages, vx, vy, MIN_VILLAGE_DISTANCE, MAP_SIZE)
+                c_v["x"] = nx
+                c_v["y"] = ny
+            s_villages.append(c_v)
+
+    # Remap edilmiş ID'yi profildeki active_village_id içine de uygula
+    if act_name in s_profs and isinstance(s_profs[act_name], dict):
+        av = int(s_profs[act_name].get("active_village_id", -1) or -1)
+        if av in vid_remap:
+            s_profs[act_name]["active_village_id"] = vid_remap[av]
+
+    # Remap sonrası client köylerini birleştir
+    for c_v in c_villages:
+        vid = int(c_v.get("id", 0))
+        is_act_v = _is_real_player_village(c_v) and _matches_player(str(c_v.get("owner", "")), act_name)
+        s_v = s_by_id.get(vid)
+
+        if is_act_v:
+            # Aktif oyuncunun kendi köyü (veya fethettiği köy) her zaman client'tan güncellenir
+            s_by_id[vid] = c_v
+            continue
+
+        if s_v is None:
+            s_by_id[vid] = c_v
+            continue
+
+        if _is_real_player_village(s_v):
+            # Başka gerçek bir oyuncunun köyü! Kendi binalarını/kuyruklarını koru, sadece yeni destek/savaş farkını uygula
+            s_sup = list(s_v.get("support") or []) if isinstance(s_v.get("support"), list) else []
+            c_sup = list(c_v.get("support") or []) if isinstance(c_v.get("support"), list) else []
+
+            def _sup_key(item):
+                if not isinstance(item, dict):
+                    return ("",)
+                return (
+                    int(item.get("from_village_id", 0) or 0),
+                    int(item.get("arrive_unix", 0) or 0),
+                )
+
+            s_act_sups = {_sup_key(it): it for it in s_sup if isinstance(it, dict) and (int(it.get("from_village_id", 0) or 0) in acting_client_vids_before or _matches_player(str(it.get("owner", "")), act_name))}
+            c_act_sups = {_sup_key(it): it for it in c_sup if isinstance(it, dict) and (int(it.get("from_village_id", 0) or 0) in acting_client_vids_before or _matches_player(str(it.get("owner", "")), act_name))}
+
+            # Aktif oyuncudan yeni gelen destekleri ekle, geri çekilenleri düş
+            v_units = dict(s_v.get("units") or {})
+            kept_sups = [it for it in s_sup if _sup_key(it) not in s_act_sups or _sup_key(it) in c_act_sups]
+            for sk, sit in s_act_sups.items():
+                if sk not in c_act_sups:
+                    for uk, cnt in (sit.get("units") or {}).items():
+                        v_units[uk] = max(0, int(v_units.get(uk, 0) or 0) - int(cnt or 0))
+            for ck, cit in c_act_sups.items():
+                if ck not in s_act_sups:
+                    cit_copy = copy.deepcopy(cit)
+                    fv = int(cit_copy.get("from_village_id", 0) or 0)
+                    if fv in vid_remap:
+                        cit_copy["from_village_id"] = vid_remap[fv]
+                    kept_sups.append(cit_copy)
+                    for uk, cnt in (cit_copy.get("units") or {}).items():
+                        v_units[uk] = int(v_units.get(uk, 0) or 0) + int(cnt or 0)
+            s_v["support"] = kept_sups
+            s_v["units"] = v_units
+
+            # Aktif oyuncunun bu köye yönelik YENİ savaş raporu varsa kayıpları/yağmayı/sur hasarını uygula
+            for rep in new_client_reports:
+                if rep.get("type") == "battle":
+                    rdata = rep.get("data") if isinstance(rep.get("data"), dict) else {}
+                    if int(rdata.get("target_village_id", 0) or 0) == vid:
+                        for uk, loss in (rdata.get("defender_losses") or {}).items():
+                            v_units[uk] = max(0, int(v_units.get(uk, 0) or 0) - int(loss or 0))
+                        s_v["units"] = v_units
+                        v_res = dict(s_v.get("resources") or {})
+                        for rk, loot_v in (rdata.get("loot") or {}).items():
+                            v_res[rk] = max(0, int(v_res.get(rk, 0) or 0) - int(loot_v or 0))
+                        s_v["resources"] = v_res
+                        if "realm_after" in rdata and int(rdata.get("realm_after", -1)) >= 0:
+                            s_v["realm_of_power"] = int(rdata["realm_after"])
+            continue
+
+        # Bot / Barbar / Bonus köyü: savaş raporu veya daha güncel simülasyon verisi varsa al
+        has_new_battle = any(
+            rep.get("type") == "battle" and int((rep.get("data") or {}).get("target_village_id", 0) or 0) == vid
+            for rep in new_client_reports
+        )
+        if has_new_battle or c_last >= s_last or int(c_v.get("points", 0) or 0) > int(s_v.get("points", 0) or 0):
+            s_by_id[vid] = c_v
+
+    s_state["villages"] = sorted(s_by_id.values(), key=lambda v: int(v.get("id", 0)))
+    _rebuild_tiles(s_state)
+
+    acting_vids_now = {
+        int(v.get("id", 0)) for v in s_state["villages"]
+        if _is_real_player_village(v) and _matches_player(str(v.get("owner", "")), act_name)
+    }
+
+    # 3. Kuyruklar (queues): aktif oyuncunun köylerinin kuyruğu client'tan, diğerlerininki server'dan
+    merged_queues: List[Dict[str, Any]] = []
+    for q in (s_state.get("queues") or []):
+        if isinstance(q, dict) and int(q.get("village_id", 0) or 0) not in acting_vids_now:
+            merged_queues.append(q)
+    for q in (c_state.get("queues") or []):
+        if isinstance(q, dict):
+            qc = copy.deepcopy(q)
+            q_vid = int(qc.get("village_id", 0) or 0)
+            if q_vid in vid_remap:
+                q_vid = vid_remap[q_vid]
+                qc["village_id"] = q_vid
+            if q_vid in acting_vids_now:
+                merged_queues.append(qc)
+    s_state["queues"] = merged_queues
+
+    # 4. Hareketler (movements)
+    merged_movements: List[Dict[str, Any]] = []
+    seen_mov = set()
+    # Önce aktif oyuncunun köylerinden çıkan/client'ta bilinen hareketler
+    for m in (c_state.get("movements") or []):
+        if not isinstance(m, dict):
+            continue
+        mc = copy.deepcopy(m)
+        fv = int(mc.get("from_village_id", mc.get("village_id", 0)) or 0)
+        tv = int(mc.get("to_village_id", 0) or 0)
+        if fv in vid_remap:
+            mc["from_village_id"] = vid_remap[fv]
+            if "village_id" in mc:
+                mc["village_id"] = vid_remap[fv]
+        if tv in vid_remap:
+            mc["to_village_id"] = vid_remap[tv]
+        sig = _movement_sig(mc)
+        if sig not in seen_mov:
+            seen_mov.add(sig)
+            merged_movements.append(mc)
+    # Diğer gerçek oyuncuların sunucudaki hareketlerini koru (henüz varmamış olanları)
+    for m in (s_state.get("movements") or []):
+        if not isinstance(m, dict):
+            continue
+        fv = int(m.get("from_village_id", m.get("village_id", 0)) or 0)
+        if fv in acting_vids_now or fv in acting_client_vids_before:
+            continue  # Aktif oyuncunun kendi hareketlerinde client otoriterdir
+        sig = _movement_sig(m)
+        if sig not in seen_mov and (int(m.get("arrive_unix", 0) or 0) > now or int(m.get("to_village_id", 0) or 0) not in acting_vids_now):
+            seen_mov.add(sig)
+            merged_movements.append(m)
+    s_state["movements"] = merged_movements
+
+    # 5. İttifaklar (alliances)
+    s_alliances = {str(a.get("name", "")).strip().lower(): copy.deepcopy(a) for a in (s_state.get("alliances") or []) if isinstance(a, dict)}
+    max_aid = max([int(a.get("id", 0) or 0) for a in s_alliances.values()] + [0])
+
+    # Aktif oyuncu client'ta hangi ittifaka üye?
+    act_c_alliance_key = ""
+    for a in (c_state.get("alliances") or []):
+        if not isinstance(a, dict):
+            continue
+        for m in (a.get("members") or []):
+            if isinstance(m, dict) and _matches_player(str(m.get("name", "")), act_name):
+                act_c_alliance_key = str(a.get("name", "")).strip().lower()
+                break
+
+    for c_a in (c_state.get("alliances") or []):
+        if not isinstance(c_a, dict):
+            continue
+        akey = str(c_a.get("name", "")).strip().lower()
+        if not akey:
+            continue
+        if akey not in s_alliances:
+            ac = copy.deepcopy(c_a)
+            aid = int(ac.get("id", 0) or 0)
+            if aid <= 0 or any(int(sa.get("id", 0) or 0) == aid for sa in s_alliances.values()):
+                max_aid += 1
+                ac["id"] = max_aid
+            s_alliances[akey] = ac
+            continue
+
+        sa = s_alliances[akey]
+        # Sohbet mesajlarını birleştir
+        s_chat = list(sa.get("chat_messages") or [])
+        c_chat = list(c_a.get("chat_messages") or [])
+        seen_chat = {(str(cm.get("sender", "")), str(cm.get("text", "")), int(cm.get("timestamp_unix", 0) or 0)) for cm in s_chat if isinstance(cm, dict)}
+        for cm in c_chat:
+            if isinstance(cm, dict):
+                csig = (str(cm.get("sender", "")), str(cm.get("text", "")), int(cm.get("timestamp_unix", 0) or 0))
+                if csig not in seen_chat:
+                    seen_chat.add(csig)
+                    s_chat.append(copy.deepcopy(cm))
+        s_chat.sort(key=lambda x: int(x.get("timestamp_unix", 0) or 0))
+        sa["chat_messages"] = s_chat[-150:]
+
+        # Üyeleri birleştir (diğer oyuncuları koru, aktif oyuncunun katılma/ayrılmasını işle)
+        s_mems = {str(m.get("name", "")).strip().lower(): copy.deepcopy(m) for m in (sa.get("members") or []) if isinstance(m, dict)}
+        c_mems = {str(m.get("name", "")).strip().lower(): copy.deepcopy(m) for m in (c_a.get("members") or []) if isinstance(m, dict)}
+        if act_c_alliance_key == akey and act_name.lower() in c_mems:
+            s_mems[act_name.lower()] = c_mems[act_name.lower()]
+        elif act_name.lower() in s_mems and act_name.lower() not in c_mems:
+            s_mems.pop(act_name.lower(), None)
+        for mk, mv in c_mems.items():
+            if mk not in s_mems and int(mv.get("joined_unix", 0) or 0) >= s_last - 10:
+                s_mems[mk] = mv
+        sa["members"] = list(s_mems.values())
+
+        # Davetleri birleştir
+        s_invs = {str(i.get("player_name", "")).strip().lower(): copy.deepcopy(i) for i in (sa.get("invitations") or []) if isinstance(i, dict)}
+        c_invs = {str(i.get("player_name", "")).strip().lower(): copy.deepcopy(i) for i in (c_a.get("invitations") or []) if isinstance(i, dict)}
+        for ik, iv in c_invs.items():
+            if ik not in s_invs and int(iv.get("created_unix", 0) or 0) >= s_last - 10:
+                s_invs[ik] = iv
+        if act_name.lower() in s_invs and act_name.lower() not in c_invs:
+            s_invs.pop(act_name.lower(), None)
+        for mk in list(s_invs.keys()):
+            if mk in s_mems:
+                s_invs.pop(mk, None)
+        sa["invitations"] = list(s_invs.values())
+
+        # Diplomasi / açıklama / lider (eğer aktif oyuncu liderse veya son değişiklik yaptıysa)
+        if _matches_player(str(sa.get("leader", "")), act_name):
+            if isinstance(c_a.get("diplomacy"), dict):
+                sa["diplomacy"] = copy.deepcopy(c_a["diplomacy"])
+            if "description" in c_a:
+                sa["description"] = c_a["description"]
+            if "internal_announcement" in c_a:
+                sa["internal_announcement"] = c_a["internal_announcement"]
+
+    s_state["alliances"] = list(s_alliances.values())
+
+    # 6. Mesajlar ve Raporlar (deduplicated union)
+    s_msgs = list(s_state.get("messages") or [])
+    msg_idx = {_message_sig(m): i for i, m in enumerate(s_msgs) if isinstance(m, dict)}
+    for m in (c_state.get("messages") or []):
+        if not isinstance(m, dict):
+            continue
+        msig = _message_sig(m)
+        if msig not in msg_idx:
+            msg_idx[msig] = len(s_msgs)
+            s_msgs.append(copy.deepcopy(m))
+        elif _matches_player(str(m.get("to", m.get("to_name", ""))), act_name) and bool(m.get("read", False)):
+            s_msgs[msg_idx[msig]]["read"] = True
+    s_state["messages"] = s_msgs[-250:]
+
+    s_reps = list(s_state.get("reports") or [])
+    seen_reps = {_report_sig(r) for r in s_reps if isinstance(r, dict)}
+    for r in (c_state.get("reports") or []):
+        if not isinstance(r, dict):
+            continue
+        rc = copy.deepcopy(r)
+        rv = int(rc.get("village_id", 0) or 0)
+        if rv in vid_remap:
+            rc["village_id"] = vid_remap[rv]
+        if isinstance(rc.get("data"), dict):
+            fv = int(rc["data"].get("from_village_id", 0) or 0)
+            if fv in vid_remap:
+                rc["data"]["from_village_id"] = vid_remap[fv]
+        rsig = _report_sig(rc)
+        if rsig not in seen_reps:
+            seen_reps.add(rsig)
+            s_reps.append(rc)
+    s_state["reports"] = s_reps[-250:]
+
+    # 7. Dünya meta & kayıtlı oyuncular
+    merged["last_saved_unix"] = now
+    s_w_dict["last_saved_unix"] = now
+    s_w_dict["sim_now_unix"] = max(int(s_w_dict.get("sim_now_unix", 0) or 0), int(c_w_dict.get("sim_now_unix", now) or now), now)
+    merged["registered_real_players"] = _collect_real_players(merged)
+    return merged
+
+
 def ensure_cloud_saves_table(cursor, is_pg: bool) -> None:
     bigint_t = "BIGINT" if is_pg else "INTEGER"
     cursor.execute("""CREATE TABLE IF NOT EXISTS cloud_saves (
@@ -587,6 +1219,68 @@ def ensure_cloud_saves_table(cursor, is_pg: bool) -> None:
         state_json TEXT NOT NULL,
         updated_unix {0} NOT NULL
     )""".format(bigint_t))
+    cursor.execute("""CREATE TABLE IF NOT EXISTS world_states (
+        world_id INTEGER PRIMARY KEY,
+        state_json TEXT NOT NULL,
+        updated_unix {0} NOT NULL
+    )""".format(bigint_t))
+
+
+def _sync_worlds_table_from_states(cursor, now: int) -> List[Dict[str, Any]]:
+    _ensure_worlds_rows(cursor, now)
+    cursor.execute("SELECT world_id, state_json FROM world_states ORDER BY world_id ASC")
+    ws_rows = cursor.fetchall()
+    reg_counts: Dict[int, int] = {}
+    for row in ws_rows:
+        wid = int(row["world_id"])
+        try:
+            w_data = json.loads(row["state_json"])
+            reg_counts[wid] = len(_collect_real_players(w_data))
+        except Exception:
+            reg_counts[wid] = 0
+
+    for wid in range(1, WORLDS_COUNT + 1):
+        cnt = reg_counts.get(wid, None)
+        if cnt is not None:
+            cursor.execute("UPDATE worlds SET registered_players = ? WHERE id = ?", (cnt, wid))
+            if cnt >= MAX_REAL_PLAYERS_PER_WORLD and wid < WORLDS_COUNT:
+                cursor.execute("UPDATE worlds SET is_active = 1 WHERE id = ?", (wid + 1,))
+
+    cursor.execute("SELECT * FROM worlds ORDER BY id ASC")
+    rows = cursor.fetchall()
+    out: List[Dict[str, Any]] = []
+    for r in rows:
+        d = dict(r)
+        wid = int(d["id"])
+        if wid in reg_counts:
+            d["registered_players"] = reg_counts[wid]
+        out.append(d)
+    return out
+
+
+def _migrate_legacy_cloud_saves_to_world_states(cursor, now: int) -> None:
+    cursor.execute("SELECT COUNT(*) as cnt FROM world_states")
+    c_row = cursor.fetchone()
+    if c_row and int(list(c_row.values())[0] or 0) > 0:
+        return
+    cursor.execute("SELECT cs.user_id, cs.state_json, cs.updated_unix, u.display_name FROM cloud_saves cs LEFT JOIN users u ON u.id = cs.user_id ORDER BY cs.updated_unix ASC")
+    legacy_rows = cursor.fetchall()
+    for row in legacy_rows:
+        try:
+            raw = json.loads(row["state_json"])
+        except Exception:
+            continue
+        w_id = int(raw.get("world_id", raw.get("state", {}).get("world", {}).get("world_id", 1)) or 1)
+        cursor.execute("SELECT state_json FROM world_states WHERE world_id = ?", (w_id,))
+        existing_ws = cursor.fetchone()
+        server_w = json.loads(existing_ws["state_json"]) if existing_ws else None
+        p_name = str(row.get("display_name") or raw.get("state", {}).get("player", {}).get("name", "") or "Lord Gorkem")
+        merged = merge_world_state(server_w, raw, p_name, int(row["updated_unix"] or now))
+        merged_json = json.dumps(merged, ensure_ascii=False)
+        if existing_ws:
+            cursor.execute("UPDATE world_states SET state_json = ?, updated_unix = ? WHERE world_id = ?", (merged_json, int(row["updated_unix"] or now), w_id))
+        else:
+            cursor.execute("INSERT INTO world_states (world_id, state_json, updated_unix) VALUES (?, ?, ?)", (w_id, merged_json, int(row["updated_unix"] or now)))
 
 
 def _serialize_server_village(v_row) -> Optional[Dict[str, Any]]:
@@ -608,21 +1302,65 @@ def _serialize_server_village(v_row) -> Optional[Dict[str, Any]]:
 
 
 def _fetch_cloud_and_village(cursor, user_id: str, display_name: str):
-    cursor.execute("SELECT state_json, updated_unix FROM cloud_saves WHERE user_id = ?", (user_id,))
-    c_row = cursor.fetchone()
-    cloud_state = None
-    cloud_updated_unix = 0
-    if c_row:
-        cloud_updated_unix = int(c_row["updated_unix"])
+    now = int(time.time())
+    _migrate_legacy_cloud_saves_to_world_states(cursor, now)
+    worlds_meta = _sync_worlds_table_from_states(cursor, now)
+
+    cursor.execute("SELECT world_id, state_json, updated_unix FROM world_states ORDER BY world_id ASC")
+    ws_rows = cursor.fetchall()
+
+    chosen_w = None
+    chosen_updated = 0
+    # 1. Öncelik: Bu oyuncunun köyünün bulunduğu ortak dünya
+    for row in ws_rows:
         try:
-            cloud_state = json.loads(c_row["state_json"])
+            w_data = json.loads(row["state_json"])
         except Exception:
-            cloud_state = None
+            continue
+        if _player_has_village_in_world(w_data, display_name) or any(_matches_player(n, display_name) for n in _collect_real_players(w_data)):
+            chosen_w = w_data
+            chosen_updated = int(row["updated_unix"] or 0)
+            break
+
+    # 2. Öncelik: Yeni oyuncu ise aktif ve henüz 100 oyuncuya ulaşmamış ilk ortak dünya
+    if chosen_w is None:
+        active_ids = {int(wm["id"]) for wm in worlds_meta if int(wm.get("is_active", 0)) == 1}
+        for row in ws_rows:
+            wid = int(row["world_id"])
+            if wid not in active_ids:
+                continue
+            try:
+                w_data = json.loads(row["state_json"])
+            except Exception:
+                continue
+            if len(_collect_real_players(w_data)) < MAX_REAL_PLAYERS_PER_WORLD:
+                chosen_w = w_data
+                chosen_updated = int(row["updated_unix"] or 0)
+                break
+
+    # 3. Fallback: İlk mevcut world_states kaydı
+    if chosen_w is None and ws_rows:
+        try:
+            chosen_w = json.loads(ws_rows[0]["state_json"])
+            chosen_updated = int(ws_rows[0]["updated_unix"] or 0)
+        except Exception:
+            chosen_w = None
+
+    cloud_state = _prepare_world_for_player(chosen_w, display_name) if chosen_w is not None else None
+    if cloud_state is None:
+        cursor.execute("SELECT state_json, updated_unix FROM cloud_saves WHERE user_id = ?", (user_id,))
+        c_row = cursor.fetchone()
+        if c_row:
+            chosen_updated = int(c_row["updated_unix"])
+            try:
+                cloud_state = json.loads(c_row["state_json"])
+            except Exception:
+                cloud_state = None
 
     cursor.execute("SELECT * FROM villages WHERE owner = ? AND is_bot = 0 ORDER BY id ASC LIMIT 1", (display_name,))
     v_row = cursor.fetchone()
     server_village = _serialize_server_village(v_row)
-    return cloud_state, cloud_updated_unix, server_village
+    return cloud_state, chosen_updated, server_village
 
 
 @app.post("/api/auth/login")
@@ -676,7 +1414,8 @@ def auth_login(req: AuthLoginRequest):
         """, (user_id, provider, email, display_name, token, now, now))
 
     cloud_state, cloud_updated_unix, server_village = _fetch_cloud_and_village(cursor, user_id, display_name)
-    has_village = bool(server_village is not None or cloud_state is not None)
+    worlds_meta = _sync_worlds_table_from_states(cursor, now)
+    has_village = bool(server_village is not None or _player_has_village_in_world(cloud_state, display_name))
 
     conn.commit()
     conn.close()
@@ -691,6 +1430,7 @@ def auth_login(req: AuthLoginRequest):
         "starter_boost_until_unix": created_unix + STARTER_BOOST_SECONDS,
         "has_village": has_village,
         "cloud_state": cloud_state,
+        "worlds_meta": worlds_meta,
         "updated_unix": cloud_updated_unix,
         "server_village": server_village
     }
@@ -701,12 +1441,14 @@ def get_me(user: Dict[str, Any] = Depends(get_current_user)):
 
 @app.get("/api/worlds")
 def get_worlds():
+    now = int(time.time())
     conn = get_db()
-    cursor = conn.cursor()
-    cursor.execute("SELECT * FROM worlds ORDER BY id ASC")
-    rows = cursor.fetchall()
-    conn.close()
-    return {"ok": True, "worlds": [dict(r) for r in rows]}
+    with conn:
+        cursor = conn.cursor()
+        ensure_cloud_saves_table(cursor, conn.is_pg)
+        _migrate_legacy_cloud_saves_to_world_states(cursor, now)
+        worlds = _sync_worlds_table_from_states(cursor, now)
+    return {"ok": True, "worlds": worlds}
 
 @app.post("/api/worlds/join")
 def join_world(req: JoinWorldRequest, user: Dict[str, Any] = Depends(get_current_user)):
@@ -1031,12 +1773,14 @@ def send_message(req: SendMessageRequest, user: Dict[str, Any] = Depends(get_cur
 
 @app.get("/api/game/state")
 def get_cloud_state(user: Dict[str, Any] = Depends(get_current_user)):
+    now = int(time.time())
     conn = get_db()
     cursor = conn.cursor()
     ensure_cloud_saves_table(cursor, conn.is_pg)
     cloud_state, cloud_updated_unix, server_village = _fetch_cloud_and_village(
         cursor, user["id"], user["display_name"]
     )
+    worlds_meta = _sync_worlds_table_from_states(cursor, now)
     conn.commit()
     conn.close()
     if cloud_state is not None:
@@ -1044,6 +1788,8 @@ def get_cloud_state(user: Dict[str, Any] = Depends(get_current_user)):
             "ok": True,
             "has_save": True,
             "state": cloud_state,
+            "cloud_state": cloud_state,
+            "worlds_meta": worlds_meta,
             "server_village": server_village,
             "updated_unix": cloud_updated_unix
         }
@@ -1052,10 +1798,12 @@ def get_cloud_state(user: Dict[str, Any] = Depends(get_current_user)):
             "ok": True,
             "has_save": True,
             "state": None,
+            "cloud_state": None,
+            "worlds_meta": worlds_meta,
             "server_village": server_village,
             "updated_unix": int(server_village.get("last_calc_unix", 0))
         }
-    return {"ok": True, "has_save": False, "state": None, "server_village": None, "updated_unix": 0}
+    return {"ok": True, "has_save": False, "state": None, "cloud_state": None, "worlds_meta": worlds_meta, "server_village": None, "updated_unix": 0}
 
 
 @app.post("/api/game/save")
@@ -1065,23 +1813,69 @@ def post_cloud_save(payload: Dict[str, Any], user: Dict[str, Any] = Depends(get_
         state_obj = payload["state"]
     else:
         state_obj = payload if isinstance(payload, dict) else {}
-    state_json = json.dumps(state_obj, ensure_ascii=False)
+
+    w_id = int(
+        (state_obj.get("world_id") if isinstance(state_obj, dict) else None)
+        or (state_obj.get("state", {}).get("world", {}).get("world_id") if isinstance(state_obj, dict) and isinstance(state_obj.get("state"), dict) else None)
+        or (state_obj.get("world", {}).get("world_id") if isinstance(state_obj, dict) and isinstance(state_obj.get("world"), dict) else None)
+        or 1
+    )
+    if w_id < 1 or w_id > WORLDS_COUNT:
+        w_id = 1
+
     conn = get_db()
+    merged_for_player = None
+    worlds_meta: List[Dict[str, Any]] = []
     with conn:
         cursor = conn.cursor()
         ensure_cloud_saves_table(cursor, conn.is_pg)
+        _migrate_legacy_cloud_saves_to_world_states(cursor, now)
+
+        cursor.execute("SELECT state_json FROM world_states WHERE world_id = ?", (w_id,))
+        ws_row = cursor.fetchone()
+        server_w = None
+        if ws_row:
+            try:
+                server_w = json.loads(ws_row["state_json"])
+            except Exception:
+                server_w = None
+
+        merged_w = merge_world_state(server_w, state_obj, user["display_name"], now)
+        merged_json = json.dumps(merged_w, ensure_ascii=False)
+        if ws_row:
+            cursor.execute(
+                "UPDATE world_states SET state_json = ?, updated_unix = ? WHERE world_id = ?",
+                (merged_json, now, w_id)
+            )
+        else:
+            cursor.execute(
+                "INSERT INTO world_states (world_id, state_json, updated_unix) VALUES (?, ?, ?)",
+                (w_id, merged_json, now)
+            )
+
+        merged_for_player = _prepare_world_for_player(merged_w, user["display_name"])
+        player_save_json = json.dumps(merged_for_player, ensure_ascii=False)
         cursor.execute("SELECT user_id FROM cloud_saves WHERE user_id = ?", (user["id"],))
         if cursor.fetchone():
             cursor.execute(
                 "UPDATE cloud_saves SET state_json = ?, updated_unix = ? WHERE user_id = ?",
-                (state_json, now, user["id"])
+                (player_save_json, now, user["id"])
             )
         else:
             cursor.execute(
                 "INSERT INTO cloud_saves (user_id, state_json, updated_unix) VALUES (?, ?, ?)",
-                (user["id"], state_json, now)
+                (user["id"], player_save_json, now)
             )
-    return {"ok": True, "updated_unix": now}
+
+        worlds_meta = _sync_worlds_table_from_states(cursor, now)
+
+    return {
+        "ok": True,
+        "updated_unix": now,
+        "world_id": w_id,
+        "cloud_state": merged_for_player,
+        "worlds_meta": worlds_meta,
+    }
 
 
 @app.get("/api/reports")
