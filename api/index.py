@@ -443,25 +443,36 @@ def normalize_display_name(raw_name: str) -> str:
     return html.escape(n)
 
 def get_starter_boost_until(conn: sqlite3.Connection, v_dict: Dict[str, Any], user_dict: Optional[Dict[str, Any]] = None) -> int:
-    if user_dict and int(user_dict.get("created_unix", 0)) > 0:
-        return int(user_dict["created_unix"]) + STARTER_BOOST_SECONDS
+    prot = int(v_dict.get("protection_until_unix", 0) or 0)
+    v_created = (prot - 15 * 86400) if prot > (15 * 86400) else 0
+
+    u_created = 0
+    if user_dict and int(user_dict.get("created_unix", 0) or 0) > 0:
+        u_created = int(user_dict["created_unix"])
+    else:
+        cursor = conn.cursor()
+        uid = v_dict.get("user_id")
+        owner = v_dict.get("owner")
+        if uid:
+            cursor.execute("SELECT created_unix FROM users WHERE id = ?", (uid,))
+            row = cursor.fetchone()
+            if row and int(row["created_unix"] or 0) > 0:
+                u_created = int(row["created_unix"])
+        if u_created <= 0 and owner:
+            cursor.execute("SELECT created_unix FROM users WHERE LOWER(display_name) = LOWER(?)", (owner,))
+            row = cursor.fetchone()
+            if row and int(row["created_unix"] or 0) > 0:
+                u_created = int(row["created_unix"])
+
+    player_start = max(v_created, u_created)
+    if player_start > 0:
+        return player_start + STARTER_BOOST_SECONDS
+
     cursor = conn.cursor()
-    uid = v_dict.get("user_id")
-    owner = v_dict.get("owner")
-    if uid:
-        cursor.execute("SELECT created_unix FROM users WHERE id = ?", (uid,))
-        row = cursor.fetchone()
-        if row and int(row["created_unix"]) > 0:
-            return int(row["created_unix"]) + STARTER_BOOST_SECONDS
-    if owner:
-        cursor.execute("SELECT created_unix FROM users WHERE LOWER(display_name) = LOWER(?)", (owner,))
-        row = cursor.fetchone()
-        if row and int(row["created_unix"]) > 0:
-            return int(row["created_unix"]) + STARTER_BOOST_SECONDS
     wid = int(v_dict.get("world_id", 1))
     cursor.execute("SELECT created_unix FROM worlds WHERE id = ?", (wid,))
     wrow = cursor.fetchone()
-    if wrow and int(wrow["created_unix"]) > 0:
+    if wrow and int(wrow["created_unix"] or 0) > 0:
         return int(wrow["created_unix"]) + STARTER_BOOST_SECONDS
     return 0
 

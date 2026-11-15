@@ -329,6 +329,8 @@ func join_world(world_id: int, player_name: String, target_x: int = 100, target_
 	var player_v: Dictionary = VillageModelScript.create(player_vid, "Başkent", free_spot.x, free_spot.y, player_name, false)
 	player_v["is_bot"] = false
 	player_v["is_barbarian"] = false
+	player_v["created_unix"] = now
+	player_v["starter_boost_until_unix"] = now + (7 * 86400)
 	player_v["protection_until"] = now + (15 * 86400)
 	player_v["protection_until_unix"] = now + (15 * 86400)
 	player_v["conquest_protection_until"] = now + (15 * 86400)
@@ -343,6 +345,12 @@ func join_world(world_id: int, player_name: String, target_x: int = 100, target_
 	world_dict["starter_boost_days"] = 7
 	world_dict["player_joined_unix"] = now
 	world_dict["starter_boost_until_unix"] = now + (7 * 86400)
+	if typeof(world_dict.get("player_starter_boost")) != TYPE_DICTIONARY:
+		world_dict["player_starter_boost"] = {}
+	world_dict["player_starter_boost"][player_name] = {
+		"created_unix": now,
+		"starter_boost_until_unix": now + (7 * 86400),
+	}
 	world_dict["speed"] = 2.0
 	world_dict["unit_speed"] = 2.0
 	state["villages"] = villages_list
@@ -453,7 +461,7 @@ func enter_world(world_id: int, player_name: String) -> bool:
 		return false
 
 	var now := int(Time.get_unix_time_from_system())
-	_ensure_starter_boost(state, int(w_data.get("created_unix", now)), now)
+	_ensure_starter_boost(state, int(w_data.get("created_unix", now)), now, player_name)
 	_sync_game_config_speed(state, now)
 
 	if _enforce_min_village_distance(w_data, player_vid):
@@ -532,8 +540,8 @@ func _unlock_next_world(next_id: int) -> void:
 	_save_meta()
 
 
-## İlk 7 gün 2x hız bonusunu dünya/oyuncu verisinde garanti eder.
-func _ensure_starter_boost(state: Dictionary, fallback_created_unix: int = 0, now_unix: int = 0) -> void:
+## İlk 7 gün 2x hız bonusunu oyuncu bazlı olarak dünya/oyuncu/köy verisinde garanti eder.
+func _ensure_starter_boost(state: Dictionary, fallback_created_unix: int = 0, now_unix: int = 0, player_name: String = "") -> void:
 	if typeof(state) != TYPE_DICTIONARY:
 		return
 	var now := now_unix if now_unix > 0 else int(Time.get_unix_time_from_system())
@@ -544,32 +552,123 @@ func _ensure_starter_boost(state: Dictionary, fallback_created_unix: int = 0, no
 		state["player"] = {}
 	var p_dict: Dictionary = state["player"]
 
-	var boost_until := int(w_dict.get("starter_boost_until_unix", p_dict.get("starter_boost_until_unix", 0)))
+	var p_name := _norm_name(player_name if not player_name.is_empty() else str(p_dict.get("name", "")))
+	var boost_until := 0
+	var created := 0
+
+	# 1) Oyuncu bazlı haritadan kontrol et.
+	if not p_name.is_empty() and typeof(w_dict.get("player_starter_boost")) == TYPE_DICTIONARY:
+		var psb: Dictionary = w_dict["player_starter_boost"]
+		for k in psb.keys():
+			if _matches_player(str(k), p_name) and typeof(psb[k]) == TYPE_DICTIONARY:
+				var rec: Dictionary = psb[k]
+				var rb := int(rec.get("starter_boost_until_unix", 0))
+				var rc := int(rec.get("created_unix", 0))
+				if rb <= 0 and rc > 0:
+					rb = rc + (7 * 86400)
+				if rb > 0:
+					boost_until = rb
+					created = rc if rc > 0 else rb - (7 * 86400)
+					break
+
+	# 2) Oyuncunun köy verilerinden kontrol et (ilk veya en güncel başlangıç damgası).
+	var villages_val = state.get("villages", [])
+	if boost_until <= 0 and not p_name.is_empty() and typeof(villages_val) == TYPE_ARRAY:
+		for v in villages_val:
+			if typeof(v) != TYPE_DICTIONARY:
+				continue
+			var vd: Dictionary = v
+			if bool(vd.get("is_bot", false)) or bool(vd.get("is_barbarian", false)):
+				continue
+			if not _matches_player(str(vd.get("owner", "")), p_name):
+				continue
+			var vb := int(vd.get("starter_boost_until_unix", 0))
+			var vc := int(vd.get("created_unix", 0))
+			var vp := int(vd.get("protection_until_unix", 0))
+			if vb > 0:
+				boost_until = vb
+				created = vc if vc > 0 else (vp - (15 * 86400) if vp > (15 * 86400) else vb - (7 * 86400))
+				break
+			elif vc > 0:
+				created = vc
+				boost_until = vc + (7 * 86400)
+				break
+			elif vp > (15 * 86400):
+				created = vp - (15 * 86400)
+				boost_until = created + (7 * 86400)
+				break
+
+	# 3) Aktif player sözlüğü aynı oyuncuya aitse buradan kontrol et.
+	if boost_until <= 0 and (p_name.is_empty() or _matches_player(str(p_dict.get("name", "")), p_name)):
+		var pb := int(p_dict.get("starter_boost_until_unix", 0))
+		var pc := int(p_dict.get("created_unix", 0))
+		if pb > 0:
+			boost_until = pb
+			created = pc if pc > 0 else pb - (7 * 86400)
+		elif pc > 0:
+			created = pc
+			boost_until = pc + (7 * 86400)
+
+	# 4) Yalnızca hiçbir oyuncu verisi yoksa dünya genel yedeğine düş.
 	if boost_until <= 0:
-		var created := int(p_dict.get("created_unix", w_dict.get("player_joined_unix", w_dict.get("created_unix", fallback_created_unix))))
-		if created <= 0:
-			created = now
-		boost_until = created + (7 * 86400)
+		boost_until = int(w_dict.get("starter_boost_until_unix", 0))
+		if boost_until <= 0:
+			created = int(w_dict.get("player_joined_unix", w_dict.get("created_unix", fallback_created_unix)))
+			if created <= 0:
+				created = now
+			boost_until = created + (7 * 86400)
+	if created <= 0:
+		created = boost_until - (7 * 86400)
+
+	if not p_name.is_empty():
+		if typeof(w_dict.get("player_starter_boost")) != TYPE_DICTIONARY:
+			w_dict["player_starter_boost"] = {}
+		w_dict["player_starter_boost"][p_name] = {
+			"created_unix": created,
+			"starter_boost_until_unix": boost_until,
+		}
+		if typeof(villages_val) == TYPE_ARRAY:
+			for v in villages_val:
+				if typeof(v) == TYPE_DICTIONARY:
+					var vd: Dictionary = v
+					if not bool(vd.get("is_bot", false)) and not bool(vd.get("is_barbarian", false)) and _matches_player(str(vd.get("owner", "")), p_name):
+						if int(vd.get("created_unix", 0)) <= 0:
+							vd["created_unix"] = created
+						if int(vd.get("starter_boost_until_unix", 0)) <= 0:
+							vd["starter_boost_until_unix"] = boost_until
+
+	w_dict["player_joined_unix"] = created
 	w_dict["starter_boost_until_unix"] = boost_until
 	w_dict["starter_boost_days"] = 7
 	if not w_dict.has("base_speed"):
 		w_dict["base_speed"] = 1.0
 	if not w_dict.has("base_unit_speed"):
 		w_dict["base_unit_speed"] = 1.0
+	p_dict["created_unix"] = created
 	p_dict["starter_boost_until_unix"] = boost_until
-	if int(p_dict.get("created_unix", 0)) <= 0:
-		p_dict["created_unix"] = boost_until - (7 * 86400)
 	var is_active := now < boost_until
 	w_dict["speed"] = 2.0 if is_active else float(w_dict.get("base_speed", 1.0))
 	w_dict["unit_speed"] = 2.0 if is_active else float(w_dict.get("base_unit_speed", 1.0))
 
 
+func _find_autoload(node_name: String) -> Node:
+	if is_inside_tree() and get_tree() != null and get_tree().root != null:
+		var t_node := get_tree().root.get_node_or_null(node_name)
+		if t_node != null:
+			return t_node
+	var loop = Engine.get_main_loop()
+	if loop is SceneTree and (loop as SceneTree).root != null:
+		var l_node := (loop as SceneTree).root.get_node_or_null(node_name)
+		if l_node != null:
+			return l_node
+	if get_parent() != null:
+		return get_parent().get_node_or_null(node_name)
+	return null
+
+
 ## GameConfig singleton'unu dünya meta verisinden hızıyla eşitler.
 func _sync_game_config_speed(state: Dictionary, now_unix: int = 0) -> void:
-	var loop = Engine.get_main_loop()
-	if not (loop is SceneTree) or loop.root == null:
-		return
-	var gc = loop.root.get_node_or_null("GameConfig")
+	var gc := _find_autoload("GameConfig")
 	if gc == null:
 		return
 	var w_dict: Dictionary = state.get("world", {}) if typeof(state.get("world")) == TYPE_DICTIONARY else {}
@@ -585,12 +684,11 @@ func _apply_to_game_state(w_data: Dictionary, player_name: String, active_vid: i
 
 	var state: Dictionary = w_data.get("state", {})
 	var now := int(Time.get_unix_time_from_system())
-	_ensure_starter_boost(state, int(w_data.get("created_unix", now)), now)
+	_ensure_starter_boost(state, int(w_data.get("created_unix", now)), now, player_name)
 	gs.from_dict(state)
 	gs.player["name"] = player_name
 	gs.player["id"] = 1
-	var loop = Engine.get_main_loop()
-	var auth = loop.root.get_node_or_null("AuthManager") if (loop is SceneTree and loop.root != null) else null
+	var auth := _find_autoload("AuthManager")
 	if auth != null and bool(auth.is_logged_in):
 		gs.player["provider"] = str(auth.auth_provider)
 		if not str(auth.user_id).is_empty():
@@ -725,8 +823,19 @@ func apply_cloud_sync(res_data: Dictionary) -> bool:
 		if typeof(sv_dict.get("units")) == TYPE_DICTIONARY and not (sv_dict["units"] as Dictionary).is_empty():
 			player_v["units"] = (sv_dict["units"] as Dictionary).duplicate(true)
 		player_v["points"] = int(sv_dict.get("points", player_v.get("points", 110)))
-		player_v["protection_until_unix"] = int(sv_dict.get("protection_until_unix", 0))
+		var prot_u := int(sv_dict.get("protection_until_unix", 0))
+		player_v["protection_until_unix"] = prot_u
 		player_v["conquest_protection_until_unix"] = int(sv_dict.get("conquest_protection_until_unix", 0))
+		var sv_created := int(sv_dict.get("created_unix", res_data.get("created_unix", 0)))
+		if sv_created <= 0 and prot_u > (15 * 86400):
+			sv_created = prot_u - (15 * 86400)
+		var sv_boost_until := int(sv_dict.get("starter_boost_until_unix", res_data.get("starter_boost_until_unix", 0)))
+		if sv_boost_until <= 0 and sv_created > 0:
+			sv_boost_until = sv_created + (7 * 86400)
+		if sv_created > 0:
+			player_v["created_unix"] = sv_created
+		if sv_boost_until > 0:
+			player_v["starter_boost_until_unix"] = sv_boost_until
 
 		villages_list.append(player_v)
 		tiles[WorldGeneratorScript.tile_key(vx, vy)] = sv_id
@@ -735,6 +844,7 @@ func apply_cloud_sync(res_data: Dictionary) -> bool:
 		state["villages"] = villages_list
 		state["world"] = world_dict
 		state["active_village_id"] = sv_id
+		_ensure_starter_boost(state, sv_created, int(Time.get_unix_time_from_system()), p_name)
 		w_data["state"] = state
 		_enforce_min_village_distance(w_data, sv_id)
 		var reg_list: Array = w_data.get("registered_real_players", [])

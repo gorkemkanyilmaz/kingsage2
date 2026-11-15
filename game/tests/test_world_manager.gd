@@ -4,6 +4,7 @@ extends SceneTree
 const WorldManagerScript := preload("res://autoload/WorldManager.gd")
 const SaveManagerScript := preload("res://autoload/SaveManager.gd")
 const GameStateScript := preload("res://autoload/GameState.gd")
+const GameConfigScript := preload("res://autoload/GameConfig.gd")
 const ArmySimScript := preload("res://scripts/sim/army/ArmySimulator.gd")
 
 var _pass_count := 0
@@ -14,6 +15,10 @@ func _init() -> void:
 	print("==================================================")
 	print("🧪 DÜNYA SİSTEMİ & OFFLINE SİMÜLASYON TESTLERİ BAŞLIYOR")
 	print("==================================================")
+
+	var gc = GameConfigScript.new()
+	gc.name = "GameConfig"
+	root.add_child(gc)
 
 	var gs = GameStateScript.new()
 	gs.name = "GameState"
@@ -107,6 +112,52 @@ func _init() -> void:
 	_assert(w2_meta["bot_count"] == 50, "Dünya 2 de 50 bot standardı ile başladı")
 	var w2_data = wm.load_world_dict(2)
 	_assert(not w2_data.is_empty(), "Dünya 2 dosyası başarıyla üretildi")
+
+	# 7. Oyuncu bazlı ilk 7 gün 2x başlangıç hızı izolasyonu
+	wm.reset_all_worlds()
+	var boost_now := int(Time.get_unix_time_from_system())
+	var old_world_created := boost_now - (20 * 86400)
+	var old_player_start := boost_now - (10 * 86400)
+
+	var w1_boost := wm.load_world_dict(1)
+	w1_boost["created_unix"] = old_world_created
+	w1_boost["state"]["world"]["created_unix"] = old_world_created
+	wm.save_world_dict(1, w1_boost)
+
+	_assert(wm.join_world(1, "Lord Eski", 80, 80), "Eski oyuncu (Lord Eski) Dünya 1'e katıldı")
+	var w1_old := wm.load_world_dict(1)
+	var old_state: Dictionary = w1_old["state"]
+	var old_w: Dictionary = old_state["world"]
+	old_w["created_unix"] = old_world_created
+	old_w["player_joined_unix"] = old_player_start
+	old_w["starter_boost_until_unix"] = old_player_start + (7 * 86400)
+	if typeof(old_w.get("player_starter_boost")) != TYPE_DICTIONARY:
+		old_w["player_starter_boost"] = {}
+	old_w["player_starter_boost"]["Lord Eski"] = {
+		"created_unix": old_player_start,
+		"starter_boost_until_unix": old_player_start + (7 * 86400),
+	}
+	for v in old_state.get("villages", []):
+		if typeof(v) == TYPE_DICTIONARY and str(v.get("owner", "")) == "Lord Eski":
+			v["created_unix"] = old_player_start
+			v["starter_boost_until_unix"] = old_player_start + (7 * 86400)
+			v["protection_until_unix"] = old_player_start + (15 * 86400)
+	wm.save_world_dict(1, w1_old)
+
+	_assert(wm.join_world(1, "Lord Yeni", 120, 120), "Yeni oyuncu (Lord Yeni) 20 günlük Dünya 1'e katıldı")
+	_assert(is_equal_approx(gc.speed, 2.0), "Yeni oyuncu için speed = 2.0 (sunucu 20 günlük olsa bile)")
+	_assert(is_equal_approx(gc.unit_speed, 2.0), "Yeni oyuncu için unit_speed = 2.0")
+	_assert(gc.is_starter_boost_active(gs.world), "Yeni oyuncu için starter_boost aktif = true")
+
+	_assert(wm.enter_world(1, "Lord Eski"), "Eski oyuncu (Lord Eski) dünyaya yeniden girdi")
+	_assert(is_equal_approx(gc.speed, 1.0), "10 gün önce başlayan eski oyuncu için speed = 1.0 (süresi dolmuş)")
+	_assert(is_equal_approx(gc.unit_speed, 1.0), "10 gün önce başlayan eski oyuncu için unit_speed = 1.0")
+	_assert(not gc.is_starter_boost_active(gs.world), "Eski oyuncu için starter_boost aktif = false")
+
+	_assert(wm.enter_world(1, "Lord Yeni"), "Yeni oyuncu (Lord Yeni) dünyaya yeniden girdi")
+	_assert(is_equal_approx(gc.speed, 2.0), "Yeni oyuncu tekrar girdiğinde speed = 2.0 korundu")
+	_assert(is_equal_approx(gc.unit_speed, 2.0), "Yeni oyuncu tekrar girdiğinde unit_speed = 2.0 korundu")
+	_assert(gc.is_starter_boost_active(gs.world), "Yeni oyuncu tekrar girdiğinde starter_boost hala aktif = true")
 
 	print("\n==================================================")
 	print("SONUÇLAR: %d PASS, %d FAIL" % [_pass_count, _fail_count])
