@@ -93,6 +93,8 @@ var _btn_finish: Button
 
 var _current_target_rect: Rect2 = Rect2()
 var _current_has_target: bool = false
+var _last_valid_target_rect: Rect2 = Rect2()
+var _last_valid_target_step: int = -1
 
 
 class TargetFXDrawer extends Control:
@@ -1093,6 +1095,15 @@ func _get_step_copy(scene_node: Node, _scene_name: String, gs: Node) -> Dictiona
 			}
 
 		Step.SELECT_MAIN_CASTLE:
+			if bp_vis and bp_key != "main":
+				return {
+					"chapter": "BÖLÜM 1/5 • KÖY DÜZENİ",
+					"title": "Açık Pencereyi Kapatın",
+					"dialogue": "[b][color=#FFD86B]Lordum,[/color][/b] önce açık olan bina penceresini sağ üstteki [b][color=#FFD86B]✕ (Kapat)[/color][/b] butonuna basarak kapatın.",
+					"objective": "Sağ üstteki Kapat (✕) butonuna dokunun.",
+					"next_text": "",
+					"hint": "Pencereyi Kapat"
+				}
 			return {
 				"chapter": "BÖLÜM 1/5 • KÖY DÜZENİ",
 				"title": "Köy Yerleşimi ve Kale",
@@ -1113,6 +1124,15 @@ func _get_step_copy(scene_node: Node, _scene_name: String, gs: Node) -> Dictiona
 			}
 
 		Step.SELECT_WOOD_CAMP:
+			if bp_vis and bp_key != "wood":
+				return {
+					"chapter": "BÖLÜM 2/5 • EKONOMİ",
+					"title": "Açık Pencereyi Kapatın",
+					"dialogue": "[b][color=#FFD86B]Lordum,[/color][/b] Oduncu Kampı'na geçmeden önce açık olan bina penceresini sağ üstteki [b][color=#FFD86B]✕ (Kapat)[/color][/b] butonuna tıklayarak kapatın.",
+					"objective": "Sağ üstteki Kapat (✕) butonuna dokunun.",
+					"next_text": "",
+					"hint": "Pencereyi Kapat"
+				}
 			return {
 				"chapter": "BÖLÜM 2/5 • EKONOMİ",
 				"title": "Hammadde Üretimini Artırmak",
@@ -1143,6 +1163,15 @@ func _get_step_copy(scene_node: Node, _scene_name: String, gs: Node) -> Dictiona
 			}
 
 		Step.CHECK_BARRACKS_REQS:
+			if bp_vis and bp_key != "barracks":
+				return {
+					"chapter": "BÖLÜM 2/5 • GEREKSİNİM ZİNCİRİ",
+					"title": "Önce Oduncu Kampını Kapatın",
+					"dialogue": "[b][color=#FFD86B]Lordum,[/color][/b] Oduncu Kampı Seviye 2 tamamlandı! Şimdi Kışla alanını görebilmek için sağ üstteki [b][color=#FFD86B]✕ (Kapat)[/color][/b] butonuna basarak bu pencereyi kapatın.",
+					"objective": "Sağ üstteki Kapat (✕) butonuna dokunun.",
+					"next_text": "",
+					"hint": "Pencereyi Kapat"
+				}
 			return {
 				"chapter": "BÖLÜM 2/5 • GEREKSİNİM ZİNCİRİ",
 				"title": "Asker Yetiştirmek İçin Kışla",
@@ -1435,8 +1464,7 @@ func _resolve_target_control(scene_node: Node, scene_name: String, gs: Node) -> 
 
 	match _current_step:
 		Step.WELCOME_INTRO:
-			var main_bv := _building_view_ctrl(scene_node, "main")
-			return main_bv if main_bv != null else _btn_next
+			return _btn_next
 
 		Step.RESOURCE_BAR_TOUR:
 			if scene_node != null and scene_node.has_node("ResourceBar"):
@@ -1444,6 +1472,8 @@ func _resolve_target_control(scene_node: Node, scene_name: String, gs: Node) -> 
 			return _btn_next
 
 		Step.SELECT_MAIN_CASTLE:
+			if bp_vis and bp_key != "main":
+				return bp.get_node_or_null("VBox/Header/CloseButton") as Control
 			return _building_view_ctrl(scene_node, "main")
 
 		Step.INSPECT_MAIN_PANEL:
@@ -1452,6 +1482,8 @@ func _resolve_target_control(scene_node: Node, scene_name: String, gs: Node) -> 
 			return _btn_next
 
 		Step.SELECT_WOOD_CAMP:
+			if bp_vis and bp_key != "wood":
+				return bp.get_node_or_null("VBox/Header/CloseButton") as Control
 			return _building_view_ctrl(scene_node, "wood")
 
 		Step.UPGRADE_WOOD_CAMP:
@@ -1462,6 +1494,8 @@ func _resolve_target_control(scene_node: Node, scene_name: String, gs: Node) -> 
 			return _building_view_ctrl(scene_node, "wood")
 
 		Step.CHECK_BARRACKS_REQS:
+			if bp_vis and bp_key != "barracks":
+				return bp.get_node_or_null("VBox/Header/CloseButton") as Control
 			return _building_view_ctrl(scene_node, "barracks")
 
 		Step.COMPLETE_BARRACKS_PREREQS:
@@ -1586,13 +1620,22 @@ func _update_visual_animations(delta: float, scene_node: Node, scene_name: Strin
 		_victory_modal.position = Vector2((vp_size.x - m_size.x) * 0.5, (vp_size.y - m_size.y) * 0.5)
 		return
 
+	if _last_valid_target_step != _current_step:
+		_last_valid_target_step = _current_step
+		_last_valid_target_rect = Rect2()
+
 	var target_ctrl := _resolve_target_control(scene_node, scene_name, gs)
 	var has_target := (target_ctrl != null and target_ctrl.is_inside_tree() and target_ctrl.visible)
 	var t_rect := Rect2()
 	if has_target:
 		t_rect = target_ctrl.get_global_rect()
-		if t_rect.size.x < 4.0 or t_rect.size.y < 4.0:
-			has_target = false
+		if t_rect.size.x < 12.0 or t_rect.size.y < 12.0 or (t_rect.position.length_squared() < 2.0 and target_ctrl != _dim_top):
+			if _last_valid_target_rect.size.x >= 12.0 and _last_valid_target_rect.size.y >= 12.0:
+				t_rect = _last_valid_target_rect
+			else:
+				has_target = false
+		else:
+			_last_valid_target_rect = t_rect
 
 	# Baş Vezir kartını hedefi veya açık BuildingPanel'i kapatmayacak şekilde konumlandır
 	var bp = scene_node.get("building_panel") if scene_node != null else null
@@ -1619,6 +1662,7 @@ func _update_visual_animations(delta: float, scene_node: Node, scene_name: Strin
 		_vizier_card.position = _vizier_card.position.lerp(Vector2(target_card_x, target_card_y), clampf(delta * 14.0, 0.0, 1.0))
 
 	# Tour adımlarında (Karşılama / Harita / İttifak / ResourceBar): spotlight büyük alanı aydınlatırken parmağı 'Devam Et' butonuna tut
+	var passive_welcome := (_current_step == Step.WELCOME_INTRO)
 	var spotlight_rect := t_rect
 	var finger_ctrl := target_ctrl
 	if _current_step in [Step.WELCOME_INTRO, Step.RESOURCE_BAR_TOUR, Step.WORLD_MAP_TOUR, Step.ALLIANCE_TOUR] and _btn_next != null and _btn_next.visible:
@@ -1630,8 +1674,15 @@ func _update_visual_animations(delta: float, scene_node: Node, scene_name: Strin
 		var pulse_g := 0.94 + 0.06 * sin(_anim_time * 2.4)
 		_vizier_portrait_box.self_modulate = Color(pulse_g, pulse_g, pulse_g, 1.0)
 
-	# Spotlight karartma panelleri
-	if has_target:
+	# Spotlight karartma panelleri: İlk sahnede köy/Kale tamamen pasif karartılmış kalsın
+	if passive_welcome:
+		_dim_top.show()
+		_dim_top.position = Vector2.ZERO
+		_dim_top.size = vp_size
+		_dim_bottom.hide()
+		_dim_left.hide()
+		_dim_right.hide()
+	elif has_target:
 		var hole := spotlight_rect.grow(10.0).intersection(Rect2(Vector2.ZERO, vp_size))
 		_dim_top.show()
 		_dim_bottom.show()
@@ -1653,7 +1704,7 @@ func _update_visual_animations(delta: float, scene_node: Node, scene_name: Strin
 
 	# Hedef çizici & Yanıp Sönen Parmak Eldiveni
 	var finger_rect := t_rect if (finger_ctrl != null and finger_ctrl.is_inside_tree() and finger_ctrl.visible) else Rect2()
-	if has_target and finger_rect.size.x > 4.0:
+	if has_target and finger_rect.size.x > 12.0 and finger_rect.size.y > 12.0:
 		_current_has_target = true
 		_current_target_rect = finger_rect
 		_target_fx.has_target = true

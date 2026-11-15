@@ -17,13 +17,15 @@ tests = [
     "test_bot.gd",
     "test_actions.gd",
     "test_integration.gd",
-    "test_world.gd"
+    "test_world.gd",
+    "test_tutorial.gd",
+    "test_quest_system.gd"
 ]
 
 godot = os.path.abspath(r"tools/godot/Godot_v4.7.2-stable_win64_console.exe")
 failed = []
 
-print("=== RUNNING ALL 15 GODOT TEST SUITES ===")
+print(f"=== RUNNING ALL {len(tests)} GODOT TEST SUITES ===")
 
 for t in tests:
     # Ensure test save file from previous run is cleaned up
@@ -48,7 +50,7 @@ for t in tests:
 
 print("\n" + "=" * 50)
 if not failed:
-    print(f"  SONUÇ: 15 / 15 TEST PAKETİ EKSİKSİZ BAŞARILI (PASS)!")
+    print(f"  SONUÇ: {len(tests)} / {len(tests)} TEST PAKETİ EKSİKSİZ BAŞARILI (PASS)!")
     print("=" * 50)
     sys.exit(0)
 else:

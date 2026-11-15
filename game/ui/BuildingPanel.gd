@@ -74,6 +74,12 @@ var _desc_box: PanelContainer = null
 var _desc_label: Label = null
 var _prod_box: PanelContainer = null
 var _prod_vbox: VBoxContainer = null
+var _special_box: PanelContainer = null
+var _special_vbox: VBoxContainer = null
+var _last_research_sig: String = ""
+var _last_train_sig: String = ""
+var _tab_act_sb: StyleBox = null
+var _tab_inact_sb: StyleBox = null
 
 # Header nodes
 @onready var title_label: Label = $VBox/Header/TitleLabel
@@ -233,6 +239,31 @@ func _ensure_description_and_production_nodes() -> void:
 
 		vbox.add_child(_prod_box)
 		vbox.move_child(_prod_box, 3)
+
+	if _special_box == null:
+		_special_box = PanelContainer.new()
+		_special_box.name = "SpecialBuildingActionBox"
+		var sp_sb := StyleBoxFlat.new()
+		sp_sb.bg_color = Color(0.14, 0.11, 0.16, 0.96)
+		sp_sb.border_color = Color(0.92, 0.75, 0.32, 0.90)
+		sp_sb.set_border_width_all(2)
+		sp_sb.set_corner_radius_all(14)
+		sp_sb.content_margin_left = 18
+		sp_sb.content_margin_right = 18
+		sp_sb.content_margin_top = 14
+		sp_sb.content_margin_bottom = 14
+		sp_sb.shadow_color = Color(0, 0, 0, 0.45)
+		sp_sb.shadow_size = 8
+		_special_box.add_theme_stylebox_override("panel", sp_sb)
+
+		_special_vbox = VBoxContainer.new()
+		_special_vbox.name = "SpecialActionVBox"
+		_special_vbox.add_theme_constant_override("separation", 10)
+		_special_box.add_child(_special_vbox)
+		_special_box.hide()
+
+		vbox.add_child(_special_box)
+		vbox.move_child(_special_box, 4)
 
 
 func _update_production_table(cur_lvl: int) -> void:
@@ -629,6 +660,8 @@ func show_building(village: Dictionary, key: String) -> void:
 	_village = village
 	_current_key = key
 	_current_tab = Tab.UPGRADE
+	_last_research_sig = ""
+	_last_train_sig = ""
 	refresh()
 	show()
 
@@ -648,10 +681,13 @@ func _update_tab_buttons_styling(barracks_level: int) -> void:
 	if tab_bar == null:
 		return
 
-	var act_sb := preload("res://ui/BuildingPanel.tscn").instantiate()
-	var s_act = act_sb.get_node("VBox/TabBar/TabUpgradeBtn").get_theme_stylebox("normal")
-	var s_inact = act_sb.get_node("VBox/TabBar/TabResearchBtn").get_theme_stylebox("normal")
-	act_sb.queue_free()
+	if _tab_act_sb == null or _tab_inact_sb == null:
+		var act_sb := preload("res://ui/BuildingPanel.tscn").instantiate()
+		_tab_act_sb = act_sb.get_node("VBox/TabBar/TabUpgradeBtn").get_theme_stylebox("normal")
+		_tab_inact_sb = act_sb.get_node("VBox/TabBar/TabResearchBtn").get_theme_stylebox("normal")
+		act_sb.queue_free()
+	var s_act = _tab_act_sb
+	var s_inact = _tab_inact_sb
 
 	tab_upgrade_btn.add_theme_stylebox_override("normal", s_act if _current_tab == Tab.UPGRADE else s_inact)
 	tab_upgrade_btn.add_theme_color_override("font_color", Color(1.0, 0.98, 0.90) if _current_tab == Tab.UPGRADE else Color(0.80, 0.76, 0.70))
@@ -723,6 +759,13 @@ func refresh() -> void:
 	else:
 		if _prod_box != null:
 			_prod_box.hide()
+
+	# Kuyumcu (Altın Zırh) ve Köşk (Kont Eğitimi) özel aksiyon kutusu
+	if _current_tab == Tab.UPGRADE and _current_key in ["smith", "snob"] and cur_lvl >= 1:
+		_update_special_building_actions(cur_lvl)
+	else:
+		if _special_box != null:
+			_special_box.hide()
 
 	if _current_key == "barracks":
 		tab_bar.show()
@@ -875,10 +918,11 @@ func _refresh_upgrade_view(state: Dictionary, cur_lvl: int, max_lvl: int) -> voi
 
 	var chain: Array = RulesEngineScript.requirement_chain(_village.get("buildings", {}), _current_key, tgt_lvl)
 	var is_upgradable: bool = bool(details.get("ok", false))
+	var has_tall_box: bool = is_res_bldg or (_special_box != null and _special_box.visible)
 
 	if is_upgradable:
 		req_section.hide()
-		offset_top = -980.0 if is_res_bldg else -680.0
+		offset_top = -980.0 if has_tall_box else -680.0
 		upgrade_btn.disabled = false
 		upgrade_btn.text = ("Sıraya Ekle (Seviye %d)" if active_in_queue else "Yükselt (Seviye %d)") % tgt_lvl
 
@@ -958,29 +1002,29 @@ func _refresh_upgrade_view(state: Dictionary, cur_lvl: int, max_lvl: int) -> voi
 		if reason == "max_level":
 			upgrade_btn.text = "Maksimum Seviyeye Ulaşıldı"
 			req_section.hide()
-			offset_top = -980.0 if is_res_bldg else -680.0
+			offset_top = -980.0 if has_tall_box else -680.0
 		elif reason == "requirements" or reason == "locked":
 			upgrade_btn.text = "Önkoşullar Karşılanmadı"
 			req_section.show()
-			offset_top = -1280.0 if is_res_bldg else -1020.0
+			offset_top = -1280.0 if has_tall_box else -1020.0
 			_populate_chain_list(chain)
 		elif reason == "resources":
 			upgrade_btn.text = "Yetersiz Hammadde"
 			if details.get("missing", []).size() > 0:
 				req_section.show()
-				offset_top = -1280.0 if is_res_bldg else -1020.0
+				offset_top = -1280.0 if has_tall_box else -1020.0
 				_populate_chain_list(chain)
 			else:
 				req_section.hide()
-				offset_top = -980.0 if is_res_bldg else -680.0
+				offset_top = -980.0 if has_tall_box else -680.0
 		elif reason == "citizens":
 			upgrade_btn.text = "Yetersiz Vatandaş (Değirmen Gerek)"
 			req_section.hide()
-			offset_top = -980.0 if is_res_bldg else -680.0
+			offset_top = -980.0 if has_tall_box else -680.0
 		else:
 			upgrade_btn.text = "Yükseltilemez"
 			req_section.hide()
-			offset_top = -980.0 if is_res_bldg else -680.0
+			offset_top = -980.0 if has_tall_box else -680.0
 
 
 func _populate_chain_list(chain: Array) -> void:
@@ -1198,10 +1242,6 @@ func _populate_research_list() -> void:
 	if research_list == null:
 		return
 
-	for child in research_list.get_children():
-		research_list.remove_child(child)
-		child.queue_free()
-
 	var gs = Engine.get_main_loop().root.get_node_or_null("GameState") if Engine.get_main_loop() is SceneTree else null
 	var state: Dictionary = gs.to_dict() if gs != null else {}
 	var vid := int(_village.get("id", -1))
@@ -1214,6 +1254,23 @@ func _populate_research_list() -> void:
 			if typeof(item) == TYPE_DICTIONARY and int(item.get("village_id", -1)) == vid and str(item.get("type", "")) == "research":
 				active_research_unit = str(item.get("key", ""))
 				break
+
+	var sig_parts: Array[String] = [str(cur_barracks_lvl), active_research_unit]
+	for u_key in BARRACKS_UNITS:
+		sig_parts.append("%s:%d:%d:%s" % [
+			u_key,
+			1 if RulesEngineScript.is_researched(_village, u_key) else 0,
+			1 if ArmyAPI.can_research(_village, u_key, state) else 0,
+			ArmyAPI.research_block_reason(_village, u_key, state)
+		])
+	var res_sig := "|".join(sig_parts)
+	if res_sig == _last_research_sig and research_list.get_child_count() == BARRACKS_UNITS.size():
+		return
+	_last_research_sig = res_sig
+
+	for child in research_list.get_children():
+		research_list.remove_child(child)
+		child.queue_free()
 
 	for u_key in BARRACKS_UNITS:
 		var u_name: String = GameDataScript.get_singleton().get_unit_name(u_key)
@@ -1527,6 +1584,8 @@ func _on_start_research_pressed(unit_key: String) -> void:
 
 	var res := ArmyAPI.start_research(st_village, unit_key, state, now)
 	if bool(res.get("ok", false)):
+		_last_research_sig = ""
+		_last_train_sig = ""
 		gs.from_dict(state)
 		_village = gs.get_active_village()
 
@@ -1611,10 +1670,6 @@ func _populate_train_list() -> void:
 	if train_list == null:
 		return
 
-	for child in train_list.get_children():
-		train_list.remove_child(child)
-		child.queue_free()
-
 	var cur_barracks_lvl := int(_village.get("buildings", {}).get("barracks", 0))
 	var free_cit := ArmyAPI.army_capacity(_village)
 	var farm_lvl := VillageModel.building_level(_village, "farm")
@@ -1622,6 +1677,27 @@ func _populate_train_list() -> void:
 
 	if citizen_label != null:
 		citizen_label.text = "👥 Müsait Vatandaş: %d  (Toplam Değirmen Kapasitesi: %d)" % [free_cit, max_pop]
+
+	var sig_parts: Array[String] = [str(cur_barracks_lvl)]
+	for u_key in BARRACKS_UNITS:
+		sig_parts.append("%s:%d:%d" % [
+			u_key,
+			1 if RulesEngineScript.is_researched(_village, u_key) else 0,
+			int(_village.get("units", {}).get(u_key, 0))
+		])
+	var train_sig := "|".join(sig_parts)
+	if train_sig == _last_train_sig and train_list.get_child_count() == BARRACKS_UNITS.size():
+		for child in train_list.get_children():
+			if child.has_meta("update_calc"):
+				var cb = child.get_meta("update_calc")
+				if cb is Callable:
+					(cb as Callable).call()
+		return
+	_last_train_sig = train_sig
+
+	for child in train_list.get_children():
+		train_list.remove_child(child)
+		child.queue_free()
 
 	for u_key in BARRACKS_UNITS:
 		var u_name: String = GameDataScript.get_singleton().get_unit_name(u_key)
@@ -1905,6 +1981,7 @@ func _populate_train_list() -> void:
 						train_btn.text = "Yetersiz Kaynak / Nüfus"
 
 			update_calc.call()
+			card.set_meta("update_calc", update_calc)
 
 			spin.value_changed.connect(func(_val): update_calc.call())
 			btn_p1.pressed.connect(func(): spin.value += 1)
@@ -2102,6 +2179,7 @@ func _on_start_train_pressed(unit_key: String, count: int) -> void:
 
 		# Reset input count
 		_train_counts[unit_key] = 0
+		_last_train_sig = ""
 
 		var sm = Engine.get_main_loop().root.get_node_or_null("SaveManager") if Engine.get_main_loop() is SceneTree else null
 		if sm != null:
@@ -2137,6 +2215,7 @@ func _on_cancel_train_pressed(queue_id: int) -> void:
 
 	var ok := ArmyAPI.cancel_training(st_village, queue_id, state)
 	if ok:
+		_last_train_sig = ""
 		gs.from_dict(state)
 		_village = gs.get_active_village()
 
@@ -2152,3 +2231,152 @@ func _on_cancel_train_pressed(queue_id: int) -> void:
 				bus.state_changed.emit()
 
 	refresh()
+
+
+# =============================================================================
+#  KUYUMCU (ALTIN ZIRH) VE KÖŞK (KONT EĞİTİMİ) ÖZEL AKSİYONLARI
+# =============================================================================
+
+func _update_special_building_actions(_cur_lvl: int) -> void:
+	if _special_box == null or _special_vbox == null:
+		return
+	for ch in _special_vbox.get_children():
+		_special_vbox.remove_child(ch)
+		ch.queue_free()
+
+	_special_box.show()
+	var gs = Engine.get_main_loop().root.get_node_or_null("GameState") if Engine.get_main_loop() is SceneTree else null
+	var state: Dictionary = gs.to_dict() if gs != null else {}
+	var res_dict: Dictionary = _village.get("resources", {})
+	var cur_w := int(res_dict.get("wood", 0))
+	var cur_s := int(res_dict.get("stone", 0))
+	var cur_i := int(res_dict.get("iron", 0))
+
+	if _current_key == "smith":
+		var avail_armour := ArmyAPI.gold_armour(_village)
+		var g_cost := ArmyAPI.gold_armour_cost(_village)
+		var req_w := int(g_cost.get("wood", 30000))
+		var req_s := int(g_cost.get("stone", 50000))
+		var req_i := int(g_cost.get("iron", 40000))
+
+		var hdr := Label.new()
+		hdr.text = "🛡️ Altın Zırh Darphanesi   •   Mevcut Stok: %d Set" % avail_armour
+		hdr.add_theme_font_override("font", FontNunitoBold)
+		hdr.add_theme_font_size_override("font_size", 26)
+		hdr.add_theme_color_override("font_color", Color(1.0, 0.88, 0.45))
+		_special_vbox.add_child(hdr)
+
+		var cost_lbl := Label.new()
+		cost_lbl.text = "1 Set Maliyeti: %s Odun  •  %s Taş  •  %s Demir" % [
+			_format_number(req_w), _format_number(req_s), _format_number(req_i)
+		]
+		cost_lbl.add_theme_font_override("font", FontNunitoSemiBold)
+		cost_lbl.add_theme_font_size_override("font_size", 22)
+		cost_lbl.add_theme_color_override("font_color", Color(0.92, 0.88, 0.80))
+		_special_vbox.add_child(cost_lbl)
+
+		var mint_btn := Button.new()
+		mint_btn.name = "MintGoldArmourBtn"
+		mint_btn.custom_minimum_size = Vector2(0, 62)
+		mint_btn.add_theme_font_override("font", FontNunitoBold)
+		mint_btn.add_theme_font_size_override("font_size", 26)
+		var can_mint := (cur_w >= req_w and cur_s >= req_s and cur_i >= req_i)
+		mint_btn.disabled = not can_mint
+		mint_btn.text = "🛡️ Altın Zırh Üret (+1 Set)" if can_mint else "Yetersiz Hammadde (Altın Zırh)"
+		var msb := StyleBoxFlat.new()
+		msb.bg_color = Color(0.65, 0.48, 0.14, 1.0) if can_mint else Color(0.22, 0.20, 0.24, 0.9)
+		msb.border_color = Color(1.0, 0.88, 0.42, 1.0) if can_mint else Color(0.45, 0.42, 0.48, 0.7)
+		msb.set_border_width_all(2)
+		msb.set_corner_radius_all(12)
+		mint_btn.add_theme_stylebox_override("normal", msb)
+		mint_btn.add_theme_stylebox_override("hover", msb)
+		mint_btn.add_theme_stylebox_override("disabled", msb)
+		mint_btn.add_theme_color_override("font_color", Color(1, 0.98, 0.90) if can_mint else Color(0.75, 0.72, 0.68))
+		mint_btn.pressed.connect(_on_mint_gold_armour_pressed)
+		_special_vbox.add_child(mint_btn)
+
+	elif _current_key == "snob":
+		var snob_count := int(_village.get("units", {}).get("snob", 0))
+		var avail_armour := ArmyAPI.gold_armour(_village)
+		var s_cost := RulesEngineScript.unit_cost("snob", 1)
+		var req_w := int(s_cost.get("wood", 40000))
+		var req_s := int(s_cost.get("stone", 50000))
+		var req_i := int(s_cost.get("iron", 50000))
+
+		var hdr := Label.new()
+		hdr.text = "👑 Köşk — Kont Eğitimi   •   Mevcut Kont: %d  |  Altın Zırh: %d" % [snob_count, avail_armour]
+		hdr.add_theme_font_override("font", FontNunitoBold)
+		hdr.add_theme_font_size_override("font_size", 26)
+		hdr.add_theme_color_override("font_color", Color(1.0, 0.88, 0.45))
+		_special_vbox.add_child(hdr)
+
+		var cost_lbl := Label.new()
+		cost_lbl.text = "Maliyet: %s Odun, %s Taş, %s Demir  •  100 Vatandaş  •  1 Altın Zırh" % [
+			_format_number(req_w), _format_number(req_s), _format_number(req_i)
+		]
+		cost_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		cost_lbl.add_theme_font_override("font", FontNunitoSemiBold)
+		cost_lbl.add_theme_font_size_override("font_size", 22)
+		cost_lbl.add_theme_color_override("font_color", Color(0.92, 0.88, 0.80))
+		_special_vbox.add_child(cost_lbl)
+
+		var can_snob := ArmyAPI.can_train(_village, "snob", 1, state)
+		var reason := ArmyAPI.training_block_reason(_village, "snob", 1, state)
+		var snob_btn := Button.new()
+		snob_btn.name = "TrainSnobBtn"
+		snob_btn.custom_minimum_size = Vector2(0, 62)
+		snob_btn.add_theme_font_override("font", FontNunitoBold)
+		snob_btn.add_theme_font_size_override("font_size", 26)
+		snob_btn.disabled = not can_snob
+		if can_snob:
+			snob_btn.text = "👑 Kont Eğit (1 Adet)"
+		elif reason == "no_gold_armour":
+			snob_btn.text = "🛡️ Altın Zırh Gerekli (Kuyumcu'dan Üret)"
+		elif reason == "not_enough_citizens":
+			snob_btn.text = "👥 100 Boş Vatandaş Gerekli"
+		else:
+			snob_btn.text = "Yetersiz Hammadde / Önkoşul"
+
+		var ssb := StyleBoxFlat.new()
+		ssb.bg_color = Color(0.20, 0.54, 0.30, 1.0) if can_snob else Color(0.22, 0.20, 0.24, 0.9)
+		ssb.border_color = Color(0.65, 0.95, 0.72, 1.0) if can_snob else Color(0.45, 0.42, 0.48, 0.7)
+		ssb.set_border_width_all(2)
+		ssb.set_corner_radius_all(12)
+		snob_btn.add_theme_stylebox_override("normal", ssb)
+		snob_btn.add_theme_stylebox_override("hover", ssb)
+		snob_btn.add_theme_stylebox_override("disabled", ssb)
+		snob_btn.add_theme_color_override("font_color", Color(1, 1, 1) if can_snob else Color(0.75, 0.72, 0.68))
+		snob_btn.pressed.connect(_on_train_snob_pressed)
+		_special_vbox.add_child(snob_btn)
+
+
+func _on_mint_gold_armour_pressed() -> void:
+	var gs = Engine.get_main_loop().root.get_node_or_null("GameState") if Engine.get_main_loop() is SceneTree else null
+	if gs == null or not gs.has_active_village():
+		return
+	var vid: int = gs.active_village_id
+	var state: Dictionary = gs.to_dict()
+	var st_village: Dictionary = {}
+	for sv in state.get("villages", []):
+		if int(sv.get("id", -1)) == vid:
+			st_village = sv
+			break
+	if st_village.is_empty():
+		return
+	if ArmyAPI.produce_gold_armour(st_village, 1):
+		gs.from_dict(state)
+		_village = gs.get_active_village()
+		var sm = Engine.get_main_loop().root.get_node_or_null("SaveManager") if Engine.get_main_loop() is SceneTree else null
+		if sm != null:
+			sm.save_game()
+		var bus = Engine.get_main_loop().root.get_node_or_null("EventBus") if Engine.get_main_loop() is SceneTree else null
+		if bus != null:
+			if bus.has_signal("resources_changed"):
+				bus.resources_changed.emit(vid)
+			if bus.has_signal("state_changed"):
+				bus.state_changed.emit()
+	refresh()
+
+
+func _on_train_snob_pressed() -> void:
+	_on_start_train_pressed("snob", 1)

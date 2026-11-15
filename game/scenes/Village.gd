@@ -917,6 +917,9 @@ func _is_point_over_hud(pos: Vector2) -> bool:
 		if n is Control and (n as Control).visible:
 			if (n as Control).get_global_rect().has_point(pos):
 				return true
+	var qm = Engine.get_main_loop().root.get_node_or_null("QuestManager") if Engine.get_main_loop() is SceneTree else null
+	if qm != null and qm.has_method("is_point_over_ui") and qm.is_point_over_ui(pos):
+		return true
 	return false
 
 

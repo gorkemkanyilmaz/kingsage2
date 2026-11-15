@@ -124,6 +124,11 @@ func _run_tests() -> void:
 
 	var btn_next := tm.get("_btn_next") as Button
 	var btn_speedup := tm.get("_btn_speedup") as Button
+	var step0_target = tm.call("_resolve_target_control", village, "Village.tscn", gs)
+	_check(step0_target == btn_next, "Adım 0'da Kale spotlight yerine yalnızca 'Devam Et' hedeflendi (Kale pasif)")
+	var dim_bottom := tm.get("_dim_bottom") as Control
+	_check(dim_bottom != null and not dim_bottom.visible, "Adım 0'da köy arka planı tek parça pasif karartılmış")
+
 	_press_button(btn_next)
 	await _tick(2)
 	_check(int(tm.call("get_current_step")) == 1, "Adım 1 (RESOURCE_BAR_TOUR) geçildi")
@@ -156,10 +161,13 @@ func _run_tests() -> void:
 	_check(int(active_v["buildings"].get("wood", 0)) >= 2, "Oduncu Sv.2 tamamlandı")
 	_check(int(tm.call("get_current_step")) == 6, "Adım 6 (CHECK_BARRACKS_REQS) geçildi")
 
-	# 4. Kışla tıkla -> Gereksinim zinciri -> Depo Sv.3 & Değirmen Sv.3 (Adım 6 -> 7 -> 8)
+	# 4. Oduncu paneli hala açıksa önce Kapat (✕) butonunu hedefle, kapanınca Kışla'yı hedefle
+	_check(bp.visible and tm.call("_resolve_target_control", village, "Village.tscn", gs) == close_btn, "Adım 6'da Oduncu paneli açıkken CloseButton hedeflendi")
 	if bp.visible:
 		_press_button(close_btn)
 		await _tick(2)
+	var barracks_bv = village.call("get_building_view", "barracks")
+	_check(tm.call("_resolve_target_control", village, "Village.tscn", gs) == barracks_bv, "Panel kapanınca Kışla hedefe geçti")
 	await _click_building(village, "barracks")
 	_check(int(tm.call("get_current_step")) == 7, "Adım 7 (COMPLETE_BARRACKS_PREREQS) geçildi")
 
@@ -252,8 +260,16 @@ func _run_tests() -> void:
 	_check(plus10 != null and train_btn != null, "BtnPlus10_spear ve TrainBtn_spear butonları bulundu")
 	var wood_before := int(active_v.get("resources", {}).get("wood", 0))
 	_press_button(plus10)
-	await _tick(1)
-	_press_button(train_btn)
+	await _tick(2)
+	var spin_spear := bp.find_child("Spin_spear", true, false) as SpinBox
+	var eb := root.get_node_or_null("EventBus")
+	if eb != null:
+		eb.emit_signal("resources_changed", int(active_v["id"]))
+		eb.emit_signal("state_changed")
+	await _tick(3)
+	_check(spin_spear != null and int(spin_spear.value) == 10, "Tick/sinyal sonrası Spin_spear=10 korundu (sıfırlanmadı)")
+	_check(tm.call("_resolve_target_control", village, "Village.tscn", gs) == bp.find_child("TrainBtn_spear", true, false), "Sinyal sonrası el/kare hala Eğit butonunu hedefliyor (sola zıplamadı)")
+	_press_button(bp.find_child("TrainBtn_spear", true, false) as BaseButton)
 	await _tick(2)
 	_press_button(btn_speedup)
 	await _tick(3)

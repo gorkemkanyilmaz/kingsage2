@@ -26,6 +26,7 @@ AuthManager="*res://autoload/AuthManager.gd"
 NetworkManager="*res://autoload/NetworkManager.gd"
 VillageBackgroundCache="*res://autoload/VillageBackgroundCache.gd"
 TutorialManager="*res://autoload/TutorialManager.gd"
+QuestManager="*res://autoload/QuestManager.gd"
 
 [display]
 

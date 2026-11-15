@@ -546,5 +546,11 @@ func _dispatch(type: String) -> void:
 
 	if bool(res.get("ok", false)) and gs != null:
 		gs.from_dict(state)
+		var bus = Engine.get_main_loop().root.get_node_or_null("EventBus") if Engine.get_main_loop() is SceneTree else null
+		if bus != null and bus.has_signal("army_sent"):
+			var mv: Dictionary = res.get("movement", {})
+			if mv.is_empty():
+				mv = {"type": type, "from_village_id": int(_from_village.get("id", -1)), "to_village_id": int(_to_village.get("id", -1))}
+			bus.army_sent.emit(mv)
 		movement_dispatched.emit(type, int(_to_village["id"]))
 		hide()
