@@ -110,6 +110,9 @@ func reset_all_worlds() -> void:
 			"max_real_players": MAX_REAL_PLAYERS_PER_WORLD,
 			"bot_count": BOTS_PER_WORLD,
 			"seed": BASE_SEED + i,
+			"speed": 2.0,
+			"unit_speed": 2.0,
+			"starter_boost_days": 7,
 		}
 		worlds_meta.append(w_meta)
 
@@ -210,9 +213,15 @@ func save_world_dict(world_id: int, data: Dictionary) -> bool:
 func _create_and_save_world(world_id: int, seed_val: int, bot_count: int) -> Dictionary:
 	var now := int(Time.get_unix_time_from_system())
 	var gen_world: Dictionary = WorldGeneratorScript.generate(seed_val, bot_count, WorldGeneratorScript.SIZE, 0.0, 0.0)
+	gen_world["created_unix"] = now
 	gen_world["last_saved_unix"] = now
 	gen_world["sim_now_unix"] = now
 	gen_world["sim_time_seconds"] = 0.0
+	gen_world["base_speed"] = 1.0
+	gen_world["base_unit_speed"] = 1.0
+	gen_world["starter_boost_days"] = 7
+	gen_world["speed"] = 2.0
+	gen_world["unit_speed"] = 2.0
 
 	var alliances: Array = []
 
@@ -329,19 +338,35 @@ func join_world(world_id: int, player_name: String, target_x: int = 100, target_
 	tiles[WorldGeneratorScript.tile_key(free_spot.x, free_spot.y)] = player_vid
 	world_dict["tiles"] = tiles
 	world_dict["villages"] = villages_list
+	world_dict["base_speed"] = 1.0
+	world_dict["base_unit_speed"] = 1.0
+	world_dict["starter_boost_days"] = 7
+	world_dict["player_joined_unix"] = now
+	world_dict["starter_boost_until_unix"] = now + (7 * 86400)
+	world_dict["speed"] = 2.0
+	world_dict["unit_speed"] = 2.0
 	state["villages"] = villages_list
 	state["world"] = world_dict
 	_enforce_min_village_distance(w_data, player_vid)
 	var placed_spot := Vector2i(int(player_v.get("x", free_spot.x)), int(player_v.get("y", free_spot.y)))
 	state["active_village_id"] = player_vid
+	var loop_j = Engine.get_main_loop()
+	var auth_j = loop_j.root.get_node_or_null("AuthManager") if loop_j is SceneTree else null
+	var p_provider := str(auth_j.auth_provider) if (auth_j != null and bool(auth_j.is_logged_in)) else ""
+	var p_auth_id := str(auth_j.user_id) if (auth_j != null and bool(auth_j.is_logged_in) and not str(auth_j.user_id).is_empty()) else ""
 	state["player"] = {
 		"id": 1,
+		"auth_id": p_auth_id,
+		"provider": p_provider,
 		"name": player_name,
 		"points": int(player_v.get("points", 110)),
+		"created_unix": now,
+		"starter_boost_until_unix": now + (7 * 86400),
 		"protection_until_unix": player_v["protection_until_unix"],
 		"conquest_protection_until_unix": player_v["conquest_protection_until_unix"],
 		"premium": false,
 	}
+	_sync_game_config_speed(state, now)
 
 	# Gerçek oyuncu kaydı ve kapasite kontrolü
 	var reg_list: Array = w_data.get("registered_real_players", [])
@@ -406,18 +431,30 @@ func enter_world(world_id: int, player_name: String) -> bool:
 	var state: Dictionary = w_data.get("state", {})
 	var villages: Array = state.get("villages", [])
 
-	# Oyuncunun birincil aktif köyünü bul
+	# Oyuncunun aktif veya birincil köyünü bul (çoklu köy fethi sonrası seçili köy korunur)
+	var saved_active_id := int(state.get("active_village_id", -1))
+	var first_vid := -1
 	var player_vid := -1
 	for v in villages:
 		if typeof(v) == TYPE_DICTIONARY:
 			var vd: Dictionary = v
 			if not bool(vd.get("is_bot", false)) and not bool(vd.get("is_barbarian", false)):
 				if _matches_player(str(vd.get("owner", "")), player_name):
-					player_vid = int(vd.get("id", -1))
-					break
+					var vid := int(vd.get("id", -1))
+					if first_vid < 0:
+						first_vid = vid
+					if vid == saved_active_id:
+						player_vid = vid
+						break
+	if player_vid < 0:
+		player_vid = first_vid
 
 	if player_vid < 0:
 		return false
+
+	var now := int(Time.get_unix_time_from_system())
+	_ensure_starter_boost(state, int(w_data.get("created_unix", now)), now)
+	_sync_game_config_speed(state, now)
 
 	if _enforce_min_village_distance(w_data, player_vid):
 		save_world_dict(world_id, w_data)
@@ -495,6 +532,51 @@ func _unlock_next_world(next_id: int) -> void:
 	_save_meta()
 
 
+## İlk 7 gün 2x hız bonusunu dünya/oyuncu verisinde garanti eder.
+func _ensure_starter_boost(state: Dictionary, fallback_created_unix: int = 0, now_unix: int = 0) -> void:
+	if typeof(state) != TYPE_DICTIONARY:
+		return
+	var now := now_unix if now_unix > 0 else int(Time.get_unix_time_from_system())
+	if typeof(state.get("world")) != TYPE_DICTIONARY:
+		state["world"] = {}
+	var w_dict: Dictionary = state["world"]
+	if typeof(state.get("player")) != TYPE_DICTIONARY:
+		state["player"] = {}
+	var p_dict: Dictionary = state["player"]
+
+	var boost_until := int(w_dict.get("starter_boost_until_unix", p_dict.get("starter_boost_until_unix", 0)))
+	if boost_until <= 0:
+		var created := int(p_dict.get("created_unix", w_dict.get("player_joined_unix", w_dict.get("created_unix", fallback_created_unix))))
+		if created <= 0:
+			created = now
+		boost_until = created + (7 * 86400)
+	w_dict["starter_boost_until_unix"] = boost_until
+	w_dict["starter_boost_days"] = 7
+	if not w_dict.has("base_speed"):
+		w_dict["base_speed"] = 1.0
+	if not w_dict.has("base_unit_speed"):
+		w_dict["base_unit_speed"] = 1.0
+	p_dict["starter_boost_until_unix"] = boost_until
+	if int(p_dict.get("created_unix", 0)) <= 0:
+		p_dict["created_unix"] = boost_until - (7 * 86400)
+	var is_active := now < boost_until
+	w_dict["speed"] = 2.0 if is_active else float(w_dict.get("base_speed", 1.0))
+	w_dict["unit_speed"] = 2.0 if is_active else float(w_dict.get("base_unit_speed", 1.0))
+
+
+## GameConfig singleton'unu dünya meta verisinden hızıyla eşitler.
+func _sync_game_config_speed(state: Dictionary, now_unix: int = 0) -> void:
+	var loop = Engine.get_main_loop()
+	if not (loop is SceneTree) or loop.root == null:
+		return
+	var gc = loop.root.get_node_or_null("GameConfig")
+	if gc == null:
+		return
+	var w_dict: Dictionary = state.get("world", {}) if typeof(state.get("world")) == TYPE_DICTIONARY else {}
+	if gc.has_method("sync_from_world"):
+		gc.sync_from_world(w_dict, now_unix)
+
+
 ## Aktif dünya durumunu GameState'e aktarır.
 func _apply_to_game_state(w_data: Dictionary, player_name: String, active_vid: int) -> void:
 	var gs = _find_game_state()
@@ -502,19 +584,28 @@ func _apply_to_game_state(w_data: Dictionary, player_name: String, active_vid: i
 		return
 
 	var state: Dictionary = w_data.get("state", {})
+	var now := int(Time.get_unix_time_from_system())
+	_ensure_starter_boost(state, int(w_data.get("created_unix", now)), now)
 	gs.from_dict(state)
 	gs.player["name"] = player_name
 	gs.player["id"] = 1
+	var loop = Engine.get_main_loop()
+	var auth = loop.root.get_node_or_null("AuthManager") if (loop is SceneTree and loop.root != null) else null
+	if auth != null and bool(auth.is_logged_in):
+		gs.player["provider"] = str(auth.auth_provider)
+		if not str(auth.user_id).is_empty():
+			gs.player["auth_id"] = str(auth.user_id)
 	gs.active_village_id = active_vid
 	gs.world["world_id"] = current_world_id
 	gs.world["world_name"] = "Dünya %d" % current_world_id
+	_sync_game_config_speed({"world": gs.world}, now)
 
 	# Oyuncunun toplam puanını hesapla
 	var total_points := 0
 	for v in gs.villages:
 		if typeof(v) == TYPE_DICTIONARY:
 			var vd: Dictionary = v
-			if str(vd.get("owner", "")) == player_name:
+			if _matches_player(str(vd.get("owner", "")), player_name):
 				total_points += int(vd.get("points", 110))
 	gs.player["points"] = total_points
 

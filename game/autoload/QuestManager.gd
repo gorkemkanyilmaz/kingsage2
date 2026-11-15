@@ -59,6 +59,7 @@ var _modal_req_label: RichTextLabel
 var _modal_prog_bar: ProgressBar
 var _modal_prog_label: Label
 var _modal_reward_row: HBoxContainer
+var _modal_goto_box: VBoxContainer
 var _modal_btn_goto: Button
 var _modal_btn_claim: Button
 var _modal_btn_close: Button
@@ -1310,6 +1311,13 @@ func _build_detail_modal() -> void:
 	_modal_reward_row.add_theme_constant_override("separation", 18)
 	rew_box.add_child(_modal_reward_row)
 
+	# Dinamik Çoklu Hedef Yönlendirme Butonları (alt hedefler tamamlandıkça ayrı ayrı gizlenir)
+	_modal_goto_box = VBoxContainer.new()
+	_modal_goto_box.name = "ModalGotoBox"
+	_modal_goto_box.add_theme_constant_override("separation", 10)
+	_modal_goto_box.visible = false
+	mv.add_child(_modal_goto_box)
+
 	# Aksiyon Butonları
 	var btn_row := HBoxContainer.new()
 	btn_row.add_theme_constant_override("separation", 14)
@@ -1523,7 +1531,44 @@ func open_quest_modal(quest_id: String) -> void:
 	_add_reward_pill(IconIron, int(rew.get("iron", 0)))
 
 	_modal_btn_claim.visible = completed
-	_modal_btn_goto.visible = not completed
+	var pending_actions := [] if completed else get_pending_navigation_actions(q, gs)
+	for ch in _modal_goto_box.get_children():
+		_modal_goto_box.remove_child(ch)
+		ch.queue_free()
+
+	if completed or pending_actions.is_empty():
+		_modal_btn_goto.visible = false
+		_modal_goto_box.visible = false
+	elif pending_actions.size() == 1:
+		var act0: Dictionary = pending_actions[0]
+		_modal_btn_goto.text = str(act0.get("label", "🎯 Hedefe Git ➔"))
+		_modal_btn_goto.visible = true
+		_modal_goto_box.visible = false
+	else:
+		_modal_btn_goto.visible = false
+		_modal_goto_box.visible = true
+		for act in pending_actions:
+			var act_dict: Dictionary = act
+			var sub_btn := Button.new()
+			sub_btn.text = str(act_dict.get("label", "🎯 Hedefe Git ➔"))
+			sub_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			sub_btn.custom_minimum_size = Vector2(0, 56)
+			sub_btn.add_theme_font_override("font", FontNunitoBold)
+			sub_btn.add_theme_font_size_override("font_size", 23)
+			sub_btn.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+			var sg_sb := StyleBoxFlat.new()
+			sg_sb.bg_color = Color(0.18, 0.40, 0.68, 1.0)
+			sg_sb.border_color = Color(0.65, 0.85, 1.0, 1.0)
+			sg_sb.set_border_width_all(2)
+			sg_sb.set_corner_radius_all(14)
+			sub_btn.add_theme_stylebox_override("normal", sg_sb)
+			sub_btn.add_theme_stylebox_override("hover", sg_sb)
+			sub_btn.add_theme_color_override("font_color", Color(1, 1, 1))
+			sub_btn.pressed.connect(func():
+				close_quest_modal()
+				_execute_navigation_action(act_dict)
+			)
+			_modal_goto_box.add_child(sub_btn)
 
 	_modal_backdrop.show()
 	_detail_modal.show()
@@ -1564,14 +1609,204 @@ func close_quest_modal() -> void:
 		_detail_modal.hide()
 
 
-func _on_modal_goto_pressed() -> void:
-	if _open_modal_quest_id.is_empty():
-		return
-	var q := get_quest_def(_open_modal_quest_id)
-	close_quest_modal()
-	if q.is_empty():
-		return
+func _bname(b_key: String) -> String:
+	return str(RulesEngineScript.building_data(b_key).get("name", b_key))
 
+
+func _append_building_or_prereq_actions(out: Array, bld: Dictionary, bk: String, req_lvl: int) -> void:
+	var cur_lvl := int(bld.get(bk, 0))
+	var bname := _bname(bk)
+	if cur_lvl < 1:
+		var chain := RulesEngineScript.requirement_chain(bld, bk, 1)
+		var unmet: Array = []
+		for node in chain:
+			if typeof(node) != TYPE_DICTIONARY:
+				continue
+			var rk := str((node as Dictionary).get("key", ""))
+			if rk.is_empty() or rk == bk:
+				continue
+			var rl := int((node as Dictionary).get("level", 1))
+			var rc := int((node as Dictionary).get("current", 0))
+			if rc < rl:
+				unmet.append({"building": rk, "level": rl, "current": rc})
+		if unmet.is_empty():
+			var missing := RulesEngineScript.missing_requirements(bld, bk, 1)
+			for m in missing:
+				if typeof(m) == TYPE_DICTIONARY:
+					var mk := str((m as Dictionary).get("building", ""))
+					var ml := int((m as Dictionary).get("level", 1))
+					unmet.append({"building": mk, "level": ml, "current": int(bld.get(mk, 0))})
+		if not unmet.is_empty():
+			var added := 0
+			for m in unmet:
+				var mk := str((m as Dictionary).get("building", ""))
+				var ml := int((m as Dictionary).get("level", 1))
+				var mcur := int((m as Dictionary).get("current", 0))
+				if mk.is_empty():
+					continue
+				out.append({
+					"label": "🏛️ %s Binasına Git (Sv.%d/%d) ➔" % [_bname(mk), mcur, ml],
+					"type": "building",
+					"target": mk,
+				})
+				added += 1
+				if added >= 3:
+					break
+			return
+		out.append({
+			"label": "🏛️ %s Binasına Git ➔" % bname,
+			"type": "building",
+			"target": bk,
+		})
+	elif cur_lvl < req_lvl:
+		out.append({
+			"label": "🏛️ %s Binasına Git (Sv.%d/%d) ➔" % [bname, cur_lvl, req_lvl],
+			"type": "building",
+			"target": bk,
+		})
+
+
+func get_pending_navigation_actions(quest_or_id, gs_override: Node = null) -> Array:
+	var q: Dictionary = quest_or_id if typeof(quest_or_id) == TYPE_DICTIONARY else get_quest_def(str(quest_or_id))
+	var gs := gs_override if gs_override != null else _gs()
+	if q.is_empty() or gs == null or not gs.has_active_village():
+		return []
+
+	var p_vills := _player_villages(gs)
+	var active_v: Dictionary = gs.get_active_village()
+	var bld: Dictionary = active_v.get("buildings", {})
+	var researched: Dictionary = active_v.get("researched", {})
+	var c_type := str(q.get("check_type", ""))
+	var out: Array = []
+
+	match c_type:
+		"wood_stone_levels":
+			if _max_building_level(p_vills, "wood") < 3:
+				out.append({
+					"label": "🪓 Oduncu Kampına Git (Sv.%d/3) ➔" % int(bld.get("wood", 0)),
+					"type": "building",
+					"target": "wood",
+				})
+			if _max_building_level(p_vills, "stone") < 2:
+				out.append({
+					"label": "🪨 Taş Ocağına Git (Sv.%d/2) ➔" % int(bld.get("stone", 0)),
+					"type": "building",
+					"target": "stone",
+				})
+		"storage_farm_4":
+			if _max_building_level(p_vills, "storage") < 4:
+				out.append({
+					"label": "🏛️ Depo Binasına Git (Sv.%d/4) ➔" % int(bld.get("storage", 0)),
+					"type": "building",
+					"target": "storage",
+				})
+			if _max_building_level(p_vills, "farm") < 4:
+				out.append({
+					"label": "🏛️ Değirmen Binasına Git (Sv.%d/4) ➔" % int(bld.get("farm", 0)),
+					"type": "building",
+					"target": "farm",
+				})
+		"spy_prereq":
+			if _max_building_level(p_vills, "barracks") < 4:
+				out.append({
+					"label": "🏛️ Kışla Geliştir (Sv.%d/4) ➔" % int(bld.get("barracks", 0)),
+					"type": "building",
+					"target": "barracks",
+				})
+			if not _any_village_researched(p_vills, "spy"):
+				out.append({
+					"label": "🔍 Kışla (Casus Araştır) ➔",
+					"type": "barracks_research",
+					"target": "spy",
+				})
+		"building_level":
+			var bk := str(q.get("building_key", q.get("goto_target", "")))
+			var req_lvl := int(q.get("target", 1))
+			if _max_building_level(p_vills, bk) < req_lvl:
+				_append_building_or_prereq_actions(out, bld, bk, req_lvl)
+		"building_min":
+			var bk := str(q.get("building_key", q.get("goto_target", "")))
+			var req_lvl := int(q.get("min_level", 1))
+			if _max_building_level(p_vills, bk) < req_lvl:
+				_append_building_or_prereq_actions(out, bld, bk, req_lvl)
+		"gold_armour_made":
+			_append_building_or_prereq_actions(out, bld, "smith", 1)
+		"unit_count_peak":
+			var uk := str(q.get("unit_key", q.get("goto_target", "")))
+			if uk == "snob":
+				if int(bld.get("snob", 0)) < 1:
+					_append_building_or_prereq_actions(out, bld, "snob", 1)
+				else:
+					if int(active_v.get("gold_armour", 0)) < 1 and int(bld.get("smith", 0)) >= 1:
+						out.append({
+							"label": "🛡️ Kuyumcu (Altın Zırh Üret) ➔",
+							"type": "building",
+							"target": "smith",
+						})
+					out.append({
+						"label": "👑 Köşk Binasına Git (Kont Eğit) ➔",
+						"type": "building",
+						"target": "snob",
+					})
+			else:
+				if int(bld.get("barracks", 0)) < 1:
+					_append_building_or_prereq_actions(out, bld, "barracks", 1)
+				elif not uk.is_empty() and not bool(researched.get(uk, false)):
+					var u_name := str(RulesEngineScript.unit_data(uk).get("name", uk))
+					out.append({
+						"label": "🔍 Kışla (%s Araştır) ➔" % u_name,
+						"type": "barracks_research",
+						"target": uk,
+					})
+				else:
+					var u_name2 := str(RulesEngineScript.unit_data(uk).get("name", "Birim"))
+					out.append({
+						"label": "⚔️ Kışla (%s Eğit) ➔" % u_name2,
+						"type": "barracks_train",
+						"target": uk,
+					})
+		"infantry_count", "axe_bow_count", "cavalry_count", "siege_count":
+			if int(bld.get("barracks", 0)) < 1:
+				_append_building_or_prereq_actions(out, bld, "barracks", 1)
+			else:
+				var gt := str(q.get("goto_target", "spear"))
+				var uname := str(RulesEngineScript.unit_data(gt).get("name", "Kışla"))
+				if not gt.is_empty() and not bool(researched.get(gt, false)):
+					out.append({
+						"label": "🔍 Kışla (%s Araştır) ➔" % uname,
+						"type": "barracks_research",
+						"target": gt,
+					})
+				else:
+					out.append({
+						"label": "⚔️ Kışla Binasına Git ➔",
+						"type": str(q.get("goto_type", "barracks_train")),
+						"target": gt,
+					})
+		"stat_min", "conquer_village":
+			out.append({
+				"label": "🗺️ Haritaya Git ➔",
+				"type": "map",
+				"target": "",
+			})
+
+	if out.is_empty():
+		var pr := get_quest_progress(str(q.get("id", "")), gs)
+		if not bool(pr.get("completed", false)):
+			var fb_type := str(q.get("goto_type", "building"))
+			var fb_target := str(q.get("goto_target", ""))
+			var fb_lbl := "🗺️ Haritaya Git ➔" if fb_type == "map" else "🎯 Hedefe Git ➔"
+			if fb_type == "building" and not fb_target.is_empty():
+				fb_lbl = "🏛️ %s Binasına Git ➔" % _bname(fb_target)
+			out.append({
+				"label": fb_lbl,
+				"type": fb_type,
+				"target": fb_target,
+			})
+	return out
+
+
+func _execute_navigation_action(action: Dictionary) -> void:
 	var loop := Engine.get_main_loop()
 	if not (loop is SceneTree):
 		return
@@ -1583,8 +1818,8 @@ func _on_modal_goto_pressed() -> void:
 	if gs == null or not gs.has_active_village():
 		return
 
-	var g_type := str(q.get("goto_type", ""))
-	var g_target := str(q.get("goto_target", ""))
+	var g_type := str(action.get("type", ""))
+	var g_target := str(action.get("target", ""))
 
 	match g_type:
 		"building":
@@ -1606,6 +1841,23 @@ func _on_modal_goto_pressed() -> void:
 						bp.scroll_to_unit_card(g_target)
 		"map":
 			st.change_scene_to_file("res://scenes/WorldMap.tscn")
+
+
+func _on_modal_goto_pressed() -> void:
+	if _open_modal_quest_id.is_empty():
+		return
+	var q := get_quest_def(_open_modal_quest_id)
+	var actions := get_pending_navigation_actions(q) if not q.is_empty() else []
+	close_quest_modal()
+	if q.is_empty():
+		return
+	if not actions.is_empty():
+		_execute_navigation_action(actions[0] as Dictionary)
+	else:
+		_execute_navigation_action({
+			"type": str(q.get("goto_type", "")),
+			"target": str(q.get("goto_target", ""))
+		})
 
 
 func _show_toast(msg: String) -> void:

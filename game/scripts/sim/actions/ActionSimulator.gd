@@ -84,11 +84,16 @@ static func process_tick(state: Dictionary, now_unix: int, delta_seconds: float)
 			events.append(_resolve_return(state, movement, now_unix))
 			continue
 
-		var resolution := Arrival.resolve(state, movement, now_unix)
+		var resolution := Arrival.resolve(state, movement, arrive)
 		events.append_array(resolution.get("events", []))
 		var return_movement = resolution.get("return", {})
 		if typeof(return_movement) == TYPE_DICTIONARY and not (return_movement as Dictionary).is_empty():
-			remaining.append(return_movement)
+			var ret_dict := return_movement as Dictionary
+			var ret_arrive := int(ret_dict.get("arrive_unix", 0))
+			if ret_arrive > 0 and ret_arrive <= now_unix:
+				events.append(_resolve_return(state, ret_dict, ret_arrive))
+			else:
+				remaining.append(ret_dict)
 
 	if changed:
 		# Aynı dizi referansını koru (çağıran `state.movements`ı tutuyor olabilir).

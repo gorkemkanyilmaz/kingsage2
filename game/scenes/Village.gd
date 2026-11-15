@@ -235,9 +235,19 @@ func _ready() -> void:
 			bus.state_changed.connect(_on_state_changed)
 
 
+	var gs_init = Engine.get_main_loop().root.get_node_or_null("GameState") if Engine.get_main_loop() is SceneTree else null
+	if gs_init != null:
+		_rendered_village_id = int(gs_init.active_village_id)
+
 	refresh_all()
 	_update_queue_ui()
 	_init_animated_background()
+
+
+func _exit_tree() -> void:
+	var wm = Engine.get_main_loop().root.get_node_or_null("WorldManager") if Engine.get_main_loop() is SceneTree else null
+	if wm != null and wm.has_method("save_active_world"):
+		wm.save_active_world()
 
 
 func _on_building_panel_visibility_changed() -> void:
@@ -248,6 +258,7 @@ func _on_building_panel_visibility_changed() -> void:
 var _progress_timer: float = 0.0
 var _bg_frame_idx: int = 0
 var _bg_frame_timer: float = 0.0
+var _rendered_village_id: int = -1
 const BG_TOTAL_FRAMES: int = 192 # 192 kare, 24 FPS = kesintisiz 8.0 saniyelik orijinal akıcı döngü
 const BG_FPS: float = 24.0
 const BG_FRAME_TIME: float = 1.0 / BG_FPS
@@ -327,6 +338,11 @@ func _on_resources_changed(village_id: int) -> void:
 
 
 func _on_state_changed() -> void:
+	var gs = Engine.get_main_loop().root.get_node_or_null("GameState") if Engine.get_main_loop() is SceneTree else null
+	if gs != null and int(gs.active_village_id) != _rendered_village_id:
+		_rendered_village_id = int(gs.active_village_id)
+		if building_panel != null and building_panel.visible:
+			building_panel.hide()
 	refresh_all()
 	_update_queue_ui()
 

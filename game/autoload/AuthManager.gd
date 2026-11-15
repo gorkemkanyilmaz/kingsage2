@@ -21,8 +21,17 @@ func _ready() -> void:
 
 func _normalize_name(raw_name: String) -> String:
 	var n := raw_name.strip_edges()
-	while n.begins_with("Lord Lord "):
-		n = n.substr(5)
+	while n.contains("  "):
+		n = n.replace("  ", " ")
+	while n.length() >= 10 and n.substr(0, 10).to_lower() == "lord lord ":
+		n = n.substr(5).strip_edges()
+	if n.is_empty():
+		return ""
+	var low := n.to_lower()
+	if low.begins_with("lord "):
+		n = "Lord " + n.substr(5).strip_edges()
+	elif not (low.begins_with("kral ") or low.begins_with("baron ") or low.begins_with("kont ") or low.begins_with("dük ") or low.begins_with("duk ") or low.begins_with("prens ")):
+		n = "Lord " + n
 	return n
 
 
@@ -47,8 +56,11 @@ func _web_remove(key: String) -> void:
 
 func login_with_google(mock_name: String = "Lord Gorkem") -> Dictionary:
 	auth_provider = "google"
-	user_id = "google_" + str(Time.get_unix_time_from_system()).sha256_text().substr(0, 12)
-	display_name = _normalize_name(mock_name)
+	var clean := _normalize_name(mock_name)
+	if clean.is_empty():
+		clean = "Lord Gorkem"
+	display_name = clean
+	user_id = "google_" + ("google:" + display_name.to_lower()).sha256_text().substr(0, 12)
 	email = display_name.to_lower().replace(" ", ".") + "@gmail.com"
 	auth_token = "goog_tok_" + str(randi() % 999999)
 	is_logged_in = true
@@ -61,8 +73,11 @@ func login_with_google(mock_name: String = "Lord Gorkem") -> Dictionary:
 
 func login_with_apple(mock_name: String = "Lord Roland") -> Dictionary:
 	auth_provider = "apple"
-	user_id = "apple_" + str(Time.get_unix_time_from_system()).sha256_text().substr(0, 12)
-	display_name = _normalize_name(mock_name)
+	var clean := _normalize_name(mock_name)
+	if clean.is_empty():
+		clean = "Lord Roland"
+	display_name = clean
+	user_id = "apple_" + ("apple:" + display_name.to_lower()).sha256_text().substr(0, 12)
 	email = display_name.to_lower().replace(" ", ".") + "@icloud.com"
 	auth_token = "appl_tok_" + str(randi() % 999999)
 	is_logged_in = true
@@ -74,6 +89,12 @@ func login_with_apple(mock_name: String = "Lord Roland") -> Dictionary:
 
 
 func logout() -> void:
+	var loop = Engine.get_main_loop()
+	if loop is SceneTree:
+		var wm = loop.root.get_node_or_null("WorldManager")
+		if is_logged_in and wm != null and wm.has_method("save_active_world"):
+			wm.save_active_world()
+
 	is_logged_in = false
 	auth_provider = ""
 	user_id = ""
@@ -84,6 +105,11 @@ func logout() -> void:
 	if FileAccess.file_exists(SESSION_FILE):
 		DirAccess.remove_absolute(ProjectSettings.globalize_path(SESSION_FILE))
 	_web_remove(WEB_SESSION_KEY)
+
+	if loop is SceneTree:
+		var gs = loop.root.get_node_or_null("GameState")
+		if gs != null and gs.has_method("reset"):
+			gs.reset()
 
 	auth_state_changed.emit(false, {})
 

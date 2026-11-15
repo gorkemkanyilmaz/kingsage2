@@ -167,13 +167,6 @@ func _setup_profile_bar() -> void:
 	p_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	hbox.add_child(p_lbl)
 
-	var server_dot := Label.new()
-	server_dot.text = "500 CCU Bulut (Aktif)"
-	server_dot.add_theme_font_override("font", FontNunitoBold)
-	server_dot.add_theme_font_size_override("font_size", 20)
-	server_dot.add_theme_color_override("font_color", Color(0.40, 0.95, 0.55))
-	hbox.add_child(server_dot)
-
 	_btn_profile_continue = Button.new()
 	_btn_profile_continue.name = "BtnProfileContinue"
 	_btn_profile_continue.text = "▶ Oyuna Devam Et"
@@ -401,18 +394,21 @@ func _setup_auth_overlay() -> void:
 func _do_login(provider: String) -> void:
 	var desired_name := _name_input.text.strip_edges()
 	if desired_name.is_empty():
-		desired_name = "Lord Gorkem"
+		desired_name = "Lord Gorkem" if provider == "google" else "Lord Roland"
 
 	var auth = Engine.get_main_loop().root.get_node_or_null("AuthManager") if Engine.get_main_loop() is SceneTree else null
+	var canonical_name := desired_name
 	if auth != null:
 		if provider == "google":
 			auth.login_with_google(desired_name)
 		else:
 			auth.login_with_apple(desired_name)
+		if not auth.display_name.is_empty():
+			canonical_name = auth.display_name
 
 	var net = Engine.get_main_loop().root.get_node_or_null("NetworkManager") if Engine.get_main_loop() is SceneTree else null
 	if net != null:
-		net.login_online(provider, desired_name)
+		net.login_online(provider, canonical_name)
 
 	_refresh_auth_state()
 

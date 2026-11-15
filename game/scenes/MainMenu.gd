@@ -170,13 +170,6 @@ func _setup_profile_bar() -> void:
 	p_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	hbox.add_child(p_lbl)
 
-	var server_dot := Label.new()
-	server_dot.text = "500 CCU Bulut (Aktif)"
-	server_dot.add_theme_font_override("font", FontNunitoBold)
-	server_dot.add_theme_font_size_override("font_size", 20)
-	server_dot.add_theme_color_override("font_color", Color(0.40, 0.95, 0.55))
-	hbox.add_child(server_dot)
-
 	var btn_logout := Button.new()
 	btn_logout.text = "Çıkış"
 	btn_logout.custom_minimum_size = Vector2(120, 44)
@@ -378,14 +371,17 @@ func _do_login(provider: String) -> void:
 		desired_name = "Lord Edward" if provider == "google" else "Lord Roland"
 
 	var auth = Engine.get_main_loop().root.get_node_or_null("AuthManager") if Engine.get_main_loop() is SceneTree else null
+	var canonical_name := desired_name
 	if auth != null:
 		if provider == "google":
 			auth.login_with_google(desired_name)
 		else:
 			auth.login_with_apple(desired_name)
+		if not auth.display_name.is_empty():
+			canonical_name = auth.display_name
 
 	var net = Engine.get_main_loop().root.get_node_or_null("NetworkManager") if Engine.get_main_loop() is SceneTree else null
 	if net != null:
-		net.login_online(provider, desired_name)
+		net.login_online(provider, canonical_name)
 
 	_refresh_auth_state()

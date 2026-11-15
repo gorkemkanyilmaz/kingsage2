@@ -82,13 +82,20 @@ func _ready() -> void:
 
 func _on_village_name_gui_input(event: InputEvent) -> void:
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
-		_show_rename_modal()
+		var gs = Engine.get_main_loop().root.get_node_or_null("GameState") if Engine.get_main_loop() is SceneTree else null
+		if gs != null and gs.has_method("get_player_villages") and gs.get_player_villages().size() > 1:
+			_show_village_switcher_modal()
+		else:
+			_show_rename_modal()
 
 
 func _on_prev_village_pressed() -> void:
 	var gs = Engine.get_main_loop().root.get_node_or_null("GameState") if Engine.get_main_loop() is SceneTree else null
 	if gs != null and gs.has_method("cycle_active_village"):
 		gs.cycle_active_village(-1)
+		var wm = Engine.get_main_loop().root.get_node_or_null("WorldManager") if Engine.get_main_loop() is SceneTree else null
+		if wm != null and wm.has_method("save_active_world"):
+			wm.save_active_world()
 		refresh()
 
 
@@ -96,6 +103,9 @@ func _on_next_village_pressed() -> void:
 	var gs = Engine.get_main_loop().root.get_node_or_null("GameState") if Engine.get_main_loop() is SceneTree else null
 	if gs != null and gs.has_method("cycle_active_village"):
 		gs.cycle_active_village(1)
+		var wm = Engine.get_main_loop().root.get_node_or_null("WorldManager") if Engine.get_main_loop() is SceneTree else null
+		if wm != null and wm.has_method("save_active_world"):
+			wm.save_active_world()
 		refresh()
 
 
@@ -173,10 +183,10 @@ func refresh() -> void:
 		if str(v.get("owner", "")) == "Kral" or str(v.get("owner", "")).is_empty():
 			v["owner"] = user_name
 
-		var count_str := " [%d/%d]" % [cur_idx, total_vills] if total_vills > 1 else ""
+		var count_str := " [%d/%d] ▾" % [cur_idx, total_vills] if total_vills > 1 else ""
 		var v_name := str(v.get("name", "Başkent"))
 		village_name_label.text = "%s | %s (%d|%d)%s" % [user_name, v_name, int(v.get("x", 0)), int(v.get("y", 0)), count_str]
-		village_name_label.tooltip_text = ""
+		village_name_label.tooltip_text = "Köy Değiştir / İsim Düzenle" if total_vills > 1 else "Köy Adını Düzenle"
 
 	if points_label != null:
 		points_label.text = "%d P" % int(v.get("points", 0))
@@ -215,6 +225,181 @@ func refresh() -> void:
 
 
 var _rename_modal: Control = null
+var _switcher_modal: Control = null
+
+
+func _show_village_switcher_modal() -> void:
+	if _switcher_modal != null and is_instance_valid(_switcher_modal):
+		_switcher_modal.queue_free()
+
+	var gs = Engine.get_main_loop().root.get_node_or_null("GameState") if Engine.get_main_loop() is SceneTree else null
+	if gs == null or not gs.has_method("get_player_villages"):
+		return
+	var player_villages: Array = gs.get_player_villages()
+	if player_villages.size() <= 1:
+		_show_rename_modal()
+		return
+
+	_switcher_modal = Control.new()
+	_switcher_modal.name = "VillageSwitcherModal"
+	_switcher_modal.anchors_preset = Control.PRESET_FULL_RECT
+	_switcher_modal.anchor_left = 0.0
+	_switcher_modal.anchor_top = 0.0
+	_switcher_modal.anchor_right = 1.0
+	_switcher_modal.anchor_bottom = 1.0
+	_switcher_modal.z_index = 210
+
+	var dim := ColorRect.new()
+	dim.anchors_preset = Control.PRESET_FULL_RECT
+	dim.color = Color(0.04, 0.03, 0.06, 0.84)
+	dim.mouse_filter = Control.MOUSE_FILTER_STOP
+	dim.gui_input.connect(func(ev):
+		if ev is InputEventMouseButton and ev.pressed:
+			_switcher_modal.queue_free()
+	)
+	_switcher_modal.add_child(dim)
+
+	var center := CenterContainer.new()
+	center.anchors_preset = Control.PRESET_FULL_RECT
+	_switcher_modal.add_child(center)
+
+	var card := PanelContainer.new()
+	card.custom_minimum_size = Vector2(700, 420)
+	var card_sb := StyleBoxFlat.new()
+	card_sb.bg_color = Color(0.12, 0.10, 0.16, 0.98)
+	card_sb.border_color = Color(0.88, 0.74, 0.42, 1.0)
+	card_sb.set_border_width_all(3)
+	card_sb.border_width_top = 5
+	card_sb.set_corner_radius_all(18)
+	card_sb.set_content_margin_all(26)
+	card.add_theme_stylebox_override("panel", card_sb)
+	center.add_child(card)
+
+	var vb := VBoxContainer.new()
+	vb.add_theme_constant_override("separation", 14)
+	card.add_child(vb)
+
+	var title_lbl := Label.new()
+	title_lbl.text = "🏰 Köylerim (%d Köy)" % player_villages.size()
+	title_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	var FontCinzelBold = load("res://assets/fonts/Cinzel-Bold.ttf")
+	if FontCinzelBold != null:
+		title_lbl.add_theme_font_override("font", FontCinzelBold)
+	title_lbl.add_theme_font_size_override("font_size", 28)
+	title_lbl.add_theme_color_override("font_color", Color(1.0, 0.92, 0.65))
+	vb.add_child(title_lbl)
+
+	var scroll := ScrollContainer.new()
+	scroll.custom_minimum_size = Vector2(0, 320)
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	vb.add_child(scroll)
+
+	var list_vb := VBoxContainer.new()
+	list_vb.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	list_vb.add_theme_constant_override("separation", 10)
+	scroll.add_child(list_vb)
+
+	for pv in player_villages:
+		if typeof(pv) != TYPE_DICTIONARY:
+			continue
+		var vid := int(pv.get("id", -1))
+		var vname := str(pv.get("name", "Köy"))
+		var vx := int(pv.get("x", 0))
+		var vy := int(pv.get("y", 0))
+		var vpts := int(pv.get("points", 0))
+		var is_active := (vid == int(gs.active_village_id))
+
+		var row_panel := PanelContainer.new()
+		var r_sb := StyleBoxFlat.new()
+		r_sb.bg_color = Color(0.22, 0.18, 0.12, 0.95) if is_active else Color(0.16, 0.14, 0.21, 0.92)
+		r_sb.border_color = Color(0.95, 0.80, 0.35, 1.0) if is_active else Color(0.45, 0.40, 0.55, 0.70)
+		r_sb.set_border_width_all(2)
+		r_sb.set_corner_radius_all(12)
+		r_sb.set_content_margin_all(12)
+		row_panel.add_theme_stylebox_override("panel", r_sb)
+		list_vb.add_child(row_panel)
+
+		var row := HBoxContainer.new()
+		row.add_theme_constant_override("separation", 12)
+		row_panel.add_child(row)
+
+		var info_lbl := Label.new()
+		info_lbl.text = "%s (%d|%d) — %d Puan" % [vname, vx, vy, vpts]
+		info_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		info_lbl.add_theme_font_override("font", FontNunitoBold)
+		info_lbl.add_theme_font_size_override("font_size", 22)
+		info_lbl.add_theme_color_override("font_color", Color(1.0, 0.94, 0.72) if is_active else Color(0.92, 0.90, 0.86))
+		row.add_child(info_lbl)
+
+		var btn_go := Button.new()
+		btn_go.text = "✓ AKTİF" if is_active else "Köye Geç"
+		btn_go.disabled = is_active
+		btn_go.custom_minimum_size = Vector2(150, 46)
+		btn_go.add_theme_font_override("font", FontNunitoBold)
+		btn_go.add_theme_font_size_override("font_size", 20)
+		btn_go.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+		var g_sb := StyleBoxFlat.new()
+		g_sb.bg_color = Color(0.22, 0.48, 0.26, 0.95) if not is_active else Color(0.28, 0.25, 0.16, 0.95)
+		g_sb.border_color = Color(0.55, 0.90, 0.55, 1.0) if not is_active else Color(0.90, 0.78, 0.35, 1.0)
+		g_sb.set_border_width_all(2)
+		g_sb.set_corner_radius_all(10)
+		btn_go.add_theme_stylebox_override("normal", g_sb)
+		btn_go.add_theme_stylebox_override("disabled", g_sb)
+		btn_go.add_theme_color_override("font_color", Color(1.0, 0.98, 0.90))
+		btn_go.pressed.connect(func():
+			if gs.has_method("set_active_village"):
+				gs.set_active_village(vid)
+			var wm = Engine.get_main_loop().root.get_node_or_null("WorldManager") if Engine.get_main_loop() is SceneTree else null
+			if wm != null and wm.has_method("save_active_world"):
+				wm.save_active_world()
+			refresh()
+			_switcher_modal.queue_free()
+		)
+		row.add_child(btn_go)
+
+	var foot := HBoxContainer.new()
+	foot.add_theme_constant_override("separation", 16)
+	foot.alignment = BoxContainer.ALIGNMENT_CENTER
+	vb.add_child(foot)
+
+	var btn_rename := Button.new()
+	btn_rename.text = "✏️ Aktif Köyün Adını Değiştir"
+	btn_rename.custom_minimum_size = Vector2(320, 50)
+	btn_rename.add_theme_font_override("font", FontNunitoBold)
+	btn_rename.add_theme_font_size_override("font_size", 20)
+	var rn_sb := StyleBoxFlat.new()
+	rn_sb.bg_color = Color(0.24, 0.20, 0.32, 0.95)
+	rn_sb.border_color = Color(0.85, 0.72, 0.42, 0.95)
+	rn_sb.set_border_width_all(2)
+	rn_sb.set_corner_radius_all(10)
+	btn_rename.add_theme_stylebox_override("normal", rn_sb)
+	btn_rename.add_theme_color_override("font_color", Color(1.0, 0.94, 0.78))
+	btn_rename.pressed.connect(func():
+		_switcher_modal.queue_free()
+		_show_rename_modal()
+	)
+	foot.add_child(btn_rename)
+
+	var btn_close := Button.new()
+	btn_close.text = "Kapat"
+	btn_close.custom_minimum_size = Vector2(140, 50)
+	btn_close.add_theme_font_override("font", FontNunitoBold)
+	btn_close.add_theme_font_size_override("font_size", 20)
+	var cl_sb := StyleBoxFlat.new()
+	cl_sb.bg_color = Color(0.42, 0.16, 0.16, 0.95)
+	cl_sb.border_color = Color(0.85, 0.38, 0.38, 1.0)
+	cl_sb.set_border_width_all(2)
+	cl_sb.set_corner_radius_all(10)
+	btn_close.add_theme_stylebox_override("normal", cl_sb)
+	btn_close.add_theme_color_override("font_color", Color(1.0, 0.95, 0.95))
+	btn_close.pressed.connect(func(): _switcher_modal.queue_free())
+	foot.add_child(btn_close)
+
+	var root = get_tree().root
+	if root != null:
+		root.add_child(_switcher_modal)
+	else:
+		add_child(_switcher_modal)
 
 func _show_rename_modal() -> void:
 	if _rename_modal != null and is_instance_valid(_rename_modal):

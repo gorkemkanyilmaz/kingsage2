@@ -71,6 +71,9 @@ var _detail_sub_timer_lbl: Label
 var _detail_units_grid: GridContainer
 var _detail_btn_cancel: Button
 var _detail_cancel_note: Label
+var _last_village_click_ms: int = -10000
+var _cached_active_vid: int = -1
+var _cached_own_sig: String = ""
 
 
 func _ready() -> void:
@@ -102,6 +105,20 @@ func _ready() -> void:
 
 	# Başlangıçta oyuncu köyüne ortala
 	_center_on_home(false)
+	var gs = Engine.get_main_loop().root.get_node_or_null("GameState") if Engine.get_main_loop() is SceneTree else null
+	if gs != null:
+		_cached_active_vid = int(gs.active_village_id)
+		if gs.has_method("get_player_villages"):
+			var ids: Array = []
+			for pv in gs.get_player_villages():
+				ids.append(int((pv as Dictionary).get("id", -1)))
+			_cached_own_sig = str(ids)
+	var bus = Engine.get_main_loop().root.get_node_or_null("EventBus") if Engine.get_main_loop() is SceneTree else null
+	if bus != null:
+		if bus.has_signal("state_changed") and not bus.state_changed.is_connected(_on_world_state_changed):
+			bus.state_changed.connect(_on_world_state_changed)
+		if bus.has_signal("village_conquered") and not bus.village_conquered.is_connected(_on_village_conquered_map):
+			bus.village_conquered.connect(_on_village_conquered_map)
 
 
 func _process(_delta: float) -> void:
@@ -409,6 +426,7 @@ func _build_villages() -> void:
 		# MapVillageView boyutu (360, 410), merkezleme Vector2(180, 156)
 		v_view.position = center_pos - Vector2(180, 156)
 		v_view.z_index = int(vy)
+		v_view.set_meta("village_dict", v)
 		v_view.setup(v, is_own, is_ally, v_tag)
 		v_view.clicked.connect(func(): _on_village_clicked(v))
 
@@ -553,6 +571,8 @@ func _on_map_gui_input(event: InputEvent) -> void:
 				call_deferred("_reset_drag_dist")
 				if not was_drag:
 					_check_movement_click(mb.position)
+					if movement_detail_panel == null or not movement_detail_panel.visible:
+						_try_select_village_at_screen_pos(mb.position)
 		elif mb.button_index == MOUSE_BUTTON_WHEEL_UP and mb.pressed:
 			_zoom_at(mb.position, 1.15)
 		elif mb.button_index == MOUSE_BUTTON_WHEEL_DOWN and mb.pressed:
@@ -591,6 +611,8 @@ func _on_map_gui_input(event: InputEvent) -> void:
 				call_deferred("_reset_drag_dist")
 				if not was_drag:
 					_check_movement_click(st.position)
+					if movement_detail_panel == null or not movement_detail_panel.visible:
+						_try_select_village_at_screen_pos(st.position)
 
 	elif event is InputEventScreenDrag:
 		_last_touch_ms = Time.get_ticks_msec()
@@ -699,10 +721,68 @@ func _on_goto_pressed() -> void:
 	_center_on_coord(target_x, target_y, true)
 
 
+func _try_select_village_at_screen_pos(screen_pos: Vector2) -> void:
+	if send_troops_panel != null and send_troops_panel.visible:
+		return
+	if map_container == null or world_root == null:
+		return
+	var view_size: Vector2 = map_container.size
+	if view_size.x <= 10.0 or view_size.y <= 10.0:
+		view_size = Vector2(1080.0, 1920.0)
+	var world_pos := _camera_pos + (screen_pos - view_size * 0.5) / _zoom
+	var best_v: Dictionary = {}
+	var best_dist: float = 155.0
+	for vid in _village_views:
+		var v_view = _village_views[vid]
+		if v_view == null or not is_instance_valid(v_view):
+			continue
+		var center: Vector2 = v_view.position + Vector2(180.0, 156.0)
+		var d: float = world_pos.distance_to(center)
+		if d <= best_dist and v_view.has_meta("village_dict"):
+			best_dist = d
+			best_v = v_view.get_meta("village_dict")
+	if not best_v.is_empty():
+		_on_village_clicked(best_v)
+
+
+func _on_village_conquered_map(_vid: int, _owner: String) -> void:
+	_cached_own_sig = ""
+	_on_world_state_changed()
+
+
+func _on_world_state_changed() -> void:
+	var gs = Engine.get_main_loop().root.get_node_or_null("GameState") if Engine.get_main_loop() is SceneTree else null
+	if gs == null:
+		return
+	var cur_aid := int(gs.active_village_id)
+	var ids: Array = []
+	if gs.has_method("get_player_villages"):
+		for pv in gs.get_player_villages():
+			ids.append(int((pv as Dictionary).get("id", -1)))
+	var sig := str(ids)
+	if cur_aid == _cached_active_vid and sig == _cached_own_sig:
+		return
+	var aid_changed := (cur_aid != _cached_active_vid)
+	_cached_active_vid = cur_aid
+	_cached_own_sig = sig
+	if villages_root != null:
+		for c in villages_root.get_children():
+			c.queue_free()
+	_village_views.clear()
+	_build_villages()
+	if aid_changed:
+		_center_on_home(true)
+
+
 func _on_village_clicked(target_v: Dictionary) -> void:
-	if _is_dragging or _total_drag_dist > 25.0:
+	if _total_drag_dist > 25.0 or _touch_points.size() >= 2:
 		_total_drag_dist = 0.0
 		return
+	var now_ms := Time.get_ticks_msec()
+	if now_ms - _last_village_click_ms < 200:
+		return
+	_last_village_click_ms = now_ms
+	_is_dragging = false
 	_total_drag_dist = 0.0
 
 	var gs = Engine.get_main_loop().root.get_node_or_null("GameState") if Engine.get_main_loop() is SceneTree else null
@@ -724,9 +804,8 @@ func _on_village_clicked(target_v: Dictionary) -> void:
 				is_own_village = true
 				break
 
-	if is_own_village:
-		# Kendi köyü veya fethettiği köy: köyü aktif yap ve içerisine geçiş yap
-		gs.set_active_village(target_vid)
+	if is_own_village and target_vid == active_vid:
+		# Aktif köyün kendisine dokunulursa köy içine geç
 		get_tree().change_scene_to_file("res://scenes/Village.tscn")
 		return
 

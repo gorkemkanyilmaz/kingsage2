@@ -9,6 +9,7 @@ import json
 import time
 import math
 import html
+import hashlib
 import random
 import secrets
 import sqlite3
@@ -428,6 +429,48 @@ def get_hourly_production(lvl: int) -> int:
 def get_max_population(farm_lvl: int) -> int:
     return int(round(240.0 * math.pow(1.17, max(0, farm_lvl - 1))))
 
+STARTER_BOOST_SECONDS = 7 * 86400
+STARTER_BOOST_MULTIPLIER = 2.0
+
+def normalize_display_name(raw_name: str) -> str:
+    n = re.sub(r"\s+", " ", (raw_name or "").strip())
+    while len(n) >= 5 and n[:5].lower() == "lord " and len(n) > 5 and n[5:10].lower() == "lord ":
+        n = n[5:].strip()
+    if n.lower().startswith("lord "):
+        n = "Lord " + n[5:].strip()
+    elif n and not any(n.lower().startswith(p) for p in ("kral ", "baron ", "kont ", "dük ", "duk ", "prens ")):
+        n = "Lord " + n
+    return html.escape(n)
+
+def get_starter_boost_until(conn: sqlite3.Connection, v_dict: Dict[str, Any], user_dict: Optional[Dict[str, Any]] = None) -> int:
+    if user_dict and int(user_dict.get("created_unix", 0)) > 0:
+        return int(user_dict["created_unix"]) + STARTER_BOOST_SECONDS
+    cursor = conn.cursor()
+    uid = v_dict.get("user_id")
+    owner = v_dict.get("owner")
+    if uid:
+        cursor.execute("SELECT created_unix FROM users WHERE id = ?", (uid,))
+        row = cursor.fetchone()
+        if row and int(row["created_unix"]) > 0:
+            return int(row["created_unix"]) + STARTER_BOOST_SECONDS
+    if owner:
+        cursor.execute("SELECT created_unix FROM users WHERE LOWER(display_name) = LOWER(?)", (owner,))
+        row = cursor.fetchone()
+        if row and int(row["created_unix"]) > 0:
+            return int(row["created_unix"]) + STARTER_BOOST_SECONDS
+    wid = int(v_dict.get("world_id", 1))
+    cursor.execute("SELECT created_unix FROM worlds WHERE id = ?", (wid,))
+    wrow = cursor.fetchone()
+    if wrow and int(wrow["created_unix"]) > 0:
+        return int(wrow["created_unix"]) + STARTER_BOOST_SECONDS
+    return 0
+
+def get_effective_speed(conn: sqlite3.Connection, v_dict: Dict[str, Any], now: int, user_dict: Optional[Dict[str, Any]] = None) -> float:
+    boost_until = get_starter_boost_until(conn, v_dict, user_dict)
+    if boost_until > 0 and now < boost_until:
+        return STARTER_BOOST_MULTIPLIER
+    return 1.0
+
 def simulate_village_lazy(v_dict: Dict[str, Any], now: int, conn: sqlite3.Connection) -> Dict[str, Any]:
     """Sunucu taraflı lazy catch-up: maden üretimi ve tamamlanan kuyrukların işlenmesi."""
     last_calc = int(v_dict.get("last_calc_unix", now))
@@ -437,9 +480,14 @@ def simulate_village_lazy(v_dict: Dict[str, Any], now: int, conn: sqlite3.Connec
     res = json.loads(v_dict["resources_json"]) if isinstance(v_dict["resources_json"], str) else v_dict["resources_json"]
     units = json.loads(v_dict["units_json"]) if isinstance(v_dict["units_json"], str) else v_dict["units_json"]
 
-    # 1. Maden Üretimi
+    # 1. Maden Üretimi (İlk 7 gün 2x başlangıç hızı destekli)
     if elapsed > 0:
-        hours = elapsed / 3600.0
+        boost_until = get_starter_boost_until(conn, v_dict)
+        boosted_sec = 0
+        if boost_until > last_calc:
+            boosted_sec = max(0, min(now, boost_until) - last_calc)
+        normal_sec = max(0, elapsed - boosted_sec)
+        hours = (boosted_sec * STARTER_BOOST_MULTIPLIER + normal_sec) / 3600.0
         w_gain = int(get_hourly_production(int(blds.get("wood", 1))) * hours)
         s_gain = int(get_hourly_production(int(blds.get("stone", 1))) * hours)
         i_gain = int(get_hourly_production(int(blds.get("iron", 1))) * hours)
@@ -568,29 +616,53 @@ def _fetch_cloud_and_village(cursor, user_id: str, display_name: str):
 
 @app.post("/api/auth/login")
 def auth_login(req: AuthLoginRequest):
-    display_name = html.escape(req.display_name.strip())
+    display_name = normalize_display_name(req.display_name)
     if not display_name:
         raise HTTPException(status_code=400, detail="Geçersiz kullanıcı adı.")
 
     now = int(time.time())
-    user_id = f"{req.provider}_{secrets.token_hex(6)}"
+    provider = (req.provider or "google").strip().lower()
+    if provider not in ("google", "apple"):
+        provider = "google"
+
+    det_hash = hashlib.sha256(f"{provider}:{display_name.lower()}".encode("utf-8")).hexdigest()[:12]
+    user_id = f"{provider}_{det_hash}"
     token = f"tk_tok_{secrets.token_hex(24)}"
-    email = req.email or f"{display_name.lower().replace(' ', '.')}@{req.provider}.com"
+    email = req.email or f"{display_name.lower().replace(' ', '.')}@{provider}.com"
 
     conn = get_db()
     cursor = conn.cursor()
     ensure_cloud_saves_table(cursor, conn.is_pg)
-    cursor.execute("SELECT * FROM users WHERE display_name = ?", (display_name,))
-    existing = cursor.fetchone()
 
+    bare_name = display_name[5:].strip() if display_name.startswith("Lord ") else display_name
+    candidates = [display_name]
+    if bare_name and bare_name != display_name:
+        candidates.append(bare_name)
+
+    existing = None
+    for cand in candidates:
+        cursor.execute("SELECT * FROM users WHERE LOWER(display_name) = LOWER(?) AND provider = ?", (cand, provider))
+        existing = cursor.fetchone()
+        if existing:
+            break
+    if not existing:
+        for cand in candidates:
+            cursor.execute("SELECT * FROM users WHERE LOWER(display_name) = LOWER(?)", (cand,))
+            existing = cursor.fetchone()
+            if existing:
+                break
+
+    created_unix = now
     if existing:
         user_id = existing["id"]
-        cursor.execute("UPDATE users SET token = ?, last_login_unix = ? WHERE id = ?", (token, now, user_id))
+        display_name = existing["display_name"]
+        created_unix = int(existing["created_unix"] or now)
+        cursor.execute("UPDATE users SET token = ?, last_login_unix = ?, provider = ? WHERE id = ?", (token, now, provider, user_id))
     else:
         cursor.execute("""
             INSERT INTO users (id, provider, email, display_name, token, created_unix, last_login_unix)
             VALUES (?, ?, ?, ?, ?, ?, ?)
-        """, (user_id, req.provider, email, display_name, token, now, now))
+        """, (user_id, provider, email, display_name, token, now, now))
 
     cloud_state, cloud_updated_unix, server_village = _fetch_cloud_and_village(cursor, user_id, display_name)
     has_village = bool(server_village is not None or cloud_state is not None)
@@ -602,7 +674,10 @@ def auth_login(req: AuthLoginRequest):
         "ok": True,
         "token": token,
         "user_id": user_id,
+        "provider": provider,
         "display_name": display_name,
+        "created_unix": created_unix,
+        "starter_boost_until_unix": created_unix + STARTER_BOOST_SECONDS,
         "has_village": has_village,
         "cloud_state": cloud_state,
         "updated_unix": cloud_updated_unix,
@@ -774,8 +849,9 @@ def action_build(req: BuildActionRequest, user: Dict[str, Any] = Depends(get_cur
     res["stone"] -= s_cost
     res["iron"] -= i_cost
 
-    # Süre (Sn)
-    duration = max(10, int(60 * math.pow(1.18, cur_lvl)))
+    # Süre (Sn) - İlk 7 gün 2x hız çarpanı
+    speed = get_effective_speed(conn, v_dict, now, user)
+    duration = max(5, int(round((60 * math.pow(1.18, cur_lvl)) / speed)))
     finish_unix = now + duration
 
     cursor.execute("""
@@ -828,7 +904,8 @@ def action_train(req: TrainActionRequest, user: Dict[str, Any] = Depends(get_cur
     res["stone"] -= total_s
     res["iron"] -= total_i
 
-    duration = u_cost["time"] * req.count
+    speed = get_effective_speed(conn, v_dict, now, user)
+    duration = max(2, int(round((u_cost["time"] * req.count) / speed)))
     finish_unix = now + duration
 
     cursor.execute("""
@@ -876,11 +953,12 @@ def action_send_troops(req: SendTroopsRequest, user: Dict[str, Any] = Depends(ge
             raise HTTPException(status_code=400, detail=f"Yetersiz birlik: {uk}")
         units_avail[uk] -= count
 
-    # Mesafe ve Süre Hesabı
+    # Mesafe ve Süre Hesabı - İlk 7 gün 2x birim hızı
     dx = float(from_v["x"] - to_v["x"])
     dy = float(from_v["y"] - to_v["y"])
     dist = math.sqrt(dx * dx + dy * dy)
-    duration = max(30, int(dist * 60)) # Alan başına 60 sn
+    speed = get_effective_speed(conn, from_dict, now, user)
+    duration = max(15, int(round((dist * 60) / speed))) # Alan başına 60 sn / hız çarpanı
     arrival_unix = now + duration
 
     cursor.execute("""

@@ -235,6 +235,9 @@ func _on_btn_button_up(btn: Button) -> void:
 
 func _on_tab_pressed(tab_name: String, target_scene: String) -> void:
 	tab_selected.emit(tab_name)
+	var wm = Engine.get_main_loop().root.get_node_or_null("WorldManager") if Engine.get_main_loop() is SceneTree else null
+	if wm != null and wm.has_method("save_active_world"):
+		wm.save_active_world()
 	var tree := get_tree()
 	if tree != null:
 		var current = tree.current_scene

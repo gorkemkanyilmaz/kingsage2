@@ -38,6 +38,8 @@ var _loaded_paths: Array = []
 var _now_unix: float = 0.0
 var _auto_save_timer: float = 0.0
 var _connected := false
+var _last_wall_unix: float = 0.0
+var _manual_now_override: bool = false
 
 
 func _init() -> void:
@@ -50,6 +52,7 @@ func _init() -> void:
 func _ready() -> void:
 	instance = self
 	_now_unix = float(_initial_now())
+	_last_wall_unix = float(Time.get_unix_time_from_system())
 	if _modules.is_empty():
 		_load_modules()
 	_connect_clock()
@@ -113,7 +116,46 @@ func _initial_now() -> int:
 # =============================================================================
 
 func _on_tick(delta_seconds: float) -> void:
-	simulate(delta_seconds)
+	var real_now := float(Time.get_unix_time_from_system())
+	var actual_delta := delta_seconds
+	if not _manual_now_override and _last_wall_unix > 0.0 and real_now > _last_wall_unix:
+		actual_delta = maxf(delta_seconds, real_now - _last_wall_unix)
+	_last_wall_unix = real_now
+	simulate(actual_delta)
+
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_APPLICATION_FOCUS_IN:
+		call_deferred("_on_tick", 0.0)
+	elif what == NOTIFICATION_APPLICATION_FOCUS_OUT or what == NOTIFICATION_WM_CLOSE_REQUEST:
+		var sm := _autoload("SaveManager")
+		if sm != null and sm.has_method("save_game"):
+			sm.save_game()
+
+
+func _next_sim_event_unix(state: Dictionary, max_unix: int) -> int:
+	var earliest := max_unix
+	var villages = state.get("villages", [])
+	if typeof(villages) == TYPE_ARRAY:
+		for v in villages:
+			if typeof(v) != TYPE_DICTIONARY:
+				continue
+			for key in v:
+				var val = v[key]
+				if typeof(val) == TYPE_ARRAY:
+					for item in val:
+						if typeof(item) == TYPE_DICTIONARY and item.has("finish_unix"):
+							var fu := int(item.get("finish_unix", 0))
+							if fu > 0 and fu < earliest:
+								earliest = fu
+	var movements = state.get("movements", [])
+	if typeof(movements) == TYPE_ARRAY:
+		for mv in movements:
+			if typeof(mv) == TYPE_DICTIONARY:
+				var au := int(mv.get("arrive_unix", 0))
+				if au > 0 and au < earliest:
+					earliest = au
+	return earliest
 
 
 ## Bir simülasyon adımı: tüm modülleri çalıştırır, olayları yayınlar, durumu yazar.
@@ -127,34 +169,85 @@ func simulate(delta_seconds: float) -> Array:
 
 	if _now_unix <= 0.0:
 		_now_unix = float(_initial_now())
+	var prev_now := _now_unix
 	var real_now := int(Time.get_unix_time_from_system())
-	if _now_unix > 1500000000.0 and real_now > int(_now_unix):
+	if not _manual_now_override and _now_unix > 1500000000.0 and real_now > int(_now_unix):
 		_now_unix = float(real_now)
 	else:
 		_now_unix += delta_seconds
 	var now := int(floor(_now_unix + 0.5))
+	var effective_delta: float = maxf(0.0, delta_seconds)
 
 	var state: Dictionary = gs.to_dict()
 	if typeof(state.get("world")) != TYPE_DICTIONARY:
 		state["world"] = {}
-	(state["world"] as Dictionary)["sim_now_unix"] = now
+	var world_dict := state["world"] as Dictionary
+	world_dict["sim_now_unix"] = now
+
+	if world_dict.has("starter_boost_until_unix"):
+		var cfg := _autoload("GameConfig")
+		if cfg != null and cfg.has_method("sync_from_world"):
+			cfg.sync_from_world(world_dict, now)
 
 	var events: Array = []
-	for script in _modules:
-		var produced = script.process_tick(state, now, delta_seconds)
-		if typeof(produced) == TYPE_ARRAY:
-			events.append_array(produced)
+	if _manual_now_override or effective_delta <= 5.0:
+		for script in _modules:
+			var produced = script.process_tick(state, now, effective_delta)
+			if typeof(produced) == TYPE_ARRAY:
+				events.append_array(produced)
+	else:
+		# Uzun süreli arka plan / sekme duraklaması sonrası kronolojik telafi (gerçek duvar saatiyle)
+		var cursor := int(floor(prev_now + 0.5))
+		if cursor >= now:
+			cursor = now
+			for script in _modules:
+				var produced_zero = script.process_tick(state, now, effective_delta)
+				if typeof(produced_zero) == TYPE_ARRAY:
+					events.append_array(produced_zero)
+		else:
+			var chunk_interval := maxi(60, int(effective_delta / 10.0))
+			var next_chunk := mini(now, cursor + chunk_interval)
+			var iters := 0
+			while cursor < now and iters < 200:
+				iters += 1
+				var next_ev := _next_sim_event_unix(state, now)
+				var seg_end := mini(now, mini(next_ev, next_chunk))
+				if seg_end < cursor:
+					seg_end = cursor
+				var seg_dt := float(seg_end - cursor)
+				world_dict["sim_now_unix"] = seg_end
+				for script in _modules:
+					var produced_seg = script.process_tick(state, seg_end, seg_dt)
+					if typeof(produced_seg) == TYPE_ARRAY:
+						events.append_array(produced_seg)
+				if seg_end >= next_chunk:
+					next_chunk = mini(now, seg_end + chunk_interval)
+				if seg_end == cursor:
+					var check_next := _next_sim_event_unix(state, now)
+					if check_next <= cursor:
+						break
+					continue
+				cursor = seg_end
+			if cursor < now:
+				var rem_dt := float(now - cursor)
+				world_dict["sim_now_unix"] = now
+				for script in _modules:
+					var produced_rem = script.process_tick(state, now, rem_dt)
+					if typeof(produced_rem) == TYPE_ARRAY:
+						events.append_array(produced_rem)
 
 	gs.from_dict(state)
 	_emit_events(events)
 
 	# Periyodik otomatik kayıt (her 30 saniyede bir son damga kaydedilir)
-	_auto_save_timer += delta_seconds
-	if _auto_save_timer >= 30.0:
-		_auto_save_timer = 0.0
-		var sm = _autoload("SaveManager")
-		if sm != null and sm.has_method("save_game"):
-			sm.save_game()
+	# Manuel test zamanı (set_now_unix) kullanıldığında disk kaydıyla sim_now_unix'i bozma.
+	if not _manual_now_override:
+		_auto_save_timer += effective_delta
+		if _auto_save_timer >= 30.0:
+			_auto_save_timer = 0.0
+			var sm = _autoload("SaveManager")
+			if sm != null and sm.has_method("save_game"):
+				sm.save_game()
 
 	return events
 
@@ -185,6 +278,10 @@ func _emit_events(events: Array) -> void:
 				bus.unit_trained.emit(vid, str(ev.get("unit_key", ev.get("key", ""))), int(ev.get("count", 0)))
 			"village_conquered":
 				bus.village_conquered.emit(vid, str(ev.get("owner", "")))
+				bus.state_changed.emit()
+				var wm = _autoload("WorldManager")
+				if wm != null and wm.has_method("save_active_world"):
+					wm.save_active_world()
 			"battle_resolved":
 				bus.battle_resolved.emit(ev)
 				bus.report_created.emit(ev)
@@ -229,3 +326,4 @@ func module_count() -> int:
 ## Sim saati elle ayarlar (kayıt yükleme / test).
 func set_now_unix(value: int) -> void:
 	_now_unix = float(value)
+	_manual_now_override = true

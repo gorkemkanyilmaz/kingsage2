@@ -17,7 +17,12 @@ const PROFILES_PATH := "res://data/world-profiles.json"
 
 # --- Hız / üretim -----------------------------------------------------------
 
-## Dünya hızı (üretim, inşaat süreleri vb. için çarpan). "Hız" (KingsAge s59-tr verileri 1× tabanında birebirdir).
+## İlk 7 gün hız artışı (7 × 86400 saniye, ×2 hız çarpanı).
+const STARTER_BOOST_DAYS := 7
+const STARTER_BOOST_SECONDS := 7 * 86400
+const STARTER_BOOST_MULTIPLIER := 2.0
+
+## Dünya hızı (üretim, inşaat süreleri vb. için çarpan). "Hız" (KingsAge s59-tr verileri 1× tabanında birebirdir; ilk 7 gün 2× aktiftir).
 var speed: float = 1.0
 
 ## Birim hızı (orduların harita üzerinde ilerleme hızı). "Birim hızı".
@@ -215,6 +220,41 @@ func realm_loss_range(has_statue: bool) -> Array:
 	if has_statue:
 		return [realm_loss_min_with_statue, realm_loss_max_with_statue]
 	return [realm_loss_min, realm_loss_max]
+
+
+## Dünya/oyuncu meta verisinden hız ve ilk 7 gün 2x başlangıç bonusunu senkronize eder.
+func sync_from_world(world_meta: Dictionary, now_unix: int = 0) -> void:
+	if typeof(world_meta) != TYPE_DICTIONARY or world_meta.is_empty():
+		return
+	var check_now := now_unix if now_unix > 0 else int(Time.get_unix_time_from_system())
+	var base_s := float(world_meta.get("base_speed", 1.0))
+	var base_us := float(world_meta.get("base_unit_speed", 1.0))
+	if is_starter_boost_active(world_meta, check_now):
+		speed = maxf(base_s, STARTER_BOOST_MULTIPLIER)
+		unit_speed = maxf(base_us, STARTER_BOOST_MULTIPLIER)
+	else:
+		speed = base_s if base_s > 0.0 else 1.0
+		unit_speed = base_us if base_us > 0.0 else 1.0
+
+
+## İlk 7 gün 2x hız bonusunun belirtilen unix zamanında aktif olup olmadığını döndürür.
+func is_starter_boost_active(world_meta: Dictionary = {}, now_unix: int = 0) -> bool:
+	return starter_boost_remaining_seconds(world_meta, now_unix) > 0
+
+
+## İlk 7 gün 2x hız bonusundan kalan süreyi saniye cinsinden döndürür (yoksa 0).
+func starter_boost_remaining_seconds(world_meta: Dictionary = {}, now_unix: int = 0) -> int:
+	if typeof(world_meta) != TYPE_DICTIONARY or world_meta.is_empty():
+		return 0
+	var check_now := now_unix if now_unix > 0 else int(Time.get_unix_time_from_system())
+	var boost_until := int(world_meta.get("starter_boost_until_unix", 0))
+	if boost_until <= 0:
+		var created := int(world_meta.get("player_joined_unix", world_meta.get("created_unix", 0)))
+		if created > 0:
+			boost_until = created + STARTER_BOOST_SECONDS
+	if boost_until <= 0:
+		return 0
+	return maxi(0, boost_until - check_now)
 
 
 # --- Serileştirme -----------------------------------------------------------

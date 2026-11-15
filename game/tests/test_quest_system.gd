@@ -221,6 +221,36 @@ func _run_tests() -> void:
 	_check(bool(qm.call("get_quest_progress", "q_unlock_statue")["completed"]), "q_unlock_statue (Anıt aç) tamamlandı")
 	_check(qm.call("claim_quest", "q_unlock_statue"), "q_unlock_statue ödülü alınabildi")
 
+	# 10. Dinamik çoklu görev hedef yönlendirme butonları testi (tamamlanan alt hedef gizlenmeli)
+	active_v = gs.call("get_active_village")
+	active_v["buildings"]["wood"] = 1
+	active_v["buildings"]["stone"] = 1
+	var ws_actions_both: Array = qm.call("get_pending_navigation_actions", "q_wood_stone_3", gs)
+	_check(ws_actions_both.size() == 2, "q_wood_stone_3 başlangıçta 2 ayrı yönlendirme butonu döndürüyor")
+	active_v["buildings"]["wood"] = 3
+	var ws_actions_one: Array = qm.call("get_pending_navigation_actions", "q_wood_stone_3", gs)
+	_check(ws_actions_one.size() == 1 and str(ws_actions_one[0].get("target", "")) == "stone", "Odun Lv.3 olunca Odun butonu kalktı, yalnızca Taş Ocağı kaldı")
+
+	active_v["buildings"]["storage"] = 2
+	active_v["buildings"]["farm"] = 2
+	var sf_actions_both: Array = qm.call("get_pending_navigation_actions", "q_storage_farm_4", gs)
+	_check(sf_actions_both.size() == 2, "q_storage_farm_4 (Depo & Değirmen Lv.4) 2 ayrı buton döndürüyor")
+	active_v["buildings"]["storage"] = 4
+	var sf_actions_one: Array = qm.call("get_pending_navigation_actions", "q_storage_farm_4", gs)
+	_check(sf_actions_one.size() == 1 and str(sf_actions_one[0].get("target", "")) == "farm", "Depo Lv.4 olunca Depo butonu kalktı, yalnızca Değirmen kaldı")
+	active_v["buildings"]["farm"] = 4
+	var sf_actions_done: Array = qm.call("get_pending_navigation_actions", "q_storage_farm_4", gs)
+	_check(sf_actions_done.is_empty(), "Depo ve Değirmen Lv.4 olunca yönlendirme kalmadı")
+
+	active_v["buildings"]["barracks"] = 2
+	active_v["buildings"]["garage"] = 2
+	active_v["buildings"]["snob"] = 0
+	var snob_prereqs: Array = qm.call("get_pending_navigation_actions", "q_unlock_snob", gs)
+	_check(snob_prereqs.size() == 2, "q_unlock_snob eksik önkoşullar için ayrı yönlendirme butonları üretti (Kışla + Simyager)")
+	active_v["buildings"]["barracks"] = 5
+	var snob_prereqs_one: Array = qm.call("get_pending_navigation_actions", "q_unlock_snob", gs)
+	_check(snob_prereqs_one.size() == 1 and str(snob_prereqs_one[0].get("target", "")) == "garage", "Kışla Lv.5 olunca Kışla butonu kalktı, yalnızca Simyager kaldı")
+
 	if _active_scene != null and is_instance_valid(_active_scene):
 		root.remove_child(_active_scene)
 		_active_scene.queue_free()

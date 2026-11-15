@@ -14,6 +14,7 @@ var _to_village: Dictionary = {}
 var _unit_inputs: Dictionary = {}
 var _resource_inputs: Dictionary = {}
 var _current_tab: String = "troops" # "troops" | "trade"
+var _btn_switch_to_village: Button = null
 
 @onready var title_label: Label = $VBox/Header/TitleLabel
 @onready var close_btn: Button = $VBox/Header/CloseButton
@@ -211,9 +212,64 @@ func _setup_fonts_and_styles() -> void:
 		_style_action_button(btn)
 
 
+func _ensure_switch_button() -> void:
+	if _btn_switch_to_village != null and is_instance_valid(_btn_switch_to_village):
+		return
+	var vbox := get_node_or_null("VBox") as VBoxContainer
+	if vbox == null:
+		return
+	_btn_switch_to_village = Button.new()
+	_btn_switch_to_village.name = "BtnSwitchToVillage"
+	_btn_switch_to_village.text = "🏰 Bu Köye Geç (Aktif Köy Yap)"
+	_btn_switch_to_village.custom_minimum_size = Vector2(0, 56)
+	_btn_switch_to_village.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	_btn_switch_to_village.add_theme_font_override("font", FontNunitoBold)
+	_btn_switch_to_village.add_theme_font_size_override("font_size", 24)
+	_btn_switch_to_village.add_theme_color_override("font_color", Color(1.0, 0.98, 0.90))
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color(0.16, 0.45, 0.24, 0.98)
+	sb.border_color = Color(0.45, 0.92, 0.55, 1.0)
+	sb.set_border_width_all(2)
+	sb.set_corner_radius_all(12)
+	_btn_switch_to_village.add_theme_stylebox_override("normal", sb)
+	var h_sb := sb.duplicate() as StyleBoxFlat
+	h_sb.bg_color = Color(0.22, 0.56, 0.30, 1.0)
+	_btn_switch_to_village.add_theme_stylebox_override("hover", h_sb)
+	_btn_switch_to_village.add_theme_stylebox_override("pressed", h_sb)
+	_btn_switch_to_village.pressed.connect(func():
+		var target_id := int(_to_village.get("id", -1))
+		var gs = Engine.get_main_loop().root.get_node_or_null("GameState") if Engine.get_main_loop() is SceneTree else null
+		if gs != null and target_id > 0 and gs.has_method("set_active_village"):
+			gs.set_active_village(target_id)
+		var wm = Engine.get_main_loop().root.get_node_or_null("WorldManager") if Engine.get_main_loop() is SceneTree else null
+		if wm != null and wm.has_method("save_active_world"):
+			wm.save_active_world()
+		hide()
+		closed.emit()
+		var tree = Engine.get_main_loop() as SceneTree
+		if tree != null:
+			tree.change_scene_to_file("res://scenes/Village.tscn")
+	)
+	vbox.add_child(_btn_switch_to_village)
+	vbox.move_child(_btn_switch_to_village, mini(3, vbox.get_child_count() - 1))
+
+
 func show_target(from_v: Dictionary, to_v: Dictionary) -> void:
 	_from_village = from_v
 	_to_village = to_v
+	_ensure_switch_button()
+	if _btn_switch_to_village != null:
+		var gs = Engine.get_main_loop().root.get_node_or_null("GameState") if Engine.get_main_loop() is SceneTree else null
+		var p_name := str(gs.player.get("name", "")) if gs != null else ""
+		var target_id := int(to_v.get("id", -1))
+		var from_id := int(from_v.get("id", -1))
+		var is_own := (not p_name.is_empty() and str(to_v.get("owner", "")) == p_name)
+		if not is_own and gs != null and gs.has_method("get_player_villages"):
+			for pv in gs.get_player_villages():
+				if int((pv as Dictionary).get("id", -1)) == target_id:
+					is_own = true
+					break
+		_btn_switch_to_village.visible = (is_own and target_id != from_id)
 	_populate_target_info()
 	_populate_units()
 	_populate_resources()
