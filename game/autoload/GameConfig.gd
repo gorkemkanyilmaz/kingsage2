@@ -128,10 +128,93 @@ func _init() -> void:
 func _ready() -> void:
 	instance = self
 	load_profiles()
+	call_deferred("_setup_mobile_safe_area")
 	# Kayıtlı ayar varsa onu yükle; yoksa varsayılan dünya profilini (TR) uygula.
 	if FileAccess.file_exists(CONFIG_PATH) and load_from_file(CONFIG_PATH):
 		return
 	apply_profile(_default_profile)
+
+
+# --- Mobil / iOS Güvenli Alan (Dynamic Island & Home Indicator) -------------
+
+var _safe_bg_layer: CanvasLayer = null
+var _safe_top_px: float = 0.0
+var _safe_bottom_px: float = 0.0
+var _safe_last_scene_id: int = 0
+
+
+func _setup_mobile_safe_area() -> void:
+	if DisplayServer.get_name() == "headless":
+		return
+	var tree := get_tree()
+	if tree == null:
+		return
+	if not tree.tree_changed.is_connected(_on_tree_changed_safe_area):
+		tree.tree_changed.connect(_on_tree_changed_safe_area)
+	var vp := get_viewport()
+	if vp != null and not vp.size_changed.is_connected(_refresh_mobile_safe_area):
+		vp.size_changed.connect(_refresh_mobile_safe_area)
+	_refresh_mobile_safe_area()
+
+
+func _on_tree_changed_safe_area() -> void:
+	var tree := get_tree()
+	if tree == null or tree.current_scene == null:
+		return
+	var sid := tree.current_scene.get_instance_id()
+	if sid != _safe_last_scene_id:
+		_safe_last_scene_id = sid
+		call_deferred("_refresh_mobile_safe_area")
+
+
+func get_ios_safe_insets() -> Dictionary:
+	if DisplayServer.get_name() == "headless":
+		return {"top": 0.0, "bottom": 0.0}
+	if not (OS.has_feature("ios") or OS.has_feature("android")):
+		return {"top": 0.0, "bottom": 0.0}
+	var vp := get_viewport()
+	if vp == null:
+		return {"top": 0.0, "bottom": 0.0}
+	var win_size := DisplayServer.window_get_size()
+	if win_size.x <= 0 or win_size.y <= 0:
+		return {"top": 0.0, "bottom": 0.0}
+	var safe := DisplayServer.get_display_safe_area()
+	if safe.size.x <= 0 or safe.size.y <= 0:
+		return {"top": 0.0, "bottom": 0.0}
+	var vp_size := vp.get_visible_rect().size
+	var scale_y: float = vp_size.y / float(win_size.y)
+	var top_in: float = clampf(float(safe.position.y) * scale_y, 0.0, 180.0)
+	var bot_raw: float = float(win_size.y - (safe.position.y + safe.size.y)) * scale_y
+	var bot_in: float = clampf(bot_raw, 0.0, 110.0)
+	return {"top": top_in, "bottom": bot_in}
+
+
+func get_ios_safe_top() -> float:
+	return _safe_top_px
+
+
+func _refresh_mobile_safe_area() -> void:
+	var insets := get_ios_safe_insets()
+	_safe_top_px = float(insets.get("top", 0.0))
+	_safe_bottom_px = float(insets.get("bottom", 0.0))
+	var tree := get_tree()
+	if tree == null:
+		return
+	var cur := tree.current_scene
+	if cur is Control and (_safe_top_px > 0.0 or _safe_bottom_px > 0.0):
+		var c := cur as Control
+		c.offset_top = _safe_top_px
+		c.offset_bottom = -_safe_bottom_px
+		if _safe_bg_layer == null:
+			_safe_bg_layer = CanvasLayer.new()
+			_safe_bg_layer.layer = -1
+			_safe_bg_layer.name = "SafeAreaBackdrop"
+			var rect := ColorRect.new()
+			rect.set_anchors_preset(Control.PRESET_FULL_RECT)
+			rect.color = Color(0.06, 0.05, 0.08, 1.0)
+			rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			_safe_bg_layer.add_child(rect)
+			add_child(_safe_bg_layer)
 
 
 # --- Dünya profilleri -------------------------------------------------------

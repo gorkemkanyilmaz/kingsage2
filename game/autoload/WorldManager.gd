@@ -73,8 +73,14 @@ func _on_state_changed_autosave() -> void:
 		save_active_world()
 
 
+func _cloud_enabled() -> bool:
+	if DisplayServer.get_name() == "headless":
+		return false
+	return OS.has_feature("web") or OS.has_feature("ios") or OS.has_feature("android")
+
+
 func _process(delta: float) -> void:
-	if not OS.has_feature("web") or _cloud_poll_in_flight:
+	if not _cloud_enabled() or _cloud_poll_in_flight:
 		return
 	var loop = Engine.get_main_loop()
 	if not (loop is SceneTree):
@@ -579,7 +585,7 @@ func join_world(world_id: int, player_name: String, target_x: int = 100, target_
 	var sm = Engine.get_main_loop().root.get_node_or_null("SaveManager") if Engine.get_main_loop() is SceneTree else null
 	if sm != null and sm.has_method("save_game"):
 		sm.save_game()
-	if OS.has_feature("web") and Engine.get_main_loop() is SceneTree:
+	if _cloud_enabled() and Engine.get_main_loop() is SceneTree:
 		var net = Engine.get_main_loop().root.get_node_or_null("NetworkManager")
 		if net != null and not str(net.auth_token).is_empty():
 			net.api_join_world(world_id, placed_spot.x, placed_spot.y, Callable())
@@ -1014,7 +1020,7 @@ func save_active_world() -> bool:
 		w_data["registered_real_players"] = reg_list
 
 	var ok := save_world_dict(current_world_id, w_data)
-	if ok and OS.has_feature("web") and Engine.get_main_loop() is SceneTree:
+	if ok and _cloud_enabled() and Engine.get_main_loop() is SceneTree:
 		var net = Engine.get_main_loop().root.get_node_or_null("NetworkManager")
 		if net != null and not str(net.auth_token).is_empty() and (now - _last_cloud_save_unix) >= 3:
 			_last_cloud_save_unix = now
@@ -1274,7 +1280,7 @@ func apply_cloud_sync(res_data: Dictionary, from_save_response: bool = false) ->
 
 		_live_sync_game_state_from_world(merged_w, p_name)
 
-		if not from_save_response and local_has and local_ts > cloud_ts and OS.has_feature("web") and loop is SceneTree:
+		if not from_save_response and local_has and local_ts > cloud_ts and _cloud_enabled() and loop is SceneTree:
 			var net = loop.root.get_node_or_null("NetworkManager")
 			if net != null and not str(net.auth_token).is_empty():
 				_last_cloud_save_unix = int(Time.get_unix_time_from_system())
@@ -1346,7 +1352,7 @@ func apply_cloud_sync(res_data: Dictionary, from_save_response: bool = false) ->
 		return true
 
 	# Sunucu henüz hiç dünya kaydı içermiyorsa ve oyuncunun yerelde bir köyü varsa buluta yükle
-	if not from_save_response and has_player_village(current_world_id, p_name) and OS.has_feature("web") and loop is SceneTree:
+	if not from_save_response and has_player_village(current_world_id, p_name) and _cloud_enabled() and loop is SceneTree:
 		var local_cur := load_world_dict(current_world_id)
 		var net = loop.root.get_node_or_null("NetworkManager")
 		if not local_cur.is_empty() and net != null and not str(net.auth_token).is_empty():

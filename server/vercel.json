@@ -24,6 +24,14 @@
       "dest": "/public/$1"
     },
     {
+      "src": "/privacy",
+      "dest": "/public/privacy.html"
+    },
+    {
+      "src": "/support",
+      "dest": "/public/support.html"
+    },
+    {
       "src": "/public/(.*)",
       "dest": "/public/$1"
     },

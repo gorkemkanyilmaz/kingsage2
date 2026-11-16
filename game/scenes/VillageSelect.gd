@@ -522,7 +522,7 @@ func _update_profile_continue_button() -> void:
 	var sm = root.get_node_or_null("SaveManager") if root != null else null
 	var auth = root.get_node_or_null("AuthManager") if root != null else null
 	var p_name: String = auth.display_name if (auth != null and not str(auth.display_name).is_empty()) else "Lord Gorkem"
-	var is_conquered := (wm != null and wm.has_method("is_player_conquered") and wm.is_player_conquered(wm.current_world_id, p_name))
+	var is_conquered: bool = (wm != null and wm.has_method("is_player_conquered") and bool(wm.is_player_conquered(wm.current_world_id, p_name)))
 	var has_v := false
 	if wm != null and wm.has_player_village(wm.current_world_id, p_name):
 		has_v = true

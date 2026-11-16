@@ -25,8 +25,14 @@ func _ready() -> void:
 	call_deferred("_auto_connect_cloud")
 
 
+static func is_cloud_sync_enabled() -> bool:
+	if DisplayServer.get_name() == "headless":
+		return false
+	return OS.has_feature("web") or OS.has_feature("ios") or OS.has_feature("android")
+
+
 func _auto_connect_cloud() -> void:
-	if not OS.has_feature("web"):
+	if not is_cloud_sync_enabled():
 		return
 	var loop = Engine.get_main_loop()
 	if not (loop is SceneTree):

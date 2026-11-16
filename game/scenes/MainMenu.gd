@@ -125,9 +125,9 @@ func _refresh_auth_state() -> void:
 			var sm = Engine.get_main_loop().root.get_node_or_null("SaveManager") if Engine.get_main_loop() is SceneTree else null
 			var wm = Engine.get_main_loop().root.get_node_or_null("WorldManager") if Engine.get_main_loop() is SceneTree else null
 			var p_name := _get_player_name()
-			var conquered := (wm != null and wm.has_method("is_player_conquered") and wm.is_player_conquered(wm.current_world_id, p_name))
+			var conquered: bool = (wm != null and wm.has_method("is_player_conquered") and bool(wm.is_player_conquered(wm.current_world_id, p_name)))
 			if sm != null:
-				var can_cont := (not conquered) and bool(sm.has_save())
+				var can_cont: bool = (not conquered) and bool(sm.has_save())
 				cont.visible = can_cont
 				cont.disabled = not can_cont
 	else:

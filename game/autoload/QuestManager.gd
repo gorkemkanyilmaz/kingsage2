@@ -517,6 +517,7 @@ func _process(delta: float) -> void:
 	if visible != should_show:
 		visible = should_show
 		if should_show:
+			_sync_live_positions()
 			refresh_quests(true)
 
 	if should_show and _tracker_panel != null:
@@ -858,7 +859,7 @@ func _build_ui() -> void:
 	# Sol üst panel (BtnAlliance'ın tam ters tarafı: left=20, top=152)
 	_tracker_panel = VBoxContainer.new()
 	_tracker_panel.name = "QuestTrackerPanel"
-	_tracker_panel.position = Vector2(20.0, 152.0)
+	_tracker_panel.position = Vector2(20.0, 152.0 + _safe_top_offset())
 	_tracker_panel.custom_minimum_size = Vector2(400.0, 0.0)
 	_tracker_panel.size = Vector2(400.0, 60.0)
 	_tracker_panel.add_theme_constant_override("separation", 6)
@@ -1875,12 +1876,32 @@ func _show_toast(msg: String) -> void:
 	var vp := get_viewport().get_visible_rect().size
 	if vp.x < 100.0:
 		vp = Vector2(1080, 1920)
-	_toast_panel.position = Vector2((vp.x - _toast_panel.size.x) * 0.5, 152.0)
+	_toast_panel.position = Vector2((vp.x - _toast_panel.size.x) * 0.5, 152.0 + _safe_top_offset())
 
 
 # =============================================================================
 #  YARDIMCILAR
 # =============================================================================
+
+func _safe_top_offset() -> float:
+	var loop := Engine.get_main_loop()
+	if loop is SceneTree:
+		var gc = loop.root.get_node_or_null("GameConfig")
+		if gc != null and gc.has_method("get_ios_safe_top"):
+			return float(gc.get_ios_safe_top())
+	return 0.0
+
+
+func _sync_live_positions() -> void:
+	var st := _safe_top_offset()
+	if _tracker_panel != null:
+		_tracker_panel.position = Vector2(20.0, 152.0 + st)
+	if _toast_panel != null and _toast_panel.visible:
+		var vp := get_viewport().get_visible_rect().size
+		if vp.x < 100.0:
+			vp = Vector2(1080, 1920)
+		_toast_panel.position = Vector2((vp.x - _toast_panel.size.x) * 0.5, 152.0 + st)
+
 
 func _gs() -> Node:
 	var loop := Engine.get_main_loop()

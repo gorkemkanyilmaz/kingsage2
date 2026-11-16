@@ -1655,7 +1655,11 @@ func _update_visual_animations(delta: float, scene_node: Node, scene_name: Strin
 	elif has_target and target_ctrl != _btn_next and target_ctrl != _btn_speedup:
 		dock_bottom = (t_rect.get_center().y < vp_size.y * 0.44)
 
-	var target_card_y := 146.0 if not dock_bottom else clampf(vp_size.y - 266.0 - card_h, 520.0, vp_size.y - card_h - 20.0)
+	var safe_top := 0.0
+	var gc_node = Engine.get_main_loop().root.get_node_or_null("GameConfig") if Engine.get_main_loop() is SceneTree else null
+	if gc_node != null and gc_node.has_method("get_ios_safe_top"):
+		safe_top = float(gc_node.get_ios_safe_top())
+	var target_card_y := (146.0 + safe_top) if not dock_bottom else clampf(vp_size.y - 266.0 - card_h, 520.0, vp_size.y - card_h - 20.0)
 	var target_card_x := (vp_size.x - card_w) * 0.5
 	if _vizier_card.position.distance_to(Vector2(target_card_x, target_card_y)) > 260.0 or DisplayServer.get_name() == "headless":
 		_vizier_card.position = Vector2(target_card_x, target_card_y)

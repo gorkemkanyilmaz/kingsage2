@@ -2,9 +2,10 @@
 game/.godot/
 game/android/
 game/.import/
-export_presets.cfg
 *.translation
 .mono/
+appstore/raw/
+build/
 
 # ---------- Araclar (indirilen Godot ikilisi — repoda TUTULMAZ) ----------
 tools/godot/
