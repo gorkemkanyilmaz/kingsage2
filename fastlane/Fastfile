@@ -70,8 +70,9 @@ platform :ios do
         ["DISTRIBUTION", "IOS_DISTRIBUTION"].include?(c.certificate_type)
       }
       UI.message("Active Distribution certs on Apple portal: #{dist_certs.length}")
-      if dist_certs.length >= 3
-        dist_certs.take(dist_certs.length - 2).each do |c|
+      # Apple Individual accounts allow up to 2 active Distribution certs.
+      if dist_certs.length >= 2
+        dist_certs.take(dist_certs.length - 1).each do |c|
           UI.message("Revoking oldest Distribution cert #{c.id} (#{c.display_name}) to free slot")
           c.delete!
         end
