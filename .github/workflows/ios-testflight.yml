@@ -20,7 +20,7 @@ on:
 
 jobs:
   build-ios-testflight:
-    runs-on: ${{ inputs.runner || 'macos-26' }}
+    runs-on: ${{ inputs.runner || 'macos-26-intel' }}
     timeout-minutes: 45
     env:
       GODOT_VERSION: "4.7.2-stable"
@@ -66,20 +66,7 @@ jobs:
           unzip -q /tmp/templates.tpz -d /tmp/templates
           cp -R /tmp/templates/templates/* "$HOME/Library/Application Support/Godot/export_templates/4.7.2.stable/"
 
-      - name: Import Godot Assets & Export iOS Xcode Project
-        run: |
-          mkdir -p build/ios
-          "$GODOT_BIN" --headless --path game --import || "$GODOT_BIN" --headless --path game --editor --quit || true
-          "$GODOT_BIN" --headless --path game --export-release "iOS" ../build/ios/TahtVeKilic.xcodeproj
-          XCODE_PROJ=$(find build/ios -maxdepth 2 -name "*.xcodeproj" | head -n 1)
-          echo "XCODE_PROJ=$(pwd)/$XCODE_PROJ" >> $GITHUB_ENV
-          xcodebuild -list -json -project "$XCODE_PROJ"
-          SCHEME=$(xcodebuild -list -json -project "$XCODE_PROJ" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d['project']['schemes'][0])")
-          TARGET=$(xcodebuild -list -json -project "$XCODE_PROJ" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d['project']['targets'][0])")
-          echo "XCODE_SCHEME=$SCHEME" >> $GITHUB_ENV
-          echo "XCODE_TARGET=$TARGET" >> $GITHUB_ENV
-
-      - name: Decode ASC Key & Deploy to TestFlight via Fastlane
+      - name: Prepare Apple Signing Certificate & Provisioning Profile
         env:
           ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
           ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
@@ -87,10 +74,64 @@ jobs:
           BUILD_NUMBER: ${{ inputs.build_number }}
         run: |
           set -o pipefail
-          mkdir -p "$HOME/.appstoreconnect/private_keys"
+          mkdir -p "$HOME/.appstoreconnect/private_keys" build/ios
           ASC_KEY_PATH="$HOME/.appstoreconnect/private_keys/AuthKey_${ASC_KEY_ID}.p8"
           echo "$ASC_KEY_P8_BASE64" | base64 --decode > "$ASC_KEY_PATH"
-          export ASC_KEY_PATH
+          echo "ASC_KEY_PATH=$ASC_KEY_PATH" >> $GITHUB_ENV
 
+          export ASC_KEY_PATH
+          export SIGNING_ENV_FILE="$(pwd)/build/signing.env"
           which fastlane || gem install fastlane --no-document
-          fastlane ios deploy_testflight project_path:"$XCODE_PROJ" scheme:"$XCODE_SCHEME" target:"$XCODE_TARGET" 2>&1 | tee fastlane.log
+          fastlane ios prepare_signing 2>&1 | tee fastlane_prepare.log
+          cat "$SIGNING_ENV_FILE" >> $GITHUB_ENV
+
+      - name: Inject Profile UUID & Build Number into Godot Export Preset
+        env:
+          BUILD_NUMBER: ${{ inputs.build_number }}
+        run: |
+          python3 - <<'PY'
+          import os, re
+          path = "game/export_presets.cfg"
+          with open(path, "r", encoding="utf-8") as f:
+              txt = f.read()
+          uuid = os.environ["ASC_PROFILE_UUID"]
+          bnum = os.environ["BUILD_NUMBER"]
+          txt = re.sub(r'application/provisioning_profile_uuid_release="[^"]*"', f'application/provisioning_profile_uuid_release="{uuid}"', txt)
+          txt = re.sub(r'application/version="[^"]*"', f'application/version="{bnum}"', txt)
+          with open(path, "w", encoding="utf-8") as f:
+              f.write(txt)
+          print(f"Configured export_presets.cfg with UUID={uuid}, build={bnum}")
+          PY
+
+      - name: Import Godot Assets & Export iOS Project
+        run: |
+          "$GODOT_BIN" --headless --path game --import || "$GODOT_BIN" --headless --path game --editor --quit || true
+          set +e
+          "$GODOT_BIN" --headless --path game --export-release "iOS" ../build/ios/TahtVeKilic.xcodeproj
+          GODOT_RC=$?
+          set -e
+          echo "Godot export exit code: $GODOT_RC"
+          ls -la build/ios/ || true
+          if [ ! -f build/ios/TahtVeKilic.xcodeproj/project.pbxproj ]; then
+            echo "::error::Godot failed to generate TahtVeKilic.xcodeproj"
+            exit 1
+          fi
+          if ! find build/ios -maxdepth 3 -name "*.pck" | grep -q .; then
+            echo "::error::Godot failed to export game .pck"
+            exit 1
+          fi
+          XCODE_PROJ=$(find build/ios -maxdepth 2 -name "*.xcodeproj" | head -n 1)
+          echo "XCODE_PROJ=$(pwd)/$XCODE_PROJ" >> $GITHUB_ENV
+          SCHEME=$(xcodebuild -list -json -project "$XCODE_PROJ" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d['project']['schemes'][0])")
+          TARGET=$(xcodebuild -list -json -project "$XCODE_PROJ" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d['project']['targets'][0])")
+          echo "XCODE_SCHEME=$SCHEME" >> $GITHUB_ENV
+          echo "XCODE_TARGET=$TARGET" >> $GITHUB_ENV
+
+      - name: Export Signed IPA & Upload to TestFlight
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          BUILD_NUMBER: ${{ inputs.build_number }}
+        run: |
+          set -o pipefail
+          fastlane ios export_and_upload project_path:"$XCODE_PROJ" scheme:"$XCODE_SCHEME" target:"$XCODE_TARGET" 2>&1 | tee fastlane_upload.log

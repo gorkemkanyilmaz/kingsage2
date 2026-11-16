@@ -1,26 +1,7 @@
 default_platform(:ios)
 
 platform :ios do
-  desc "Sign, archive, and upload Taht ve Kilic Xcode project to Apple TestFlight"
-  lane :deploy_testflight do |options|
-    key_id      = ENV.fetch("ASC_KEY_ID", "")
-    issuer_id   = ENV.fetch("ASC_ISSUER_ID", "")
-    key_path    = ENV.fetch("ASC_KEY_PATH", "")
-    team_id     = ENV.fetch("APPLE_TEAM_ID", "H2TTF8894Z")
-    bundle_id   = ENV.fetch("APP_BUNDLE_ID", "com.tahtkilic.kingsage2")
-    build_num   = ENV.fetch("BUILD_NUMBER", "1")
-    project_arg = options[:project_path] || File.expand_path("../build/ios/TahtVeKilic.xcodeproj", __dir__)
-    scheme_name = options[:scheme] || "TahtVeKilic"
-    target_name = options[:target] || scheme_name
-
-    UI.user_error!("Missing ASC_KEY_ID") if key_id.empty?
-    UI.user_error!("Missing ASC_ISSUER_ID") if issuer_id.empty?
-    UI.user_error!("Missing ASC_KEY_PATH file: #{key_path}") unless File.exist?(key_path)
-    UI.user_error!("Missing Xcode project: #{project_arg}") unless File.exist?(project_arg)
-
-    key_content = File.read(key_path)
-    build_dir = File.dirname(project_arg)
-
+  def setup_ci_keychain_and_wwdr
     kc_name     = "ci_signing"
     kc_password = "ci_signing_password"
     kc_path     = File.expand_path("~/Library/Keychains/#{kc_name}-db")
@@ -45,6 +26,18 @@ platform :ios do
       )
     end
 
+    [kc_name, kc_password, kc_path]
+  end
+
+  def asc_api_key
+    key_id    = ENV.fetch("ASC_KEY_ID", "")
+    issuer_id = ENV.fetch("ASC_ISSUER_ID", "")
+    key_path  = ENV.fetch("ASC_KEY_PATH", "")
+    UI.user_error!("Missing ASC_KEY_ID") if key_id.empty?
+    UI.user_error!("Missing ASC_ISSUER_ID") if issuer_id.empty?
+    UI.user_error!("Missing ASC_KEY_PATH file: #{key_path}") unless File.exist?(key_path)
+
+    key_content = File.read(key_path)
     api_key = app_store_connect_api_key(
       key_id: key_id,
       issuer_id: issuer_id,
@@ -52,9 +45,19 @@ platform :ios do
       is_key_content_base64: false,
       in_house: false
     )
+    [api_key, key_id, issuer_id, key_content]
+  end
 
-    # Apple allows up to 3 active Distribution certificates per team.
-    # Reuse or clean only if at the limit so cert creation cannot fail.
+  desc "Create CI keychain, install Apple Distribution cert & App Store provisioning profile before Godot export"
+  lane :prepare_signing do
+    team_id   = ENV.fetch("APPLE_TEAM_ID", "H2TTF8894Z")
+    bundle_id = ENV.fetch("APP_BUNDLE_ID", "com.tahtkilic.kingsage2")
+    out_env   = ENV.fetch("SIGNING_ENV_FILE", File.expand_path("../build/signing.env", __dir__))
+
+    _, _, kc_path = setup_ci_keychain_and_wwdr
+    kc_password = "ci_signing_password"
+    api_key, key_id, issuer_id, key_content = asc_api_key
+
     require "spaceship"
     begin
       token = Spaceship::ConnectAPI::Token.create(
@@ -93,25 +96,48 @@ platform :ios do
       force: true
     )
 
-    profile_name = lane_context[SharedValues::SIGH_NAME]
-    UI.message("Using Provisioning Profile: #{profile_name}")
+    profile_name = lane_context[SharedValues::SIGH_NAME].to_s
+    profile_uuid = lane_context[SharedValues::SIGH_UDID].to_s
+    UI.user_error!("SIGH failed to produce profile UUID") if profile_uuid.empty?
 
-    update_code_signing_settings(
-      path: project_arg,
-      targets: [target_name],
-      use_automatic_signing: false,
-      team_id: team_id,
-      code_sign_identity: "Apple Distribution",
-      profile_name: profile_name,
-      bundle_identifier: bundle_id
-    )
+    sh("mkdir -p '#{File.dirname(out_env)}'")
+    File.write(out_env, "ASC_PROFILE_NAME=#{profile_name}\nASC_PROFILE_UUID=#{profile_uuid}\n")
+    UI.success("Prepared signing profile #{profile_name} (#{profile_uuid})")
+  end
 
+  desc "Export IPA from Godot Xcode archive and upload to TestFlight"
+  lane :export_and_upload do |options|
+    team_id      = ENV.fetch("APPLE_TEAM_ID", "H2TTF8894Z")
+    bundle_id    = ENV.fetch("APP_BUNDLE_ID", "com.tahtkilic.kingsage2")
+    profile_name = ENV.fetch("ASC_PROFILE_NAME", "")
+    project_arg  = options[:project_path] || File.expand_path("../build/ios/TahtVeKilic.xcodeproj", __dir__)
+    scheme_name  = options[:scheme] || "TahtVeKilic"
+    target_name  = options[:target] || scheme_name
+    build_num    = ENV.fetch("BUILD_NUMBER", "1")
+    build_dir    = File.dirname(project_arg)
     archive_path = "#{build_dir}/TahtVeKilic.xcarchive"
     ipa_dir      = "#{build_dir}/ipa"
+
+    UI.user_error!("Missing ASC_PROFILE_NAME") if profile_name.empty?
+    api_key, = asc_api_key
+
+    # Archive via Xcode if Godot didn't already produce a complete .xcarchive
+    unless Dir.exist?("#{archive_path}/Products/Applications")
+      UI.message("Enforcing Manual App Store code signing on #{target_name}...")
+      update_code_signing_settings(
+        path: project_arg,
+        targets: [target_name],
+        use_automatic_signing: false,
+        team_id: team_id,
+        code_sign_identity: "Apple Distribution",
+        profile_name: profile_name,
+        bundle_identifier: bundle_id
+      )
+      UI.message("Archiving #{project_arg} (#{scheme_name})...")
+      sh("xcodebuild archive -project '#{project_arg}' -scheme '#{scheme_name}' -configuration Release -destination 'generic/platform=iOS' -archivePath '#{archive_path}' DEVELOPMENT_TEAM='#{team_id}' CURRENT_PROJECT_VERSION='#{build_num}' MARKETING_VERSION='1.0.0' CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY='Apple Distribution' PROVISIONING_PROFILE_SPECIFIER='#{profile_name}' PRODUCT_BUNDLE_IDENTIFIER='#{bundle_id}'")
+    end
+
     sh("mkdir -p '#{ipa_dir}'")
-
-    sh("xcodebuild archive -project '#{project_arg}' -scheme '#{scheme_name}' -configuration Release -destination 'generic/platform=iOS' -archivePath '#{archive_path}' DEVELOPMENT_TEAM='#{team_id}' CURRENT_PROJECT_VERSION='#{build_num}' MARKETING_VERSION='1.0.0' CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY='Apple Distribution' PROVISIONING_PROFILE_SPECIFIER='#{profile_name}' PRODUCT_BUNDLE_IDENTIFIER='#{bundle_id}'")
-
     export_plist = "#{build_dir}/ExportOptions.plist"
     File.write(export_plist, <<~PLIST)
       <?xml version="1.0" encoding="UTF-8"?>
@@ -139,7 +165,7 @@ platform :ios do
 
     ipa_file = Dir["#{ipa_dir}/*.ipa"].first
     UI.user_error!("No .ipa file produced in #{ipa_dir}") unless ipa_file && File.exist?(ipa_file)
-    UI.message("Uploading IPA: #{ipa_file}")
+    UI.message("Uploading IPA to TestFlight: #{ipa_file}")
 
     upload_to_testflight(
       api_key: api_key,
@@ -150,7 +176,7 @@ platform :ios do
       uses_non_exempt_encryption: false
     )
 
-    delete_keychain(name: kc_name)
+    delete_keychain(name: "ci_signing")
     UI.success("TestFlight upload completed cleanly!")
   end
 end
