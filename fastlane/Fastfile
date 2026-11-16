@@ -1,0 +1,156 @@
+default_platform(:ios)
+
+platform :ios do
+  desc "Sign, archive, and upload Taht ve Kilic Xcode project to Apple TestFlight"
+  lane :deploy_testflight do |options|
+    key_id      = ENV.fetch("ASC_KEY_ID", "")
+    issuer_id   = ENV.fetch("ASC_ISSUER_ID", "")
+    key_path    = ENV.fetch("ASC_KEY_PATH", "")
+    team_id     = ENV.fetch("APPLE_TEAM_ID", "H2TTF8894Z")
+    bundle_id   = ENV.fetch("APP_BUNDLE_ID", "com.tahtkilic.kingsage2")
+    build_num   = ENV.fetch("BUILD_NUMBER", "1")
+    project_arg = options[:project_path] || File.expand_path("../build/ios/TahtVeKilic.xcodeproj", __dir__)
+    scheme_name = options[:scheme] || "TahtVeKilic"
+    target_name = options[:target] || scheme_name
+
+    UI.user_error!("Missing ASC_KEY_ID") if key_id.empty?
+    UI.user_error!("Missing ASC_ISSUER_ID") if issuer_id.empty?
+    UI.user_error!("Missing ASC_KEY_PATH file: #{key_path}") unless File.exist?(key_path)
+    UI.user_error!("Missing Xcode project: #{project_arg}") unless File.exist?(project_arg)
+
+    key_content = File.read(key_path)
+    build_dir = File.dirname(project_arg)
+
+    kc_name     = "ci_signing"
+    kc_password = "ci_signing_password"
+    kc_path     = File.expand_path("~/Library/Keychains/#{kc_name}-db")
+
+    create_keychain(
+      name: kc_name,
+      password: kc_password,
+      default_keychain: true,
+      unlock: true,
+      timeout: 3600,
+      lock_when_sleeps: false,
+      add_to_search_list: true
+    )
+
+    ["AppleWWDRCAG3.cer", "AppleWWDRCAG6.cer"].each do |cert_name|
+      local = "/tmp/#{cert_name}"
+      sh("curl -fsSL 'https://www.apple.com/certificateauthority/#{cert_name}' -o '#{local}'")
+      import_certificate(
+        certificate_path: local,
+        keychain_path: kc_path,
+        keychain_password: kc_password
+      )
+    end
+
+    api_key = app_store_connect_api_key(
+      key_id: key_id,
+      issuer_id: issuer_id,
+      key_content: key_content,
+      is_key_content_base64: false,
+      in_house: false
+    )
+
+    # Apple allows up to 3 active Distribution certificates per team.
+    # Reuse or clean only if at the limit so cert creation cannot fail.
+    require "spaceship"
+    begin
+      token = Spaceship::ConnectAPI::Token.create(
+        key_id: key_id,
+        issuer_id: issuer_id,
+        key: key_content
+      )
+      Spaceship::ConnectAPI.token = token
+      dist_certs = Spaceship::ConnectAPI::Certificate.all.select { |c|
+        ["DISTRIBUTION", "IOS_DISTRIBUTION"].include?(c.certificate_type)
+      }
+      UI.message("Active Distribution certs on Apple portal: #{dist_certs.length}")
+      if dist_certs.length >= 3
+        dist_certs.take(dist_certs.length - 2).each do |c|
+          UI.message("Revoking oldest Distribution cert #{c.id} (#{c.display_name}) to free slot")
+          c.delete!
+        end
+      end
+    rescue => e
+      UI.important("Cert quota precheck note: #{e.message}")
+    end
+
+    cert(
+      api_key: api_key,
+      team_id: team_id,
+      platform: "ios",
+      keychain_path: kc_path,
+      keychain_password: kc_password
+    )
+
+    sigh(
+      api_key: api_key,
+      app_identifier: bundle_id,
+      team_id: team_id,
+      platform: "ios",
+      force: true
+    )
+
+    profile_name = lane_context[SharedValues::SIGH_NAME]
+    UI.message("Using Provisioning Profile: #{profile_name}")
+
+    update_code_signing_settings(
+      path: project_arg,
+      targets: [target_name],
+      use_automatic_signing: false,
+      team_id: team_id,
+      code_sign_identity: "Apple Distribution",
+      profile_name: profile_name,
+      bundle_identifier: bundle_id
+    )
+
+    archive_path = "#{build_dir}/TahtVeKilic.xcarchive"
+    ipa_dir      = "#{build_dir}/ipa"
+    sh("mkdir -p '#{ipa_dir}'")
+
+    sh("xcodebuild archive -project '#{project_arg}' -scheme '#{scheme_name}' -configuration Release -destination 'generic/platform=iOS' -archivePath '#{archive_path}' DEVELOPMENT_TEAM='#{team_id}' CURRENT_PROJECT_VERSION='#{build_num}' MARKETING_VERSION='1.0.0' CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY='Apple Distribution' PROVISIONING_PROFILE_SPECIFIER='#{profile_name}' PRODUCT_BUNDLE_IDENTIFIER='#{bundle_id}'")
+
+    export_plist = "#{build_dir}/ExportOptions.plist"
+    File.write(export_plist, <<~PLIST)
+      <?xml version="1.0" encoding="UTF-8"?>
+      <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+      <plist version="1.0">
+      <dict>
+        <key>method</key>
+        <string>app-store-connect</string>
+        <key>signingStyle</key>
+        <string>manual</string>
+        <key>teamID</key>
+        <string>#{team_id}</string>
+        <key>uploadSymbols</key>
+        <true/>
+        <key>provisioningProfiles</key>
+        <dict>
+          <key>#{bundle_id}</key>
+          <string>#{profile_name}</string>
+        </dict>
+      </dict>
+      </plist>
+    PLIST
+
+    sh("xcodebuild -exportArchive -archivePath '#{archive_path}' -exportOptionsPlist '#{export_plist}' -exportPath '#{ipa_dir}' DEVELOPMENT_TEAM='#{team_id}'")
+
+    ipa_file = Dir["#{ipa_dir}/*.ipa"].first
+    UI.user_error!("No .ipa file produced in #{ipa_dir}") unless ipa_file && File.exist?(ipa_file)
+    UI.message("Uploading IPA: #{ipa_file}")
+
+    upload_to_testflight(
+      api_key: api_key,
+      app_identifier: bundle_id,
+      ipa: ipa_file,
+      skip_waiting_for_build_processing: true,
+      distribute_external: false,
+      uses_non_exempt_encryption: false
+    )
+
+    delete_keychain(name: kc_name)
+    UI.success("TestFlight upload completed cleanly!")
+  end
+end

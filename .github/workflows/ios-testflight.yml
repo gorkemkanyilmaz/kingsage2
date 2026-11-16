@@ -7,21 +7,40 @@ on:
         description: "TestFlight Build Number (e.g. 1, 2, 3)"
         required: true
         default: "1"
+      runner:
+        description: "GitHub macOS Runner"
+        required: true
+        type: choice
+        default: "macos-26-intel"
+        options:
+          - macos-26-intel
+          - macos-26
+          - macos-15-intel
+          - macos-14
 
 jobs:
   build-ios-testflight:
-    runs-on: macos-15
+    runs-on: ${{ inputs.runner || 'macos-26' }}
+    timeout-minutes: 45
     env:
       GODOT_VERSION: "4.7.2-stable"
       APP_BUNDLE_ID: "com.tahtkilic.kingsage2"
-      DEFAULT_TEAM_ID: "H2TTF8894Z"
+      APPLE_TEAM_ID: "H2TTF8894Z"
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Select Xcode
-        run: sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
+      - name: Select Highest Xcode Version
+        run: |
+          echo "Available Xcode installations:"
+          ls -ld /Applications/Xcode*.app 2>/dev/null || true
+          LATEST_XCODE=$(ls -d /Applications/Xcode*.app 2>/dev/null | sort -V | tail -n 1)
+          if [ -n "$LATEST_XCODE" ]; then
+            echo "Selecting Xcode: $LATEST_XCODE"
+            sudo xcode-select -s "$LATEST_XCODE"
+          fi
+          xcodebuild -version
 
       - name: Validate App Store Connect Secrets
         env:
@@ -30,21 +49,21 @@ jobs:
           ASC_KEY_P8_BASE64: ${{ secrets.ASC_KEY_P8_BASE64 }}
         run: |
           if [ -z "$ASC_KEY_ID" ] || [ -z "$ASC_ISSUER_ID" ] || [ -z "$ASC_KEY_P8_BASE64" ]; then
-            echo "::error::Missing required GitHub Secrets: ASC_KEY_ID, ASC_ISSUER_ID, and ASC_KEY_P8_BASE64 must be set in Repository Settings -> Secrets -> Actions."
+            echo "::error::Missing required GitHub Secrets: ASC_KEY_ID, ASC_ISSUER_ID, ASC_KEY_P8_BASE64"
             exit 1
           fi
 
       - name: Install Godot ${{ env.GODOT_VERSION }} & Export Templates
         run: |
-          curl -fsSL "https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}/Godot_v${GODOT_VERSION}_macos.universal.zip" -o godot.zip
-          unzip -q godot.zip -d /tmp/godot
+          curl -fsSL "https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}/Godot_v${GODOT_VERSION}_macos.universal.zip" -o /tmp/godot.zip
+          unzip -q /tmp/godot.zip -d /tmp/godot
           GODOT_BIN="/tmp/godot/Godot.app/Contents/MacOS/Godot"
           chmod +x "$GODOT_BIN"
           echo "GODOT_BIN=$GODOT_BIN" >> $GITHUB_ENV
 
-          curl -fsSL "https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}/Godot_v${GODOT_VERSION}_export_templates.tpz" -o templates.tpz
+          curl -fsSL "https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}/Godot_v${GODOT_VERSION}_export_templates.tpz" -o /tmp/templates.tpz
           mkdir -p "$HOME/Library/Application Support/Godot/export_templates/4.7.2.stable"
-          unzip -q templates.tpz -d /tmp/templates
+          unzip -q /tmp/templates.tpz -d /tmp/templates
           cp -R /tmp/templates/templates/* "$HOME/Library/Application Support/Godot/export_templates/4.7.2.stable/"
 
       - name: Import Godot Assets & Export iOS Xcode Project
@@ -52,94 +71,26 @@ jobs:
           mkdir -p build/ios
           "$GODOT_BIN" --headless --path game --import || "$GODOT_BIN" --headless --path game --editor --quit || true
           "$GODOT_BIN" --headless --path game --export-release "iOS" ../build/ios/TahtVeKilic.xcodeproj
+          XCODE_PROJ=$(find build/ios -maxdepth 2 -name "*.xcodeproj" | head -n 1)
+          echo "XCODE_PROJ=$(pwd)/$XCODE_PROJ" >> $GITHUB_ENV
+          xcodebuild -list -json -project "$XCODE_PROJ"
+          SCHEME=$(xcodebuild -list -json -project "$XCODE_PROJ" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d['project']['schemes'][0])")
+          TARGET=$(xcodebuild -list -json -project "$XCODE_PROJ" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d['project']['targets'][0])")
+          echo "XCODE_SCHEME=$SCHEME" >> $GITHUB_ENV
+          echo "XCODE_TARGET=$TARGET" >> $GITHUB_ENV
 
-      - name: Configure App Store Connect API Key & Optional Signing Certs
+      - name: Decode ASC Key & Deploy to TestFlight via Fastlane
         env:
           ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
           ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
           ASC_KEY_P8_BASE64: ${{ secrets.ASC_KEY_P8_BASE64 }}
-          BUILD_CERTIFICATE_BASE64: ${{ secrets.APPLE_DIST_CERT_P12_BASE64 }}
-          P12_PASSWORD: ${{ secrets.APPLE_DIST_CERT_PASSWORD }}
-          PROVISIONING_PROFILE_BASE64: ${{ secrets.APPLE_PROVISIONING_PROFILE_BASE64 }}
-          KEYCHAIN_PASSWORD: ${{ secrets.APPLE_KEYCHAIN_PASSWORD }}
+          BUILD_NUMBER: ${{ inputs.build_number }}
         run: |
+          set -o pipefail
           mkdir -p "$HOME/.appstoreconnect/private_keys"
           ASC_KEY_PATH="$HOME/.appstoreconnect/private_keys/AuthKey_${ASC_KEY_ID}.p8"
           echo "$ASC_KEY_P8_BASE64" | base64 --decode > "$ASC_KEY_PATH"
-          echo "ASC_KEY_PATH=$ASC_KEY_PATH" >> $GITHUB_ENV
+          export ASC_KEY_PATH
 
-          if [ -n "$BUILD_CERTIFICATE_BASE64" ]; then
-            KEYCHAIN_PATH="$RUNNER_TEMP/app-signing.keychain-db"
-            KC_PASS="${KEYCHAIN_PASSWORD:-ci-keychain}"
-            security create-keychain -p "$KC_PASS" "$KEYCHAIN_PATH"
-            security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
-            security unlock-keychain -p "$KC_PASS" "$KEYCHAIN_PATH"
-            echo "$BUILD_CERTIFICATE_BASE64" | base64 --decode > cert.p12
-            security import cert.p12 -P "$P12_PASSWORD" -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH"
-            security list-keychain -d user -s "$KEYCHAIN_PATH"
-          fi
-
-          if [ -n "$PROVISIONING_PROFILE_BASE64" ]; then
-            mkdir -p "$HOME/Library/MobileDevice/Provisioning Profiles"
-            echo "$PROVISIONING_PROFILE_BASE64" | base64 --decode > "$HOME/Library/MobileDevice/Provisioning Profiles/appstore.mobileprovision"
-          fi
-
-      - name: Archive, Export IPA & Upload to TestFlight
-        env:
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
-          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
-        run: |
-          TEAM_ID="${APPLE_TEAM_ID:-$DEFAULT_TEAM_ID}"
-          XCODE_PROJ=$(find build/ios -maxdepth 2 -name "*.xcodeproj" | head -n 1)
-          SCHEME_NAME=$(xcodebuild -list -json -project "$XCODE_PROJ" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d['project']['schemes'][0])")
-          echo "Archiving project=$XCODE_PROJ scheme=$SCHEME_NAME team=$TEAM_ID"
-
-          cat > build/ios/ExportOptions.plist <<EOF
-          <?xml version="1.0" encoding="UTF-8"?>
-          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-          <plist version="1.0">
-          <dict>
-            <key>method</key>
-            <string>app-store-connect</string>
-            <key>teamID</key>
-            <string>${TEAM_ID}</string>
-            <key>signingStyle</key>
-            <string>automatic</string>
-            <key>uploadSymbols</key>
-            <true/>
-          </dict>
-          </plist>
-          EOF
-
-          xcodebuild -project "$XCODE_PROJ" \
-            -scheme "$SCHEME_NAME" \
-            -configuration Release \
-            -destination "generic/platform=iOS" \
-            -archivePath build/ios/TahtVeKilic.xcarchive \
-            CODE_SIGN_STYLE=Automatic \
-            DEVELOPMENT_TEAM="${TEAM_ID}" \
-            PRODUCT_BUNDLE_IDENTIFIER="${APP_BUNDLE_ID}" \
-            CURRENT_PROJECT_VERSION="${{ inputs.build_number }}" \
-            MARKETING_VERSION="1.0.0" \
-            -authenticationKeyPath "$ASC_KEY_PATH" \
-            -authenticationKeyID "$ASC_KEY_ID" \
-            -authenticationKeyIssuerID "$ASC_ISSUER_ID" \
-            -allowProvisioningUpdates \
-            archive
-
-          xcodebuild -exportArchive \
-            -archivePath build/ios/TahtVeKilic.xcarchive \
-            -exportPath build/ios/ipa \
-            -exportOptionsPlist build/ios/ExportOptions.plist \
-            -authenticationKeyPath "$ASC_KEY_PATH" \
-            -authenticationKeyID "$ASC_KEY_ID" \
-            -authenticationKeyIssuerID "$ASC_ISSUER_ID" \
-            -allowProvisioningUpdates
-
-          IPA_FILE=$(ls build/ios/ipa/*.ipa | head -n 1)
-          xcrun altool --upload-app \
-            -f "$IPA_FILE" \
-            --type ios \
-            --apiKey "$ASC_KEY_ID" \
-            --apiIssuer "$ASC_ISSUER_ID"
+          which fastlane || gem install fastlane --no-document
+          fastlane ios deploy_testflight project_path:"$XCODE_PROJ" scheme:"$XCODE_SCHEME" target:"$XCODE_TARGET" 2>&1 | tee fastlane.log
