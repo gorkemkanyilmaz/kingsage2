@@ -58,12 +58,38 @@ func _ready() -> void:
 	var vp := get_viewport()
 	if vp != null and not vp.size_changed.is_connected(_on_viewport_resized):
 		vp.size_changed.connect(_on_viewport_resized)
+	if not resized.is_connected(_on_viewport_resized):
+		resized.connect(_on_viewport_resized)
 	var net = root.get_node_or_null("NetworkManager") if root != null else null
 	if net != null:
 		if net.has_signal("auth_completed") and not net.auth_completed.is_connected(_on_cloud_sync_finished):
 			net.auth_completed.connect(_on_cloud_sync_finished)
 		if net.has_signal("sync_completed") and not net.sync_completed.is_connected(_on_cloud_sync_finished):
 			net.sync_completed.connect(_on_cloud_sync_finished)
+		if net.has_signal("server_status_changed") and not net.server_status_changed.is_connected(_on_server_status_changed):
+			net.server_status_changed.connect(_on_server_status_changed)
+		if net.has_method("check_server") and net.get("is_server_reachable") == false and net.get_script().is_cloud_sync_enabled():
+			net.check_server()
+	_update_server_status_ui()
+
+
+func _on_server_status_changed(_reachable: bool, _data: Dictionary) -> void:
+	_update_server_status_ui()
+
+
+func _update_server_status_ui() -> void:
+	if _status_lbl == null:
+		return
+	var root = Engine.get_main_loop().root if Engine.get_main_loop() is SceneTree else null
+	var net = root.get_node_or_null("NetworkManager") if root != null else null
+	if net == null:
+		return
+	if bool(net.get("is_server_reachable")):
+		_status_lbl.text = "● Sunucu Çevrimiçi — Google veya Apple ile giriş yapın."
+		_status_lbl.add_theme_color_override("font_color", Color(0.55, 0.90, 0.60))
+	else:
+		_status_lbl.text = "Google veya Apple ile giriş yapıp Dünya 1'e katılın."
+		_status_lbl.add_theme_color_override("font_color", Color(0.72, 0.68, 0.62))
 
 
 func _on_cloud_sync_finished(success: bool, _data: Dictionary) -> void:
@@ -72,6 +98,7 @@ func _on_cloud_sync_finished(success: bool, _data: Dictionary) -> void:
 	_build_world_rows()
 	_update_profile_continue_button()
 	_check_conquered_state()
+	_update_server_status_ui()
 
 
 func _is_authenticated() -> bool:
@@ -223,7 +250,6 @@ func _setup_profile_bar() -> void:
 func _setup_auth_overlay() -> void:
 	_auth_overlay = Control.new()
 	_auth_overlay.name = "AuthOverlay"
-	_auth_overlay.custom_minimum_size = Vector2(1080, 1920)
 	add_child(_auth_overlay)
 	_auth_overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_auth_overlay.grow_horizontal = Control.GROW_DIRECTION_BOTH
@@ -233,7 +259,6 @@ func _setup_auth_overlay() -> void:
 	# Koyu karartma arka planı
 	var dim := ColorRect.new()
 	dim.color = Color(0.04, 0.03, 0.06, 0.88)
-	dim.custom_minimum_size = Vector2(1080, 1920)
 	_auth_overlay.add_child(dim)
 	dim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	dim.grow_horizontal = Control.GROW_DIRECTION_BOTH
@@ -242,7 +267,6 @@ func _setup_auth_overlay() -> void:
 
 	# Ortalanmış Medieval Kart
 	var center := CenterContainer.new()
-	center.custom_minimum_size = Vector2(1080, 1920)
 	_auth_overlay.add_child(center)
 	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	center.grow_horizontal = Control.GROW_DIRECTION_BOTH
@@ -429,7 +453,7 @@ func _build_world_rows() -> void:
 	var wm = root.get_node_or_null("WorldManager") if root != null else null
 	var p_name := _get_player_name()
 
-	var vp_size := get_viewport_rect().size if is_inside_tree() else Vector2(1080.0, 1920.0)
+	var vp_size := size if (is_inside_tree() and size.x > 0.0 and size.y > 0.0) else (get_viewport_rect().size if is_inside_tree() else Vector2(1080.0, 1920.0))
 	if vp_size.x <= 0.0 or vp_size.y <= 0.0:
 		vp_size = Vector2(1080.0, 1920.0)
 	rows_container.position = Vector2.ZERO
@@ -507,7 +531,7 @@ func _build_world_rows() -> void:
 func _on_viewport_resized() -> void:
 	if rows_container == null:
 		return
-	var vp_size := get_viewport_rect().size if is_inside_tree() else Vector2(1080.0, 1920.0)
+	var vp_size := size if (is_inside_tree() and size.x > 0.0 and size.y > 0.0) else (get_viewport_rect().size if is_inside_tree() else Vector2(1080.0, 1920.0))
 	if vp_size.x <= 0.0 or vp_size.y <= 0.0:
 		return
 	rows_container.position = Vector2.ZERO
@@ -681,12 +705,39 @@ func _on_cancel_pressed() -> void:
 		center_modal.hide()
 
 
+var _joining_in_flight: bool = false
+
+
 func _select_direction(target_x: int, target_y: int) -> void:
+	if _joining_in_flight:
+		return
 	if not _is_authenticated():
 		if _auth_overlay != null:
 			_auth_overlay.show()
 		return
 
+	var root = Engine.get_main_loop().root if Engine.get_main_loop() is SceneTree else null
+	var wm = root.get_node_or_null("WorldManager") if root != null else null
+	var net = root.get_node_or_null("NetworkManager") if root != null else null
+	var auth = root.get_node_or_null("AuthManager") if root != null else null
+	var p_name := _get_player_name()
+
+	if net != null and net.get_script() != null and net.get_script().is_cloud_sync_enabled() and str(net.auth_token).is_empty() and auth != null and bool(auth.is_logged_in):
+		_joining_in_flight = true
+		if region_desc != null:
+			region_desc.text = "Sunucuya bağlanılıyor, lütfen bekleyin..."
+		var prov: String = str(auth.auth_provider) if not str(auth.auth_provider).is_empty() else "google"
+		net.login_online(prov, p_name, func(_ok: bool, _res: Dictionary):
+			_joining_in_flight = false
+			if is_inside_tree():
+				_complete_select_direction(target_x, target_y)
+		)
+		return
+
+	_complete_select_direction(target_x, target_y)
+
+
+func _complete_select_direction(target_x: int, target_y: int) -> void:
 	var root = Engine.get_main_loop().root if Engine.get_main_loop() is SceneTree else null
 	var wm = root.get_node_or_null("WorldManager") if root != null else null
 	var p_name := _get_player_name()

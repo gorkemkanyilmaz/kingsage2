@@ -62,7 +62,8 @@ func login_with_google(mock_name: String = "Lord Gorkem") -> Dictionary:
 	display_name = clean
 	user_id = "google_" + ("google:" + display_name.to_lower()).sha256_text().substr(0, 12)
 	email = display_name.to_lower().replace(" ", ".") + "@gmail.com"
-	auth_token = "goog_tok_" + str(randi() % 999999)
+	if not auth_token.begins_with("tk_tok_"):
+		auth_token = ""
 	is_logged_in = true
 
 	var profile := get_profile()
@@ -79,7 +80,8 @@ func login_with_apple(mock_name: String = "Lord Roland") -> Dictionary:
 	display_name = clean
 	user_id = "apple_" + ("apple:" + display_name.to_lower()).sha256_text().substr(0, 12)
 	email = display_name.to_lower().replace(" ", ".") + "@icloud.com"
-	auth_token = "appl_tok_" + str(randi() % 999999)
+	if not auth_token.begins_with("tk_tok_"):
+		auth_token = ""
 	is_logged_in = true
 
 	var profile := get_profile()
@@ -163,7 +165,8 @@ func load_session() -> bool:
 	user_id = str(data.get("user_id", ""))
 	display_name = _normalize_name(str(data.get("name", "")))
 	email = str(data.get("email", ""))
-	auth_token = str(data.get("token", ""))
+	var loaded_tok := str(data.get("token", ""))
+	auth_token = loaded_tok if loaded_tok.begins_with("tk_tok_") else ""
 
 	if is_logged_in:
 		auth_state_changed.emit(true, get_profile())

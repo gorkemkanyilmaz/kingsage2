@@ -4,6 +4,7 @@ extends Node
 
 signal sync_completed(success: bool, data: Dictionary)
 signal auth_completed(success: bool, profile: Dictionary)
+signal server_status_changed(reachable: bool, data: Dictionary)
 
 const DEFAULT_SERVER_URL := "https://tahtkilic.vercel.app"
 
@@ -34,11 +35,15 @@ static func is_cloud_sync_enabled() -> bool:
 func _auto_connect_cloud() -> void:
 	if not is_cloud_sync_enabled():
 		return
+	check_server()
 	var loop = Engine.get_main_loop()
 	if not (loop is SceneTree):
 		return
 	var auth = loop.root.get_node_or_null("AuthManager")
 	if auth != null and bool(auth.is_logged_in) and not str(auth.display_name).strip_edges().is_empty():
+		var saved_tok := str(auth.auth_token)
+		if saved_tok.begins_with("tk_tok_"):
+			auth_token = saved_tok
 		var prov: String = str(auth.auth_provider) if not str(auth.auth_provider).is_empty() else "google"
 		login_online(prov, str(auth.display_name))
 
@@ -46,25 +51,26 @@ func _auto_connect_cloud() -> void:
 func check_server(callback: Callable = Callable()) -> void:
 	var req := HTTPRequest.new()
 	add_child(req)
-	req.timeout = 2.0
+	req.timeout = 10.0
 	req.request_completed.connect(func(result: int, response_code: int, _headers: PackedStringArray, body: PackedByteArray):
 		is_server_reachable = (result == HTTPRequest.RESULT_SUCCESS and response_code == 200)
+		var data := {}
+		var json_str := body.get_string_from_utf8()
+		var test_json := JSON.new()
+		if test_json.parse(json_str) == OK and typeof(test_json.data) == TYPE_DICTIONARY:
+			data = test_json.data
+		server_status_changed.emit(is_server_reachable, data)
 		if callback.is_valid():
-			var json_str := body.get_string_from_utf8()
-			var test_json := JSON.new()
-			var data := {}
-			if test_json.parse(json_str) == OK and typeof(test_json.data) == TYPE_DICTIONARY:
-				data = test_json.data
 			callback.call(is_server_reachable, data)
 		req.queue_free()
 	)
 	req.request(server_url + "/api/health")
 
 
-func login_online(provider: String, display_name: String, callback: Callable = Callable()) -> void:
+func login_online(provider: String, display_name: String, callback: Callable = Callable(), _retry_count: int = 0) -> void:
 	var req := HTTPRequest.new()
 	add_child(req)
-	req.timeout = 4.0
+	req.timeout = 10.0
 
 	var payload := JSON.stringify({
 		"provider": provider,
@@ -77,6 +83,7 @@ func login_online(provider: String, display_name: String, callback: Callable = C
 		var success := (result == HTTPRequest.RESULT_SUCCESS and response_code == 200)
 		var res_data := {}
 		if success:
+			is_server_reachable = true
 			var json_str := body.get_string_from_utf8()
 			var test_json := JSON.new()
 			if test_json.parse(json_str) == OK and typeof(test_json.data) == TYPE_DICTIONARY:
@@ -93,6 +100,14 @@ func login_online(provider: String, display_name: String, callback: Callable = C
 					var wm = loop.root.get_node_or_null("WorldManager")
 					if wm != null and wm.has_method("apply_cloud_sync"):
 						wm.apply_cloud_sync(res_data)
+			server_status_changed.emit(true, res_data)
+		elif _retry_count < 1 and is_inside_tree():
+			req.queue_free()
+			get_tree().create_timer(1.5).timeout.connect(func():
+				if is_inside_tree():
+					login_online(provider, display_name, callback, _retry_count + 1)
+			)
+			return
 
 		if callback.is_valid():
 			callback.call(success, res_data)
@@ -106,7 +121,7 @@ func login_online(provider: String, display_name: String, callback: Callable = C
 func sync_state_from_cloud(token: String, callback: Callable = Callable()) -> void:
 	var req := HTTPRequest.new()
 	add_child(req)
-	req.timeout = 5.0
+	req.timeout = 10.0
 
 	var headers := [
 		"Authorization: Bearer " + token
@@ -144,7 +159,7 @@ func pull_shared_world_from_cloud(callback: Callable = Callable()) -> void:
 func save_state_to_cloud(token: String, state_dict: Dictionary, callback: Callable = Callable()) -> void:
 	var req := HTTPRequest.new()
 	add_child(req)
-	req.timeout = 5.0
+	req.timeout = 10.0
 
 	var headers := [
 		"Content-Type: application/json",
@@ -183,7 +198,7 @@ func save_state_to_cloud(token: String, state_dict: Dictionary, callback: Callab
 func api_request(endpoint: String, method: int, payload: Dictionary = {}, callback: Callable = Callable()) -> void:
 	var req := HTTPRequest.new()
 	add_child(req)
-	req.timeout = 6.0
+	req.timeout = 10.0
 
 	var auth = Engine.get_main_loop().root.get_node_or_null("AuthManager") if Engine.get_main_loop() is SceneTree else null
 	var token: String = auth_token

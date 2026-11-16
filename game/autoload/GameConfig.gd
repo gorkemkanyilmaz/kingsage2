@@ -193,6 +193,10 @@ func get_ios_safe_top() -> float:
 	return _safe_top_px
 
 
+func get_ios_safe_bottom() -> float:
+	return _safe_bottom_px
+
+
 func _refresh_mobile_safe_area() -> void:
 	var insets := get_ios_safe_insets()
 	_safe_top_px = float(insets.get("top", 0.0))
