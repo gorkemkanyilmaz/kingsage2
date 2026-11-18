@@ -224,8 +224,8 @@ func refresh() -> void:
 		realm_label.tooltip_text = "Güç Alanı: %d / %d (Mevcut / Tavan). Köy Puanı: %d" % [cur_realm, max_realm, max_realm]
 
 
-var _rename_modal: Control = null
-var _switcher_modal: Control = null
+var _rename_modal: CanvasLayer = null
+var _switcher_modal: CanvasLayer = null
 
 
 func _show_village_switcher_modal() -> void:
@@ -240,38 +240,46 @@ func _show_village_switcher_modal() -> void:
 		_show_rename_modal()
 		return
 
-	_switcher_modal = Control.new()
+	var vp_size := get_viewport().get_visible_rect().size if is_inside_tree() and get_viewport() != null else Vector2(1080.0, 1920.0)
+	if vp_size.x < 100.0 or vp_size.y < 100.0:
+		vp_size = Vector2(1080.0, 1920.0)
+	var card_w := clampf(vp_size.x - 64.0, 460.0, 860.0)
+	var card_h := clampf(vp_size.y - 260.0, 380.0, 820.0)
+
+	_switcher_modal = CanvasLayer.new()
 	_switcher_modal.name = "VillageSwitcherModal"
-	_switcher_modal.anchors_preset = Control.PRESET_FULL_RECT
-	_switcher_modal.anchor_left = 0.0
-	_switcher_modal.anchor_top = 0.0
-	_switcher_modal.anchor_right = 1.0
-	_switcher_modal.anchor_bottom = 1.0
-	_switcher_modal.z_index = 210
+	_switcher_modal.layer = 135
+
+	var root_ctrl := Control.new()
+	root_ctrl.name = "ModalRoot"
+	root_ctrl.mouse_filter = Control.MOUSE_FILTER_STOP
+	_switcher_modal.add_child(root_ctrl)
+	root_ctrl.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 
 	var dim := ColorRect.new()
-	dim.anchors_preset = Control.PRESET_FULL_RECT
 	dim.color = Color(0.04, 0.03, 0.06, 0.84)
 	dim.mouse_filter = Control.MOUSE_FILTER_STOP
 	dim.gui_input.connect(func(ev):
 		if ev is InputEventMouseButton and ev.pressed:
 			_switcher_modal.queue_free()
 	)
-	_switcher_modal.add_child(dim)
+	root_ctrl.add_child(dim)
+	dim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 
 	var center := CenterContainer.new()
-	center.anchors_preset = Control.PRESET_FULL_RECT
-	_switcher_modal.add_child(center)
+	center.mouse_filter = Control.MOUSE_FILTER_PASS
+	root_ctrl.add_child(center)
+	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 
 	var card := PanelContainer.new()
-	card.custom_minimum_size = Vector2(700, 420)
+	card.custom_minimum_size = Vector2(card_w, card_h)
 	var card_sb := StyleBoxFlat.new()
-	card_sb.bg_color = Color(0.12, 0.10, 0.16, 0.98)
+	card_sb.bg_color = Color(0.11, 0.09, 0.15, 0.98)
 	card_sb.border_color = Color(0.88, 0.74, 0.42, 1.0)
 	card_sb.set_border_width_all(3)
 	card_sb.border_width_top = 5
 	card_sb.set_corner_radius_all(18)
-	card_sb.set_content_margin_all(26)
+	card_sb.set_content_margin_all(22)
 	card.add_theme_stylebox_override("panel", card_sb)
 	center.add_child(card)
 
@@ -279,19 +287,33 @@ func _show_village_switcher_modal() -> void:
 	vb.add_theme_constant_override("separation", 14)
 	card.add_child(vb)
 
+	var hdr := HBoxContainer.new()
+	hdr.add_theme_constant_override("separation", 10)
+	vb.add_child(hdr)
+
 	var title_lbl := Label.new()
 	title_lbl.text = "🏰 Köylerim (%d Köy)" % player_villages.size()
-	title_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	title_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 	var FontCinzelBold = load("res://assets/fonts/Cinzel-Bold.ttf")
 	if FontCinzelBold != null:
 		title_lbl.add_theme_font_override("font", FontCinzelBold)
 	title_lbl.add_theme_font_size_override("font_size", 28)
 	title_lbl.add_theme_color_override("font_color", Color(1.0, 0.92, 0.65))
-	vb.add_child(title_lbl)
+	hdr.add_child(title_lbl)
+
+	var btn_x := Button.new()
+	btn_x.text = "✕"
+	btn_x.custom_minimum_size = Vector2(46, 46)
+	btn_x.add_theme_font_override("font", FontNunitoBold)
+	btn_x.add_theme_font_size_override("font_size", 22)
+	btn_x.pressed.connect(func(): _switcher_modal.queue_free())
+	hdr.add_child(btn_x)
 
 	var scroll := ScrollContainer.new()
-	scroll.custom_minimum_size = Vector2(0, 320)
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	vb.add_child(scroll)
 
 	var list_vb := VBoxContainer.new()
@@ -302,20 +324,26 @@ func _show_village_switcher_modal() -> void:
 	for pv in player_villages:
 		if typeof(pv) != TYPE_DICTIONARY:
 			continue
-		var vid := int(pv.get("id", -1))
-		var vname := str(pv.get("name", "Köy"))
-		var vx := int(pv.get("x", 0))
-		var vy := int(pv.get("y", 0))
-		var vpts := int(pv.get("points", 0))
+		var pvd := pv as Dictionary
+		var vid := int(pvd.get("id", -1))
+		var vname := str(pvd.get("name", "Köy"))
+		var vx := int(pvd.get("x", 0))
+		var vy := int(pvd.get("y", 0))
+		var vpts := int(pvd.get("points", 0))
 		var is_active := (vid == int(gs.active_village_id))
+		var res_d: Dictionary = pvd.get("resources", {}) if typeof(pvd.get("resources")) == TYPE_DICTIONARY else {}
+		var unit_d: Dictionary = pvd.get("units", {}) if typeof(pvd.get("units")) == TYPE_DICTIONARY else {}
+		var total_troops := 0
+		for uk in unit_d.keys():
+			total_troops += int(unit_d.get(uk, 0))
 
 		var row_panel := PanelContainer.new()
 		var r_sb := StyleBoxFlat.new()
-		r_sb.bg_color = Color(0.22, 0.18, 0.12, 0.95) if is_active else Color(0.16, 0.14, 0.21, 0.92)
+		r_sb.bg_color = Color(0.22, 0.18, 0.12, 0.96) if is_active else Color(0.16, 0.14, 0.21, 0.94)
 		r_sb.border_color = Color(0.95, 0.80, 0.35, 1.0) if is_active else Color(0.45, 0.40, 0.55, 0.70)
 		r_sb.set_border_width_all(2)
 		r_sb.set_corner_radius_all(12)
-		r_sb.set_content_margin_all(12)
+		r_sb.set_content_margin_all(14)
 		row_panel.add_theme_stylebox_override("panel", r_sb)
 		list_vb.add_child(row_panel)
 
@@ -323,18 +351,36 @@ func _show_village_switcher_modal() -> void:
 		row.add_theme_constant_override("separation", 12)
 		row_panel.add_child(row)
 
+		var info_vb := VBoxContainer.new()
+		info_vb.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		info_vb.add_theme_constant_override("separation", 4)
+		row.add_child(info_vb)
+
 		var info_lbl := Label.new()
-		info_lbl.text = "%s (%d|%d) — %d Puan" % [vname, vx, vy, vpts]
-		info_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		var active_badge := " ★ AKTİF" if is_active else ""
+		info_lbl.text = "%s (%d|%d) — %d Puan%s" % [vname, vx, vy, vpts, active_badge]
+		info_lbl.clip_text = true
+		info_lbl.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 		info_lbl.add_theme_font_override("font", FontNunitoBold)
 		info_lbl.add_theme_font_size_override("font_size", 22)
-		info_lbl.add_theme_color_override("font_color", Color(1.0, 0.94, 0.72) if is_active else Color(0.92, 0.90, 0.86))
-		row.add_child(info_lbl)
+		info_lbl.add_theme_color_override("font_color", Color(1.0, 0.94, 0.72) if is_active else Color(0.94, 0.91, 0.86))
+		info_vb.add_child(info_lbl)
+
+		var sub_stats := Label.new()
+		sub_stats.text = "Odun: %d  |  Taş: %d  |  Demir: %d  |  Asker: %d" % [
+			int(res_d.get("wood", 0)), int(res_d.get("stone", 0)), int(res_d.get("iron", 0)), total_troops
+		]
+		sub_stats.clip_text = true
+		sub_stats.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+		sub_stats.add_theme_font_override("font", FontNunitoBold)
+		sub_stats.add_theme_font_size_override("font_size", 17)
+		sub_stats.add_theme_color_override("font_color", Color(0.76, 0.82, 0.88))
+		info_vb.add_child(sub_stats)
 
 		var btn_go := Button.new()
 		btn_go.text = "✓ AKTİF" if is_active else "Köye Geç"
 		btn_go.disabled = is_active
-		btn_go.custom_minimum_size = Vector2(150, 46)
+		btn_go.custom_minimum_size = Vector2(146, 52)
 		btn_go.add_theme_font_override("font", FontNunitoBold)
 		btn_go.add_theme_font_size_override("font_size", 20)
 		btn_go.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
@@ -358,13 +404,14 @@ func _show_village_switcher_modal() -> void:
 		row.add_child(btn_go)
 
 	var foot := HBoxContainer.new()
-	foot.add_theme_constant_override("separation", 16)
+	foot.add_theme_constant_override("separation", 14)
 	foot.alignment = BoxContainer.ALIGNMENT_CENTER
 	vb.add_child(foot)
 
 	var btn_rename := Button.new()
 	btn_rename.text = "✏️ Aktif Köyün Adını Değiştir"
-	btn_rename.custom_minimum_size = Vector2(320, 50)
+	btn_rename.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	btn_rename.custom_minimum_size = Vector2(240, 52)
 	btn_rename.add_theme_font_override("font", FontNunitoBold)
 	btn_rename.add_theme_font_size_override("font_size", 20)
 	var rn_sb := StyleBoxFlat.new()
@@ -382,7 +429,7 @@ func _show_village_switcher_modal() -> void:
 
 	var btn_close := Button.new()
 	btn_close.text = "Kapat"
-	btn_close.custom_minimum_size = Vector2(140, 50)
+	btn_close.custom_minimum_size = Vector2(140, 52)
 	btn_close.add_theme_font_override("font", FontNunitoBold)
 	btn_close.add_theme_font_size_override("font_size", 20)
 	var cl_sb := StyleBoxFlat.new()
@@ -411,29 +458,35 @@ func _show_rename_modal() -> void:
 	var v: Dictionary = gs.get_active_village()
 	var cur_name := str(v.get("name", "Başkent"))
 
-	_rename_modal = Control.new()
+	var vp_size := get_viewport().get_visible_rect().size if is_inside_tree() and get_viewport() != null else Vector2(1080.0, 1920.0)
+	if vp_size.x < 100.0 or vp_size.y < 100.0:
+		vp_size = Vector2(1080.0, 1920.0)
+
+	_rename_modal = CanvasLayer.new()
 	_rename_modal.name = "RenameVillageModal"
-	_rename_modal.anchors_preset = Control.PRESET_FULL_RECT
-	_rename_modal.anchor_left = 0.0
-	_rename_modal.anchor_top = 0.0
-	_rename_modal.anchor_right = 1.0
-	_rename_modal.anchor_bottom = 1.0
-	_rename_modal.z_index = 200
+	_rename_modal.layer = 140
+
+	var root_ctrl := Control.new()
+	root_ctrl.name = "ModalRoot"
+	root_ctrl.mouse_filter = Control.MOUSE_FILTER_STOP
+	_rename_modal.add_child(root_ctrl)
+	root_ctrl.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 
 	# Koyu arkaplan karartması
 	var dim := ColorRect.new()
-	dim.anchors_preset = Control.PRESET_FULL_RECT
 	dim.color = Color(0.04, 0.03, 0.06, 0.82)
 	dim.mouse_filter = Control.MOUSE_FILTER_STOP
-	_rename_modal.add_child(dim)
+	root_ctrl.add_child(dim)
+	dim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 
 	# Ortalanmış kart
 	var center := CenterContainer.new()
-	center.anchors_preset = Control.PRESET_FULL_RECT
-	_rename_modal.add_child(center)
+	center.mouse_filter = Control.MOUSE_FILTER_PASS
+	root_ctrl.add_child(center)
+	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 
 	var card := PanelContainer.new()
-	card.custom_minimum_size = Vector2(640, 360)
+	card.custom_minimum_size = Vector2(clampf(vp_size.x - 80.0, 440.0, 680.0), 360)
 	var card_sb := StyleBoxFlat.new()
 	card_sb.bg_color = Color(0.12, 0.10, 0.16, 0.98)
 	card_sb.border_color = Color(0.88, 0.74, 0.42, 1.0)

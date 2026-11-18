@@ -312,6 +312,8 @@ func has_player_village(world_id: int, player_name: String) -> bool:
 	if w_data.is_empty():
 		return false
 	var state: Dictionary = w_data.get("state", {})
+	if _deduplicate_player_starter_villages(w_data):
+		save_world_dict(world_id, w_data)
 	var villages: Array = state.get("villages", [])
 	for v in villages:
 		if typeof(v) != TYPE_DICTIONARY:
@@ -469,6 +471,17 @@ func join_world(world_id: int, player_name: String, target_x: int = 100, target_
 	var tiles: Dictionary = world_dict.get("tiles", {})
 	var villages_list: Array = state.get("villages", [])
 
+	# Tek başlangıç köyü kuralı: Oyuncunun önceden kalma fethedilmemiş başlangıç köyleri varsa temizle
+	var norm_join := _norm_name(player_name).to_lower()
+	for i in range(villages_list.size() - 1, -1, -1):
+		var ev = villages_list[i]
+		if typeof(ev) != TYPE_DICTIONARY or int((ev as Dictionary).get("id", 0)) <= 0:
+			villages_list.remove_at(i)
+			continue
+		var evd := ev as Dictionary
+		if _is_real_player_village_dict(evd) and _norm_name(str(evd.get("owner", ""))).to_lower() == norm_join:
+			villages_list.remove_at(i)
+
 	# Seçilen bölgede (target_x, target_y) boş alan bul (önceki fethedilen koordinattan farklı)
 	var search_tiles := tiles.duplicate()
 	if avoid_spot.x >= 1 and avoid_spot.y >= 1:
@@ -535,6 +548,7 @@ func join_world(world_id: int, player_name: String, target_x: int = 100, target_
 		"protection_until_unix": player_v["protection_until_unix"],
 		"conquest_protection_until_unix": player_v["conquest_protection_until_unix"],
 		"tutorial_completed": false,
+		"tutorial_skipped": false,
 		"tutorial_step": 0,
 		"quests": {"claimed": [], "stats": {}},
 		"gold_armour": 0,
@@ -605,6 +619,8 @@ func enter_world(world_id: int, player_name: String) -> bool:
 		return false
 
 	var state: Dictionary = w_data.get("state", {})
+	if _deduplicate_player_starter_villages(w_data):
+		save_world_dict(world_id, w_data)
 	var villages: Array = state.get("villages", [])
 
 	# Oyuncunun aktif veya birincil köyünü bul (çoklu köy fethi sonrası seçili köy korunur)
@@ -880,6 +896,7 @@ func _sync_player_profile_to_world(state_dict: Dictionary) -> void:
 		"protection_until_unix": int(p.get("protection_until_unix", 0)),
 		"conquest_protection_until_unix": int(p.get("conquest_protection_until_unix", 0)),
 		"tutorial_completed": bool(p.get("tutorial_completed", false)),
+		"tutorial_skipped": bool(p.get("tutorial_skipped", false)),
 		"tutorial_step": int(p.get("tutorial_step", 0)),
 		"tutorial_reward_claimed": bool(p.get("tutorial_reward_claimed", false)),
 		"quests": quests_copy,
@@ -927,6 +944,7 @@ func _restore_player_profile_from_world(state_dict: Dictionary, player_name: Str
 		"protection_until_unix": int(found.get("protection_until_unix", 0)),
 		"conquest_protection_until_unix": int(found.get("conquest_protection_until_unix", 0)),
 		"tutorial_completed": bool(found.get("tutorial_completed", false)),
+		"tutorial_skipped": bool(found.get("tutorial_skipped", false)),
 		"tutorial_step": int(found.get("tutorial_step", 0)),
 		"tutorial_reward_claimed": bool(found.get("tutorial_reward_claimed", false)),
 		"quests": q_dict,
@@ -1129,6 +1147,8 @@ func _merge_shared_world_data(local_w: Dictionary, cloud_w: Dictionary, p_name: 
 		combined_villages.append(c_by_id[vid_k])
 	combined_villages.sort_custom(func(a, b): return int(a.get("id", 0)) < int(b.get("id", 0)))
 	m_state["villages"] = combined_villages
+	_deduplicate_player_starter_villages(merged, int(l_state.get("active_village_id", -1)))
+	combined_villages = m_state.get("villages", combined_villages)
 
 	# Yerel kuyrukları koru, diğer köylerin sunucudaki kuyruklarını tut
 	var c_queues: Array = m_state.get("queues", []) if typeof(m_state.get("queues")) == TYPE_ARRAY else []
@@ -1269,6 +1289,7 @@ func apply_cloud_sync(res_data: Dictionary, from_save_response: bool = false) ->
 		var cloud_ts := int(cloud_w.get("last_saved_unix", res_data.get("updated_unix", 0)))
 
 		var merged_w := _merge_shared_world_data(local_w, cloud_w, p_name, local_ts, cloud_ts, from_save_response)
+		_deduplicate_player_starter_villages(merged_w)
 		_enforce_min_village_distance(merged_w)
 		save_world_dict(w_id, merged_w)
 		var reg_arr: Array = merged_w.get("registered_real_players", []) if typeof(merged_w.get("registered_real_players")) == TYPE_ARRAY else []
@@ -1419,6 +1440,100 @@ func _enforce_min_village_distance(w_data: Dictionary, priority_vid: int = -1) -
 
 	world_dict["tiles"] = placed_tiles
 	world_dict["villages"] = villages_list
+	return changed
+
+
+## Her gerçek oyuncu için fethedilmemiş başlangıç köyü sayısını 1 ile sınırlar, id <= 0 geçersiz köyleri temizler.
+func _deduplicate_player_starter_villages(w_data: Dictionary, preferred_vid: int = -1) -> bool:
+	var state_val = w_data.get("state", {})
+	if typeof(state_val) != TYPE_DICTIONARY:
+		return false
+	var state: Dictionary = state_val
+	var villages_val = state.get("villages", [])
+	if typeof(villages_val) != TYPE_ARRAY:
+		return false
+	var villages_list: Array = villages_val
+	var changed := false
+
+	var conquered_vids: Dictionary = {}
+	var reps = state.get("reports", [])
+	if typeof(reps) == TYPE_ARRAY:
+		for r in (reps as Array):
+			if typeof(r) == TYPE_DICTIONARY and str((r as Dictionary).get("type", "")) == "battle":
+				var rdata = (r as Dictionary).get("data", {})
+				if typeof(rdata) == TYPE_DICTIONARY and bool((rdata as Dictionary).get("conquered", false)):
+					var tvid := int((rdata as Dictionary).get("target_village_id", -1))
+					if tvid > 0:
+						conquered_vids[tvid] = true
+
+	var starters_by_owner: Dictionary = {}
+	var clean_list: Array = []
+	for item in villages_list:
+		if typeof(item) != TYPE_DICTIONARY:
+			changed = true
+			continue
+		var vd := item as Dictionary
+		var vid := int(vd.get("id", 0))
+		if vid <= 0:
+			changed = true
+			continue
+		clean_list.append(vd)
+		if _is_real_player_village_dict(vd):
+			var ok := _norm_name(str(vd.get("owner", ""))).to_lower()
+			var is_conq := conquered_vids.has(vid) or bool(vd.get("is_conquered", false)) or not str(vd.get("conquered_by", "")).is_empty()
+			if not ok.is_empty() and not is_conq:
+				if not starters_by_owner.has(ok):
+					starters_by_owner[ok] = []
+				(starters_by_owner[ok] as Array).append(vd)
+
+	var drop_vids: Dictionary = {}
+	var canonical_by_owner: Dictionary = {}
+	for ok in starters_by_owner.keys():
+		var arr: Array = starters_by_owner[ok]
+		if arr.size() <= 1:
+			canonical_by_owner[ok] = int((arr[0] as Dictionary).get("id", -1))
+			continue
+		changed = true
+		var best_v: Dictionary = arr[0]
+		for cand in arr:
+			var cv := cand as Dictionary
+			var cv_id := int(cv.get("id", 0))
+			var bv_id := int(best_v.get("id", 0))
+			if preferred_vid > 0 and cv_id == preferred_vid:
+				best_v = cv
+				break
+			var cv_pts := int(cv.get("points", 110))
+			var bv_pts := int(best_v.get("points", 110))
+			if cv_pts > bv_pts or (cv_pts == bv_pts and cv_id < bv_id):
+				best_v = cv
+		var keep_id := int(best_v.get("id", -1))
+		canonical_by_owner[ok] = keep_id
+		for cand in arr:
+			var cv_id := int((cand as Dictionary).get("id", -1))
+			if cv_id != keep_id:
+				drop_vids[cv_id] = true
+
+	if changed or clean_list.size() != villages_list.size():
+		var final_villages: Array = []
+		var tiles: Dictionary = {}
+		for v in clean_list:
+			var vd := v as Dictionary
+			var vid := int(vd.get("id", -1))
+			if drop_vids.has(vid):
+				continue
+			final_villages.append(vd)
+			tiles[WorldGeneratorScript.tile_key(int(vd.get("x", 1)), int(vd.get("y", 1)))] = vid
+		state["villages"] = final_villages
+		var w_dict = state.get("world", {})
+		if typeof(w_dict) == TYPE_DICTIONARY:
+			(w_dict as Dictionary)["villages"] = final_villages
+			(w_dict as Dictionary)["tiles"] = tiles
+		var cur_aid := int(state.get("active_village_id", -1))
+		if drop_vids.has(cur_aid):
+			var p_obj = state.get("player", {})
+			var pname := _norm_name(str((p_obj as Dictionary).get("name", ""))).to_lower() if typeof(p_obj) == TYPE_DICTIONARY else ""
+			if canonical_by_owner.has(pname):
+				state["active_village_id"] = int(canonical_by_owner[pname])
 	return changed
 
 

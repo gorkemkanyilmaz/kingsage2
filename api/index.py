@@ -791,6 +791,7 @@ def _prepare_world_for_player(world_w: Optional[Dict[str, Any]], player_name: st
         "protection_until_unix": int(found_prof.get("protection_until_unix", 0) or 0),
         "conquest_protection_until_unix": int(found_prof.get("conquest_protection_until_unix", 0) or 0),
         "tutorial_completed": bool(found_prof.get("tutorial_completed", False)),
+        "tutorial_skipped": bool(found_prof.get("tutorial_skipped", False)),
         "tutorial_step": int(found_prof.get("tutorial_step", 0) or 0),
         "tutorial_reward_claimed": bool(found_prof.get("tutorial_reward_claimed", False)),
         "quests": copy.deepcopy(q_dict),
@@ -804,11 +805,108 @@ def _prepare_world_for_player(world_w: Optional[Dict[str, Any]], player_name: st
 def _rebuild_tiles(state: Dict[str, Any]) -> None:
     w_dict = state.setdefault("world", {})
     tiles: Dict[str, int] = {}
+    clean_villages: List[Dict[str, Any]] = []
     for v in (state.get("villages") or []):
-        if isinstance(v, dict):
-            tiles[f"{int(v.get('x', 1))},{int(v.get('y', 1))}"] = int(v.get("id", 0))
+        if not isinstance(v, dict):
+            continue
+        raw_id = v.get("id")
+        try:
+            vid = int(raw_id) if raw_id is not None else 0
+        except Exception:
+            vid = 0
+        if vid <= 0:
+            continue
+        clean_villages.append(v)
+        tiles[f"{int(v.get('x', 1) or 1)},{int(v.get('y', 1) or 1)}"] = vid
+    state["villages"] = clean_villages
     w_dict["tiles"] = tiles
-    w_dict["villages"] = state.get("villages") or []
+    w_dict["villages"] = clean_villages
+
+
+def _deduplicate_world_villages(w_data: Optional[Dict[str, Any]], preferred_owner: str = "", preferred_vid: int = -1) -> bool:
+    """id <= 0/None geçersiz köyleri siler ve her gerçek oyuncu için fethedilmemiş başlangıç köyünü 1 adet ile sınırlar."""
+    if not isinstance(w_data, dict):
+        return False
+    state = w_data.get("state")
+    if not isinstance(state, dict):
+        return False
+    raw_villages = state.get("villages")
+    if not isinstance(raw_villages, list):
+        return False
+
+    changed = False
+    conquered_vids = set()
+    for rep in (state.get("reports") or []):
+        if isinstance(rep, dict) and rep.get("type") == "battle":
+            rdata = rep.get("data") if isinstance(rep.get("data"), dict) else {}
+            if bool(rdata.get("conquered", False)):
+                try:
+                    conquered_vids.add(int(rdata.get("target_village_id", 0) or 0))
+                except Exception:
+                    pass
+
+    starters_by_owner: Dict[str, List[Dict[str, Any]]] = {}
+    clean_list: List[Dict[str, Any]] = []
+    for v in raw_villages:
+        if not isinstance(v, dict):
+            changed = True
+            continue
+        raw_id = v.get("id")
+        try:
+            vid = int(raw_id) if raw_id is not None else 0
+        except Exception:
+            vid = 0
+        if vid <= 0:
+            changed = True
+            continue
+        v["id"] = vid
+        clean_list.append(v)
+        if _is_real_player_village(v):
+            ok = _norm_p_name(str(v.get("owner", ""))).lower()
+            is_conq = (vid in conquered_vids) or bool(v.get("is_conquered", False)) or bool(str(v.get("conquered_by", "")).strip())
+            if ok and not is_conq:
+                starters_by_owner.setdefault(ok, []).append(v)
+
+    drop_vids = set()
+    canonical_by_owner: Dict[str, int] = {}
+    pref_norm = _norm_p_name(preferred_owner).lower()
+    for ok, arr in starters_by_owner.items():
+        if len(arr) <= 1:
+            canonical_by_owner[ok] = int(arr[0]["id"])
+            continue
+        changed = True
+        best_v = None
+        if ok == pref_norm and preferred_vid > 0:
+            for cv in arr:
+                if int(cv["id"]) == preferred_vid:
+                    best_v = cv
+                    break
+        if best_v is None:
+            best_v = max(arr, key=lambda cv: (int(cv.get("points", 110) or 110), -int(cv["id"])))
+        keep_id = int(best_v["id"])
+        canonical_by_owner[ok] = keep_id
+        for cv in arr:
+            if int(cv["id"]) != keep_id:
+                drop_vids.add(int(cv["id"]))
+
+    if changed:
+        final_villages = [v for v in clean_list if int(v["id"]) not in drop_vids]
+        state["villages"] = final_villages
+        w_dict = state.setdefault("world", {})
+        profs = w_dict.get("player_profiles")
+        if isinstance(profs, dict):
+            for pk, pv in profs.items():
+                if isinstance(pv, dict):
+                    onorm = _norm_p_name(pk).lower()
+                    if int(pv.get("active_village_id", -1) or -1) in drop_vids and onorm in canonical_by_owner:
+                        pv["active_village_id"] = canonical_by_owner[onorm]
+        cur_aid = int(state.get("active_village_id", -1) or -1)
+        if cur_aid in drop_vids:
+            pname = _norm_p_name(str((state.get("player") or {}).get("name", ""))).lower()
+            if pname in canonical_by_owner:
+                state["active_village_id"] = canonical_by_owner[pname]
+        _rebuild_tiles(state)
+    return changed
 
 
 def _report_sig(rep: Any) -> tuple:
@@ -868,6 +966,7 @@ def merge_world_state(server_w: Optional[Dict[str, Any]], client_raw: Dict[str, 
             "protection_until_unix": int(c_player.get("protection_until_unix", 0) or 0),
             "conquest_protection_until_unix": int(c_player.get("conquest_protection_until_unix", 0) or 0),
             "tutorial_completed": bool(c_player.get("tutorial_completed", False)),
+            "tutorial_skipped": bool(c_player.get("tutorial_skipped", False)),
             "tutorial_step": int(c_player.get("tutorial_step", 0) or 0),
             "tutorial_reward_claimed": bool(c_player.get("tutorial_reward_claimed", False)),
             "quests": copy.deepcopy(c_player.get("quests") if isinstance(c_player.get("quests"), dict) else {"claimed": [], "stats": {}}),
@@ -878,11 +977,13 @@ def merge_world_state(server_w: Optional[Dict[str, Any]], client_raw: Dict[str, 
     if not server_w or not isinstance(server_w.get("state"), dict) or not (server_w["state"].get("villages")):
         merged = copy.deepcopy(c_w)
         merged["last_saved_unix"] = now
+        _deduplicate_world_villages(merged, act_name)
         merged["registered_real_players"] = _collect_real_players(merged)
         _rebuild_tiles(merged["state"])
         return merged
 
     merged = copy.deepcopy(server_w)
+    _deduplicate_world_villages(merged)
     s_state = merged.setdefault("state", {})
     s_w_dict = s_state.setdefault("world", {})
     s_last = int(merged.get("last_saved_unix", 0) or 0)
@@ -902,8 +1003,14 @@ def merge_world_state(server_w: Optional[Dict[str, Any]], client_raw: Dict[str, 
             s_psb[bk] = copy.deepcopy(bv)
 
     # 2. Köyleri indeksle ve eşzamanlı yeni köy ID / mesafe çakışmalarını çöz
-    s_villages: List[Dict[str, Any]] = [copy.deepcopy(v) for v in (s_state.get("villages") or []) if isinstance(v, dict)]
-    c_villages: List[Dict[str, Any]] = [copy.deepcopy(v) for v in (c_state.get("villages") or []) if isinstance(v, dict)]
+    s_villages: List[Dict[str, Any]] = [
+        copy.deepcopy(v) for v in (s_state.get("villages") or [])
+        if isinstance(v, dict) and v.get("id") is not None and int(v.get("id") or 0) > 0
+    ]
+    c_villages: List[Dict[str, Any]] = [
+        copy.deepcopy(v) for v in (c_state.get("villages") or [])
+        if isinstance(v, dict) and v.get("id") is not None and int(v.get("id") or 0) > 0
+    ]
 
     s_by_id: Dict[int, Dict[str, Any]] = {int(v.get("id", 0)): v for v in s_villages}
     c_by_id: Dict[int, Dict[str, Any]] = {int(v.get("id", 0)): v for v in c_villages}
@@ -934,13 +1041,21 @@ def merge_world_state(server_w: Optional[Dict[str, Any]], client_raw: Dict[str, 
                 new_client_reports.append(rep)
 
     vid_remap: Dict[int, int] = {}
+    remapped_preserve_server: set = set()
     stale_conquered_vids = set()
     acting_client_vids_before = {
         int(v.get("id", 0)) for v in c_villages
         if _is_real_player_village(v) and _matches_player(str(v.get("owner", "")), act_name)
     }
 
-    # Client'taki aktif oyuncunun köylerini kontrol et: başka bir gerçek oyuncunun köy ID'siyle çakışıyor mu veya < 9 mesafede mi?
+    # Client'taki aktif oyuncunun köylerini kontrol et: başka bir gerçek oyuncunun köy ID'siyle çakışıyor mu veya çift başlangıç köyü mü?
+    act_existing_starter = None
+    for sv in s_villages:
+        sv_id = int(sv.get("id", 0))
+        if _is_real_player_village(sv) and _matches_player(str(sv.get("owner", "")), act_name) and sv_id not in server_conquered_vids:
+            act_existing_starter = sv
+            break
+
     for c_v in c_villages:
         if not (_is_real_player_village(c_v) and _matches_player(str(c_v.get("owner", "")), act_name)):
             continue
@@ -954,12 +1069,31 @@ def merge_world_state(server_w: Optional[Dict[str, Any]], client_raw: Dict[str, 
                 stale_conquered_vids.add(old_vid)
                 continue
             if not (same_xy and old_vid in all_conquered_target_vids):
+                if act_existing_starter is not None and old_vid not in all_conquered_target_vids:
+                    # Sunucuda zaten başlangıç köyü var; ikinci 'Başkent' klonu açmak yerine mevcut kanonik ID'ye eşle!
+                    canon_id = int(act_existing_starter["id"])
+                    vid_remap[old_vid] = canon_id
+                    if int(act_existing_starter.get("points", 110) or 110) > int(c_v.get("points", 110) or 110):
+                        remapped_preserve_server.add(canon_id)
+                    c_v["id"] = canon_id
+                    c_v["x"] = int(act_existing_starter.get("x", c_v.get("x", 100)))
+                    c_v["y"] = int(act_existing_starter.get("y", c_v.get("y", 100)))
+                    continue
                 is_new_starter_or_collision = True
                 max_vid += 1
                 vid_remap[old_vid] = max_vid
                 c_v["id"] = max_vid
                 old_vid = max_vid
         elif s_match is None:
+            if act_existing_starter is not None and old_vid not in all_conquered_target_vids:
+                canon_id = int(act_existing_starter["id"])
+                vid_remap[old_vid] = canon_id
+                if int(act_existing_starter.get("points", 110) or 110) > int(c_v.get("points", 110) or 110):
+                    remapped_preserve_server.add(canon_id)
+                c_v["id"] = canon_id
+                c_v["x"] = int(act_existing_starter.get("x", c_v.get("x", 100)))
+                c_v["y"] = int(act_existing_starter.get("y", c_v.get("y", 100)))
+                continue
             is_new_starter_or_collision = True
 
         if is_new_starter_or_collision:
@@ -988,6 +1122,8 @@ def merge_world_state(server_w: Optional[Dict[str, Any]], client_raw: Dict[str, 
         s_v = s_by_id.get(vid)
 
         if is_act_v:
+            if vid in remapped_preserve_server and s_v is not None:
+                continue
             # Aktif oyuncunun kendi köyü (veya fethettiği köy): henüz client'ın görmediği sunucu savaşlarını koru
             if vid in unseen_server_battles_by_vid:
                 v_units = dict(c_v.get("units") or {})
@@ -1044,20 +1180,28 @@ def merge_world_state(server_w: Optional[Dict[str, Any]], client_raw: Dict[str, 
             s_v["support"] = kept_sups
             s_v["units"] = v_units
 
-            # Aktif oyuncunun bu köye yönelik YENİ savaş raporu varsa kayıpları/yağmayı/sur hasarını uygula
+            # Aktif oyuncunun bu köye yönelik YENİ savaş veya ticaret raporu varsa kayıpları/hammaddeyi uygula
             for rep in new_client_reports:
-                if rep.get("type") == "battle":
-                    rdata = rep.get("data") if isinstance(rep.get("data"), dict) else {}
-                    if int(rdata.get("target_village_id", 0) or 0) == vid:
-                        for uk, loss in (rdata.get("defender_losses") or {}).items():
-                            v_units[uk] = max(0, int(v_units.get(uk, 0) or 0) - int(loss or 0))
-                        s_v["units"] = v_units
-                        v_res = dict(s_v.get("resources") or {})
-                        for rk, loot_v in (rdata.get("loot") or {}).items():
-                            v_res[rk] = max(0, int(v_res.get(rk, 0) or 0) - int(loot_v or 0))
-                        s_v["resources"] = v_res
-                        if "realm_after" in rdata and int(rdata.get("realm_after", -1)) >= 0:
-                            s_v["realm_of_power"] = int(rdata["realm_after"])
+                rtype = rep.get("type")
+                rdata = rep.get("data") if isinstance(rep.get("data"), dict) else {}
+                if int(rdata.get("target_village_id", 0) or 0) != vid:
+                    continue
+                if rtype == "battle":
+                    for uk, loss in (rdata.get("defender_losses") or {}).items():
+                        v_units[uk] = max(0, int(v_units.get(uk, 0) or 0) - int(loss or 0))
+                    s_v["units"] = v_units
+                    v_res = dict(s_v.get("resources") or {})
+                    for rk, loot_v in (rdata.get("loot") or {}).items():
+                        v_res[rk] = max(0, int(v_res.get(rk, 0) or 0) - int(loot_v or 0))
+                    s_v["resources"] = v_res
+                    if "realm_after" in rdata and int(rdata.get("realm_after", -1)) >= 0:
+                        s_v["realm_of_power"] = int(rdata["realm_after"])
+                elif rtype == "trade":
+                    v_res = dict(s_v.get("resources") or {})
+                    t_res = rdata.get("resources") if isinstance(rdata.get("resources"), dict) else {}
+                    for rk in ("wood", "stone", "iron"):
+                        v_res[rk] = int(v_res.get(rk, 0) or 0) + int(t_res.get(rk, 0) or 0)
+                    s_v["resources"] = v_res
             continue
 
         # Bot / Barbar / Bonus köyü: savaş raporu veya daha güncel simülasyon verisi varsa al
@@ -1237,7 +1381,8 @@ def merge_world_state(server_w: Optional[Dict[str, Any]], client_raw: Dict[str, 
             s_reps.append(rc)
     s_state["reports"] = s_reps[-250:]
 
-    # 7. Dünya meta & kayıtlı oyuncular
+    # 7. Dünya meta & kayıtlı oyuncular & tek başlangıç köyü denetimi
+    _deduplicate_world_villages(merged, act_name)
     merged["last_saved_unix"] = now
     s_w_dict["last_saved_unix"] = now
     s_w_dict["sim_now_unix"] = max(int(s_w_dict.get("sim_now_unix", 0) or 0), int(c_w_dict.get("sim_now_unix", now) or now), now)
@@ -1378,6 +1523,17 @@ def _fetch_cloud_and_village(cursor, user_id: str, display_name: str):
             chosen_updated = int(ws_rows[0]["updated_unix"] or 0)
         except Exception:
             chosen_w = None
+
+    if chosen_w is not None and _deduplicate_world_villages(chosen_w):
+        try:
+            wid_clean = int(chosen_w.get("world_id", 1) or 1)
+            cursor.execute(
+                "UPDATE world_states SET state_json = ?, updated_unix = ? WHERE world_id = ?",
+                (json.dumps(chosen_w, ensure_ascii=False), now, wid_clean)
+            )
+            cursor.execute("DELETE FROM villages WHERE id IS NULL OR id <= 0")
+        except Exception:
+            pass
 
     cloud_state = _prepare_world_for_player(chosen_w, display_name) if chosen_w is not None else None
     if cloud_state is None:

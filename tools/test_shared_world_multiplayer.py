@@ -384,6 +384,43 @@ def main():
     arthur_vills = [v for v in st_after_restart["state"]["villages"] if v.get("owner") == "Lord Arthur"]
     assert len(arthur_vills) == 2, f"Arthur'un 2 köyü (107 + 109) korunmalıydı: {len(arthur_vills)}"
 
+    # 7d. Çift başlangıç köyü engeli + id=None temizliği + oyuncular arası ticaret teslimatı + tutorial_skipped
+    st_dup = copy.deepcopy(get_state(tok2)["cloud_state"])
+    # Lancelot mevcut starter (108)'in yanında yanlışlıkla ikinci bir Başkent (999) + id=None Test Kale göndermeye çalışsın
+    st_dup["state"]["villages"].append({
+        "id": None, "name": "Test Kale", "x": 15, "y": 15, "owner": "",
+        "is_bot": False, "is_barbarian": False, "bonus_type": ""
+    })
+    st_dup["state"]["villages"].append({
+        "id": 999, "name": "Başkent", "x": 180, "y": 180, "owner": "Lord Lancelot",
+        "is_bot": False, "is_barbarian": False, "bonus_type": "", "points": 110,
+        "buildings": {"main": 1}, "resources": {"wood": 500, "stone": 500, "iron": 500},
+        "units": {}, "support": []
+    })
+    st_dup["state"]["player"]["tutorial_skipped"] = True
+    # Lancelot (108) -> Mordred (110) ticaret teslim raporu
+    st_dup["state"].setdefault("reports", []).append({
+        "id": 77701,
+        "type": "trade",
+        "unix": now + 65,
+        "village_id": 108,
+        "data": {
+            "type": "trade",
+            "from_village_id": 108,
+            "target_village_id": 110,
+            "resources": {"wood": 450, "stone": 300, "iron": 250}
+        }
+    })
+    post_save(tok2, st_dup)
+    st_lance = get_state(tok2)["cloud_state"]
+    assert all(v.get("id") is not None and int(v.get("id")) > 0 for v in st_lance["state"]["villages"]), "Geçersiz id=None/0 köyler sunucudan temizlenmeliydi"
+    lance_vills = [v for v in st_lance["state"]["villages"] if v.get("owner") == "Lord Lancelot"]
+    assert len(lance_vills) == 1, f"Lancelot ikinci başlangıç köyü alamamalıydı: {len(lance_vills)}"
+    assert st_lance["state"]["player"].get("tutorial_skipped") is True, "tutorial_skipped bulutta korunmalıydı"
+    st_mord = get_state(tok3)["cloud_state"]
+    m110 = [v for v in st_mord["state"]["villages"] if int(v["id"]) == 110][0]
+    assert m110["resources"]["wood"] == 1450, f"Ticaret ile 450 odun Mordred'e geçmeliydi: {m110['resources']}"
+
     # 8. 100 gerçek oyuncu kapasitesi dolunca Dünya 2'nin otomatik açılması
     st_cap = copy.deepcopy(st2_sup)
     next_vid = 200

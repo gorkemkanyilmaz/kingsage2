@@ -608,7 +608,7 @@ func _refresh_trade_mode(state: Dictionary, from_x: int, from_y: int, to_x: int,
 		warning_label.show()
 		var code: String = str(check.get("code", ""))
 		if code == "foreign_target":
-			warning_label.text = " Ticaret yalnız kendi köylerinize veya müttefiklere yapılabilir."
+			warning_label.text = " Ticaret yalnızca gerçek oyunculara, kendi veya müttefik köylerinize yapılabilir."
 		elif code == "market_required":
 			warning_label.text = " Ticaret için Market binası (en az Sv. 1) gereklidir."
 		else:

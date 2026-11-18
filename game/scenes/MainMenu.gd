@@ -373,20 +373,23 @@ func _setup_auth_overlay() -> void:
 func _do_login(provider: String) -> void:
 	var desired_name := _name_input.text.strip_edges()
 	if desired_name.is_empty():
-		desired_name = "Lord Edward" if provider == "google" else "Lord Roland"
+		desired_name = "Lord Gorkem" if provider == "google" else "Lord Roland"
 
 	var auth = Engine.get_main_loop().root.get_node_or_null("AuthManager") if Engine.get_main_loop() is SceneTree else null
-	var canonical_name := desired_name
-	if auth != null:
-		if provider == "google":
-			auth.login_with_google(desired_name)
-		else:
-			auth.login_with_apple(desired_name)
-		if not auth.display_name.is_empty():
-			canonical_name = auth.display_name
+	if auth != null and auth.has_method("authenticate_with_provider"):
+		auth.authenticate_with_provider(provider, desired_name, self, func(prof: Dictionary):
+			var canonical_name := str(prof.get("name", desired_name))
+			if canonical_name.is_empty():
+				canonical_name = desired_name
+			var net = Engine.get_main_loop().root.get_node_or_null("NetworkManager") if Engine.get_main_loop() is SceneTree else null
+			if net != null:
+				net.login_online(provider, canonical_name)
+			_refresh_auth_state()
+		)
+		return
 
 	var net = Engine.get_main_loop().root.get_node_or_null("NetworkManager") if Engine.get_main_loop() is SceneTree else null
 	if net != null:
-		net.login_online(provider, canonical_name)
+		net.login_online(provider, desired_name)
 
 	_refresh_auth_state()

@@ -684,6 +684,7 @@ func start_tutorial() -> void:
 	var gs := _gs()
 	if gs != null:
 		gs.player["tutorial_completed"] = false
+		gs.player["tutorial_skipped"] = false
 		gs.player["tutorial_step"] = Step.WELCOME_INTRO
 	_current_step = Step.WELCOME_INTRO
 	_shown_step = -1
@@ -701,11 +702,18 @@ func restart_tutorial() -> void:
 func skip_tutorial() -> void:
 	var gs := _gs()
 	if gs != null:
+		gs.player["tutorial_skipped"] = true
 		gs.player["tutorial_completed"] = true
 		gs.player["tutorial_step"] = Step.GRADUATION_MODAL
+		gs._emit_state_changed()
 	_active = false
 	_set_overlay_visible(false)
 	_save_game()
+	var loop := Engine.get_main_loop()
+	if loop is SceneTree and (loop as SceneTree).root != null:
+		var qm := (loop as SceneTree).root.get_node_or_null("QuestManager")
+		if qm != null and qm.has_method("refresh_quests"):
+			qm.refresh_quests(true)
 
 
 func _set_overlay_visible(p_vis: bool) -> void:
@@ -1836,6 +1844,7 @@ func _on_graduation_finish_pressed() -> void:
 	var gs := _gs()
 	if gs != null:
 		gs.player["tutorial_completed"] = true
+		gs.player["tutorial_skipped"] = false
 		gs.player["tutorial_step"] = Step.GRADUATION_MODAL
 	_active = false
 	_victory_backdrop.hide()

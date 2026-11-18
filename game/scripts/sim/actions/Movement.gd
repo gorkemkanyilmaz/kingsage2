@@ -161,6 +161,20 @@ static func _validate_support(
 	return _ok()
 
 
+static func _is_real_player_target(target: Dictionary) -> bool:
+	var owner := str(target.get("owner", "")).strip_edges()
+	return (
+		not bool(target.get("is_bot", false))
+		and not bool(target.get("is_barbarian", false))
+		and str(target.get("bonus_type", "")) == ""
+		and not owner.is_empty()
+		and owner != "Barbar"
+		and owner != "Terk Edilmiş"
+		and owner != "Soyguncular"
+		and owner != "Usta"
+	)
+
+
 static func _validate_trade(
 	state: Dictionary, origin: Dictionary, target: Dictionary, carry: Dictionary
 ) -> Dictionary:
@@ -173,8 +187,8 @@ static func _validate_trade(
 	for r in RESOURCES:
 		if int((resources as Dictionary).get(r, 0)) < int(clean.get(r, 0)):
 			return _fail("resources_unavailable", "Kaynak köyde yeterli hammadde yok.")
-	if not _is_friendly(state, origin, target):
-		return _fail("foreign_target", "Ticaret yalnızca kendi/ittifak köyüne yapılabilir.")
+	if not _is_friendly(state, origin, target) and not _is_real_player_target(target):
+		return _fail("foreign_target", "Ticaret yalnızca gerçek oyunculara, kendi veya müttefik köylerinize yapılabilir.")
 	if REQUIRE_MARKET_FOR_TRADE and _building_level(origin, "market") < 1:
 		return _fail("market_required", "Ticaret için Market (en az seviye 1) gerekir.")
 	return _ok()

@@ -108,11 +108,10 @@ func _ready() -> void:
 	var gs = Engine.get_main_loop().root.get_node_or_null("GameState") if Engine.get_main_loop() is SceneTree else null
 	if gs != null:
 		_cached_active_vid = int(gs.active_village_id)
-		if gs.has_method("get_player_villages"):
-			var ids: Array = []
-			for pv in gs.get_player_villages():
-				ids.append(int((pv as Dictionary).get("id", -1)))
-			_cached_own_sig = str(ids)
+		_cached_own_sig = _compute_world_villages_sig(gs)
+	var net = Engine.get_main_loop().root.get_node_or_null("NetworkManager") if Engine.get_main_loop() is SceneTree else null
+	if net != null and net.has_method("pull_shared_world_from_cloud") and not str(net.get("auth_token")).is_empty():
+		net.pull_shared_world_from_cloud()
 	var bus = Engine.get_main_loop().root.get_node_or_null("EventBus") if Engine.get_main_loop() is SceneTree else null
 	if bus != null:
 		if bus.has_signal("state_changed") and not bus.state_changed.is_connected(_on_world_state_changed):
@@ -719,6 +718,19 @@ func _on_goto_pressed() -> void:
 	var target_x: float = coord_x_input.value
 	var target_y: float = coord_y_input.value
 	_center_on_coord(target_x, target_y, true)
+	var ix := int(roundf(target_x))
+	var iy := int(roundf(target_y))
+	for vid in _village_views:
+		var view = _village_views[vid]
+		if view != null and is_instance_valid(view) and view.has_meta("village_dict"):
+			var vd: Dictionary = view.get_meta("village_dict")
+			if int(vd.get("x", -1)) == ix and int(vd.get("y", -1)) == iy:
+				view.modulate = Color(1.35, 1.25, 0.75, 1.0)
+				var tw := create_tween()
+				tw.tween_property(view, "scale", Vector2(1.16, 1.16), 0.18)
+				tw.tween_property(view, "scale", Vector2(1.0, 1.0), 0.25)
+				tw.parallel().tween_property(view, "modulate", Color(1.0, 1.0, 1.0, 1.0), 0.35)
+				break
 
 
 func _try_select_village_at_screen_pos(screen_pos: Vector2) -> void:
@@ -750,16 +762,29 @@ func _on_village_conquered_map(_vid: int, _owner: String) -> void:
 	_on_world_state_changed()
 
 
+func _compute_world_villages_sig(gs: Node) -> String:
+	if gs == null:
+		return ""
+	var parts: Array[String] = []
+	var src: Array = []
+	if gs.world is Dictionary and (gs.world as Dictionary).has("villages") and not ((gs.world as Dictionary)["villages"] as Array).is_empty():
+		src = (gs.world as Dictionary)["villages"]
+	else:
+		src = gs.villages
+	for v in src:
+		if typeof(v) == TYPE_DICTIONARY:
+			var vd := v as Dictionary
+			if not bool(vd.get("is_bot", false)) and not bool(vd.get("is_barbarian", false)):
+				parts.append("%d:%s:%d:%d:%d" % [int(vd.get("id", -1)), str(vd.get("owner", "")), int(vd.get("x", 0)), int(vd.get("y", 0)), int(vd.get("points", 0))])
+	return str(src.size()) + "|" + "|".join(parts)
+
+
 func _on_world_state_changed() -> void:
 	var gs = Engine.get_main_loop().root.get_node_or_null("GameState") if Engine.get_main_loop() is SceneTree else null
 	if gs == null:
 		return
 	var cur_aid := int(gs.active_village_id)
-	var ids: Array = []
-	if gs.has_method("get_player_villages"):
-		for pv in gs.get_player_villages():
-			ids.append(int((pv as Dictionary).get("id", -1)))
-	var sig := str(ids)
+	var sig := _compute_world_villages_sig(gs)
 	if cur_aid == _cached_active_vid and sig == _cached_own_sig:
 		return
 	var aid_changed := (cur_aid != _cached_active_vid)
@@ -839,7 +864,9 @@ func _on_draw_movements() -> void:
 	var active_v: Dictionary = gs.get_active_village() if gs.has_active_village() else {}
 	var active_vid: int = int(active_v.get("id", -1))
 	var player_name: String = str(gs.player.get("name", "Kral"))
-	var now: int = int(Time.get_unix_time_from_system())
+	var now_f: float = Time.get_unix_time_from_system()
+	var now: int = int(floor(now_f))
+	var anim_t: float = Time.get_ticks_msec() * 0.001
 
 	for m in gs.movements:
 		if typeof(m) != TYPE_DICTIONARY:
@@ -849,7 +876,7 @@ func _on_draw_movements() -> void:
 		var from_id := int(m.get("from_village_id", m.get("village_id", 0)))
 		var to_id := int(m.get("to_village_id", 0))
 
-		# Sadece gönderen oyuncunun görebilmesi kuralı
+		# Saldırı sahibi veya hedef/kaynak köyden birine sahip oyuncu görebilir
 		var is_mine := (m_owner == player_name or from_id == active_vid or to_id == active_vid)
 		if not is_mine:
 			continue
@@ -874,73 +901,161 @@ func _on_draw_movements() -> void:
 
 		var depart_unix := int(m.get("depart_unix", now))
 		var arrive_unix := int(m.get("arrive_unix", now + 60))
-		var duration := maxi(1, arrive_unix - depart_unix)
-		var progress := clampf(float(now - depart_unix) / float(duration), 0.0, 1.0)
+		var duration := float(maxi(1, arrive_unix - depart_unix))
+		var progress := clampf((now_f - float(depart_unix)) / duration, 0.0, 1.0)
 
-		# Çizgi Rengi (Dönüş: Camgöbeği, Katır: Altın Amber, Saldırı: Parlak Turuncu Kırmızı)
-		var line_color := Color(1.0, 0.35, 0.18, 0.95)
+		# Çizgi Rengi (Dönüş: Camgöbeği/Zümrüt, Katır: Altın Amber, Saldırı: Parlak Kızıl Turuncu)
+		var line_color := Color(1.0, 0.32, 0.16, 0.96)
 		if is_returning:
-			line_color = Color(0.25, 0.85, 1.0, 0.95)
+			line_color = Color(0.25, 0.90, 1.0, 0.96)
 		elif is_trade:
-			line_color = Color(1.0, 0.82, 0.22, 0.95)
+			line_color = Color(1.0, 0.82, 0.22, 0.96)
 
-		# 1) Rota çizgisi (çift katman parlama)
-		var glow_col := line_color
-		glow_col.a = 0.25
-		movements_layer.draw_line(origin_pos, target_pos, glow_col, 10.0, true)
-		movements_layer.draw_line(origin_pos, target_pos, line_color, 4.0, true)
-
-		# 2) Rota üzerinde ilerleyen oklar
-		var line_dir := (target_pos - origin_pos).normalized()
-		var line_dist := origin_pos.distance_to(target_pos)
-		if line_dist > 80.0:
-			var step_dist := 160.0
-			var curr_d := 80.0
-			while curr_d < line_dist - 60.0:
-				var arrow_pt := origin_pos + line_dir * curr_d
-				var perp := Vector2(-line_dir.y, line_dir.x) * 6.0
-				var p1 := arrow_pt - line_dir * 8.0 + perp
-				var p2 := arrow_pt
-				var p3 := arrow_pt - line_dir * 8.0 - perp
-				movements_layer.draw_line(p1, p2, line_color, 3.0, true)
-				movements_layer.draw_line(p2, p3, line_color, 3.0, true)
-				curr_d += step_dist
-
-		# 3) Hat üzerinde hareket eden birlik/katır konumu
+		var seg_vec := target_pos - origin_pos
+		var line_dist := seg_vec.length()
+		if line_dist < 4.0:
+			continue
+		var line_dir := seg_vec / line_dist
 		var current_march_pos := origin_pos.lerp(target_pos, progress)
 
-		# 4) İlerleme Rozeti
-		var token_radius := 28.0
-		movements_layer.draw_circle(current_march_pos, token_radius + 4.0, Color(0, 0, 0, 0.6))
-		movements_layer.draw_circle(current_march_pos, token_radius, Color(0.10, 0.09, 0.14, 0.96))
-		movements_layer.draw_arc(current_march_pos, token_radius, 0.0, TAU, 32, line_color, 3.0, true)
+		# 1) Hareket yönünde akan KESİKLİ ÇİZGİ (saldırıda hedefe, dönüşte tam tersine eve doğru!)
+		var dash_len := 22.0
+		var gap_len := 14.0
+		var period := dash_len + gap_len
+		var phase := fmod(anim_t * 68.0, period)
+		var d := -period + phase
+		while d < line_dist:
+			var s_d := clampf(d, 0.0, line_dist)
+			var e_d := clampf(d + dash_len, 0.0, line_dist)
+			if e_d - s_d >= 2.0:
+				var p_a := origin_pos + line_dir * s_d
+				var p_b := origin_pos + line_dir * e_d
+				var is_ahead := (s_d >= line_dist * progress - dash_len)
+				var d_col := line_color if is_ahead else Color(line_color.r, line_color.g, line_color.b, 0.38)
+				movements_layer.draw_line(p_a, p_b, Color(0.0, 0.0, 0.0, 0.50 if is_ahead else 0.22), 7.5, true)
+				movements_layer.draw_line(p_a, p_b, d_col, 4.0, true)
+			d += period
 
-		var icon_str := ""
-		if is_returning:
-			icon_str = ""
-		elif is_trade:
-			icon_str = ""
+		# 2) Yol boyunca yön okları (dönüşte oklar ters yöne evi gösterir!)
+		if line_dist > 70.0:
+			var perp := Vector2(-line_dir.y, line_dir.x)
+			var arrow_step := 96.0
+			var ad := fmod(anim_t * 48.0, arrow_step)
+			if ad < 42.0:
+				ad += arrow_step * 0.5
+			while ad < line_dist - 28.0:
+				var tip := origin_pos + line_dir * ad
+				var back := tip - line_dir * 16.0
+				var wing_l := back + perp * 10.0
+				var wing_r := back - perp * 10.0
+				movements_layer.draw_colored_polygon(PackedVector2Array([tip, wing_l, tip - line_dir * 7.0, wing_r]), line_color)
+				ad += arrow_step
 
-		movements_layer.draw_string(FontNunitoBold, current_march_pos + Vector2(-12, 8), icon_str, HORIZONTAL_ALIGNMENT_CENTER, -1, 24)
+		# Hedef noktasına hedef/ev halkası çiz
+		movements_layer.draw_arc(target_pos, 32.0 + 4.0 * sin(anim_t * 4.5), 0.0, TAU, 28, line_color, 3.0, true)
 
-		# 5) Tepedeki Kalan Varış Zamanı Plaketi (Büyük Punto, 3px Kontur, Kristal Netlik)
+		# 3) Kesikli çizgi üzerinde yürüyen asker birliği veya katır kervanı
+		var units_dict: Dictionary = m.get("units", {}) if typeof(m.get("units")) == TYPE_DICTIONARY else {}
+		_draw_marching_soldiers(movements_layer, current_march_pos, line_dir, m_type, is_returning, is_trade, units_dict, anim_t, line_color)
+
+		# 4) Kalan Varış Zamanı Plaketi (süre 00:00 olduğunda rakip/ev köyüne varır)
 		var rem_secs := maxi(0, arrive_unix - now)
 		var time_str := "%02d:%02d" % [rem_secs / 60, rem_secs % 60]
+		var total_units := 0
+		for uk in units_dict.keys():
+			total_units += int(units_dict.get(uk, 0))
 		var banner_txt := ""
 		if is_returning:
-			banner_txt = " Dönüş: " + time_str
+			banner_txt = "↩ Dönüş %s (%d)" % [time_str, total_units]
 		elif is_trade:
-			banner_txt = " Katır: " + time_str
+			banner_txt = "⚖ Katır %s" % time_str
 		else:
-			banner_txt = " Varış: " + time_str
+			banner_txt = "⚔ Varış %s (%d)" % [time_str, total_units]
 
-		var banner_w := 240.0
+		var banner_w := 268.0
 		var banner_h := 46.0
-		var banner_rect := Rect2(current_march_pos.x - banner_w * 0.5, current_march_pos.y - 62.0, banner_w, banner_h)
+		var banner_rect := Rect2(current_march_pos.x - banner_w * 0.5, current_march_pos.y - 84.0, banner_w, banner_h)
 		movements_layer.draw_rect(banner_rect, Color(0.08, 0.07, 0.12, 0.94), true)
 		movements_layer.draw_rect(banner_rect, line_color, false, 2.5)
-		movements_layer.draw_string_outline(FontNunitoBold, Vector2(current_march_pos.x - banner_w * 0.5, current_march_pos.y - 30.0), banner_txt, HORIZONTAL_ALIGNMENT_CENTER, int(banner_w), 24, 3, Color(0, 0, 0, 1.0))
-		movements_layer.draw_string(FontNunitoBold, Vector2(current_march_pos.x - banner_w * 0.5, current_march_pos.y - 30.0), banner_txt, HORIZONTAL_ALIGNMENT_CENTER, int(banner_w), 24, Color(1.0, 0.95, 0.85))
+		movements_layer.draw_string_outline(FontNunitoBold, Vector2(current_march_pos.x - banner_w * 0.5, current_march_pos.y - 52.0), banner_txt, HORIZONTAL_ALIGNMENT_CENTER, int(banner_w), 23, 3, Color(0, 0, 0, 1.0))
+		movements_layer.draw_string(FontNunitoBold, Vector2(current_march_pos.x - banner_w * 0.5, current_march_pos.y - 52.0), banner_txt, HORIZONTAL_ALIGNMENT_CENTER, int(banner_w), 23, Color(1.0, 0.96, 0.88))
+
+
+func _draw_marching_soldiers(
+	canvas: Control,
+	pos: Vector2,
+	dir: Vector2,
+	_m_type: String,
+	is_returning: bool,
+	is_trade: bool,
+	units: Dictionary,
+	anim_t: float,
+	accent_col: Color
+) -> void:
+	var facing := 1.0 if dir.x >= 0.0 else -1.0
+	var perp := Vector2(-dir.y, dir.x)
+
+	if is_trade:
+		# Yürüyen katır kervanı
+		for idx in range(2):
+			var offset := perp * (14.0 if idx == 0 else -14.0) - dir * (float(idx) * 14.0)
+			var p := pos + offset
+			var bob := absf(sin(anim_t * 8.0 + float(idx) * 1.4)) * 3.5
+			canvas.draw_circle(p + Vector2(0, 14), 10.0, Color(0, 0, 0, 0.45))
+			# Katır gövde & altın yük çuvalları
+			canvas.draw_rect(Rect2(p.x - 13.0, p.y - 8.0 - bob, 26.0, 14.0), Color(0.55, 0.36, 0.18), true)
+			canvas.draw_rect(Rect2(p.x - 8.0, p.y - 16.0 - bob, 16.0, 10.0), Color(0.95, 0.78, 0.24), true)
+			canvas.draw_circle(p + Vector2(13.0 * facing, -10.0 - bob), 6.0, Color(0.48, 0.30, 0.15))
+		return
+
+	var total_u := 0
+	for uk in units.keys():
+		total_u += int(units.get(uk, 0))
+	var squad_count := 1 if total_u < 10 else (2 if total_u < 40 else 3)
+
+	var offsets: Array[Vector2] = [Vector2.ZERO]
+	if squad_count == 2:
+		offsets = [perp * 15.0 + dir * 6.0, -perp * 15.0 - dir * 8.0]
+	elif squad_count >= 3:
+		offsets = [dir * 16.0, perp * 18.0 - dir * 10.0, -perp * 18.0 - dir * 10.0]
+
+	for i in range(offsets.size()):
+		var p := pos + offsets[i]
+		var walk_phase := anim_t * 10.5 + float(i) * 1.7
+		var step := sin(walk_phase)
+		var bob := absf(step) * 4.0
+
+		# Zemin gölgesi
+		canvas.draw_circle(p + Vector2(0.0, 14.0), 11.0, Color(0.0, 0.0, 0.0, 0.45))
+
+		# Yürüyen bacaklar (sağ ve sol adım animasyonu)
+		var stride := step * 7.0 * facing
+		var hip := p + Vector2(0.0, 4.0 - bob)
+		canvas.draw_line(hip, p + Vector2(stride, 15.0), Color(0.18, 0.15, 0.14), 4.0, true)
+		canvas.draw_line(hip, p + Vector2(-stride, 15.0), Color(0.26, 0.22, 0.20), 4.0, true)
+
+		# Zırhlı gövde / pelerin
+		var body_col := Color(0.18, 0.62, 0.85) if is_returning else accent_col
+		canvas.draw_rect(Rect2(p.x - 7.0, p.y - 12.0 - bob, 14.0, 17.0), Color(0.10, 0.10, 0.14), true)
+		canvas.draw_rect(Rect2(p.x - 5.5, p.y - 10.5 - bob, 11.0, 14.0), body_col, true)
+
+		# Dönüşte ganimet kesesi
+		if is_returning:
+			canvas.draw_circle(p + Vector2(-7.0 * facing, -3.0 - bob), 5.0, Color(0.95, 0.80, 0.24))
+
+		# Miğfer ve baş
+		canvas.draw_circle(p + Vector2(0.0, -17.0 - bob), 6.5, Color(0.75, 0.78, 0.84))
+		canvas.draw_arc(p + Vector2(0.0, -17.0 - bob), 6.5, 0.0, TAU, 14, Color(0.12, 0.10, 0.14), 1.8)
+
+		# Kalkan
+		canvas.draw_circle(p + Vector2(6.0 * facing, -4.0 - bob), 6.0, Color(0.92, 0.76, 0.30))
+		canvas.draw_circle(p + Vector2(6.0 * facing, -4.0 - bob), 3.2, Color(0.55, 0.14, 0.14))
+
+		# Hareket yönüne uzanan mızrak / kılıç
+		var hand_pt := p + Vector2(3.0 * facing, -6.0 - bob)
+		var spear_tip := hand_pt + Vector2(16.0 * facing, -16.0 + step * 2.5)
+		canvas.draw_line(hand_pt - Vector2(6.0 * facing, -6.0), spear_tip, Color(0.42, 0.28, 0.16), 2.5, true)
+		canvas.draw_line(spear_tip - Vector2(4.0 * facing, -4.0), spear_tip, Color(0.92, 0.95, 1.0), 3.2, true)
 
 
 # ---------------------------------------------------------------- Üst Bar Hareket Durumu

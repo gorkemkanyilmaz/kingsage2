@@ -37,6 +37,7 @@ var _name_input: LineEdit
 var _status_lbl: Label
 var _world_buttons: Dictionary = {}
 var _selected_world_id: int = 1
+static var _boot_splash_shown: bool = false
 
 
 func _ready() -> void:
@@ -51,6 +52,7 @@ func _ready() -> void:
 	_setup_profile_bar()
 	_setup_auth_overlay()
 	_setup_region_modal()
+	_maybe_show_boot_splash()
 	_refresh_auth_state()
 	if _world_buttons.is_empty():
 		_build_world_rows()
@@ -417,24 +419,107 @@ func _setup_auth_overlay() -> void:
 	vb.add_child(_status_lbl)
 
 
+func _maybe_show_boot_splash() -> void:
+	if _boot_splash_shown or DisplayServer.get_name() == "headless":
+		_boot_splash_shown = true
+		return
+	_boot_splash_shown = true
+
+	var splash := CanvasLayer.new()
+	splash.name = "DiyarBootSplash"
+	splash.layer = 200
+	add_child(splash)
+
+	var bg := ColorRect.new()
+	bg.color = Color(0.055, 0.047, 0.078, 1.0)
+	bg.mouse_filter = Control.MOUSE_FILTER_STOP
+	splash.add_child(bg)
+	bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+
+	var center := CenterContainer.new()
+	splash.add_child(center)
+	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+
+	var vb := VBoxContainer.new()
+	vb.alignment = BoxContainer.ALIGNMENT_CENTER
+	vb.add_theme_constant_override("separation", 18)
+	center.add_child(vb)
+
+	var icon_tex := load("res://assets/icons/app_icon_180.png")
+	if icon_tex is Texture2D:
+		var tr := TextureRect.new()
+		tr.texture = icon_tex
+		tr.custom_minimum_size = Vector2(180, 180)
+		tr.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		tr.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+		vb.add_child(tr)
+
+	var title_lbl := Label.new()
+	title_lbl.text = "TAHT VE KILIÇ"
+	title_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title_lbl.add_theme_font_override("font", FontCinzelBold)
+	title_lbl.add_theme_font_size_override("font_size", 46)
+	title_lbl.add_theme_color_override("font_color", Color(0.95, 0.81, 0.40, 1.0))
+	vb.add_child(title_lbl)
+
+	var sub_lbl := Label.new()
+	sub_lbl.text = "Diyar hazırlanıyor..."
+	sub_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	sub_lbl.add_theme_font_override("font", FontNunitoBold)
+	sub_lbl.add_theme_font_size_override("font_size", 24)
+	sub_lbl.add_theme_color_override("font_color", Color(0.78, 0.75, 0.67, 1.0))
+	vb.add_child(sub_lbl)
+
+	var bar := ProgressBar.new()
+	bar.custom_minimum_size = Vector2(360, 14)
+	bar.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	bar.show_percentage = false
+	bar.min_value = 0.0
+	bar.max_value = 100.0
+	bar.value = 10.0
+	var pbg := StyleBoxFlat.new()
+	pbg.bg_color = Color(0.10, 0.08, 0.13, 1.0)
+	pbg.border_color = Color(0.42, 0.33, 0.15, 1.0)
+	pbg.set_border_width_all(1)
+	pbg.set_corner_radius_all(8)
+	var pfg := StyleBoxFlat.new()
+	pfg.bg_color = Color(0.90, 0.75, 0.33, 1.0)
+	pfg.set_corner_radius_all(8)
+	bar.add_theme_stylebox_override("background", pbg)
+	bar.add_theme_stylebox_override("fill", pfg)
+	vb.add_child(bar)
+
+	var tw := create_tween()
+	tw.tween_property(bar, "value", 100.0, 0.72).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	tw.tween_property(bg, "modulate:a", 0.0, 0.22)
+	tw.parallel().tween_property(center, "modulate:a", 0.0, 0.22)
+	tw.tween_callback(func():
+		if is_instance_valid(splash):
+			splash.queue_free()
+	)
+
+
 func _do_login(provider: String) -> void:
 	var desired_name := _name_input.text.strip_edges()
 	if desired_name.is_empty():
 		desired_name = "Lord Gorkem" if provider == "google" else "Lord Roland"
 
 	var auth = Engine.get_main_loop().root.get_node_or_null("AuthManager") if Engine.get_main_loop() is SceneTree else null
-	var canonical_name := desired_name
-	if auth != null:
-		if provider == "google":
-			auth.login_with_google(desired_name)
-		else:
-			auth.login_with_apple(desired_name)
-		if not auth.display_name.is_empty():
-			canonical_name = auth.display_name
+	if auth != null and auth.has_method("authenticate_with_provider"):
+		auth.authenticate_with_provider(provider, desired_name, self, func(prof: Dictionary):
+			var canonical_name := str(prof.get("name", desired_name))
+			if canonical_name.is_empty():
+				canonical_name = desired_name
+			var net = Engine.get_main_loop().root.get_node_or_null("NetworkManager") if Engine.get_main_loop() is SceneTree else null
+			if net != null:
+				net.login_online(provider, canonical_name)
+			_refresh_auth_state()
+		)
+		return
 
 	var net = Engine.get_main_loop().root.get_node_or_null("NetworkManager") if Engine.get_main_loop() is SceneTree else null
 	if net != null:
-		net.login_online(provider, canonical_name)
+		net.login_online(provider, desired_name)
 
 	_refresh_auth_state()
 
@@ -744,7 +829,14 @@ func _complete_select_direction(target_x: int, target_y: int) -> void:
 
 	if wm != null:
 		var was_conquered := bool(wm.has_method("is_player_conquered") and wm.is_player_conquered(_selected_world_id, p_name))
-		var success: bool = wm.restart_after_conquest(_selected_world_id, p_name, target_x, target_y) if was_conquered else wm.join_world(_selected_world_id, p_name, target_x, target_y)
+		var already_has := (not was_conquered) and bool(wm.has_method("has_player_village") and wm.has_player_village(_selected_world_id, p_name))
+		var success: bool
+		if already_has:
+			success = wm.enter_world(_selected_world_id, p_name)
+		elif was_conquered:
+			success = wm.restart_after_conquest(_selected_world_id, p_name, target_x, target_y)
+		else:
+			success = wm.join_world(_selected_world_id, p_name, target_x, target_y)
 		if success:
 			get_tree().change_scene_to_file("res://scenes/Village.tscn")
 	else:

@@ -69,6 +69,75 @@ var _toast_panel: PanelContainer
 var _toast_label: Label
 
 
+const TUTORIAL_QUEST_DEFS: Array[Dictionary] = [
+	{
+		"id": "q_tut_wood_2",
+		"icon": "🪓",
+		"category": "REHBER • EKONOMİ",
+		"title": "Rehber: Oduncu Kampı Sv.2",
+		"target": 2,
+		"check_type": "building_level",
+		"building_key": "wood",
+		"goto_type": "building",
+		"goto_target": "wood",
+		"reward": {"wood": 200, "stone": 150, "iron": 100},
+		"vizier_desc": "[b][color=#FFD86B]Lordum,[/color][/b] rehber adımını atladığınız için temel üretim görevini buradan sürdürüyoruz. [b]Oduncu Kampı[/b]'nızı [b]Seviye 2[/b]'ye yükselterek inşaat kerestesi gelirini artırın."
+	},
+	{
+		"id": "q_tut_storage_farm_3",
+		"icon": "🌾",
+		"category": "REHBER • LOJİSTİK",
+		"title": "Rehber: Depo & Değirmen Sv.3",
+		"target": 2,
+		"check_type": "storage_farm_3",
+		"goto_type": "building",
+		"goto_target": "storage",
+		"reward": {"wood": 250, "stone": 250, "iron": 200},
+		"vizier_desc": "[b][color=#FFD86B]Lordum,[/color][/b] Kışla inşa edebilmek ve kaynakları saklamak için [b]Depo[/b] ve [b]Değirmen[/b] binalarının ikisini de [b]Seviye 3[/b]'e çıkarın."
+	},
+	{
+		"id": "q_tut_barracks_1",
+		"icon": "🛡️",
+		"category": "REHBER • ASKERİYE",
+		"title": "Rehber: Kışla İnşa Et (Sv.1)",
+		"target": 1,
+		"check_type": "building_min",
+		"building_key": "barracks",
+		"min_level": 1,
+		"goto_type": "building",
+		"goto_target": "barracks",
+		"reward": {"wood": 300, "stone": 250, "iron": 250},
+		"vizier_desc": "[b][color=#FFD86B]Lordum,[/color][/b] ordu kurmanın ilk adımı [b]Kışla[/b] inşa etmektir. Köy meydanından Kışla'yı [b]Seviye 1[/b]'e yükseltin."
+	},
+	{
+		"id": "q_tut_research_spear",
+		"icon": "📜",
+		"category": "REHBER • ARAŞTIRMA",
+		"title": "Rehber: Silahtar Araştır",
+		"target": 1,
+		"check_type": "unit_researched",
+		"unit_key": "spear",
+		"goto_type": "barracks_research",
+		"goto_target": "spear",
+		"reward": {"wood": 250, "stone": 200, "iron": 250},
+		"vizier_desc": "[b][color=#FFD86B]Lordum,[/color][/b] Kışla içinde [b]Birim Araştır[/b] sekmesine geçip ilk piyademiz olan [b]Silahtar[/b] birimini araştırın."
+	},
+	{
+		"id": "q_tut_train_spear_10",
+		"icon": "⚔️",
+		"category": "REHBER • İLK ORDU",
+		"title": "Rehber: 10 Silahtar Eğit",
+		"target": 10,
+		"check_type": "unit_count_peak",
+		"unit_key": "spear",
+		"goto_type": "barracks_train",
+		"goto_target": "spear",
+		"reward": {"wood": 400, "stone": 350, "iron": 350},
+		"vizier_desc": "[b][color=#FFD86B]Lordum,[/color][/b] Kışla [b]Asker Eğit[/b] sekmesinden [b]10 Silahtar[/b] yetiştirerek krallığınızın ilk savunma muhafızlarını kurun!"
+	},
+]
+
+
 const QUEST_DEFS: Array[Dictionary] = [
 	{
 		"id": "q_wood_stone_3",
@@ -593,7 +662,10 @@ func set_expanded(p_expanded: bool) -> void:
 	refresh_quests(true)
 
 
-func get_all_quest_defs() -> Array:
+func get_all_quest_defs(gs_override: Node = null) -> Array:
+	var gs := gs_override if gs_override != null else _gs()
+	if gs != null and bool(gs.player.get("tutorial_skipped", false)):
+		return TUTORIAL_QUEST_DEFS + QUEST_DEFS
 	return QUEST_DEFS
 
 
@@ -680,7 +752,7 @@ func _record_movement_stat(gs: Node, mv: Dictionary) -> void:
 
 
 func get_quest_def(quest_id: String) -> Dictionary:
-	for q in QUEST_DEFS:
+	for q in get_all_quest_defs():
 		if str(q.get("id", "")) == quest_id:
 			return q
 	return {}
@@ -714,10 +786,17 @@ func get_quest_progress(quest_id: String, gs_override: Node = null) -> Dictionar
 		"building_level":
 			var bk := str(q.get("building_key", ""))
 			current = mini(target, _max_building_level(p_vills, bk))
+		"storage_farm_3":
+			var st3 := 1 if _max_building_level(p_vills, "storage") >= 3 else 0
+			var fm3 := 1 if _max_building_level(p_vills, "farm") >= 3 else 0
+			current = st3 + fm3
 		"storage_farm_4":
 			var st_ok := 1 if _max_building_level(p_vills, "storage") >= 4 else 0
 			var fm_ok := 1 if _max_building_level(p_vills, "farm") >= 4 else 0
 			current = st_ok + fm_ok
+		"unit_researched":
+			var uk_res := str(q.get("unit_key", ""))
+			current = 1 if _any_village_researched(p_vills, uk_res) else 0
 		"building_min":
 			var bk := str(q.get("building_key", ""))
 			var min_lvl := int(q.get("min_level", 1))
@@ -781,7 +860,7 @@ func get_visible_quests(gs_override: Node = null) -> Array:
 	var q_data := _ensure_quest_data(gs)
 	var claimed_arr: Array = q_data["claimed"]
 
-	for q in QUEST_DEFS:
+	for q in get_all_quest_defs(gs):
 		var qid := str(q.get("id", ""))
 		if claimed_arr.has(qid):
 			continue
@@ -1409,7 +1488,7 @@ func refresh_quests(force: bool = false) -> void:
 		if ready_cnt > 0:
 			_header_badge.text = "🎁 %d Hazır" % ready_cnt
 		else:
-			_header_badge.text = "%d/%d" % [claimed_cnt, QUEST_DEFS.size()]
+			_header_badge.text = "%d/%d" % [claimed_cnt, get_all_quest_defs(gs).size()]
 
 	if _header_chevron != null:
 		_header_chevron.text = "▲" if _expanded else "▼"
@@ -1700,6 +1779,19 @@ func get_pending_navigation_actions(quest_or_id, gs_override: Node = null) -> Ar
 					"type": "building",
 					"target": "stone",
 				})
+		"storage_farm_3":
+			if _max_building_level(p_vills, "storage") < 3:
+				out.append({
+					"label": "🏛️ Depo Binasına Git (Sv.%d/3) ➔" % int(bld.get("storage", 0)),
+					"type": "building",
+					"target": "storage",
+				})
+			if _max_building_level(p_vills, "farm") < 3:
+				out.append({
+					"label": "🏛️ Değirmen Binasına Git (Sv.%d/3) ➔" % int(bld.get("farm", 0)),
+					"type": "building",
+					"target": "farm",
+				})
 		"storage_farm_4":
 			if _max_building_level(p_vills, "storage") < 4:
 				out.append({
@@ -1712,6 +1804,17 @@ func get_pending_navigation_actions(quest_or_id, gs_override: Node = null) -> Ar
 					"label": "🏛️ Değirmen Binasına Git (Sv.%d/4) ➔" % int(bld.get("farm", 0)),
 					"type": "building",
 					"target": "farm",
+				})
+		"unit_researched":
+			var u_rk := str(q.get("unit_key", "spear"))
+			if int(bld.get("barracks", 0)) < 1:
+				_append_building_or_prereq_actions(out, bld, "barracks", 1)
+			else:
+				var u_rname := str(RulesEngineScript.unit_data(u_rk).get("name", u_rk))
+				out.append({
+					"label": "🔍 Kışla (%s Araştır) ➔" % u_rname,
+					"type": "barracks_research",
+					"target": u_rk,
 				})
 		"spy_prereq":
 			if _max_building_level(p_vills, "barracks") < 4:

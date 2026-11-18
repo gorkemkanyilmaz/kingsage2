@@ -291,6 +291,12 @@ static func _resolve_trade(state: Dictionary, movement: Dictionary, now_unix: in
 		}], "return": {}}
 
 	_add_resources(target, carry)
+	_add_report(state, "trade", from_id, now_unix, {
+		"type": "trade",
+		"from_village_id": from_id,
+		"target_village_id": to_id,
+		"resources": carry.duplicate(true),
+	})
 	return {"events": [{
 		"type": "trade_delivered",
 		"village_id": to_id,
@@ -316,6 +322,8 @@ static func _make_return(
 		"village_id": origin_id,
 		"type": "return",
 		"from_village_id": int(movement.get("to_village_id", 0)),
+		"from_x": int(movement.get("to_x", 0)),
+		"from_y": int(movement.get("to_y", 0)),
 		"to_village_id": origin_id,
 		"to_x": int(origin.get("x", 0)) if not origin.is_empty() else 0,
 		"to_y": int(origin.get("y", 0)) if not origin.is_empty() else 0,
