@@ -4,9 +4,9 @@ on:
   workflow_dispatch:
     inputs:
       build_number:
-        description: "TestFlight Build Number (e.g. 1, 2, 3, 4, 5)"
+        description: "TestFlight Build Number (e.g. 1, 2, 3, 4, 5, 6)"
         required: true
-        default: "5"
+        default: "6"
       runner:
         description: "GitHub macOS Runner"
         required: true
@@ -139,7 +139,7 @@ jobs:
           shutil.rmtree("build/ios/TahtVeKilic.xcarchive", ignore_errors=True)
           shutil.rmtree("build/ios/ipa", ignore_errors=True)
 
-          # 2. Merge Godot dummy.cpp symbols + Objective-C++ native auth bridge into dummy.mm
+          # 2. Merge Godot dummy.cpp symbols (calling tvk_ios_auth_bridge_init()) + Objective-C++ bridge into dummy.mm
           dummies = glob.glob("build/ios/**/dummy.cpp", recursive=True)
           assert dummies, "Could not find dummy.cpp in build/ios"
           with open(bridge_src, "r", encoding="utf-8") as bf:
@@ -147,11 +147,24 @@ jobs:
           for d in dummies:
               with open(d, "r", encoding="utf-8", errors="replace") as df:
                   orig_dummy = df.read()
+              hooked_dummy, hook_n = re.subn(
+                  r"(godot_apple_embedded_plugins_initialize\s*\([^)]*\)\s*\{)",
+                  r"\1\n\ttvk_ios_auth_bridge_init();",
+                  orig_dummy,
+                  count=1,
+              )
+              if hook_n == 0:
+                  raise RuntimeError("Could not inject tvk_ios_auth_bridge_init into dummy.cpp:\n" + orig_dummy[:500])
               mm_path = os.path.join(os.path.dirname(d), "dummy.mm")
               with open(mm_path, "w", encoding="utf-8") as mf:
-                  mf.write(orig_dummy + "\n\n// --- TVK Native Auth Bridge ---\n" + bridge_code)
+                  mf.write(
+                      'extern "C" void tvk_ios_auth_bridge_init(void);\n'
+                      + hooked_dummy
+                      + "\n\n// --- TVK Native Auth Bridge ---\n"
+                      + bridge_code
+                  )
               os.remove(d)
-              print(f"Merged {d} + {bridge_src} -> {mm_path} (orig_dummy={len(orig_dummy)} chars)")
+              print(f"Merged & hooked {d} + {bridge_src} -> {mm_path} (hooked={hook_n})")
 
           pbx_list = glob.glob("build/ios/**/*.xcodeproj/project.pbxproj", recursive=True)
           assert pbx_list, "Could not find project.pbxproj"
@@ -175,13 +188,13 @@ jobs:
                   if "OTHER_LDFLAGS = (" in block:
                       block = block.replace(
                           "OTHER_LDFLAGS = (",
-                          'OTHER_LDFLAGS = (\n\t\t\t\t\t"-weak_framework",\n\t\t\t\t\tAuthenticationServices,\n\t\t\t\t\t"-weak_framework",\n\t\t\t\t\tLocalAuthentication,\n\t\t\t\t\t"-weak_framework",\n\t\t\t\t\tWebKit,',
+                          'OTHER_LDFLAGS = (\n\t\t\t\t\t"-ObjC",\n\t\t\t\t\t"-weak_framework",\n\t\t\t\t\tAuthenticationServices,\n\t\t\t\t\t"-weak_framework",\n\t\t\t\t\tLocalAuthentication,\n\t\t\t\t\t"-weak_framework",\n\t\t\t\t\tWebKit,',
                           1,
                       )
                   else:
                       block = block.replace(
                           "buildSettings = {",
-                          'buildSettings = {\n\t\t\t\tOTHER_LDFLAGS = (\n\t\t\t\t\t"$(inherited)",\n\t\t\t\t\t"-weak_framework",\n\t\t\t\t\tAuthenticationServices,\n\t\t\t\t\t"-weak_framework",\n\t\t\t\t\tLocalAuthentication,\n\t\t\t\t\t"-weak_framework",\n\t\t\t\t\tWebKit,\n\t\t\t\t);',
+                          'buildSettings = {\n\t\t\t\tOTHER_LDFLAGS = (\n\t\t\t\t\t"$(inherited)",\n\t\t\t\t\t"-ObjC",\n\t\t\t\t\t"-weak_framework",\n\t\t\t\t\tAuthenticationServices,\n\t\t\t\t\t"-weak_framework",\n\t\t\t\t\tLocalAuthentication,\n\t\t\t\t\t"-weak_framework",\n\t\t\t\t\tWebKit,\n\t\t\t\t);',
                           1,
                       )
                   return block

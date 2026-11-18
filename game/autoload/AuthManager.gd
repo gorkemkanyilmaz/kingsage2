@@ -329,12 +329,19 @@ func authenticate_with_provider(provider: String, suggested_name: String, parent
 func _start_ios_native_auth(prov: String, is_apple: bool, req_id: String, base_url: String, parent_node: Node, on_complete: Callable) -> void:
 	var req_path := ProjectSettings.globalize_path("user://native_auth_req.json")
 	var res_path := ProjectSettings.globalize_path("user://native_auth_res.json")
-	if FileAccess.file_exists("user://native_auth_res.json"):
-		DirAccess.remove_absolute(res_path)
-	if FileAccess.file_exists("user://native_auth_req.json"):
-		DirAccess.remove_absolute(req_path)
+	var ack_path := ProjectSettings.globalize_path("user://native_auth_ack.json")
+	var home_dir := OS.get_environment("HOME").strip_edges()
+	var docs_dir := home_dir.path_join("Documents") if not home_dir.is_empty() else ""
+	var docs_req_path := docs_dir.path_join("native_auth_req.json") if not docs_dir.is_empty() else ""
+	var docs_res_path := docs_dir.path_join("native_auth_res.json") if not docs_dir.is_empty() else ""
+	var docs_ack_path := docs_dir.path_join("native_auth_ack.json") if not docs_dir.is_empty() else ""
+
+	for p in [req_path, res_path, ack_path, docs_req_path, docs_res_path, docs_ack_path]:
+		if not p.is_empty() and FileAccess.file_exists(p):
+			DirAccess.remove_absolute(p)
 
 	var oauth_url := "%s/api/auth/oauth_page?provider=%s&session=%s&platform=ios" % [base_url, prov, req_id]
+	var web_fallback_url := "%s/api/auth/oauth_page?provider=%s&session=%s&platform=web" % [base_url, prov, req_id]
 	var req_payload := JSON.stringify({
 		"req_id": req_id,
 		"provider": prov,
@@ -344,6 +351,11 @@ func _start_ios_native_auth(prov: String, is_apple: bool, req_id: String, base_u
 	if f != null:
 		f.store_string(req_payload)
 		f.close()
+	if not docs_req_path.is_empty() and docs_req_path != req_path:
+		var df := FileAccess.open(docs_req_path, FileAccess.WRITE)
+		if df != null:
+			df.store_string(req_payload)
+			df.close()
 
 	var title := "Apple ile Giriş Yap" if is_apple else "Google ile Oturum Aç"
 	var wait_msg := (
@@ -356,18 +368,44 @@ func _start_ios_native_auth(prov: String, is_apple: bool, req_id: String, base_u
 	_auth_poll_timer = Timer.new()
 	_auth_poll_timer.wait_time = 0.15
 	var ticks := [0]
+	var ack_seen := [false]
+	var safari_fallback_opened := [false]
+	var remote_busy := [false]
 	_auth_poll_timer.timeout.connect(func():
 		ticks[0] += 1
 		if ticks[0] > 1200:
 			_dismiss_auth_sheet()
 			return
-		if not FileAccess.file_exists("user://native_auth_res.json"):
+
+		if not ack_seen[0]:
+			if FileAccess.file_exists("user://native_auth_ack.json") or (not docs_ack_path.is_empty() and FileAccess.file_exists(docs_ack_path)):
+				ack_seen[0] = true
+
+		# 3.6 sn içinde native bridge cevap vermezse otomatik Safari OAuth yedeğini aç + sunucuyu dinle
+		if not ack_seen[0] and not safari_fallback_opened[0] and ticks[0] >= 24:
+			safari_fallback_opened[0] = true
+			if is_instance_valid(status_lbl):
+				status_lbl.text = "Tarayıcıda " + ("Apple ID" if is_apple else "Google Hesabı") + " doğrulama ekranı açılıyor..."
+			OS.shell_open(web_fallback_url)
+
+		if safari_fallback_opened[0] and ticks[0] % 8 == 0 and not remote_busy[0]:
+			_poll_oauth_endpoint(base_url, req_id, prov, remote_busy, on_complete)
+
+		var found_res_path := ""
+		if FileAccess.file_exists("user://native_auth_res.json"):
+			found_res_path = res_path
+		elif not docs_res_path.is_empty() and FileAccess.file_exists(docs_res_path):
+			found_res_path = docs_res_path
+		if found_res_path.is_empty():
 			return
-		var rf := FileAccess.open("user://native_auth_res.json", FileAccess.READ)
+
+		var rf := FileAccess.open(found_res_path, FileAccess.READ)
 		var txt := rf.get_as_text() if rf != null else ""
 		if rf != null:
 			rf.close()
-		DirAccess.remove_absolute(res_path)
+		for p in [res_path, docs_res_path, ack_path, docs_ack_path]:
+			if not p.is_empty() and FileAccess.file_exists(p):
+				DirAccess.remove_absolute(p)
 		if txt.is_empty():
 			return
 		var jp := JSON.new()
