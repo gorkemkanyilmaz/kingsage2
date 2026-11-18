@@ -1036,10 +1036,24 @@ func _unhandled_input(event: InputEvent) -> void:
 			_pan_by(mm.relative)
 
 
+func _get_top_bar_height() -> float:
+	if resource_bar != null and resource_bar.size.y > 0.0:
+		return resource_bar.size.y
+	return BASE_OFFSET_Y
+
+
+func _get_bottom_nav_height() -> float:
+	if bottom_nav != null and bottom_nav.size.y > 0.0:
+		return bottom_nav.size.y
+	return 256.0
+
+
 func _get_base_scale(vp_size: Vector2) -> float:
-	var nav_h := bottom_nav.size.y if (bottom_nav != null and bottom_nav.size.y > 0.0) else 256.0
-	var v_cover := (vp_size.y - nav_h - BASE_OFFSET_Y + 360.0) / 1920.0
-	var h_cover := (vp_size.x / 1080.0) if vp_size.x <= vp_size.y * 0.85 else 1.0
+	var top_h := _get_top_bar_height()
+	var nav_h := _get_bottom_nav_height()
+	var vis_h := maxf(320.0, vp_size.y - nav_h - top_h)
+	var v_cover := (vis_h + 280.0) / 1920.0
+	var h_cover := vp_size.x / 1080.0
 	return maxf(1.0, maxf(h_cover, v_cover))
 
 
@@ -1085,17 +1099,22 @@ func _clamp_village_area() -> void:
 
 	var min_x: float
 	var max_x: float
-	if scaled_size.x <= vp_size.x:
+	if scaled_size.x <= vp_size.x + 1.0:
 		var center_x := (vp_size.x - scaled_size.x) * 0.5
-		min_x = center_x - 120.0
-		max_x = center_x + 120.0
+		min_x = center_x
+		max_x = center_x
 	else:
 		min_x = vp_size.x - scaled_size.x
 		max_x = 0.0
 
-	var nav_h := bottom_nav.size.y if (bottom_nav != null and bottom_nav.size.y > 0.0) else 256.0
-	var min_y := minf(BASE_OFFSET_Y - 420.0, (vp_size.y - nav_h - 340.0) - scaled_size.y)
-	var max_y := BASE_OFFSET_Y + 140.0
+	var top_h := _get_top_bar_height()
+	var nav_h := _get_bottom_nav_height()
+	var min_y := (vp_size.y - nav_h + 4.0) - scaled_size.y
+	var max_y := maxf(0.0, top_h - 2.0)
+	if min_y > max_y:
+		var mid_y := top_h + ((vp_size.y - nav_h - top_h) - scaled_size.y) * 0.5
+		min_y = mid_y
+		max_y = mid_y
 
 	village_area.position.x = clampf(village_area.position.x, min_x, max_x)
 	village_area.position.y = clampf(village_area.position.y, min_y, max_y)
@@ -1108,7 +1127,7 @@ func _reset_view() -> void:
 		var eff := _effective_zoom()
 		var center_x := (vp_size.x - 1080.0 * eff) * 0.5
 		village_area.scale = Vector2(eff, eff)
-		village_area.position = Vector2(center_x, BASE_OFFSET_Y)
+		village_area.position = Vector2(center_x, _get_top_bar_height())
 		_clamp_village_area()
 
 

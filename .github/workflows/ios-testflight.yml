@@ -4,9 +4,9 @@ on:
   workflow_dispatch:
     inputs:
       build_number:
-        description: "TestFlight Build Number (e.g. 1, 2, 3)"
+        description: "TestFlight Build Number (e.g. 1, 2, 3, 4)"
         required: true
-        default: "3"
+        default: "4"
       runner:
         description: "GitHub macOS Runner"
         required: true
@@ -126,6 +126,92 @@ jobs:
           TARGET=$(xcodebuild -list -json -project "$XCODE_PROJ" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d['project']['targets'][0])")
           echo "XCODE_SCHEME=$SCHEME" >> $GITHUB_ENV
           echo "XCODE_TARGET=$TARGET" >> $GITHUB_ENV
+
+      - name: Inject Native iOS Apple ID & Google OAuth Bridge
+        run: |
+          python3 - <<'PY'
+          import os, glob, shutil, re, plistlib
+
+          bridge_src = "tools/ios_native_auth_bridge.mm"
+          assert os.path.exists(bridge_src), "Missing tools/ios_native_auth_bridge.mm"
+
+          # 1. Replace Godot dummy.cpp with Objective-C++ native auth bridge
+          dummies = glob.glob("build/ios/**/dummy.cpp", recursive=True)
+          assert dummies, "Could not find dummy.cpp in build/ios"
+          for d in dummies:
+              mm_path = os.path.join(os.path.dirname(d), "dummy.mm")
+              shutil.copyfile(bridge_src, mm_path)
+              print(f"Copied {bridge_src} -> {mm_path}")
+
+          pbx_list = glob.glob("build/ios/**/*.xcodeproj/project.pbxproj", recursive=True)
+          assert pbx_list, "Could not find project.pbxproj"
+          for pbx in pbx_list:
+              with open(pbx, "r", encoding="utf-8") as f:
+                  lines = f.readlines()
+              patched_lines = []
+              for ln in lines:
+                  if "dummy.cpp" in ln:
+                      ln = ln.replace("dummy.cpp", "dummy.mm").replace("sourcecode.cpp.cpp", "sourcecode.cpp.objcpp")
+                  patched_lines.append(ln)
+              txt = "".join(patched_lines)
+              txt = re.sub(r"CLANG_ENABLE_OBJC_ARC\s*=\s*NO\s*;", "CLANG_ENABLE_OBJC_ARC = YES;", txt)
+
+              def patch_build_settings(m):
+                  block = m.group(0)
+                  if "AuthenticationServices" in block:
+                      return block
+                  if "CLANG_ENABLE_OBJC_ARC" not in block:
+                      block = block.replace("buildSettings = {", "buildSettings = {\n\t\t\t\tCLANG_ENABLE_OBJC_ARC = YES;", 1)
+                  if "OTHER_LDFLAGS = (" in block:
+                      block = block.replace(
+                          "OTHER_LDFLAGS = (",
+                          'OTHER_LDFLAGS = (\n\t\t\t\t\t"-weak_framework",\n\t\t\t\t\tAuthenticationServices,\n\t\t\t\t\t"-weak_framework",\n\t\t\t\t\tLocalAuthentication,\n\t\t\t\t\t"-weak_framework",\n\t\t\t\t\tWebKit,',
+                          1,
+                      )
+                  else:
+                      block = block.replace(
+                          "buildSettings = {",
+                          'buildSettings = {\n\t\t\t\tOTHER_LDFLAGS = (\n\t\t\t\t\t"$(inherited)",\n\t\t\t\t\t"-weak_framework",\n\t\t\t\t\tAuthenticationServices,\n\t\t\t\t\t"-weak_framework",\n\t\t\t\t\tLocalAuthentication,\n\t\t\t\t\t"-weak_framework",\n\t\t\t\t\tWebKit,\n\t\t\t\t);',
+                          1,
+                      )
+                  return block
+
+              txt = re.sub(r"buildSettings = \{.*?\n\t\t\t\};", patch_build_settings, txt, flags=re.S)
+              with open(pbx, "w", encoding="utf-8") as f:
+                  f.write(txt)
+              print(f"Patched {pbx} for Objective-C++ ARC and AuthenticationServices/LocalAuthentication/WebKit")
+
+          # 2. Ensure URL scheme tahtkilic and Face ID usage description exist in Info.plist
+          for plist_path in glob.glob("build/ios/**/*Info.plist", recursive=True):
+              with open(plist_path, "rb") as f:
+                  pl = plistlib.load(f)
+              if isinstance(pl, dict):
+                  pl.setdefault("NSFaceIDUsageDescription", "Taht ve Kılıç hesabınıza güvenli giriş için Face ID kullanılır.")
+                  url_types = pl.setdefault("CFBundleURLTypes", [])
+                  has_scheme = any("tahtkilic" in (u.get("CFBundleURLSchemes") or []) for u in url_types if isinstance(u, dict))
+                  if not has_scheme:
+                      url_types.append({
+                          "CFBundleURLName": "com.tahtkilic.kingsage2",
+                          "CFBundleURLSchemes": ["tahtkilic"]
+                      })
+                  with open(plist_path, "wb") as f:
+                      plistlib.dump(pl, f)
+                  print(f"Updated {plist_path}")
+
+          # 3. Enable Sign In with Apple entitlement only when confirmed in provisioning profile
+          apple_signin_ok = os.environ.get("ASC_APPLE_SIGNIN_ENABLED", "0") == "1"
+          for ent_path in glob.glob("build/ios/**/*.entitlements", recursive=True):
+              with open(ent_path, "rb") as f:
+                  ent = plistlib.load(f)
+              if isinstance(ent, dict):
+                  if apple_signin_ok:
+                      ent["com.apple.developer.applesignin"] = ["Default"]
+                  elif "com.apple.developer.applesignin" in ent:
+                      del ent["com.apple.developer.applesignin"]
+                  with open(ent_path, "wb") as f:
+                      plistlib.dump(ent, f)
+                  print(f"Updated {ent_path} (applesignin={apple_signin_ok})")
+          PY
 
       - name: Export Signed IPA & Upload to TestFlight
         env:

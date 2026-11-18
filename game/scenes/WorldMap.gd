@@ -916,13 +916,18 @@ func _on_draw_movements() -> void:
 		if line_dist < 4.0:
 			continue
 		var line_dir := seg_vec / line_dist
-		var current_march_pos := origin_pos.lerp(target_pos, progress)
+		var start_pad := minf(110.0, line_dist * 0.24)
+		var end_pad := minf(98.0, line_dist * 0.24)
+		var vis_start := origin_pos + line_dir * start_pad
+		var vis_end := target_pos - line_dir * end_pad
+		var current_march_pos := vis_start.lerp(vis_end, progress)
+		var vis_dist := maxf(1.0, vis_start.distance_to(vis_end))
 
 		# 1) Hareket yönünde akan KESİKLİ ÇİZGİ (saldırıda hedefe, dönüşte tam tersine eve doğru!)
-		var dash_len := 22.0
-		var gap_len := 14.0
+		var dash_len := 26.0
+		var gap_len := 16.0
 		var period := dash_len + gap_len
-		var phase := fmod(anim_t * 68.0, period)
+		var phase := fmod(anim_t * 74.0, period)
 		var d := -period + phase
 		while d < line_dist:
 			var s_d := clampf(d, 0.0, line_dist)
@@ -930,33 +935,44 @@ func _on_draw_movements() -> void:
 			if e_d - s_d >= 2.0:
 				var p_a := origin_pos + line_dir * s_d
 				var p_b := origin_pos + line_dir * e_d
-				var is_ahead := (s_d >= line_dist * progress - dash_len)
-				var d_col := line_color if is_ahead else Color(line_color.r, line_color.g, line_color.b, 0.38)
-				movements_layer.draw_line(p_a, p_b, Color(0.0, 0.0, 0.0, 0.50 if is_ahead else 0.22), 7.5, true)
-				movements_layer.draw_line(p_a, p_b, d_col, 4.0, true)
+				var cur_along := start_pad + vis_dist * progress
+				var is_ahead := (s_d >= cur_along - dash_len)
+				var d_col := line_color if is_ahead else Color(line_color.r, line_color.g, line_color.b, 0.44)
+				movements_layer.draw_line(p_a, p_b, Color(0.0, 0.0, 0.0, 0.60 if is_ahead else 0.28), 10.5, true)
+				movements_layer.draw_line(p_a, p_b, d_col, 5.5, true)
 			d += period
 
 		# 2) Yol boyunca yön okları (dönüşte oklar ters yöne evi gösterir!)
-		if line_dist > 70.0:
+		if line_dist > 80.0:
 			var perp := Vector2(-line_dir.y, line_dir.x)
-			var arrow_step := 96.0
-			var ad := fmod(anim_t * 48.0, arrow_step)
-			if ad < 42.0:
+			var arrow_step := 108.0
+			var ad := fmod(anim_t * 54.0, arrow_step)
+			if ad < 48.0:
 				ad += arrow_step * 0.5
-			while ad < line_dist - 28.0:
+			while ad < line_dist - 36.0:
 				var tip := origin_pos + line_dir * ad
-				var back := tip - line_dir * 16.0
-				var wing_l := back + perp * 10.0
-				var wing_r := back - perp * 10.0
-				movements_layer.draw_colored_polygon(PackedVector2Array([tip, wing_l, tip - line_dir * 7.0, wing_r]), line_color)
+				var back := tip - line_dir * 22.0
+				var wing_l := back + perp * 13.5
+				var wing_r := back - perp * 13.5
+				movements_layer.draw_colored_polygon(PackedVector2Array([tip, wing_l, tip - line_dir * 9.0, wing_r]), Color(0, 0, 0, 0.45))
+				movements_layer.draw_colored_polygon(PackedVector2Array([tip - line_dir * 2.0, wing_l - perp * 1.5, tip - line_dir * 9.0, wing_r + perp * 1.5]), line_color)
 				ad += arrow_step
 
 		# Hedef noktasına hedef/ev halkası çiz
-		movements_layer.draw_arc(target_pos, 32.0 + 4.0 * sin(anim_t * 4.5), 0.0, TAU, 28, line_color, 3.0, true)
+		movements_layer.draw_arc(target_pos, 40.0 + 5.0 * sin(anim_t * 4.5), 0.0, TAU, 28, line_color, 4.0, true)
 
-		# 3) Kesikli çizgi üzerinde yürüyen asker birliği veya katır kervanı
+		# 3) Kesikli çizgi üzerinde belirgin madalyon + 2.6x yürüyen ortaçağ ordu birliği
+		var pulse_r := 48.0 + 5.0 * sin(anim_t * 6.0)
+		movements_layer.draw_circle(current_march_pos, 46.0, Color(0.04, 0.04, 0.08, 0.56))
+		movements_layer.draw_arc(current_march_pos, pulse_r, 0.0, TAU, 32, Color(0, 0, 0, 0.70), 6.5, true)
+		movements_layer.draw_arc(current_march_pos, pulse_r, 0.0, TAU, 32, line_color, 3.5, true)
+
 		var units_dict: Dictionary = m.get("units", {}) if typeof(m.get("units")) == TYPE_DICTIONARY else {}
 		_draw_marching_soldiers(movements_layer, current_march_pos, line_dir, m_type, is_returning, is_trade, units_dict, anim_t, line_color)
+		# Uzun rotada arka takip birliği (kolon yürüyüş derinliği)
+		if vis_dist * progress > 76.0:
+			var trail_pos := current_march_pos - line_dir * 54.0
+			_draw_marching_soldiers(movements_layer, trail_pos, line_dir, m_type, is_returning, is_trade, units_dict, anim_t + 0.4, Color(line_color.r, line_color.g, line_color.b, 0.85))
 
 		# 4) Kalan Varış Zamanı Plaketi (süre 00:00 olduğunda rakip/ev köyüne varır)
 		var rem_secs := maxi(0, arrive_unix - now)
@@ -972,13 +988,13 @@ func _on_draw_movements() -> void:
 		else:
 			banner_txt = "⚔ Varış %s (%d)" % [time_str, total_units]
 
-		var banner_w := 268.0
-		var banner_h := 46.0
-		var banner_rect := Rect2(current_march_pos.x - banner_w * 0.5, current_march_pos.y - 84.0, banner_w, banner_h)
-		movements_layer.draw_rect(banner_rect, Color(0.08, 0.07, 0.12, 0.94), true)
-		movements_layer.draw_rect(banner_rect, line_color, false, 2.5)
-		movements_layer.draw_string_outline(FontNunitoBold, Vector2(current_march_pos.x - banner_w * 0.5, current_march_pos.y - 52.0), banner_txt, HORIZONTAL_ALIGNMENT_CENTER, int(banner_w), 23, 3, Color(0, 0, 0, 1.0))
-		movements_layer.draw_string(FontNunitoBold, Vector2(current_march_pos.x - banner_w * 0.5, current_march_pos.y - 52.0), banner_txt, HORIZONTAL_ALIGNMENT_CENTER, int(banner_w), 23, Color(1.0, 0.96, 0.88))
+		var banner_w := 284.0
+		var banner_h := 50.0
+		var banner_rect := Rect2(current_march_pos.x - banner_w * 0.5, current_march_pos.y - 114.0, banner_w, banner_h)
+		movements_layer.draw_rect(banner_rect, Color(0.08, 0.07, 0.12, 0.95), true)
+		movements_layer.draw_rect(banner_rect, line_color, false, 3.0)
+		movements_layer.draw_string_outline(FontNunitoBold, Vector2(current_march_pos.x - banner_w * 0.5, current_march_pos.y - 80.0), banner_txt, HORIZONTAL_ALIGNMENT_CENTER, int(banner_w), 24, 3, Color(0, 0, 0, 1.0))
+		movements_layer.draw_string(FontNunitoBold, Vector2(current_march_pos.x - banner_w * 0.5, current_march_pos.y - 80.0), banner_txt, HORIZONTAL_ALIGNMENT_CENTER, int(banner_w), 24, Color(1.0, 0.96, 0.88))
 
 
 func _draw_marching_soldiers(
@@ -994,18 +1010,18 @@ func _draw_marching_soldiers(
 ) -> void:
 	var facing := 1.0 if dir.x >= 0.0 else -1.0
 	var perp := Vector2(-dir.y, dir.x)
+	var sc := 2.45
 
 	if is_trade:
-		# Yürüyen katır kervanı
+		# Yürüyen büyük katır kervanı
 		for idx in range(2):
-			var offset := perp * (14.0 if idx == 0 else -14.0) - dir * (float(idx) * 14.0)
+			var offset := perp * ((16.0 if idx == 0 else -16.0) * sc) - dir * (float(idx) * 16.0 * sc)
 			var p := pos + offset
-			var bob := absf(sin(anim_t * 8.0 + float(idx) * 1.4)) * 3.5
-			canvas.draw_circle(p + Vector2(0, 14), 10.0, Color(0, 0, 0, 0.45))
-			# Katır gövde & altın yük çuvalları
-			canvas.draw_rect(Rect2(p.x - 13.0, p.y - 8.0 - bob, 26.0, 14.0), Color(0.55, 0.36, 0.18), true)
-			canvas.draw_rect(Rect2(p.x - 8.0, p.y - 16.0 - bob, 16.0, 10.0), Color(0.95, 0.78, 0.24), true)
-			canvas.draw_circle(p + Vector2(13.0 * facing, -10.0 - bob), 6.0, Color(0.48, 0.30, 0.15))
+			var bob := absf(sin(anim_t * 8.0 + float(idx) * 1.4)) * 4.5 * sc
+			canvas.draw_circle(p + Vector2(0, 14.0 * sc), 11.0 * sc, Color(0, 0, 0, 0.48))
+			canvas.draw_rect(Rect2(p.x - 13.0 * sc, p.y - 8.0 * sc - bob, 26.0 * sc, 14.0 * sc), Color(0.55, 0.36, 0.18), true)
+			canvas.draw_rect(Rect2(p.x - 8.0 * sc, p.y - 16.0 * sc - bob, 16.0 * sc, 10.0 * sc), Color(0.95, 0.78, 0.24), true)
+			canvas.draw_circle(p + Vector2(13.0 * sc * facing, -10.0 * sc - bob), 6.0 * sc, Color(0.48, 0.30, 0.15))
 		return
 
 	var total_u := 0
@@ -1015,47 +1031,57 @@ func _draw_marching_soldiers(
 
 	var offsets: Array[Vector2] = [Vector2.ZERO]
 	if squad_count == 2:
-		offsets = [perp * 15.0 + dir * 6.0, -perp * 15.0 - dir * 8.0]
+		offsets = [perp * 15.0 * sc + dir * 6.0 * sc, -perp * 15.0 * sc - dir * 8.0 * sc]
 	elif squad_count >= 3:
-		offsets = [dir * 16.0, perp * 18.0 - dir * 10.0, -perp * 18.0 - dir * 10.0]
+		offsets = [dir * 16.0 * sc, perp * 16.0 * sc - dir * 10.0 * sc, -perp * 16.0 * sc - dir * 10.0 * sc]
 
 	for i in range(offsets.size()):
 		var p := pos + offsets[i]
 		var walk_phase := anim_t * 10.5 + float(i) * 1.7
 		var step := sin(walk_phase)
-		var bob := absf(step) * 4.0
+		var bob := absf(step) * 4.5 * sc
 
 		# Zemin gölgesi
-		canvas.draw_circle(p + Vector2(0.0, 14.0), 11.0, Color(0.0, 0.0, 0.0, 0.45))
+		canvas.draw_circle(p + Vector2(0.0, 15.0 * sc), 12.0 * sc, Color(0.0, 0.0, 0.0, 0.48))
 
 		# Yürüyen bacaklar (sağ ve sol adım animasyonu)
-		var stride := step * 7.0 * facing
-		var hip := p + Vector2(0.0, 4.0 - bob)
-		canvas.draw_line(hip, p + Vector2(stride, 15.0), Color(0.18, 0.15, 0.14), 4.0, true)
-		canvas.draw_line(hip, p + Vector2(-stride, 15.0), Color(0.26, 0.22, 0.20), 4.0, true)
+		var stride := step * 7.5 * sc * facing
+		var hip := p + Vector2(0.0, 4.0 * sc - bob)
+		canvas.draw_line(hip, p + Vector2(stride, 16.0 * sc), Color(0.14, 0.12, 0.12), 4.2 * sc, true)
+		canvas.draw_line(hip, p + Vector2(-stride, 16.0 * sc), Color(0.24, 0.20, 0.18), 4.2 * sc, true)
 
 		# Zırhlı gövde / pelerin
 		var body_col := Color(0.18, 0.62, 0.85) if is_returning else accent_col
-		canvas.draw_rect(Rect2(p.x - 7.0, p.y - 12.0 - bob, 14.0, 17.0), Color(0.10, 0.10, 0.14), true)
-		canvas.draw_rect(Rect2(p.x - 5.5, p.y - 10.5 - bob, 11.0, 14.0), body_col, true)
+		canvas.draw_rect(Rect2(p.x - 7.5 * sc, p.y - 12.5 * sc - bob, 15.0 * sc, 17.5 * sc), Color(0.08, 0.08, 0.12), true)
+		canvas.draw_rect(Rect2(p.x - 5.5 * sc, p.y - 10.5 * sc - bob, 11.0 * sc, 14.0 * sc), body_col, true)
 
-		# Dönüşte ganimet kesesi
+		# Dönüşte ganimet kesesi, gidişte omuz sancağı
 		if is_returning:
-			canvas.draw_circle(p + Vector2(-7.0 * facing, -3.0 - bob), 5.0, Color(0.95, 0.80, 0.24))
+			canvas.draw_circle(p + Vector2(-7.5 * sc * facing, -3.0 * sc - bob), 5.5 * sc, Color(0.95, 0.80, 0.24))
+		elif i == 0:
+			var flag_base := p + Vector2(-5.0 * sc * facing, -12.0 * sc - bob)
+			var flag_top := flag_base + Vector2(0.0, -18.0 * sc)
+			canvas.draw_line(flag_base, flag_top, Color(0.45, 0.30, 0.15), 2.2 * sc, true)
+			var flutter := sin(anim_t * 12.0) * 3.0 * sc
+			canvas.draw_colored_polygon(PackedVector2Array([
+				flag_top,
+				flag_top + Vector2(-14.0 * sc * facing, 4.0 * sc + flutter),
+				flag_top + Vector2(-2.0 * sc * facing, 9.0 * sc)
+			]), accent_col)
 
 		# Miğfer ve baş
-		canvas.draw_circle(p + Vector2(0.0, -17.0 - bob), 6.5, Color(0.75, 0.78, 0.84))
-		canvas.draw_arc(p + Vector2(0.0, -17.0 - bob), 6.5, 0.0, TAU, 14, Color(0.12, 0.10, 0.14), 1.8)
+		canvas.draw_circle(p + Vector2(0.0, -17.5 * sc - bob), 6.8 * sc, Color(0.78, 0.82, 0.88))
+		canvas.draw_arc(p + Vector2(0.0, -17.5 * sc - bob), 6.8 * sc, 0.0, TAU, 16, Color(0.10, 0.08, 0.12), 2.0 * sc)
 
 		# Kalkan
-		canvas.draw_circle(p + Vector2(6.0 * facing, -4.0 - bob), 6.0, Color(0.92, 0.76, 0.30))
-		canvas.draw_circle(p + Vector2(6.0 * facing, -4.0 - bob), 3.2, Color(0.55, 0.14, 0.14))
+		canvas.draw_circle(p + Vector2(6.5 * sc * facing, -4.0 * sc - bob), 6.2 * sc, Color(0.94, 0.78, 0.30))
+		canvas.draw_circle(p + Vector2(6.5 * sc * facing, -4.0 * sc - bob), 3.4 * sc, Color(0.62, 0.14, 0.14))
 
 		# Hareket yönüne uzanan mızrak / kılıç
-		var hand_pt := p + Vector2(3.0 * facing, -6.0 - bob)
-		var spear_tip := hand_pt + Vector2(16.0 * facing, -16.0 + step * 2.5)
-		canvas.draw_line(hand_pt - Vector2(6.0 * facing, -6.0), spear_tip, Color(0.42, 0.28, 0.16), 2.5, true)
-		canvas.draw_line(spear_tip - Vector2(4.0 * facing, -4.0), spear_tip, Color(0.92, 0.95, 1.0), 3.2, true)
+		var hand_pt := p + Vector2(3.5 * sc * facing, -6.0 * sc - bob)
+		var spear_tip := hand_pt + Vector2(16.0 * sc * facing, -16.0 * sc + step * 2.5 * sc)
+		canvas.draw_line(hand_pt - Vector2(6.0 * sc * facing, -6.0 * sc), spear_tip, Color(0.42, 0.28, 0.16), 2.4 * sc, true)
+		canvas.draw_line(spear_tip - Vector2(4.5 * sc * facing, -4.5 * sc), spear_tip, Color(0.95, 0.97, 1.0), 3.2 * sc, true)
 
 
 # ---------------------------------------------------------------- Üst Bar Hareket Durumu

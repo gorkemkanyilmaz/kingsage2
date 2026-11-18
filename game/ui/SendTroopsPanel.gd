@@ -514,8 +514,8 @@ func _refresh_troops_mode(state: Dictionary, from_x: int, from_y: int, to_x: int
 		var ss := int(travel_secs) % 60
 		var dt := Time.get_time_dict_from_unix_time(arrive_unix)
 
-		estimate_label.text = " En Yavaş Birim: %s (%.1f dk/alan)  |   Yolculuk: %02d:%02d  |   Varış: %02d:%02d:%02d" % [
-			slowest_name, slowest_speed, mm, ss, dt["hour"], dt["minute"], dt["second"]
+		estimate_label.text = " En Yavaş: %s (%.1f dk/alan · %.1fx Hız)  |  Yolculuk: %02d:%02d  |  Varış: %02d:%02d:%02d" % [
+			slowest_name, slowest_speed, TravelScript.unit_speed_multiplier(), mm, ss, dt["hour"], dt["minute"], dt["second"]
 		]
 	else:
 		estimate_label.text = " En Yavaş Birim: —  |   Yolculuk Süresi: 00:00  |   Varış Saati: --:--:--"
@@ -592,8 +592,8 @@ func _refresh_trade_mode(state: Dictionary, from_x: int, from_y: int, to_x: int,
 	var ss := int(travel_secs) % 60
 	var dt := Time.get_time_dict_from_unix_time(arrive_unix)
 
-	estimate_label.text = " Katır Hızı: %.1f dk/alan  |   Yolculuk: %02d:%02d  |   Varış: %02d:%02d:%02d" % [
-		donkey_speed, mm, ss, dt["hour"], dt["minute"], dt["second"]
+	estimate_label.text = " Katır Hızı: %.1f dk/alan (%.1fx Hız)  |  Yolculuk: %02d:%02d  |  Varış: %02d:%02d:%02d" % [
+		donkey_speed, TravelScript.unit_speed_multiplier(), mm, ss, dt["hour"], dt["minute"], dt["second"]
 	]
 
 	if total_res <= 0:

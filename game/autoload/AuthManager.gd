@@ -10,7 +10,7 @@ const WEB_SESSION_KEY := "tvk_auth_session"
 var is_logged_in: bool = false
 var auth_provider: String = "" # "google" | "apple"
 var user_id: String = ""
-var display_name: String = "Lord Gorkem"
+var display_name: String = ""
 var email: String = ""
 var auth_token: String = ""
 
@@ -54,14 +54,28 @@ func _web_remove(key: String) -> void:
 	JavaScriptBridge.eval("try{window.localStorage.removeItem(" + JSON.stringify(key) + ");if(typeof FS!=='undefined'&&FS.syncfs){FS.syncfs(false,function(){});}}catch(e){}", true)
 
 
-func login_with_google(mock_name: String = "Lord Gorkem") -> Dictionary:
-	auth_provider = "google"
-	var clean := _normalize_name(mock_name)
+func login_with_google(mock_name: String = "Lord Gorkem", user_email: String = "", uid: String = "") -> Dictionary:
+	return complete_external_login("google", mock_name, user_email, uid)
+
+
+func login_with_apple(mock_name: String = "Lord Roland", user_email: String = "", uid: String = "") -> Dictionary:
+	return complete_external_login("apple", mock_name, user_email, uid)
+
+
+func complete_external_login(provider: String, user_name: String, user_email: String = "", uid: String = "") -> Dictionary:
+	var prov := "apple" if provider.strip_edges().to_lower() == "apple" else "google"
+	auth_provider = prov
+	var clean_email := user_email.strip_edges().to_lower()
+	var derived := user_name.strip_edges()
+	if derived.is_empty() and clean_email.contains("@"):
+		derived = clean_email.split("@")[0].replace(".", " ").replace("_", " ").capitalize()
+	var clean := _normalize_name(derived)
 	if clean.is_empty():
-		clean = "Lord Gorkem"
+		clean = "Lord Gorkem" if prov == "google" else "Lord Roland"
 	display_name = clean
-	user_id = "google_" + ("google:" + display_name.to_lower()).sha256_text().substr(0, 12)
-	email = display_name.to_lower().replace(" ", ".") + "@gmail.com"
+	var uid_seed := (prov + ":" + uid.strip_edges()) if not uid.strip_edges().is_empty() else ((prov + ":" + clean_email) if not clean_email.is_empty() else (prov + ":" + display_name.to_lower()))
+	user_id = prov + "_" + uid_seed.sha256_text().substr(0, 12)
+	email = clean_email if not clean_email.is_empty() else (display_name.to_lower().replace(" ", ".") + ("@icloud.com" if prov == "apple" else "@gmail.com"))
 	if not auth_token.begins_with("tk_tok_"):
 		auth_token = ""
 	is_logged_in = true
@@ -72,22 +86,17 @@ func login_with_google(mock_name: String = "Lord Gorkem") -> Dictionary:
 	return profile
 
 
-func login_with_apple(mock_name: String = "Lord Roland") -> Dictionary:
-	auth_provider = "apple"
-	var clean := _normalize_name(mock_name)
-	if clean.is_empty():
-		clean = "Lord Roland"
-	display_name = clean
-	user_id = "apple_" + ("apple:" + display_name.to_lower()).sha256_text().substr(0, 12)
-	email = display_name.to_lower().replace(" ", ".") + "@icloud.com"
-	if not auth_token.begins_with("tk_tok_"):
-		auth_token = ""
-	is_logged_in = true
-
-	var profile := get_profile()
-	save_session()
-	auth_state_changed.emit(true, profile)
-	return profile
+func clear_session_only() -> void:
+	is_logged_in = false
+	auth_provider = ""
+	user_id = ""
+	display_name = ""
+	email = ""
+	auth_token = ""
+	if FileAccess.file_exists(SESSION_FILE):
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(SESSION_FILE))
+	_web_remove(WEB_SESSION_KEY)
+	auth_state_changed.emit(false, {})
 
 
 func logout() -> void:
@@ -174,30 +183,34 @@ func load_session() -> bool:
 
 
 var _auth_sheet: CanvasLayer = null
+var _auth_poll_timer: Timer = null
 
 
-## Apple ID (Face ID / Passkey) veya Google Hesap Doğrulama akışını açar ve doğrulama tamamlanınca giriş yapar.
-func authenticate_with_provider(provider: String, suggested_name: String, parent_node: Node, on_complete: Callable = Callable()) -> void:
-	var prov := provider.strip_edges().to_lower()
-	if prov != "apple" and prov != "google":
-		prov = "google"
-
-	var clean_name := _normalize_name(suggested_name)
-	if clean_name.is_empty():
-		clean_name = "Lord Gorkem" if prov == "google" else "Lord Roland"
-
-	# Headless testlerde doğrudan oturum aç
-	if DisplayServer.get_name() == "headless":
-		var prof := login_with_apple(clean_name) if prov == "apple" else login_with_google(clean_name)
-		if on_complete.is_valid():
-			on_complete.call(prof)
-		return
-
+func _dismiss_auth_sheet() -> void:
+	if _auth_poll_timer != null and is_instance_valid(_auth_poll_timer):
+		_auth_poll_timer.stop()
+		_auth_poll_timer.queue_free()
+	_auth_poll_timer = null
 	if _auth_sheet != null and is_instance_valid(_auth_sheet):
 		_auth_sheet.queue_free()
+	_auth_sheet = null
+	if OS.has_feature("web"):
+		JavaScriptBridge.eval("try{var el=document.getElementById('tvk-oauth-overlay');if(el)el.remove();window._tvkOAuthRes='';}catch(e){}", true)
 
+
+func _get_server_base_url() -> String:
+	var loop = Engine.get_main_loop()
+	if loop is SceneTree:
+		var net = loop.root.get_node_or_null("NetworkManager")
+		if net != null and not str(net.server_url).strip_edges().is_empty():
+			return str(net.server_url).trim_suffix("/")
+	return "https://tahtkilic.vercel.app"
+
+
+func _show_waiting_sheet(parent_node: Node, title_text: String, status_text: String, is_apple: bool, on_cancel: Callable = Callable()) -> Label:
+	_dismiss_auth_sheet()
 	_auth_sheet = CanvasLayer.new()
-	_auth_sheet.name = "BiometricAuthSheet"
+	_auth_sheet.name = "NativeAuthWaitSheet"
 	_auth_sheet.layer = 185
 
 	var root_ctrl := Control.new()
@@ -212,7 +225,7 @@ func authenticate_with_provider(provider: String, suggested_name: String, parent
 			vp_size = r
 
 	var dim := ColorRect.new()
-	dim.color = Color(0.02, 0.02, 0.05, 0.88)
+	dim.color = Color(0.02, 0.02, 0.05, 0.84)
 	dim.mouse_filter = Control.MOUSE_FILTER_STOP
 	root_ctrl.add_child(dim)
 	dim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -223,19 +236,18 @@ func authenticate_with_provider(provider: String, suggested_name: String, parent
 	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 
 	var card := PanelContainer.new()
-	card.custom_minimum_size = Vector2(clampf(vp_size.x - 96.0, 460.0, 740.0), 580)
-	var is_apple := (prov == "apple")
+	card.custom_minimum_size = Vector2(clampf(vp_size.x - 112.0, 420.0, 640.0), 250.0)
 	var sb := StyleBoxFlat.new()
-	sb.bg_color = Color(0.08, 0.08, 0.11, 0.99) if is_apple else Color(0.11, 0.12, 0.17, 0.99)
-	sb.border_color = Color(0.85, 0.88, 0.95, 0.90) if is_apple else Color(0.45, 0.72, 1.0, 0.95)
+	sb.bg_color = Color(0.08, 0.08, 0.12, 0.98) if is_apple else Color(0.10, 0.12, 0.18, 0.98)
+	sb.border_color = Color(0.86, 0.88, 0.95, 0.92) if is_apple else Color(0.45, 0.72, 1.0, 0.95)
 	sb.set_border_width_all(3)
 	sb.set_corner_radius_all(22)
-	sb.set_content_margin_all(28)
+	sb.set_content_margin_all(26)
 	card.add_theme_stylebox_override("panel", sb)
 	center.add_child(card)
 
 	var vb := VBoxContainer.new()
-	vb.add_theme_constant_override("separation", 18)
+	vb.add_theme_constant_override("separation", 16)
 	vb.alignment = BoxContainer.ALIGNMENT_CENTER
 	card.add_child(vb)
 
@@ -243,227 +255,263 @@ func authenticate_with_provider(provider: String, suggested_name: String, parent
 	var FontNunitoBold = load("res://assets/fonts/Nunito-Bold.ttf")
 
 	var hdr := Label.new()
-	hdr.text = "Apple ile Giriş Yap • Face ID" if is_apple else "Google ile Oturum Aç • Hesap Doğrulama"
+	hdr.text = title_text
 	hdr.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	hdr.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	if FontCinzelBold != null:
 		hdr.add_theme_font_override("font", FontCinzelBold)
-	hdr.add_theme_font_size_override("font_size", 28)
+	hdr.add_theme_font_size_override("font_size", 26)
 	hdr.add_theme_color_override("font_color", Color(0.98, 0.98, 1.0) if is_apple else Color(0.75, 0.90, 1.0))
 	vb.add_child(hdr)
 
-	var acct_panel := PanelContainer.new()
-	var ap_sb := StyleBoxFlat.new()
-	ap_sb.bg_color = Color(0.14, 0.14, 0.20, 0.95)
-	ap_sb.border_color = Color(0.50, 0.55, 0.68, 0.75)
-	ap_sb.set_border_width_all(2)
-	ap_sb.set_corner_radius_all(14)
-	ap_sb.set_content_margin_all(14)
-	acct_panel.add_theme_stylebox_override("panel", ap_sb)
-	vb.add_child(acct_panel)
-
-	var ap_vb := VBoxContainer.new()
-	ap_vb.add_theme_constant_override("separation", 8)
-	acct_panel.add_child(ap_vb)
-
-	var acct_lbl := Label.new()
-	acct_lbl.text = "Apple ID / E-posta veya Lord Adı:" if is_apple else "Google Hesabı (@gmail.com) veya Lord Adı:"
+	var status_lbl := Label.new()
+	status_lbl.text = status_text
+	status_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	status_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	if FontNunitoBold != null:
-		acct_lbl.add_theme_font_override("font", FontNunitoBold)
-	acct_lbl.add_theme_font_size_override("font_size", 19)
-	acct_lbl.add_theme_color_override("font_color", Color(0.82, 0.85, 0.92))
-	ap_vb.add_child(acct_lbl)
-
-	var acct_edit := LineEdit.new()
-	acct_edit.text = clean_name
-	acct_edit.placeholder_text = "ornek@icloud.com veya Lord Gorkem" if is_apple else "ornek@gmail.com veya Lord Gorkem"
-	acct_edit.custom_minimum_size = Vector2(0, 52)
-	acct_edit.alignment = HORIZONTAL_ALIGNMENT_CENTER
-	if FontNunitoBold != null:
-		acct_edit.add_theme_font_override("font", FontNunitoBold)
-	acct_edit.add_theme_font_size_override("font_size", 22)
-	ap_vb.add_child(acct_edit)
-
-	var email_edit := LineEdit.new()
-	var def_handle := clean_name.to_lower().replace(" ", ".")
-	email_edit.text = email if (not email.is_empty() and auth_provider == prov) else (def_handle + ("@icloud.com" if is_apple else "@gmail.com"))
-	email_edit.placeholder_text = "Apple ID (@icloud.com)" if is_apple else "Gmail Adresi (@gmail.com)"
-	email_edit.custom_minimum_size = Vector2(0, 48)
-	email_edit.alignment = HORIZONTAL_ALIGNMENT_CENTER
-	if FontNunitoBold != null:
-		email_edit.add_theme_font_override("font", FontNunitoBold)
-	email_edit.add_theme_font_size_override("font_size", 20)
-	ap_vb.add_child(email_edit)
-
-	# Face ID Biyometrik Çerçeve
-	var bio_box := PanelContainer.new()
-	var b_sb := StyleBoxFlat.new()
-	b_sb.bg_color = Color(0.06, 0.08, 0.12, 0.96)
-	b_sb.border_color = Color(0.28, 0.78, 0.98, 0.90)
-	b_sb.set_border_width_all(2)
-	b_sb.set_corner_radius_all(18)
-	b_sb.set_content_margin_all(18)
-	bio_box.add_theme_stylebox_override("panel", b_sb)
-	vb.add_child(bio_box)
-
-	var bio_vb := VBoxContainer.new()
-	bio_vb.add_theme_constant_override("separation", 8)
-	bio_vb.alignment = BoxContainer.ALIGNMENT_CENTER
-	bio_box.add_child(bio_vb)
-
-	var face_icon := Label.new()
-	face_icon.text = "[ ☺ ]  Face ID / Passkey"
-	face_icon.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	if FontNunitoBold != null:
-		face_icon.add_theme_font_override("font", FontNunitoBold)
-	face_icon.add_theme_font_size_override("font_size", 26)
-	face_icon.add_theme_color_override("font_color", Color(0.45, 0.92, 1.0))
-	bio_vb.add_child(face_icon)
-
-	var bio_status := Label.new()
-	bio_status.text = "Devam etmek için Face ID veya hesap doğrulamasını onaylayın."
-	bio_status.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	bio_status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	if FontNunitoBold != null:
-		bio_status.add_theme_font_override("font", FontNunitoBold)
-	bio_status.add_theme_font_size_override("font_size", 19)
-	bio_status.add_theme_color_override("font_color", Color(0.84, 0.88, 0.92))
-	bio_vb.add_child(bio_status)
-
-	var btn_row := HBoxContainer.new()
-	btn_row.add_theme_constant_override("separation", 14)
-	vb.add_child(btn_row)
+		status_lbl.add_theme_font_override("font", FontNunitoBold)
+	status_lbl.add_theme_font_size_override("font_size", 20)
+	status_lbl.add_theme_color_override("font_color", Color(0.86, 0.89, 0.94))
+	vb.add_child(status_lbl)
 
 	var btn_cancel := Button.new()
 	btn_cancel.text = "İptal"
-	btn_cancel.custom_minimum_size = Vector2(150, 56)
+	btn_cancel.custom_minimum_size = Vector2(200, 54)
+	btn_cancel.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	if FontNunitoBold != null:
 		btn_cancel.add_theme_font_override("font", FontNunitoBold)
-	btn_cancel.add_theme_font_size_override("font_size", 22)
+	btn_cancel.add_theme_font_size_override("font_size", 21)
 	btn_cancel.pressed.connect(func():
-		if _auth_sheet != null and is_instance_valid(_auth_sheet):
-			_auth_sheet.queue_free()
-			_auth_sheet = null
+		_dismiss_auth_sheet()
+		if on_cancel.is_valid():
+			on_cancel.call()
 	)
-	btn_row.add_child(btn_cancel)
-
-	var btn_confirm := Button.new()
-	btn_confirm.text = "Face ID ile Doğrula ve Gir" if is_apple else "Hesabı Doğrula ve Gir"
-	btn_confirm.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	btn_confirm.custom_minimum_size = Vector2(0, 56)
-	if FontNunitoBold != null:
-		btn_confirm.add_theme_font_override("font", FontNunitoBold)
-	btn_confirm.add_theme_font_size_override("font_size", 22)
-	var cf_sb := StyleBoxFlat.new()
-	cf_sb.bg_color = Color(0.16, 0.56, 0.34, 1.0) if not is_apple else Color(0.12, 0.44, 0.82, 1.0)
-	cf_sb.border_color = Color(0.55, 0.95, 0.72, 1.0) if not is_apple else Color(0.65, 0.88, 1.0, 1.0)
-	cf_sb.set_border_width_all(2)
-	cf_sb.set_corner_radius_all(12)
-	btn_confirm.add_theme_stylebox_override("normal", cf_sb)
-	btn_confirm.add_theme_color_override("font_color", Color(1, 1, 1))
-	btn_row.add_child(btn_confirm)
-
-	var finish_auth := func():
-		var chosen_name := acct_edit.text.strip_edges()
-		if chosen_name.contains("@"):
-			chosen_name = chosen_name.split("@")[0].replace(".", " ")
-		var chosen_email := email_edit.text.strip_edges()
-		var prof := login_with_apple(chosen_name) if is_apple else login_with_google(chosen_name)
-		if not chosen_email.is_empty():
-			email = chosen_email
-			save_session()
-			prof = get_profile()
-		if _auth_sheet != null and is_instance_valid(_auth_sheet):
-			_auth_sheet.queue_free()
-			_auth_sheet = null
-		if on_complete.is_valid():
-			on_complete.call(prof)
-
-	var verifying := [false]
-	btn_confirm.pressed.connect(func():
-		if verifying[0]:
-			return
-		verifying[0] = true
-		btn_confirm.disabled = true
-		btn_cancel.disabled = true
-		face_icon.text = "[ ◎ ]  Face ID Taranıyor..."
-		face_icon.add_theme_color_override("font_color", Color(1.0, 0.88, 0.38))
-		bio_status.text = "Cihaz biyometrisi / Apple & Google kimliği doğrulanıyor..."
-
-		if OS.has_feature("web"):
-			JavaScriptBridge.eval("""
-(async function(){
-  window._tvkBioState = 'pending';
-  try {
-    if (window.PublicKeyCredential && await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable()) {
-      const ch = new Uint8Array(16);
-      window.crypto.getRandomValues(ch);
-      const uid = new TextEncoder().encode(""" + JSON.stringify(acct_edit.text.strip_edges()) + """);
-      try {
-        await navigator.credentials.create({
-          publicKey: {
-            challenge: ch,
-            rp: { name: 'Taht ve Kilic' },
-            user: { id: uid, name: """ + JSON.stringify(email_edit.text.strip_edges()) + """, displayName: """ + JSON.stringify(acct_edit.text.strip_edges()) + """ },
-            pubKeyCredParams: [{ type: 'public-key', alg: -7 }, { type: 'public-key', alg: -257 }],
-            authenticatorSelection: { authenticatorAttachment: 'platform', userVerification: 'required' },
-            timeout: 20000
-          }
-        });
-        window._tvkBioState = 'ok';
-      } catch (e1) {
-        if (e1 && e1.name === 'NotAllowedError') { window._tvkBioState = 'cancelled'; }
-        else { window._tvkBioState = 'fallback'; }
-      }
-    } else {
-      window._tvkBioState = 'fallback';
-    }
-  } catch (e) {
-    window._tvkBioState = 'fallback';
-  }
-})();
-""", true)
-			var poll := Timer.new()
-			poll.wait_time = 0.15
-			var ticks := [0]
-			poll.timeout.connect(func():
-				ticks[0] += 1
-				var st_res := str(JavaScriptBridge.eval("window._tvkBioState || 'pending'", true))
-				if st_res == "cancelled":
-					poll.stop()
-					poll.queue_free()
-					verifying[0] = false
-					btn_confirm.disabled = false
-					btn_cancel.disabled = false
-					face_icon.text = "[ ✕ ]  Face ID İptal Edildi"
-					face_icon.add_theme_color_override("font_color", Color(1.0, 0.45, 0.45))
-					bio_status.text = "Doğrulama iptal edildi. Tekrar deneyin."
-				elif st_res == "ok" or (st_res == "fallback" and ticks[0] >= 5) or ticks[0] >= 80:
-					poll.stop()
-					poll.queue_free()
-					face_icon.text = "[ ✓ ]  Face ID Doğrulandı!"
-					face_icon.add_theme_color_override("font_color", Color(0.45, 0.98, 0.58))
-					bio_status.text = "Kimlik doğrulandı, krallığa bağlanılıyor..."
-					finish_auth.call()
-			)
-			_auth_sheet.add_child(poll)
-			poll.start()
-		else:
-			var t := Timer.new()
-			t.one_shot = true
-			t.wait_time = 0.75
-			t.timeout.connect(func():
-				face_icon.text = "[ ✓ ]  Face ID Doğrulandı!"
-				face_icon.add_theme_color_override("font_color", Color(0.45, 0.98, 0.58))
-				bio_status.text = "Kimlik doğrulandı, krallığa bağlanılıyor..."
-				finish_auth.call()
-			)
-			_auth_sheet.add_child(t)
-			t.start()
-	)
+	vb.add_child(btn_cancel)
 
 	var host := parent_node.get_tree().root if (parent_node != null and parent_node.get_tree() != null) else get_tree().root
 	if host != null:
 		host.add_child(_auth_sheet)
 	elif parent_node != null:
 		parent_node.add_child(_auth_sheet)
+
+	return status_lbl
+
+
+## Apple ID (iOS ASAuthorizationController + Face ID) veya Google Hesap OAuth doğrulama akışını açar.
+func authenticate_with_provider(provider: String, suggested_name: String, parent_node: Node, on_complete: Callable = Callable()) -> void:
+	var prov := provider.strip_edges().to_lower()
+	if prov != "apple" and prov != "google":
+		prov = "google"
+
+	var clean_name := _normalize_name(suggested_name)
+	if clean_name.is_empty():
+		clean_name = "Lord Gorkem" if prov == "google" else "Lord Roland"
+
+	# Headless birim testlerinde doğrudan oturum aç
+	if DisplayServer.get_name() == "headless":
+		var prof := login_with_apple(clean_name) if prov == "apple" else login_with_google(clean_name)
+		if on_complete.is_valid():
+			on_complete.call(prof)
+		return
+
+	var base_url := _get_server_base_url()
+	var req_id := "%d_%s" % [int(Time.get_unix_time_from_system()), str(randi() % 999999)]
+	var is_apple := (prov == "apple")
+
+	if OS.get_name() == "iOS":
+		_start_ios_native_auth(prov, is_apple, req_id, base_url, parent_node, on_complete)
+	elif OS.has_feature("web"):
+		_start_web_oauth(prov, is_apple, req_id, base_url, parent_node, on_complete)
+	else:
+		_start_desktop_oauth(prov, is_apple, req_id, base_url, parent_node, on_complete)
+
+
+func _start_ios_native_auth(prov: String, is_apple: bool, req_id: String, base_url: String, parent_node: Node, on_complete: Callable) -> void:
+	var req_path := ProjectSettings.globalize_path("user://native_auth_req.json")
+	var res_path := ProjectSettings.globalize_path("user://native_auth_res.json")
+	if FileAccess.file_exists("user://native_auth_res.json"):
+		DirAccess.remove_absolute(res_path)
+	if FileAccess.file_exists("user://native_auth_req.json"):
+		DirAccess.remove_absolute(req_path)
+
+	var oauth_url := "%s/api/auth/oauth_page?provider=%s&session=%s&platform=ios" % [base_url, prov, req_id]
+	var req_payload := JSON.stringify({
+		"req_id": req_id,
+		"provider": prov,
+		"oauth_url": oauth_url,
+	})
+	var f := FileAccess.open("user://native_auth_req.json", FileAccess.WRITE)
+	if f != null:
+		f.store_string(req_payload)
+		f.close()
+
+	var title := "Apple ile Giriş Yap" if is_apple else "Google ile Oturum Aç"
+	var wait_msg := (
+		"Cihazınızın Apple Kimliği ve Face ID doğrulaması bekleniyor..."
+		if is_apple
+		else "Google hesabınızı seçmek için güvenli pencere açılıyor..."
+	)
+	var status_lbl := _show_waiting_sheet(parent_node, title, wait_msg, is_apple)
+
+	_auth_poll_timer = Timer.new()
+	_auth_poll_timer.wait_time = 0.15
+	var ticks := [0]
+	_auth_poll_timer.timeout.connect(func():
+		ticks[0] += 1
+		if ticks[0] > 1200:
+			_dismiss_auth_sheet()
+			return
+		if not FileAccess.file_exists("user://native_auth_res.json"):
+			return
+		var rf := FileAccess.open("user://native_auth_res.json", FileAccess.READ)
+		var txt := rf.get_as_text() if rf != null else ""
+		if rf != null:
+			rf.close()
+		DirAccess.remove_absolute(res_path)
+		if txt.is_empty():
+			return
+		var jp := JSON.new()
+		if jp.parse(txt) != OK or typeof(jp.data) != TYPE_DICTIONARY:
+			return
+		var data: Dictionary = jp.data
+		if not str(data.get("req_id", "")).is_empty() and str(data.get("req_id", "")) != req_id:
+			return
+		if bool(data.get("ok", false)):
+			var res_prov := str(data.get("provider", prov))
+			var res_name := str(data.get("name", ""))
+			var res_email := str(data.get("email", ""))
+			var res_uid := str(data.get("provider_uid", ""))
+			_dismiss_auth_sheet()
+			var prof := complete_external_login(res_prov, res_name, res_email, res_uid)
+			if on_complete.is_valid():
+				on_complete.call(prof)
+		else:
+			if is_instance_valid(status_lbl):
+				status_lbl.text = str(data.get("error", "Giriş iptal edildi."))
+			if _auth_poll_timer != null:
+				_auth_poll_timer.stop()
+			var t := Timer.new()
+			t.one_shot = true
+			t.wait_time = 0.9
+			t.timeout.connect(func(): _dismiss_auth_sheet())
+			if _auth_sheet != null and is_instance_valid(_auth_sheet):
+				_auth_sheet.add_child(t)
+				t.start()
+	)
+	_auth_sheet.add_child(_auth_poll_timer)
+	_auth_poll_timer.start()
+
+
+func _start_web_oauth(prov: String, is_apple: bool, req_id: String, base_url: String, parent_node: Node, on_complete: Callable) -> void:
+	var oauth_url := "%s/api/auth/oauth_page?provider=%s&session=%s&platform=web" % [base_url, prov, req_id]
+	var title := "Apple ile Giriş Yap" if is_apple else "Google ile Oturum Aç"
+	_show_waiting_sheet(parent_node, title, "Hesap penceresi üzerinden oturum açın...", is_apple)
+
+	JavaScriptBridge.eval("""
+(function(){
+  try {
+    var old = document.getElementById('tvk-oauth-overlay');
+    if (old) old.remove();
+    window._tvkOAuthRes = '';
+    if (!window._tvkOAuthBound) {
+      window._tvkOAuthBound = true;
+      window.addEventListener('message', function(ev) {
+        if (ev && ev.data && ev.data.type === 'tvk_oauth') {
+          window._tvkOAuthRes = JSON.stringify(ev.data);
+        }
+      });
+    }
+    var wrap = document.createElement('div');
+    wrap.id = 'tvk-oauth-overlay';
+    wrap.style.cssText = 'position:fixed;inset:0;z-index:999999;background:rgba(6,8,14,0.82);backdrop-filter:blur(6px);display:flex;align-items:center;justify-content:center;padding:16px;';
+    var box = document.createElement('div');
+    box.style.cssText = 'position:relative;width:100%;max-width:440px;height:560px;max-height:92vh;border-radius:18px;overflow:hidden;box-shadow:0 24px 64px rgba(0,0,0,0.6);border:2px solid rgba(212,175,55,0.55);background:#12151f;';
+    var closeBtn = document.createElement('button');
+    closeBtn.textContent = '✕';
+    closeBtn.style.cssText = 'position:absolute;top:10px;right:10px;z-index:2;width:34px;height:34px;border-radius:50%;border:none;background:rgba(0,0,0,0.55);color:#fff;font-size:18px;cursor:pointer;';
+    closeBtn.onclick = function() {
+      window._tvkOAuthRes = JSON.stringify({type:'tvk_oauth',ok:false,cancelled:true});
+      wrap.remove();
+    };
+    var ifr = document.createElement('iframe');
+    ifr.src = """ + JSON.stringify(oauth_url) + """;
+    ifr.allow = 'publickey-credentials-get *; publickey-credentials-create *';
+    ifr.style.cssText = 'width:100%;height:100%;border:none;background:transparent;';
+    box.appendChild(closeBtn);
+    box.appendChild(ifr);
+    wrap.appendChild(box);
+    document.body.appendChild(wrap);
+  } catch(e) {
+    window._tvkOAuthRes = JSON.stringify({type:'tvk_oauth',ok:false,error:String(e)});
+  }
+})();
+""", true)
+
+	_auth_poll_timer = Timer.new()
+	_auth_poll_timer.wait_time = 0.2
+	var ticks := [0]
+	var remote_busy := [false]
+	_auth_poll_timer.timeout.connect(func():
+		ticks[0] += 1
+		var raw_res := str(JavaScriptBridge.eval("window._tvkOAuthRes || ''", true))
+		if not raw_res.is_empty():
+			var jp := JSON.new()
+			if jp.parse(raw_res) == OK and typeof(jp.data) == TYPE_DICTIONARY:
+				var data: Dictionary = jp.data
+				_dismiss_auth_sheet()
+				if bool(data.get("ok", false)):
+					var prof := complete_external_login(str(data.get("provider", prov)), str(data.get("name", "")), str(data.get("email", "")), str(data.get("provider_uid", "")))
+					if on_complete.is_valid():
+						on_complete.call(prof)
+			else:
+				_dismiss_auth_sheet()
+			return
+		if ticks[0] % 6 == 0 and not remote_busy[0]:
+			_poll_oauth_endpoint(base_url, req_id, prov, remote_busy, on_complete)
+	)
+	_auth_sheet.add_child(_auth_poll_timer)
+	_auth_poll_timer.start()
+
+
+func _start_desktop_oauth(prov: String, is_apple: bool, req_id: String, base_url: String, parent_node: Node, on_complete: Callable) -> void:
+	var oauth_url := "%s/api/auth/oauth_page?provider=%s&session=%s&platform=web" % [base_url, prov, req_id]
+	var title := "Apple ile Giriş Yap" if is_apple else "Google ile Oturum Aç"
+	_show_waiting_sheet(parent_node, title, "Tarayıcıda " + ("Apple ID" if is_apple else "Google Hesabı") + " girişini tamamlayın...", is_apple)
+	OS.shell_open(oauth_url)
+
+	_auth_poll_timer = Timer.new()
+	_auth_poll_timer.wait_time = 1.1
+	var remote_busy := [false]
+	_auth_poll_timer.timeout.connect(func():
+		if not remote_busy[0]:
+			_poll_oauth_endpoint(base_url, req_id, prov, remote_busy, on_complete)
+	)
+	_auth_sheet.add_child(_auth_poll_timer)
+	_auth_poll_timer.start()
+
+
+func _poll_oauth_endpoint(base_url: String, req_id: String, prov: String, remote_busy: Array, on_complete: Callable) -> void:
+	if _auth_sheet == null or not is_instance_valid(_auth_sheet):
+		return
+	remote_busy[0] = true
+	var req := HTTPRequest.new()
+	add_child(req)
+	req.timeout = 6.0
+	req.request_completed.connect(func(result: int, code: int, _hdrs: PackedStringArray, body: PackedByteArray):
+		remote_busy[0] = false
+		if result == HTTPRequest.RESULT_SUCCESS and code == 200:
+			var jp := JSON.new()
+			if jp.parse(body.get_string_from_utf8()) == OK and typeof(jp.data) == TYPE_DICTIONARY:
+				var payload: Dictionary = jp.data
+				var st := str(payload.get("status", "pending"))
+				var data: Dictionary = payload.get("data", {})
+				if st == "done" and bool(data.get("ok", false)):
+					_dismiss_auth_sheet()
+					var prof := complete_external_login(str(data.get("provider", prov)), str(data.get("name", "")), str(data.get("email", "")), str(data.get("provider_uid", "")))
+					if on_complete.is_valid():
+						on_complete.call(prof)
+				elif st == "cancelled":
+					_dismiss_auth_sheet()
+		req.queue_free()
+	)
+	req.request("%s/api/auth/oauth_poll?session=%s" % [base_url, req_id])

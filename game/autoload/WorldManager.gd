@@ -22,8 +22,11 @@ const MAX_REAL_PLAYERS_PER_WORLD := 100
 
 const WORLDS_DIR := "user://worlds"
 const META_FILE := "user://worlds_meta.json"
+const EPOCH_FILE := "user://client_reset_epoch.txt"
 const WEB_META_KEY := "tvk_worlds_meta"
 const WEB_WORLD_PREFIX := "tvk_world_"
+const WEB_EPOCH_KEY := "tvk_client_reset_epoch"
+const CLIENT_RESET_EPOCH := 4
 
 var current_world_id: int = 1
 var worlds_meta: Array = []
@@ -39,6 +42,8 @@ var suppress_auto_conquered_prompt: bool = false
 
 
 func _ready() -> void:
+	if DisplayServer.get_name() != "headless":
+		_check_client_reset_epoch()
 	_ensure_directory()
 	if not _meta_exists():
 		reset_all_worlds()
@@ -51,6 +56,65 @@ func _ready() -> void:
 			bus.state_changed.connect(_on_state_changed_autosave)
 		if bus.has_signal("village_conquered") and not bus.village_conquered.is_connected(_on_village_conquered_signal):
 			bus.village_conquered.connect(_on_village_conquered_signal)
+
+
+func _check_client_reset_epoch() -> void:
+	var stored_epoch := 0
+	if FileAccess.file_exists(EPOCH_FILE):
+		var rf := FileAccess.open(EPOCH_FILE, FileAccess.READ)
+		if rf != null:
+			stored_epoch = int(rf.get_as_text().strip_edges())
+			rf.close()
+	var web_ep := _web_get(WEB_EPOCH_KEY)
+	if not web_ep.is_empty():
+		stored_epoch = maxi(stored_epoch, int(web_ep.strip_edges()))
+	if stored_epoch >= CLIENT_RESET_EPOCH:
+		return
+
+	# Tam sıfırlama: eski yerel dünya kayıtlarını, önbelleği ve eski oturumları temizle
+	if DirAccess.dir_exists_absolute(WORLDS_DIR):
+		var d := DirAccess.open(WORLDS_DIR)
+		if d != null:
+			d.list_dir_begin()
+			var fname := d.get_next()
+			while fname != "":
+				if not d.current_is_dir():
+					DirAccess.remove_absolute(ProjectSettings.globalize_path(WORLDS_DIR.path_join(fname)))
+				fname = d.get_next()
+			d.list_dir_end()
+	for legacy_path in [META_FILE, "user://savegame.json", "user://auth_session.json"]:
+		if FileAccess.file_exists(legacy_path):
+			DirAccess.remove_absolute(ProjectSettings.globalize_path(legacy_path))
+
+	if OS.has_feature("web"):
+		JavaScriptBridge.eval("""
+(function(){
+  try {
+    var keys = [];
+    for (var i = 0; i < window.localStorage.length; i++) {
+      var k = window.localStorage.key(i);
+      if (k && (k.indexOf('tvk_world_') === 0 || k === 'tvk_worlds_meta' || k === 'tvk_savegame_v1' || k === 'tvk_auth_session')) {
+        keys.push(k);
+      }
+    }
+    keys.forEach(function(k){ window.localStorage.removeItem(k); });
+    if (typeof FS !== 'undefined' && FS.syncfs) { FS.syncfs(false, function(){}); }
+  } catch(e) {}
+})();
+""", true)
+
+	var auth := _find_autoload("AuthManager")
+	if auth != null and auth.has_method("clear_session_only"):
+		auth.clear_session_only()
+	var gs := _find_game_state()
+	if gs != null and gs.has_method("reset"):
+		gs.reset()
+
+	var wf := FileAccess.open(EPOCH_FILE, FileAccess.WRITE)
+	if wf != null:
+		wf.store_string(str(CLIENT_RESET_EPOCH))
+		wf.close()
+	_web_set(WEB_EPOCH_KEY, str(CLIENT_RESET_EPOCH))
 
 
 func _notification(what: int) -> void:
@@ -1240,7 +1304,11 @@ func _live_sync_game_state_from_world(merged_w: Dictionary, p_name: String) -> v
 			gs.world["player_profiles"] = (rw["player_profiles"] as Dictionary).duplicate(true)
 		if typeof(rw.get("player_starter_boost")) == TYPE_DICTIONARY:
 			gs.world["player_starter_boost"] = (rw["player_starter_boost"] as Dictionary).duplicate(true)
+		for bk in ["starter_boost_until_unix", "player_joined_unix", "speed", "unit_speed"]:
+			if rw.has(bk):
+				gs.world[bk] = rw[bk]
 		gs.world["villages"] = gs.villages
+	_sync_game_config_speed({"world": gs.world, "player": gs.player}, int(Time.get_unix_time_from_system()))
 	gs._emit_state_changed()
 	_is_applying_cloud_sync = false
 	if first_owned_vid < 0 and (prev_owned or is_player_conquered(w_id, p_name)):

@@ -81,6 +81,32 @@ platform :ios do
       UI.important("Cert quota precheck note: #{e.message}")
     end
 
+    apple_signin_enabled = false
+    begin
+      bid = Spaceship::ConnectAPI::BundleId.find(bundle_id)
+      if bid
+        caps = bid.get_capabilities rescue []
+        apple_signin_enabled = caps.any? { |c| c.capability_type.to_s == "APPLE_ID_AUTH" }
+        unless apple_signin_enabled
+          UI.message("Attempting to enable Sign In with Apple (APPLE_ID_AUTH) capability on #{bundle_id}...")
+          bid.create_capability(
+            "APPLE_ID_AUTH",
+            settings: [
+              {
+                key: "ENABLE_INDIVIDUAL_USER_MIGRATION",
+                options: []
+              }
+            ]
+          ) rescue bid.create_capability("APPLE_ID_AUTH")
+          caps = bid.get_capabilities rescue []
+          apple_signin_enabled = caps.any? { |c| c.capability_type.to_s == "APPLE_ID_AUTH" }
+        end
+        UI.message("Sign In with Apple capability active: #{apple_signin_enabled}")
+      end
+    rescue => e
+      UI.important("Sign In with Apple capability check note: #{e.message}")
+    end
+
     cert(
       api_key: api_key,
       team_id: team_id,
@@ -102,8 +128,8 @@ platform :ios do
     UI.user_error!("SIGH failed to produce profile UUID") if profile_uuid.empty?
 
     sh("mkdir -p '#{File.dirname(out_env)}'")
-    File.write(out_env, "ASC_PROFILE_NAME=#{profile_name}\nASC_PROFILE_UUID=#{profile_uuid}\n")
-    UI.success("Prepared signing profile #{profile_name} (#{profile_uuid})")
+    File.write(out_env, "ASC_PROFILE_NAME=#{profile_name}\nASC_PROFILE_UUID=#{profile_uuid}\nASC_APPLE_SIGNIN_ENABLED=#{apple_signin_enabled ? '1' : '0'}\n")
+    UI.success("Prepared signing profile #{profile_name} (#{profile_uuid}), apple_signin=#{apple_signin_enabled}")
   end
 
   desc "Export IPA from Godot Xcode archive and upload to TestFlight"

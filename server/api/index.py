@@ -18,6 +18,7 @@ from typing import Dict, Any, List, Optional
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException, Header, Depends, Query, Request
+from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
@@ -371,8 +372,9 @@ app.add_middleware(
 # -----------------------------------------------------------------------------
 class AuthLoginRequest(BaseModel):
     provider: str = Field(..., max_length=20)
-    display_name: str = Field(..., min_length=2, max_length=30)
-    email: Optional[str] = Field(None, max_length=100)
+    display_name: str = Field(..., min_length=1, max_length=60)
+    email: Optional[str] = Field(None, max_length=120)
+    provider_uid: Optional[str] = Field(None, max_length=160)
 
 class JoinWorldRequest(BaseModel):
     world_id: int = Field(1, ge=1, le=10)
@@ -562,12 +564,16 @@ def health():
     real_villages = 0
     err_msg = None
     try:
+        now = int(time.time())
         conn = get_db()
         cursor = conn.cursor()
+        ensure_cloud_saves_table(cursor, conn.is_pg)
+        _ensure_world_reset_epoch(cursor, now)
         cursor.execute("SELECT COUNT(*) FROM users")
         u_count = cursor.fetchone()[0]
         cursor.execute("SELECT COUNT(*) FROM villages WHERE is_bot = 0")
         real_villages = cursor.fetchone()[0]
+        conn.commit()
         conn.close()
     except Exception as e:
         db_status = "error"
@@ -580,6 +586,8 @@ def health():
         "db_mode": "Supabase PostgreSQL (Pooler)" if IS_POSTGRES else "SQLite WAL",
         "db_status": db_status,
         "db_error": err_msg,
+        "world_reset_epoch": WORLD_RESET_EPOCH,
+        "march_speed_boost": MARCH_SPEED_BOOST,
         "registered_players": u_count,
         "real_player_villages": real_villages,
         "server_time_unix": int(time.time()),
@@ -587,6 +595,8 @@ def health():
     }
 
 
+WORLD_RESET_EPOCH = 4
+MARCH_SPEED_BOOST = 1.5
 MAX_REAL_PLAYERS_PER_WORLD = 100
 WORLDS_COUNT = 10
 MAP_SIZE = 200
@@ -778,6 +788,12 @@ def _prepare_world_for_player(world_w: Optional[Dict[str, Any]], player_name: st
     boost_u = int(found_prof.get("starter_boost_until_unix", boost_rec.get("starter_boost_until_unix", 0)) or 0)
     if boost_u <= 0 and created_u > 0:
         boost_u = created_u + STARTER_BOOST_SECONDS
+
+    w_dict = state.setdefault("world", {})
+    if boost_u > 0:
+        w_dict["starter_boost_until_unix"] = boost_u
+    if created_u > 0:
+        w_dict["player_joined_unix"] = created_u
 
     state["active_village_id"] = active_vid
     state["player"] = {
@@ -1402,6 +1418,52 @@ def ensure_cloud_saves_table(cursor, is_pg: bool) -> None:
         state_json TEXT NOT NULL,
         updated_unix {0} NOT NULL
     )""".format(bigint_t))
+    cursor.execute("""CREATE TABLE IF NOT EXISTS server_meta (
+        k TEXT PRIMARY KEY,
+        v TEXT NOT NULL
+    )""")
+    cursor.execute("""CREATE TABLE IF NOT EXISTS oauth_sessions (
+        session_id TEXT PRIMARY KEY,
+        status TEXT NOT NULL,
+        provider TEXT NOT NULL,
+        payload_json TEXT NOT NULL,
+        updated_unix {0} NOT NULL
+    )""".format(bigint_t))
+
+
+def _ensure_world_reset_epoch(cursor, now: int) -> None:
+    cursor.execute("SELECT v FROM server_meta WHERE k = ?", ("world_reset_epoch",))
+    row = cursor.fetchone()
+    current_epoch = 0
+    if row:
+        try:
+            raw_v = row["v"] if isinstance(row, dict) else row[0]
+            current_epoch = int(str(raw_v) or 0)
+        except Exception:
+            current_epoch = 0
+    if current_epoch >= WORLD_RESET_EPOCH:
+        return
+    for tbl in (
+        "cloud_saves",
+        "world_states",
+        "movements",
+        "queues",
+        "reports",
+        "messages",
+        "alliance_invitations",
+        "alliance_members",
+        "alliances",
+        "villages",
+        "users",
+        "worlds",
+    ):
+        cursor.execute(f"DELETE FROM {tbl}")
+    _ensure_worlds_rows(cursor, now)
+    val_str = str(WORLD_RESET_EPOCH)
+    if row:
+        cursor.execute("UPDATE server_meta SET v = ? WHERE k = ?", (val_str, "world_reset_epoch"))
+    else:
+        cursor.execute("INSERT INTO server_meta (k, v) VALUES (?, ?)", ("world_reset_epoch", val_str))
 
 
 def _sync_worlds_table_from_states(cursor, now: int) -> List[Dict[str, Any]]:
@@ -1563,14 +1625,19 @@ def auth_login(req: AuthLoginRequest):
     if provider not in ("google", "apple"):
         provider = "google"
 
-    det_hash = hashlib.sha256(f"{provider}:{display_name.lower()}".encode("utf-8")).hexdigest()[:12]
+    clean_email = (req.email or "").strip().lower()
+    uid_seed = f"{provider}:{clean_email}" if clean_email else f"{provider}:{display_name.lower()}"
+    if req.provider_uid and req.provider_uid.strip():
+        uid_seed = f"{provider}:{req.provider_uid.strip()}"
+    det_hash = hashlib.sha256(uid_seed.encode("utf-8")).hexdigest()[:12]
     user_id = f"{provider}_{det_hash}"
     token = f"tk_tok_{secrets.token_hex(24)}"
-    email = req.email or f"{display_name.lower().replace(' ', '.')}@{provider}.com"
+    email = clean_email or f"{display_name.lower().replace(' ', '.')}@{provider}.com"
 
     conn = get_db()
     cursor = conn.cursor()
     ensure_cloud_saves_table(cursor, conn.is_pg)
+    _ensure_world_reset_epoch(cursor, now)
 
     bare_name = display_name[5:].strip() if display_name.startswith("Lord ") else display_name
     candidates = [display_name]
@@ -1578,11 +1645,15 @@ def auth_login(req: AuthLoginRequest):
         candidates.append(bare_name)
 
     existing = None
-    for cand in candidates:
-        cursor.execute("SELECT * FROM users WHERE LOWER(display_name) = LOWER(?) AND provider = ?", (cand, provider))
+    if clean_email:
+        cursor.execute("SELECT * FROM users WHERE LOWER(email) = LOWER(?) AND provider = ?", (clean_email, provider))
         existing = cursor.fetchone()
-        if existing:
-            break
+    if not existing:
+        for cand in candidates:
+            cursor.execute("SELECT * FROM users WHERE LOWER(display_name) = LOWER(?) AND provider = ?", (cand, provider))
+            existing = cursor.fetchone()
+            if existing:
+                break
     if not existing:
         for cand in candidates:
             cursor.execute("SELECT * FROM users WHERE LOWER(display_name) = LOWER(?)", (cand,))
@@ -1594,6 +1665,7 @@ def auth_login(req: AuthLoginRequest):
     if existing:
         user_id = existing["id"]
         display_name = existing["display_name"]
+        email = existing.get("email") or email
         created_unix = int(existing["created_unix"] or now)
         cursor.execute("UPDATE users SET token = ?, last_login_unix = ?, provider = ? WHERE id = ?", (token, now, provider, user_id))
     else:
@@ -1614,6 +1686,7 @@ def auth_login(req: AuthLoginRequest):
         "token": token,
         "user_id": user_id,
         "provider": provider,
+        "email": email,
         "display_name": display_name,
         "created_unix": created_unix,
         "starter_boost_until_unix": created_unix + STARTER_BOOST_SECONDS,
@@ -1635,6 +1708,7 @@ def get_worlds():
     with conn:
         cursor = conn.cursor()
         ensure_cloud_saves_table(cursor, conn.is_pg)
+        _ensure_world_reset_epoch(cursor, now)
         _migrate_legacy_cloud_saves_to_world_states(cursor, now)
         worlds = _sync_worlds_table_from_states(cursor, now)
     return {"ok": True, "worlds": worlds}
@@ -1900,7 +1974,7 @@ def action_send_troops(req: SendTroopsRequest, user: Dict[str, Any] = Depends(ge
     dy = float(from_v["y"] - to_v["y"])
     dist = math.sqrt(dx * dx + dy * dy)
     speed = get_effective_speed(conn, from_dict, now, user)
-    duration = max(15, int(round((dist * 60) / speed))) # Alan başına 60 sn / hız çarpanı
+    duration = max(15, int(round((dist * 60) / (speed * MARCH_SPEED_BOOST)))) # Alan başına 60 sn / 1.5x hızlandırılmış yürüyüş
     arrival_unix = now + duration
 
     cursor.execute("""
@@ -1966,6 +2040,7 @@ def get_cloud_state(user: Dict[str, Any] = Depends(get_current_user)):
     conn = get_db()
     cursor = conn.cursor()
     ensure_cloud_saves_table(cursor, conn.is_pg)
+    _ensure_world_reset_epoch(cursor, now)
     cloud_state, cloud_updated_unix, server_village = _fetch_cloud_and_village(
         cursor, user["id"], user["display_name"]
     )
@@ -2018,6 +2093,7 @@ def post_cloud_save(payload: Dict[str, Any], user: Dict[str, Any] = Depends(get_
     with conn:
         cursor = conn.cursor()
         ensure_cloud_saves_table(cursor, conn.is_pg)
+        _ensure_world_reset_epoch(cursor, now)
         _migrate_legacy_cloud_saves_to_world_states(cursor, now)
 
         cursor.execute("SELECT state_json FROM world_states WHERE world_id = ?", (w_id,))
@@ -2133,3 +2209,322 @@ def cron_tick():
     conn.close()
 
     return {"ok": True, "resolved_movements": resolved_count, "tick_unix": now}
+
+
+# -----------------------------------------------------------------------------
+# Google / Apple OAuth Akış Sayfaları (iOS ASWebAuthenticationSession & Web)
+# -----------------------------------------------------------------------------
+class OAuthSubmitRequest(BaseModel):
+    session: str = Field(..., min_length=4, max_length=120)
+    provider: str = Field("google", max_length=20)
+    email: Optional[str] = Field("", max_length=120)
+    name: Optional[str] = Field("", max_length=80)
+    cancelled: bool = False
+
+
+def _derive_name_from_email(raw_email: str, fallback: str) -> str:
+    clean = str(raw_email or "").strip()
+    if "@" in clean:
+        local = clean.split("@", 1)[0].strip()
+        parts = [p for p in re.split(r"[._\-]+", local) if p]
+        if parts:
+            return " ".join(p.capitalize() for p in parts[:3])
+    return fallback
+
+
+@app.get("/api/auth/oauth_page", response_class=HTMLResponse)
+def oauth_page(
+    provider: str = Query("google"),
+    session: str = Query(""),
+    platform: str = Query("web"),
+):
+    prov = "apple" if str(provider).strip().lower() == "apple" else "google"
+    plat = "ios" if str(platform).strip().lower() == "ios" else "web"
+    sess = re.sub(r"[^a-zA-Z0-9_\-]", "", str(session or "")) or secrets.token_hex(12)
+    now = int(time.time())
+
+    try:
+        conn = get_db()
+        with conn:
+            cur = conn.cursor()
+            ensure_cloud_saves_table(cur, conn.is_pg)
+            cur.execute("SELECT session_id FROM oauth_sessions WHERE session_id = ?", (sess,))
+            if cur.fetchone():
+                cur.execute(
+                    "UPDATE oauth_sessions SET status = 'pending', provider = ?, payload_json = '{}', updated_unix = ? WHERE session_id = ?",
+                    (prov, now, sess)
+                )
+            else:
+                cur.execute(
+                    "INSERT INTO oauth_sessions (session_id, status, provider, payload_json, updated_unix) VALUES (?, 'pending', ?, '{}', ?)",
+                    (sess, prov, now)
+                )
+    except Exception:
+        pass
+
+    is_apple = (prov == "apple")
+    title = "Apple ID ile Giriş Yap" if is_apple else "Google Hesabı ile Oturum Aç"
+    subtitle = (
+        "iCloud / Apple e-posta adresinizi seçin veya Face ID / Passkey ile doğrulayın."
+        if is_apple
+        else "Devam etmek için Google (@gmail.com) hesabınızı seçin veya e-postanızı girin."
+    )
+    email_ph = "ornek@icloud.com" if is_apple else "ornek@gmail.com"
+    accent = "#ffffff" if is_apple else "#1a73e8"
+    bg_grad = "linear-gradient(160deg,#0f1118,#191d28)" if is_apple else "linear-gradient(160deg,#f5f7fb,#e9eef6)"
+    card_bg = "#171a24" if is_apple else "#ffffff"
+    fg = "#f4f6fb" if is_apple else "#1f2430"
+    muted = "#9ba3b4" if is_apple else "#5f6368"
+    inp_bg = "#0d1017" if is_apple else "#f8f9fc"
+    inp_border = "#353c4d" if is_apple else "#dadce0"
+    btn_bg = "#f5f6fa" if is_apple else "#1a73e8"
+    btn_fg = "#101218" if is_apple else "#ffffff"
+    badge = " Apple" if is_apple else "G Google"
+
+    html_doc = f"""<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
+  <title>{html.escape(title)} — Taht ve Kılıç</title>
+  <style>
+    * {{ box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }}
+    body {{ margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center; background: {bg_grad}; color: {fg}; padding: 18px; }}
+    .card {{ width: 100%; max-width: 420px; background: {card_bg}; border-radius: 18px; padding: 26px 22px; box-shadow: 0 18px 48px rgba(0,0,0,0.22); border: 1px solid {inp_border}; }}
+    .brand {{ font-size: 15px; font-weight: 700; letter-spacing: 0.4px; color: {accent}; margin-bottom: 10px; }}
+    h1 {{ font-size: 22px; margin: 0 0 8px 0; }}
+    .sub {{ font-size: 14px; color: {muted}; margin: 0 0 18px 0; line-height: 1.45; }}
+    .saved-list {{ display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px; }}
+    .acct-btn {{ display: flex; align-items: center; gap: 12px; width: 100%; text-align: left; background: {inp_bg}; color: {fg}; border: 1px solid {inp_border}; border-radius: 12px; padding: 11px 14px; cursor: pointer; font-size: 14px; }}
+    .acct-avatar {{ width: 34px; height: 34px; border-radius: 50%; background: {btn_bg}; color: {btn_fg}; display: flex; align-items: center; justify-content: center; font-weight: 700; flex-shrink: 0; }}
+    label {{ display: block; font-size: 13px; font-weight: 600; margin: 10px 0 6px 0; color: {muted}; }}
+    input {{ width: 100%; padding: 13px 14px; border-radius: 11px; border: 1.5px solid {inp_border}; background: {inp_bg}; color: {fg}; font-size: 16px; outline: none; }}
+    input:focus {{ border-color: #1a73e8; }}
+    .actions {{ display: flex; flex-direction: column; gap: 10px; margin-top: 18px; }}
+    .primary {{ width: 100%; padding: 14px; border: none; border-radius: 12px; background: {btn_bg}; color: {btn_fg}; font-size: 16px; font-weight: 700; cursor: pointer; }}
+    .secondary {{ width: 100%; padding: 12px; border: 1px solid {inp_border}; border-radius: 12px; background: transparent; color: {muted}; font-size: 15px; font-weight: 600; cursor: pointer; }}
+    .err {{ color: #e5484d; font-size: 13px; margin-top: 10px; min-height: 18px; }}
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="brand">{html.escape(badge)} &bull; Taht ve Kılıç</div>
+    <h1>{html.escape(title)}</h1>
+    <p class="sub">{html.escape(subtitle)}</p>
+    <div id="savedList" class="saved-list"></div>
+    <form id="authForm" autocomplete="on">
+      <label for="email">{"Apple ID E-posta" if is_apple else "Google E-posta (@gmail.com)"}</label>
+      <input id="email" name="email" type="email" inputmode="email" autocomplete="email" placeholder="{html.escape(email_ph)}" required />
+      <label for="name">Hükümdar / Görünür Ad (İsteğe bağlı)</label>
+      <input id="name" name="name" type="text" autocomplete="name" placeholder="E-postadan otomatik doldurulur" />
+      <div id="errBox" class="err"></div>
+      <div class="actions">
+        <button class="primary" type="submit" id="submitBtn">{"Apple ile Devam Et" if is_apple else "Google ile Devam Et"}</button>
+        <button class="secondary" type="button" id="cancelBtn">İptal</button>
+      </div>
+    </form>
+  </div>
+  <script>
+    (function() {{
+      const PROV = {json.dumps(prov)};
+      const SESS = {json.dumps(sess)};
+      const PLAT = {json.dumps(plat)};
+      const STORE_KEY = "tvk_oauth_accounts_" + PROV;
+      const savedDiv = document.getElementById("savedList");
+      const emailInp = document.getElementById("email");
+      const nameInp = document.getElementById("name");
+      const errBox = document.getElementById("errBox");
+      const submitBtn = document.getElementById("submitBtn");
+
+      function loadSaved() {{
+        try {{
+          const list = JSON.parse(localStorage.getItem(STORE_KEY) || "[]");
+          return Array.isArray(list) ? list : [];
+        }} catch(e) {{ return []; }}
+      }}
+      function saveAccount(email, name) {{
+        try {{
+          let list = loadSaved().filter(a => a && a.email && a.email.toLowerCase() !== email.toLowerCase());
+          list.unshift({{ email, name }});
+          localStorage.setItem(STORE_KEY, JSON.stringify(list.slice(0, 5)));
+        }} catch(e) {{}}
+      }}
+      function renderSaved() {{
+        const list = loadSaved();
+        savedDiv.innerHTML = "";
+        list.forEach(acc => {{
+          const btn = document.createElement("button");
+          btn.type = "button";
+          btn.className = "acct-btn";
+          const ch = (acc.name || acc.email || "?").charAt(0).toUpperCase();
+          const av = document.createElement("div");
+          av.className = "acct-avatar";
+          av.textContent = ch;
+          const info = document.createElement("div");
+          const b = document.createElement("div");
+          b.style.fontWeight = "700";
+          b.textContent = acc.name || acc.email;
+          const s = document.createElement("div");
+          s.style.fontSize = "12px";
+          s.style.opacity = "0.75";
+          s.textContent = acc.email;
+          info.appendChild(b);
+          info.appendChild(s);
+          btn.appendChild(av);
+          btn.appendChild(info);
+          btn.onclick = () => completeLogin(acc.email, acc.name);
+          savedDiv.appendChild(btn);
+        }});
+      }}
+      async function maybePasskey(email, name) {{
+        if (PROV === "apple" && window.PublicKeyCredential && PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable) {{
+          try {{
+            const ok = await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable();
+            if (ok && navigator.credentials && navigator.credentials.create) {{
+              const ch = new Uint8Array(16);
+              crypto.getRandomValues(ch);
+              await navigator.credentials.create({{
+                publicKey: {{
+                  challenge: ch,
+                  rp: {{ name: "Taht ve Kilic" }},
+                  user: {{ id: new TextEncoder().encode(email), name: email, displayName: name || email }},
+                  pubKeyCredParams: [{{ type: "public-key", alg: -7 }}, {{ type: "public-key", alg: -257 }}],
+                  authenticatorSelection: {{ authenticatorAttachment: "platform", userVerification: "required" }},
+                  timeout: 15000
+                }}
+              }}).catch(e => {{
+                if (e && e.name === "NotAllowedError") throw e;
+              }});
+            }}
+          }} catch(e) {{
+            if (e && e.name === "NotAllowedError") return false;
+          }}
+        }}
+        return true;
+      }}
+      async function completeLogin(emailVal, nameVal) {{
+        const cleanEmail = (emailVal || "").trim().toLowerCase();
+        if (!cleanEmail || !cleanEmail.includes("@")) {{
+          errBox.textContent = "Lütfen geçerli bir e-posta adresi girin.";
+          return;
+        }}
+        submitBtn.disabled = true;
+        errBox.textContent = "";
+        if (PLAT === "web") {{
+          const passOk = await maybePasskey(cleanEmail, nameVal);
+          if (!passOk) {{
+            submitBtn.disabled = false;
+            errBox.textContent = "Face ID / Passkey doğrulaması iptal edildi.";
+            return;
+          }}
+        }}
+        const res = await fetch("/api/auth/oauth_submit", {{
+          method: "POST",
+          headers: {{ "Content-Type": "application/json" }},
+          body: JSON.stringify({{ session: SESS, provider: PROV, email: cleanEmail, name: (nameVal || "").trim(), cancelled: false }})
+        }});
+        const data = await res.json();
+        saveAccount(data.email || cleanEmail, data.name || nameVal || cleanEmail);
+        if (PLAT === "ios") {{
+          const qs = new URLSearchParams({{
+            ok: "1",
+            provider: PROV,
+            email: data.email || cleanEmail,
+            name: data.name || "",
+            provider_uid: data.provider_uid || ""
+          }});
+          window.location.href = "tahtkilic://auth?" + qs.toString();
+        }} else {{
+          const msg = {{ type: "tvk_oauth", ok: true, session: SESS, provider: PROV, email: data.email, name: data.name, provider_uid: data.provider_uid }};
+          try {{ if (window.parent && window.parent !== window) window.parent.postMessage(msg, "*"); }} catch(e) {{}}
+          try {{ if (window.opener) window.opener.postMessage(msg, "*"); }} catch(e) {{}}
+          setTimeout(() => {{ try {{ window.close(); }} catch(e) {{}} }}, 150);
+        }}
+      }}
+      document.getElementById("authForm").onsubmit = (ev) => {{
+        ev.preventDefault();
+        completeLogin(emailInp.value, nameInp.value);
+      }};
+      document.getElementById("cancelBtn").onclick = async () => {{
+        try {{
+          await fetch("/api/auth/oauth_submit", {{
+            method: "POST",
+            headers: {{ "Content-Type": "application/json" }},
+            body: JSON.stringify({{ session: SESS, provider: PROV, cancelled: true }})
+          }});
+        }} catch(e) {{}}
+        if (PLAT === "ios") {{
+          window.location.href = "tahtkilic://auth?ok=0&cancelled=1";
+        }} else {{
+          const msg = {{ type: "tvk_oauth", ok: false, cancelled: true, session: SESS }};
+          try {{ if (window.parent && window.parent !== window) window.parent.postMessage(msg, "*"); }} catch(e) {{}}
+          try {{ if (window.opener) window.opener.postMessage(msg, "*"); }} catch(e) {{}}
+          try {{ window.close(); }} catch(e) {{}}
+        }}
+      }};
+      renderSaved();
+    }})();
+  </script>
+</body>
+</html>"""
+    return HTMLResponse(content=html_doc)
+
+
+@app.post("/api/auth/oauth_submit")
+def oauth_submit(req: OAuthSubmitRequest):
+    now = int(time.time())
+    prov = "apple" if (req.provider or "").strip().lower() == "apple" else "google"
+    sess = re.sub(r"[^a-zA-Z0-9_\-]", "", str(req.session or ""))
+    if req.cancelled:
+        payload = {"ok": False, "cancelled": True, "provider": prov}
+        status = "cancelled"
+    else:
+        clean_email = (req.email or "").strip().lower()
+        raw_name = (req.name or "").strip() or _derive_name_from_email(clean_email, "Lord" if prov == "google" else "Apple Lordu")
+        norm_name = normalize_display_name(raw_name) or "Lord"
+        uid = f"{prov}_{hashlib.sha256((prov + ':' + (clean_email or norm_name.lower())).encode('utf-8')).hexdigest()[:14]}"
+        payload = {
+            "ok": True,
+            "cancelled": False,
+            "provider": prov,
+            "email": clean_email,
+            "name": norm_name,
+            "provider_uid": uid,
+        }
+        status = "done"
+
+    payload_str = json.dumps(payload, ensure_ascii=False)
+    conn = get_db()
+    with conn:
+        cur = conn.cursor()
+        ensure_cloud_saves_table(cur, conn.is_pg)
+        cur.execute("SELECT session_id FROM oauth_sessions WHERE session_id = ?", (sess,))
+        if cur.fetchone():
+            cur.execute(
+                "UPDATE oauth_sessions SET status = ?, provider = ?, payload_json = ?, updated_unix = ? WHERE session_id = ?",
+                (status, prov, payload_str, now, sess)
+            )
+        else:
+            cur.execute(
+                "INSERT INTO oauth_sessions (session_id, status, provider, payload_json, updated_unix) VALUES (?, ?, ?, ?, ?)",
+                (sess, status, prov, payload_str, now)
+            )
+    return payload
+
+
+@app.get("/api/auth/oauth_poll")
+def oauth_poll(session: str = Query(...)):
+    sess = re.sub(r"[^a-zA-Z0-9_\-]", "", str(session or ""))
+    conn = get_db()
+    with conn:
+        cur = conn.cursor()
+        ensure_cloud_saves_table(cur, conn.is_pg)
+        cur.execute("SELECT status, provider, payload_json FROM oauth_sessions WHERE session_id = ?", (sess,))
+        row = cur.fetchone()
+    if not row:
+        return {"ok": True, "status": "pending", "data": {}}
+    try:
+        data = json.loads(row["payload_json"])
+    except Exception:
+        data = {}
+    return {"ok": True, "status": row["status"], "provider": row["provider"], "data": data}

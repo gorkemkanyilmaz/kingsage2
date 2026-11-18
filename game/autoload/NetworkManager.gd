@@ -72,10 +72,24 @@ func login_online(provider: String, display_name: String, callback: Callable = C
 	add_child(req)
 	req.timeout = 10.0
 
-	var payload := JSON.stringify({
+	var auth_email := ""
+	var auth_uid := ""
+	var loop_pre = Engine.get_main_loop()
+	if loop_pre is SceneTree:
+		var auth_pre = loop_pre.root.get_node_or_null("AuthManager")
+		if auth_pre != null:
+			auth_email = str(auth_pre.email)
+			auth_uid = str(auth_pre.user_id)
+
+	var payload_dict := {
 		"provider": provider,
-		"display_name": display_name
-	})
+		"display_name": display_name,
+	}
+	if not auth_email.strip_edges().is_empty():
+		payload_dict["email"] = auth_email.strip_edges()
+	if not auth_uid.strip_edges().is_empty():
+		payload_dict["provider_uid"] = auth_uid.strip_edges()
+	var payload := JSON.stringify(payload_dict)
 
 	var headers := ["Content-Type: application/json"]
 
@@ -96,6 +110,10 @@ func login_online(provider: String, display_name: String, callback: Callable = C
 						auth.auth_token = auth_token
 						if res_data.has("user_id") and not str(res_data.get("user_id", "")).is_empty():
 							auth.user_id = str(res_data.get("user_id"))
+						if res_data.has("display_name") and not str(res_data.get("display_name", "")).is_empty():
+							auth.display_name = str(res_data.get("display_name"))
+						if res_data.has("email") and not str(res_data.get("email", "")).is_empty():
+							auth.email = str(res_data.get("email"))
 						auth.save_session()
 					var wm = loop.root.get_node_or_null("WorldManager")
 					if wm != null and wm.has_method("apply_cloud_sync"):

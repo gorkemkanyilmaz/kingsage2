@@ -267,7 +267,7 @@ func _setup_auth_overlay() -> void:
 	vb.add_child(title)
 
 	var subtitle := Label.new()
-	subtitle.text = "Krallığınıza erişmek ve köyünüzü yönetmek için lütfen bir hesapla giriş yapın:"
+	subtitle.text = "Devam etmek için telefonunuzun Apple Hesabı (Face ID) veya Google Hesabı ile oturum açın:"
 	subtitle.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	subtitle.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	subtitle.add_theme_font_override("font", FontNunitoBold)
@@ -278,37 +278,11 @@ func _setup_auth_overlay() -> void:
 	var sep1 := HSeparator.new()
 	vb.add_child(sep1)
 
-	# Lord Adı Girişi
-	var name_box := VBoxContainer.new()
-	name_box.add_theme_constant_override("separation", 8)
-	var name_lbl := Label.new()
-	name_lbl.text = "Lord Ünvanınız (İsim):"
-	name_lbl.add_theme_font_override("font", FontNunitoBold)
-	name_lbl.add_theme_font_size_override("font_size", 22)
-	name_lbl.add_theme_color_override("font_color", Color(0.95, 0.90, 0.80))
-	name_box.add_child(name_lbl)
-
+	# Gizli geriye dönük uyumluluk alanı (manuel Lord adı kutusu kaldırıldı — gerçek Google/Apple hesabı ile giriş)
 	_name_input = LineEdit.new()
-	_name_input.placeholder_text = "Örn: Lord Gorkem"
-	_name_input.text = _get_player_name()
-	_name_input.custom_minimum_size = Vector2(0, 58)
-	_name_input.alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_name_input.add_theme_font_override("font", FontNunitoBold)
-	_name_input.add_theme_font_size_override("font_size", 24)
-	_name_input.add_theme_color_override("font_color", Color(1.0, 0.96, 0.90))
-	_name_input.add_theme_color_override("font_selected_color", Color(1.0, 1.0, 1.0))
-	_name_input.add_theme_color_override("selection_color", Color(0.28, 0.42, 0.72, 0.90))
-	_name_input.add_theme_color_override("caret_color", Color(1.0, 0.85, 0.40))
-	var inp_sb := StyleBoxFlat.new()
-	inp_sb.bg_color = Color(0.06, 0.05, 0.08, 0.95)
-	inp_sb.border_color = Color(0.65, 0.52, 0.35, 0.9)
-	inp_sb.set_border_width_all(2)
-	inp_sb.set_corner_radius_all(12)
-	inp_sb.set_content_margin_all(12)
-	_name_input.add_theme_stylebox_override("normal", inp_sb)
-	_name_input.add_theme_stylebox_override("focus", inp_sb)
-	name_box.add_child(_name_input)
-	vb.add_child(name_box)
+	_name_input.visible = false
+	_name_input.text = ""
+	vb.add_child(_name_input)
 
 	# Giriş Butonları (Google & Apple)
 	var btn_google := Button.new()
@@ -371,16 +345,16 @@ func _setup_auth_overlay() -> void:
 
 
 func _do_login(provider: String) -> void:
-	var desired_name := _name_input.text.strip_edges()
-	if desired_name.is_empty():
-		desired_name = "Lord Gorkem" if provider == "google" else "Lord Roland"
+	var desired_name := _name_input.text.strip_edges() if _name_input != null else ""
 
 	var auth = Engine.get_main_loop().root.get_node_or_null("AuthManager") if Engine.get_main_loop() is SceneTree else null
 	if auth != null and auth.has_method("authenticate_with_provider"):
 		auth.authenticate_with_provider(provider, desired_name, self, func(prof: Dictionary):
+			if not bool(prof.get("is_logged_in", false)):
+				return
 			var canonical_name := str(prof.get("name", desired_name))
 			if canonical_name.is_empty():
-				canonical_name = desired_name
+				canonical_name = "Lord Gorkem" if provider == "google" else "Lord Roland"
 			var net = Engine.get_main_loop().root.get_node_or_null("NetworkManager") if Engine.get_main_loop() is SceneTree else null
 			if net != null:
 				net.login_online(provider, canonical_name)
@@ -388,6 +362,8 @@ func _do_login(provider: String) -> void:
 		)
 		return
 
+	if desired_name.is_empty():
+		desired_name = "Lord Gorkem" if provider == "google" else "Lord Roland"
 	var net = Engine.get_main_loop().root.get_node_or_null("NetworkManager") if Engine.get_main_loop() is SceneTree else null
 	if net != null:
 		net.login_online(provider, desired_name)

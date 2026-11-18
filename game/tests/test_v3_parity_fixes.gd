@@ -4,6 +4,8 @@ extends SceneTree
 const VM := preload("res://scripts/model/VillageModel.gd")
 const MovementScript := preload("res://scripts/sim/actions/Movement.gd")
 const ActionSimulatorScript := preload("res://scripts/sim/actions/ActionSimulator.gd")
+const TravelScript := preload("res://scripts/world/Travel.gd")
+const RankingScript := preload("res://scenes/Ranking.gd")
 
 var _passed := 0
 var _failed := 0
@@ -120,17 +122,49 @@ func _run() -> void:
 	ActionSimulatorScript.process_tick(st, int(atk_wipe["movement"]["arrive_unix"]), 1.0)
 	_check((st["movements"] as Array).is_empty(), "Saldırıda tüm askerler ölünce geri dönüş hareketi OLUŞMADI")
 
-	# 4. Köy içi dikey kaydırma (1080x2340 iPhone oranı) kontrolü
+	# 4. Köy içi sıkı siyah-ekran önleme (aşırı yukarı/aşağı/sağ/sol kaydırma siyah boşluk göstermez)
 	var vil_packed := load("res://scenes/Village.tscn") as PackedScene
 	gs.villages = [VM.create(1, "Başkent", 100, 100, "Lord Scroll", false)]
 	gs.active_village_id = 1
-	var vil := vil_packed.instantiate()
+	var vil := vil_packed.instantiate() as Control
 	root.add_child(vil)
 	await process_frame
-	var nav_h := 256.0
-	var min_y: float = minf(138.0 - 420.0, (2340.0 - nav_h - 340.0) - vil.village_area.scale.y * 1920.0)
-	var max_y: float = 138.0 + 140.0
-	_check(min_y < max_y - 200.0, "iPhone 19.5:9 çözünürlüğünde dikey kaydırma aralığı geniş (%0.f .. %0.f)" % [min_y, max_y])
+	var nav_h: float = float(vil.call("_get_bottom_nav_height"))
+	var top_h: float = float(vil.call("_get_top_bar_height"))
+	var vp_rect: Vector2 = vil.get_viewport_rect().size
+	vil.call("_pan_by", Vector2(5000.0, 5000.0))
+	var v_area: Control = vil.get("village_area") as Control
+	_check(v_area.position.y <= top_h + 0.5, "Aşırı aşağı kaydırmada üstte siyah boşluk çıkmıyor (y=%.1f <= %.1f)" % [v_area.position.y, top_h])
+	_check(v_area.position.x <= 0.5, "Aşırı sağa kaydırmada solda siyah boşluk çıkmıyor (x=%.1f)" % v_area.position.x)
+	vil.call("_pan_by", Vector2(-5000.0, -5000.0))
+	var bottom_edge: float = v_area.position.y + v_area.scale.y * 1920.0
+	var right_edge: float = v_area.position.x + v_area.scale.x * 1080.0
+	_check(bottom_edge >= vp_rect.y - nav_h - 0.5, "Aşırı yukarı kaydırmada altta siyah boşluk çıkmıyor (alt=%.1f >= %.1f)" % [bottom_edge, vp_rect.y - nav_h])
+	_check(right_edge >= vp_rect.x - 0.5, "Aşırı sola kaydırmada sağda siyah boşluk çıkmıyor (sağ=%.1f >= %.1f)" % [right_edge, vp_rect.x])
+
+	# 4b. Yürüyüş hızı 1.5x artışı doğrulaması
+	var gc := root.get_node_or_null("GameConfig")
+	if gc != null:
+		gc.set("unit_speed", 1.0)
+		_check(is_equal_approx(TravelScript.unit_speed_multiplier(), 1.5), "Taban yürüyüş hızı 1.5x aktif (%.2fx)" % TravelScript.unit_speed_multiplier())
+		gc.set("unit_speed", 2.0)
+		_check(is_equal_approx(TravelScript.unit_speed_multiplier(), 3.0), "7 günlük başlangıç bonusuyla yürüyüş hızı 3.0x aktif (%.2fx)" % TravelScript.unit_speed_multiplier())
+
+	# 4c. İttifak gücü sıralaması (ittifak gücü = üye oyuncuların toplam gücü)
+	var rank_state := {
+		"villages": [
+			{"id": 1, "owner": "Uye1", "points": 200, "x": 10, "y": 10, "name": "Koy1"},
+			{"id": 2, "owner": "Uye2", "points": 150, "x": 20, "y": 20, "name": "Koy2"},
+			{"id": 3, "owner": "Rakip1", "points": 420, "x": 30, "y": 30, "name": "Koy3"},
+		],
+		"alliances": [
+			{"id": 10, "name": "İlk İttifak", "tag": "ILK", "leader": "Uye1", "members": [{"name": "Uye1"}, {"name": "Uye2"}]},
+			{"id": 11, "name": "Dev İttifak", "tag": "DEV", "leader": "Rakip1", "members": [{"name": "Rakip1"}]},
+		],
+	}
+	var a_ranks := RankingScript.compute_alliance_rankings(rank_state)
+	_check(a_ranks.size() == 2 and str(a_ranks[0]["tag"]) == "DEV" and int(a_ranks[0]["total_power"]) == 420, "İttifak sıralamasında 420 P'lik DEV ittifakı 1. sırada")
+	_check(str(a_ranks[1]["tag"]) == "ILK" and int(a_ranks[1]["total_power"]) == 350, "İttifak gücü içindeki üyelerin toplam gücü kadar (200+150=350 P)")
 
 	# 5. Üst sol ResourceBar köy değiştirici modalı CanvasLayer kullanmalı
 	gs.player["name"] = "Lord Scroll"

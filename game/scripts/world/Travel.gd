@@ -82,21 +82,25 @@ static func round_trip_seconds(from_x: int, from_y: int, to_x: int, to_y: int, s
 	return travel_seconds(from_x, from_y, to_x, to_y, slowest_unit_speed) * 2.0
 
 
-## `GameConfig.unit_speed` (yolculuk sürelerini böler). Autoload yoksa 1.0.
+## Küresel yürüyüş / ordu hız artışı (kullanıcı talebiyle 1.5x).
+const MARCH_SPEED_BOOST: float = 1.5
+
+
+## `GameConfig.unit_speed * MARCH_SPEED_BOOST` (yolculuk sürelerini böler). Autoload yoksa 1.5.
 ## "Hız" (`GameConfig.speed`) yolculuğa **uygulanmaz** — o ekonomi sürelerini etkiler
 ## (bkz. ASSUMPTIONS.md §3).
 static func unit_speed_multiplier() -> float:
 	var tree := Engine.get_main_loop() as SceneTree
 	if tree == null:
-		return 1.0
+		return MARCH_SPEED_BOOST
 	var config := tree.root.get_node_or_null(^"GameConfig")
 	if config == null:
-		return 1.0
+		return MARCH_SPEED_BOOST
 	var raw = config.get("unit_speed")
 	if typeof(raw) != TYPE_FLOAT and typeof(raw) != TYPE_INT:
-		return 1.0
+		return MARCH_SPEED_BOOST
 	var value := float(raw)
-	return value if value > 0.0 else 1.0
+	return (value if value > 0.0 else 1.0) * MARCH_SPEED_BOOST
 
 
 # --- Birim hızı -------------------------------------------------------------

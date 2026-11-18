@@ -39,7 +39,7 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-color = Color(0.992157, 0.964706, 0.890196, 1)
+color = Color(0.0588235, 0.0509804, 0.0745098, 1)
 
 [node name="Backdrop" type="Control" parent="."]
 layout_mode = 1
@@ -51,9 +51,9 @@ grow_vertical = 2
 mouse_filter = 2
 script = ExtResource("5_backdrop")
 emblem_path = "res://assets/sprites/icons/cartography/2x/banner.png"
-emblem_alpha = 0.09
-emblem_size = 420.0
-emblem_center = Vector2(0.5, 0.32)
+emblem_alpha = 0.07
+emblem_size = 440.0
+emblem_center = Vector2(0.5, 0.34)
 
 [node name="Header" type="PanelContainer" parent="."]
 layout_mode = 1
@@ -62,7 +62,7 @@ anchor_right = 1.0
 offset_left = 20.0
 offset_top = 122.0
 offset_right = -20.0
-offset_bottom = 218.0
+offset_bottom = 216.0
 grow_horizontal = 2
 theme_override_styles/panel = SubResource("StyleBoxFlat_header")
 
@@ -74,18 +74,52 @@ theme_override_constants/separation = 14
 layout_mode = 2
 size_flags_horizontal = 3
 theme_override_colors/font_color = Color(1, 0.917647, 0.647059, 1)
-theme_override_colors/font_shadow_color = Color(0, 0, 0, 0.75)
+theme_override_colors/font_shadow_color = Color(0, 0, 0, 0.85)
 theme_override_constants/shadow_offset_y = 2
 theme_override_font_sizes/font_size = 30
 theme_override_fonts/font = ExtResource("6_cinzel")
-text = "Sıralama"
+text = "Şan & Sıralama"
 
 [node name="BtnAlliance" type="Button" parent="Header/HBox"]
-custom_minimum_size = Vector2(160, 48)
+custom_minimum_size = Vector2(170, 50)
 layout_mode = 2
 theme_override_font_sizes/font_size = 20
-text = " İttifakım"
+text = "İttifakım"
 
+[node name="Tabs" type="HBoxContainer" parent="."]
+layout_mode = 1
+anchors_preset = 10
+anchor_right = 1.0
+offset_left = 24.0
+offset_top = 228.0
+offset_right = -24.0
+offset_bottom = 294.0
+grow_horizontal = 2
+theme_override_constants/separation = 12
+
+[node name="BtnTabPlayers" type="Button" parent="Tabs"]
+custom_minimum_size = Vector2(0, 56)
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 22
+text = "👑 Oyuncu Sıralaması"
+
+[node name="BtnTabAlliances" type="Button" parent="Tabs"]
+custom_minimum_size = Vector2(0, 56)
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 22
+text = "🛡️ İttifak Sıralaması"
+
+[node name="SummaryBanner" type="PanelContainer" parent="."]
+layout_mode = 1
+anchors_preset = 10
+anchor_right = 1.0
+offset_left = 24.0
+offset_top = 306.0
+offset_right = -24.0
+offset_bottom = 376.0
+grow_horizontal = 2
 
 [node name="ResourceBar" parent="." instance=ExtResource("2_rbar")]
 layout_mode = 1
@@ -99,9 +133,9 @@ layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
-offset_left = 40.0
-offset_top = 236.0
-offset_right = -40.0
+offset_left = 24.0
+offset_top = 388.0
+offset_right = -24.0
 offset_bottom = -260.0
 grow_horizontal = 2
 grow_vertical = 2
