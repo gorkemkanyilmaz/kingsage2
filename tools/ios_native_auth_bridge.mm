@@ -126,12 +126,23 @@ static TVKNativeAuthBridge *gBridge = nil;
                 }
             }
         }
+        for (UIScene *scene in [UIApplication sharedApplication].connectedScenes) {
+            if ([scene isKindOfClass:[UIWindowScene class]]) {
+                UIWindowScene *ws = (UIWindowScene *)scene;
+                if (ws.windows.count > 0) {
+                    return ws.windows.firstObject;
+                }
+            }
+        }
     }
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
     UIWindow *kw = [UIApplication sharedApplication].keyWindow;
     if (kw != nil) {
         return kw;
     }
     return [UIApplication sharedApplication].windows.firstObject;
+#pragma clang diagnostic pop
 }
 
 - (UIViewController *)topViewController {
