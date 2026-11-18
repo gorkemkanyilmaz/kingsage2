@@ -4,9 +4,9 @@ on:
   workflow_dispatch:
     inputs:
       build_number:
-        description: "TestFlight Build Number (e.g. 1, 2, 3, 4)"
+        description: "TestFlight Build Number (e.g. 1, 2, 3, 4, 5)"
         required: true
-        default: "4"
+        default: "5"
       runner:
         description: "GitHub macOS Runner"
         required: true
@@ -135,13 +135,18 @@ jobs:
           bridge_src = "tools/ios_native_auth_bridge.mm"
           assert os.path.exists(bridge_src), "Missing tools/ios_native_auth_bridge.mm"
 
-          # 1. Replace Godot dummy.cpp with Objective-C++ native auth bridge
+          # 1. Remove pre-built Godot xcarchive/ipa so Step 10 compiles dummy.mm into a fresh archive
+          shutil.rmtree("build/ios/TahtVeKilic.xcarchive", ignore_errors=True)
+          shutil.rmtree("build/ios/ipa", ignore_errors=True)
+
+          # 2. Replace Godot dummy.cpp with Objective-C++ native auth bridge
           dummies = glob.glob("build/ios/**/dummy.cpp", recursive=True)
           assert dummies, "Could not find dummy.cpp in build/ios"
           for d in dummies:
               mm_path = os.path.join(os.path.dirname(d), "dummy.mm")
               shutil.copyfile(bridge_src, mm_path)
-              print(f"Copied {bridge_src} -> {mm_path}")
+              os.remove(d)
+              print(f"Replaced {d} -> {mm_path}")
 
           pbx_list = glob.glob("build/ios/**/*.xcodeproj/project.pbxproj", recursive=True)
           assert pbx_list, "Could not find project.pbxproj"

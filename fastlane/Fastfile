@@ -93,11 +93,13 @@ platform :ios do
             "APPLE_ID_AUTH",
             settings: [
               {
-                key: "ENABLE_INDIVIDUAL_USER_MIGRATION",
-                options: []
+                key: "APPLE_ID_AUTH_APP_CONSENT",
+                options: [
+                  { key: "PRIMARY_APP_CONSENT", enabled: true }
+                ]
               }
             ]
-          ) rescue bid.create_capability("APPLE_ID_AUTH")
+          )
           caps = bid.get_capabilities rescue []
           apple_signin_enabled = caps.any? { |c| c.capability_type.to_s == "APPLE_ID_AUTH" }
         end
