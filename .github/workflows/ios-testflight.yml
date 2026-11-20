@@ -6,7 +6,7 @@ on:
       build_number:
         description: "TestFlight Build Number (e.g. 1, 2, 3, 4, 5, 6)"
         required: true
-        default: "6"
+        default: "7"
       runner:
         description: "GitHub macOS Runner"
         required: true

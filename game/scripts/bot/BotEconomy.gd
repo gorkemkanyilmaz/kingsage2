@@ -40,11 +40,36 @@ static func think_build(village: Dictionary, profile: Dictionary, state: Diction
 		if _try_build(village, "storage", state):
 			return {"action_taken": true, "building": "storage"}
 
-	# 3. Kişilik odaklı öncelik listesi
+	# 3. Temel üretim Lv.2 sonrası Kışla (asker üretimi) kilidini aç
+	if int(buildings.get("barracks", 0)) < 1 and int(buildings.get("wood", 1)) >= 2 and int(buildings.get("stone", 1)) >= 2 and int(buildings.get("iron", 1)) >= 2:
+		var missing_barracks: Array = RE.missing_requirements(buildings, "barracks", 1)
+		if not missing_barracks.is_empty():
+			for req in missing_barracks:
+				var req_key: String = str(req.get("building", ""))
+				if _try_build(village, req_key, state):
+					return {"action_taken": true, "building": req_key}
+		elif _try_build(village, "barracks", state):
+			return {"action_taken": true, "building": "barracks"}
+
+	# 4. Kişilik odaklı dengeli öncelik listesi (en düşük seviyeli bina öncelikli, eşitlikte liste sırası)
 	var personality: String = str(profile.get("personality", BotProfileScript.PERSONALITY_BUILDER))
 	var candidate_list: Array = BotProfileScript.PRIORITY_BUILDINGS.get(personality, [])
+	var seen_keys: Dictionary = {}
+	var ranked: Array = []
+	for idx in range(candidate_list.size()):
+		var b_str := str(candidate_list[idx])
+		if seen_keys.has(b_str):
+			continue
+		seen_keys[b_str] = true
+		ranked.append({"key": b_str, "lvl": int(buildings.get(b_str, 0)), "order": idx})
+	ranked.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
+		if int(a["lvl"]) != int(b["lvl"]):
+			return int(a["lvl"]) < int(b["lvl"])
+		return int(a["order"]) < int(b["order"])
+	)
 
-	for b_key in candidate_list:
+	for item in ranked:
+		var b_key: String = str(item["key"])
 		var target_lvl: int = int(buildings.get(b_key, 0)) + 1
 		# Eksik önkoşulları kontrol et
 		var missing: Array = RE.missing_requirements(buildings, b_key, target_lvl)

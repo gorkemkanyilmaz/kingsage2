@@ -352,12 +352,13 @@ func _do_login(provider: String) -> void:
 		auth.authenticate_with_provider(provider, desired_name, self, func(prof: Dictionary):
 			if not bool(prof.get("is_logged_in", false)):
 				return
-			var canonical_name := str(prof.get("name", desired_name))
-			if canonical_name.is_empty():
-				canonical_name = "Lord Gorkem" if provider == "google" else "Lord Roland"
-			var net = Engine.get_main_loop().root.get_node_or_null("NetworkManager") if Engine.get_main_loop() is SceneTree else null
-			if net != null:
-				net.login_online(provider, canonical_name)
+			if not bool(prof.get("_server_synced", false)):
+				var canonical_name := str(prof.get("name", desired_name))
+				if canonical_name.is_empty():
+					canonical_name = "Lord Gorkem" if provider == "google" else "Lord Roland"
+				var net = Engine.get_main_loop().root.get_node_or_null("NetworkManager") if Engine.get_main_loop() is SceneTree else null
+				if net != null:
+					net.login_online(provider, canonical_name)
 			_refresh_auth_state()
 		)
 		return

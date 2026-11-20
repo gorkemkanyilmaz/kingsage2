@@ -26,7 +26,7 @@ const EPOCH_FILE := "user://client_reset_epoch.txt"
 const WEB_META_KEY := "tvk_worlds_meta"
 const WEB_WORLD_PREFIX := "tvk_world_"
 const WEB_EPOCH_KEY := "tvk_client_reset_epoch"
-const CLIENT_RESET_EPOCH := 4
+const CLIENT_RESET_EPOCH := 5
 
 var current_world_id: int = 1
 var worlds_meta: Array = []
@@ -320,7 +320,7 @@ func save_world_dict(world_id: int, data: Dictionary) -> bool:
 ## Bir dünyayı sıfırdan 50 botla oluşturur ve diske kaydeder.
 func _create_and_save_world(world_id: int, seed_val: int, bot_count: int) -> Dictionary:
 	var now := int(Time.get_unix_time_from_system())
-	var gen_world: Dictionary = WorldGeneratorScript.generate(seed_val, bot_count, WorldGeneratorScript.SIZE)
+	var gen_world: Dictionary = WorldGeneratorScript.generate(seed_val, bot_count, WorldGeneratorScript.SIZE, 0.0, 0.0)
 	gen_world["created_unix"] = now
 	gen_world["last_saved_unix"] = now
 	gen_world["sim_now_unix"] = now
@@ -1292,6 +1292,19 @@ func _live_sync_game_state_from_world(merged_w: Dictionary, p_name: String) -> v
 		gs.alliances = (st["alliances"] as Array).duplicate(true)
 	if typeof(st.get("movements")) == TYPE_ARRAY:
 		gs.movements = (st["movements"] as Array).duplicate(true)
+	if typeof(st.get("queues")) == TYPE_ARRAY:
+		var owned_vids: Dictionary = {}
+		for v in gs.villages:
+			if _is_real_player_village_dict(v) and _matches_player(str((v as Dictionary).get("owner", "")), p_name):
+				owned_vids[int((v as Dictionary).get("id", 0))] = true
+		var merged_queues: Array = []
+		for lq in gs.queues:
+			if typeof(lq) == TYPE_DICTIONARY and owned_vids.has(int((lq as Dictionary).get("village_id", 0))):
+				merged_queues.append((lq as Dictionary).duplicate(true))
+		for rq in (st["queues"] as Array):
+			if typeof(rq) == TYPE_DICTIONARY and not owned_vids.has(int((rq as Dictionary).get("village_id", 0))):
+				merged_queues.append((rq as Dictionary).duplicate(true))
+		gs.queues = merged_queues
 	if typeof(st.get("messages")) == TYPE_ARRAY:
 		gs.messages = (st["messages"] as Array).duplicate(true)
 	if typeof(st.get("reports")) == TYPE_ARRAY:

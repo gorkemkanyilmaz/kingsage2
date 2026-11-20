@@ -445,6 +445,93 @@ def main():
     print(f"  - Oyuncu profilleri izole korundu, binalar/kuyruklar ezilmedi")
     print(f"  - Ittifak, sohbet, destek, mesajlar ve 100 oyuncu -> Dunya 2 acilisi dogrulandi")
 
+    if TestClient is not None:
+        test_bots_and_unique_lord_name(TestClient)
+
+
+def test_bots_and_unique_lord_name(TestClient):
+    tmp_dir2 = tempfile.mkdtemp(prefix="kingsage_bots_auth_test_")
+    srv.DB_PATH = os.path.join(tmp_dir2, "test_bots_auth.db")
+    srv.IS_POSTGRES = False
+    srv.init_db()
+
+    client = TestClient(srv.app)
+
+    # 1. İlk açılışta Dünya 1 otomatik 50 barışçıl bot içermeli
+    r_health = client.get("/api/health")
+    assert r_health.status_code == 200, r_health.text
+    jh = r_health.json()
+    assert jh["world_reset_epoch"] == 5, jh
+    assert jh["world1_bot_villages"] == 50, jh
+
+    r_map = client.get("/api/worlds/1/map")
+    assert r_map.status_code == 200, r_map.text
+    jm = r_map.json()
+    bot_vills = [v for v in jm.get("villages", []) if v.get("is_bot")]
+    assert len(bot_vills) == 50, f"Beklenen 50 bot, gelen: {len(bot_vills)}"
+    assert {int(v["id"]) for v in bot_vills} == set(range(1, 51))
+
+    # 2. Barışçıl sunucu bot simülasyonu: puan & asker artmalı, kaynaklar >= 0, saldırı olmamalı
+    conn = srv.get_db()
+    with conn:
+        cur = conn.cursor()
+        cur.execute("SELECT state_json FROM world_states WHERE world_id = 1")
+        w_data = json.loads(cur.fetchone()["state_json"])
+        sim_now = int(time.time())
+        pts_before = sum(int(v.get("points", 0)) for v in w_data["state"]["villages"] if v.get("is_bot"))
+        for _ in range(10):
+            sim_now += 1800
+            srv._simulate_server_bots(w_data, cur, sim_now)
+        pts_after = sum(int(v.get("points", 0)) for v in w_data["state"]["villages"] if v.get("is_bot"))
+        total_troops = sum(
+            int(cnt or 0)
+            for v in w_data["state"]["villages"]
+            if v.get("is_bot")
+            for cnt in v.get("units", {}).values()
+        )
+        assert pts_after > pts_before, f"Botlar gelişmedi: {pts_before} -> {pts_after}"
+        assert total_troops > 0, "Botlar hiç asker eğitmedi!"
+        assert len(w_data["state"].get("movements", [])) == 0, "Barışçıl botlar saldırı çıkarmamalı!"
+        for v in w_data["state"]["villages"]:
+            if v.get("is_bot"):
+                res = v.get("resources", {})
+                assert res["wood"] >= 0 and res["stone"] >= 0 and res["iron"] >= 0, f"Negatif kaynak: {res}"
+
+    # 3. Hesap kontrolü (/api/auth/check_account) ve benzersiz Lord ismi kontrolü (409 NAME_TAKEN)
+    r_chk0 = client.post("/api/auth/check_account", json={
+        "provider": "apple", "email": "alparslan@icloud.com", "provider_uid": "apple_u1"
+    })
+    assert r_chk0.status_code == 200, r_chk0.text
+    assert r_chk0.json()["exists"] is False
+
+    r_reg = client.post("/api/auth/login", json={
+        "provider": "apple",
+        "display_name": "Alparslan",
+        "email": "alparslan@icloud.com",
+        "provider_uid": "apple_u1",
+    })
+    assert r_reg.status_code == 200, r_reg.text
+    assert r_reg.json()["display_name"] == "Lord Alparslan"
+
+    r_chk1 = client.post("/api/auth/check_account", json={
+        "provider": "apple", "email": "alparslan@icloud.com", "provider_uid": "apple_u1"
+    })
+    assert r_chk1.status_code == 200, r_chk1.text
+    assert r_chk1.json()["exists"] is True
+    assert r_chk1.json()["display_name"] == "Lord Alparslan"
+
+    for dup_name in ("Alparslan", "Lord Alparslan", "Lord Edward"):
+        r_dup = client.post("/api/auth/login", json={
+            "provider": "google",
+            "display_name": dup_name,
+            "email": "other@gmail.com",
+            "provider_uid": "google_u2",
+        })
+        assert r_dup.status_code == 409, f"Çakışan isim ({dup_name}) 409 dönmeliydi: {r_dup.status_code} {r_dup.text}"
+        assert r_dup.json()["error_code"] == "NAME_TAKEN"
+
+    print("[PASS] 50 bariscil bot, check_account ve benzersiz Lord ismi (409 NAME_TAKEN) dogrulandi!")
+
 
 if __name__ == "__main__":
     main()

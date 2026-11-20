@@ -67,28 +67,57 @@ func check_server(callback: Callable = Callable()) -> void:
 	req.request(server_url + "/api/health")
 
 
-func login_online(provider: String, display_name: String, callback: Callable = Callable(), _retry_count: int = 0) -> void:
+func check_account_online(provider: String, email: String, provider_uid: String, callback: Callable = Callable()) -> void:
+	var req := HTTPRequest.new()
+	add_child(req)
+	req.timeout = 8.0
+	var payload := JSON.stringify({
+		"provider": provider,
+		"email": email.strip_edges(),
+		"provider_uid": provider_uid.strip_edges(),
+	})
+	var headers := ["Content-Type: application/json"]
+	req.request_completed.connect(func(result: int, response_code: int, _hdrs: PackedStringArray, body: PackedByteArray):
+		var success := (result == HTTPRequest.RESULT_SUCCESS and response_code == 200)
+		var res_data := {}
+		var json_str := body.get_string_from_utf8()
+		var test_json := JSON.new()
+		if not json_str.is_empty() and test_json.parse(json_str) == OK and typeof(test_json.data) == TYPE_DICTIONARY:
+			res_data = test_json.data
+		res_data["_http_code"] = response_code
+		if success:
+			is_server_reachable = true
+		if callback.is_valid():
+			callback.call(success, res_data)
+		req.queue_free()
+	)
+	req.request(server_url + "/api/auth/check_account", headers, HTTPClient.METHOD_POST, payload)
+
+
+func login_online(provider: String, display_name: String, callback: Callable = Callable(), _retry_count: int = 0, explicit_email: String = "", explicit_uid: String = "") -> void:
 	var req := HTTPRequest.new()
 	add_child(req)
 	req.timeout = 10.0
 
-	var auth_email := ""
-	var auth_uid := ""
+	var auth_email := explicit_email.strip_edges()
+	var auth_uid := explicit_uid.strip_edges()
 	var loop_pre = Engine.get_main_loop()
 	if loop_pre is SceneTree:
 		var auth_pre = loop_pre.root.get_node_or_null("AuthManager")
 		if auth_pre != null:
-			auth_email = str(auth_pre.email)
-			auth_uid = str(auth_pre.user_id)
+			if auth_email.is_empty():
+				auth_email = str(auth_pre.email).strip_edges()
+			if auth_uid.is_empty():
+				auth_uid = str(auth_pre.user_id).strip_edges()
 
 	var payload_dict := {
 		"provider": provider,
 		"display_name": display_name,
 	}
-	if not auth_email.strip_edges().is_empty():
-		payload_dict["email"] = auth_email.strip_edges()
-	if not auth_uid.strip_edges().is_empty():
-		payload_dict["provider_uid"] = auth_uid.strip_edges()
+	if not auth_email.is_empty():
+		payload_dict["email"] = auth_email
+	if not auth_uid.is_empty():
+		payload_dict["provider_uid"] = auth_uid
 	var payload := JSON.stringify(payload_dict)
 
 	var headers := ["Content-Type: application/json"]
@@ -96,34 +125,43 @@ func login_online(provider: String, display_name: String, callback: Callable = C
 	req.request_completed.connect(func(result: int, response_code: int, _hdrs: PackedStringArray, body: PackedByteArray):
 		var success := (result == HTTPRequest.RESULT_SUCCESS and response_code == 200)
 		var res_data := {}
+		var json_str := body.get_string_from_utf8()
+		var test_json := JSON.new()
+		if not json_str.is_empty() and test_json.parse(json_str) == OK and typeof(test_json.data) == TYPE_DICTIONARY:
+			res_data = test_json.data
+		res_data["_http_code"] = response_code
+
 		if success:
 			is_server_reachable = true
-			var json_str := body.get_string_from_utf8()
-			var test_json := JSON.new()
-			if test_json.parse(json_str) == OK and typeof(test_json.data) == TYPE_DICTIONARY:
-				res_data = test_json.data
-				auth_token = str(res_data.get("token", ""))
-				var loop = Engine.get_main_loop()
-				if loop is SceneTree:
-					var auth = loop.root.get_node_or_null("AuthManager")
-					if auth != null:
-						auth.auth_token = auth_token
-						if res_data.has("user_id") and not str(res_data.get("user_id", "")).is_empty():
-							auth.user_id = str(res_data.get("user_id"))
-						if res_data.has("display_name") and not str(res_data.get("display_name", "")).is_empty():
-							auth.display_name = str(res_data.get("display_name"))
-						if res_data.has("email") and not str(res_data.get("email", "")).is_empty():
-							auth.email = str(res_data.get("email"))
-						auth.save_session()
-					var wm = loop.root.get_node_or_null("WorldManager")
-					if wm != null and wm.has_method("apply_cloud_sync"):
-						wm.apply_cloud_sync(res_data)
+			auth_token = str(res_data.get("token", ""))
+			var loop = Engine.get_main_loop()
+			if loop is SceneTree:
+				var auth = loop.root.get_node_or_null("AuthManager")
+				if auth != null:
+					auth.auth_provider = provider
+					auth.is_logged_in = true
+					auth.auth_token = auth_token
+					if res_data.has("user_id") and not str(res_data.get("user_id", "")).is_empty():
+						auth.user_id = str(res_data.get("user_id"))
+					if res_data.has("display_name") and not str(res_data.get("display_name", "")).is_empty():
+						auth.display_name = str(res_data.get("display_name"))
+					else:
+						auth.display_name = display_name
+					if res_data.has("email") and not str(res_data.get("email", "")).is_empty():
+						auth.email = str(res_data.get("email"))
+					elif not auth_email.is_empty():
+						auth.email = auth_email
+					auth.save_session()
+					auth.auth_state_changed.emit(true, auth.get_profile())
+				var wm = loop.root.get_node_or_null("WorldManager")
+				if wm != null and wm.has_method("apply_cloud_sync"):
+					wm.apply_cloud_sync(res_data)
 			server_status_changed.emit(true, res_data)
-		elif _retry_count < 1 and is_inside_tree():
+		elif response_code != 400 and response_code != 403 and response_code != 409 and _retry_count < 1 and is_inside_tree():
 			req.queue_free()
 			get_tree().create_timer(1.5).timeout.connect(func():
 				if is_inside_tree():
-					login_online(provider, display_name, callback, _retry_count + 1)
+					login_online(provider, display_name, callback, _retry_count + 1, explicit_email, explicit_uid)
 			)
 			return
 

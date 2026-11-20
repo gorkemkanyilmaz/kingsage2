@@ -64,15 +64,16 @@ static func process_tick(state: Dictionary, now_unix: int, delta_seconds: float)
 					"unit_key": army_res.get("unit_key", ""),
 				})
 
-			# 3. Savaş/Yağma kararı
-			var war_res := BotWarScript.think_war(village, profile, state, now_unix)
-			if bool(war_res.get("action_taken", false)):
-				events.append({
-					"type": "bot_raid_sent",
-					"village_id": vid,
-					"target_id": war_res.get("target_id", -1),
-					"units": war_res.get("units", {}),
-				})
+			# 3. Savaş/Yağma kararı (barış modunda botlar kimseye saldırmaz)
+			if not BotWarScript.peace_mode:
+				var war_res := BotWarScript.think_war(village, profile, state, now_unix)
+				if bool(war_res.get("action_taken", false)):
+					events.append({
+						"type": "bot_raid_sent",
+						"village_id": vid,
+						"target_id": war_res.get("target_id", -1),
+						"units": war_res.get("units", {}),
+					})
 
 			village["next_bot_think_unix"] = now_unix + think_interval
 

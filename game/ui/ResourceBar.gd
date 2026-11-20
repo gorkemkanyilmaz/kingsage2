@@ -170,12 +170,16 @@ func refresh() -> void:
 
 	if village_name_label != null:
 		var auth = Engine.get_main_loop().root.get_node_or_null("AuthManager") if Engine.get_main_loop() is SceneTree else null
+		var existing_p := str(gs.player.get("name", "")).strip_edges()
+		var v_owner := str(v.get("owner", "")).strip_edges()
 		var user_name := ""
-		if auth != null and auth.is_logged_in and not auth.display_name.is_empty():
+		if not existing_p.is_empty() and existing_p != "Kral" and (v_owner == existing_p or auth == null or not auth.is_logged_in or auth.display_name.is_empty()):
+			user_name = existing_p
+		elif auth != null and auth.is_logged_in and not auth.display_name.is_empty():
 			user_name = auth.display_name
 			gs.player["name"] = user_name
 		else:
-			user_name = str(gs.player.get("name", ""))
+			user_name = existing_p
 		if user_name.is_empty() or user_name == "Kral":
 			user_name = "Lord Gorkem"
 			gs.player["name"] = user_name

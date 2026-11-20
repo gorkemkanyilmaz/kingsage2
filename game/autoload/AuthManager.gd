@@ -184,6 +184,13 @@ func load_session() -> bool:
 
 var _auth_sheet: CanvasLayer = null
 var _auth_poll_timer: Timer = null
+var _name_modal: CanvasLayer = null
+
+
+func _dismiss_name_modal() -> void:
+	if _name_modal != null and is_instance_valid(_name_modal):
+		_name_modal.queue_free()
+	_name_modal = null
 
 
 func _dismiss_auth_sheet() -> void:
@@ -389,7 +396,7 @@ func _start_ios_native_auth(prov: String, is_apple: bool, req_id: String, base_u
 			OS.shell_open(web_fallback_url)
 
 		if safari_fallback_opened[0] and ticks[0] % 8 == 0 and not remote_busy[0]:
-			_poll_oauth_endpoint(base_url, req_id, prov, remote_busy, on_complete)
+			_poll_oauth_endpoint(base_url, req_id, prov, remote_busy, parent_node, on_complete)
 
 		var found_res_path := ""
 		if FileAccess.file_exists("user://native_auth_res.json"):
@@ -416,13 +423,13 @@ func _start_ios_native_auth(prov: String, is_apple: bool, req_id: String, base_u
 			return
 		if bool(data.get("ok", false)):
 			var res_prov := str(data.get("provider", prov))
-			var res_name := str(data.get("name", ""))
 			var res_email := str(data.get("email", ""))
 			var res_uid := str(data.get("provider_uid", ""))
-			_dismiss_auth_sheet()
-			var prof := complete_external_login(res_prov, res_name, res_email, res_uid)
-			if on_complete.is_valid():
-				on_complete.call(prof)
+			if _auth_poll_timer != null and is_instance_valid(_auth_poll_timer):
+				_auth_poll_timer.stop()
+			if is_instance_valid(status_lbl):
+				status_lbl.text = "Hesap bilgileri doğrulanıyor..."
+			_handle_verified_identity(res_prov, res_email, res_uid, parent_node, on_complete)
 		else:
 			if is_instance_valid(status_lbl):
 				status_lbl.text = str(data.get("error", "Giriş iptal edildi."))
@@ -496,16 +503,17 @@ func _start_web_oauth(prov: String, is_apple: bool, req_id: String, base_url: St
 			var jp := JSON.new()
 			if jp.parse(raw_res) == OK and typeof(jp.data) == TYPE_DICTIONARY:
 				var data: Dictionary = jp.data
-				_dismiss_auth_sheet()
 				if bool(data.get("ok", false)):
-					var prof := complete_external_login(str(data.get("provider", prov)), str(data.get("name", "")), str(data.get("email", "")), str(data.get("provider_uid", "")))
-					if on_complete.is_valid():
-						on_complete.call(prof)
+					if _auth_poll_timer != null and is_instance_valid(_auth_poll_timer):
+						_auth_poll_timer.stop()
+					_handle_verified_identity(str(data.get("provider", prov)), str(data.get("email", "")), str(data.get("provider_uid", "")), parent_node, on_complete)
+				else:
+					_dismiss_auth_sheet()
 			else:
 				_dismiss_auth_sheet()
 			return
 		if ticks[0] % 6 == 0 and not remote_busy[0]:
-			_poll_oauth_endpoint(base_url, req_id, prov, remote_busy, on_complete)
+			_poll_oauth_endpoint(base_url, req_id, prov, remote_busy, parent_node, on_complete)
 	)
 	_auth_sheet.add_child(_auth_poll_timer)
 	_auth_poll_timer.start()
@@ -522,13 +530,13 @@ func _start_desktop_oauth(prov: String, is_apple: bool, req_id: String, base_url
 	var remote_busy := [false]
 	_auth_poll_timer.timeout.connect(func():
 		if not remote_busy[0]:
-			_poll_oauth_endpoint(base_url, req_id, prov, remote_busy, on_complete)
+			_poll_oauth_endpoint(base_url, req_id, prov, remote_busy, parent_node, on_complete)
 	)
 	_auth_sheet.add_child(_auth_poll_timer)
 	_auth_poll_timer.start()
 
 
-func _poll_oauth_endpoint(base_url: String, req_id: String, prov: String, remote_busy: Array, on_complete: Callable) -> void:
+func _poll_oauth_endpoint(base_url: String, req_id: String, prov: String, remote_busy: Array, parent_node: Node = null, on_complete: Callable = Callable()) -> void:
 	if _auth_sheet == null or not is_instance_valid(_auth_sheet):
 		return
 	remote_busy[0] = true
@@ -544,12 +552,233 @@ func _poll_oauth_endpoint(base_url: String, req_id: String, prov: String, remote
 				var st := str(payload.get("status", "pending"))
 				var data: Dictionary = payload.get("data", {})
 				if st == "done" and bool(data.get("ok", false)):
-					_dismiss_auth_sheet()
-					var prof := complete_external_login(str(data.get("provider", prov)), str(data.get("name", "")), str(data.get("email", "")), str(data.get("provider_uid", "")))
-					if on_complete.is_valid():
-						on_complete.call(prof)
+					if _auth_poll_timer != null and is_instance_valid(_auth_poll_timer):
+						_auth_poll_timer.stop()
+					_handle_verified_identity(str(data.get("provider", prov)), str(data.get("email", "")), str(data.get("provider_uid", "")), parent_node, on_complete)
 				elif st == "cancelled":
 					_dismiss_auth_sheet()
 		req.queue_free()
 	)
 	req.request("%s/api/auth/oauth_poll?session=%s" % [base_url, req_id])
+
+
+func _handle_verified_identity(prov: String, raw_email: String, raw_uid: String, parent_node: Node, on_complete: Callable) -> void:
+	var clean_prov := "apple" if prov.strip_edges().to_lower() == "apple" else "google"
+	var clean_email := raw_email.strip_edges().to_lower()
+	var clean_uid := raw_uid.strip_edges()
+	if clean_uid.is_empty() and not clean_email.is_empty():
+		clean_uid = clean_prov + "_" + (clean_prov + ":" + clean_email).sha256_text().substr(0, 14)
+
+	var loop = Engine.get_main_loop()
+	var net = loop.root.get_node_or_null("NetworkManager") if loop is SceneTree else null
+	if net != null and net.has_method("check_account_online"):
+		net.check_account_online(clean_prov, clean_email, clean_uid, func(success: bool, res_data: Dictionary):
+			_dismiss_auth_sheet()
+			if success and bool(res_data.get("exists", false)):
+				var existing_name := str(res_data.get("display_name", "")).strip_edges()
+				var resolved_email := str(res_data.get("email", clean_email))
+				var resolved_uid := str(res_data.get("user_id", clean_uid))
+				auth_provider = clean_prov
+				email = resolved_email
+				user_id = resolved_uid
+				net.login_online(clean_prov, existing_name, func(l_ok: bool, _l_data: Dictionary):
+					if not l_ok:
+						complete_external_login(clean_prov, existing_name, resolved_email, resolved_uid)
+					var prof := get_profile()
+					prof["_server_synced"] = l_ok
+					if on_complete.is_valid():
+						on_complete.call(prof)
+				, 0, resolved_email, resolved_uid)
+				return
+			_show_lord_name_prompt_modal(clean_prov, clean_email, clean_uid, parent_node, on_complete)
+		)
+	else:
+		_dismiss_auth_sheet()
+		_show_lord_name_prompt_modal(clean_prov, clean_email, clean_uid, parent_node, on_complete)
+
+
+func _show_lord_name_prompt_modal(prov: String, clean_email: String, clean_uid: String, parent_node: Node, on_complete: Callable) -> void:
+	_dismiss_name_modal()
+	_dismiss_auth_sheet()
+
+	_name_modal = CanvasLayer.new()
+	_name_modal.name = "LordNamePromptModal"
+	_name_modal.layer = 190
+
+	var root_ctrl := Control.new()
+	root_ctrl.mouse_filter = Control.MOUSE_FILTER_STOP
+	_name_modal.add_child(root_ctrl)
+	root_ctrl.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+
+	var vp_size := Vector2(1080.0, 1920.0)
+	if parent_node != null and parent_node.get_viewport() != null:
+		var r := parent_node.get_viewport().get_visible_rect().size
+		if r.x >= 100.0 and r.y >= 100.0:
+			vp_size = r
+
+	var dim := ColorRect.new()
+	dim.color = Color(0.02, 0.02, 0.05, 0.86)
+	dim.mouse_filter = Control.MOUSE_FILTER_STOP
+	root_ctrl.add_child(dim)
+	dim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+
+	var center := CenterContainer.new()
+	center.mouse_filter = Control.MOUSE_FILTER_PASS
+	root_ctrl.add_child(center)
+	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+
+	var card := PanelContainer.new()
+	card.custom_minimum_size = Vector2(clampf(vp_size.x - 96.0, 440.0, 680.0), 340.0)
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color(0.09, 0.08, 0.12, 0.99)
+	sb.border_color = Color(0.84, 0.68, 0.28, 0.96)
+	sb.set_border_width_all(3)
+	sb.set_corner_radius_all(22)
+	sb.set_content_margin_all(28)
+	card.add_theme_stylebox_override("panel", sb)
+	center.add_child(card)
+
+	var vb := VBoxContainer.new()
+	vb.add_theme_constant_override("separation", 15)
+	vb.alignment = BoxContainer.ALIGNMENT_CENTER
+	card.add_child(vb)
+
+	var FontCinzelBold = load("res://assets/fonts/Cinzel-Bold.ttf")
+	var FontNunitoBold = load("res://assets/fonts/Nunito-Bold.ttf")
+
+	var hdr := Label.new()
+	hdr.text = "HÜKÜMDAR İSMİNİZİ BELİRLEYİN"
+	hdr.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	hdr.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	if FontCinzelBold != null:
+		hdr.add_theme_font_override("font", FontCinzelBold)
+	hdr.add_theme_font_size_override("font_size", 27)
+	hdr.add_theme_color_override("font_color", Color(1.0, 0.90, 0.58))
+	vb.add_child(hdr)
+
+	var sub := Label.new()
+	sub.text = "Diyarda tanınacağınız hükümdar adınızı yazın.\nAynı isim başka bir lord tarafından alınmamış olmalıdır."
+	if not clean_email.is_empty():
+		sub.text += "\nHesap: " + clean_email
+	sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	sub.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	if FontNunitoBold != null:
+		sub.add_theme_font_override("font", FontNunitoBold)
+	sub.add_theme_font_size_override("font_size", 19)
+	sub.add_theme_color_override("font_color", Color(0.86, 0.82, 0.75))
+	vb.add_child(sub)
+
+	var name_edit := LineEdit.new()
+	name_edit.placeholder_text = "Örn: Alparslan veya Lord Fatih"
+	name_edit.max_length = 28
+	name_edit.alignment = HORIZONTAL_ALIGNMENT_CENTER
+	name_edit.custom_minimum_size = Vector2(0, 62)
+	if FontNunitoBold != null:
+		name_edit.add_theme_font_override("font", FontNunitoBold)
+	name_edit.add_theme_font_size_override("font_size", 24)
+	var inp_sb := StyleBoxFlat.new()
+	inp_sb.bg_color = Color(0.05, 0.05, 0.08, 1.0)
+	inp_sb.border_color = Color(0.68, 0.54, 0.24, 0.9)
+	inp_sb.set_border_width_all(2)
+	inp_sb.set_corner_radius_all(12)
+	inp_sb.set_content_margin_all(12)
+	name_edit.add_theme_stylebox_override("normal", inp_sb)
+	name_edit.add_theme_stylebox_override("focus", inp_sb)
+	name_edit.add_theme_color_override("font_color", Color(0.98, 0.96, 0.90))
+	name_edit.add_theme_color_override("font_placeholder_color", Color(0.55, 0.52, 0.48))
+	vb.add_child(name_edit)
+
+	var err_lbl := Label.new()
+	err_lbl.text = ""
+	err_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	err_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	if FontNunitoBold != null:
+		err_lbl.add_theme_font_override("font", FontNunitoBold)
+	err_lbl.add_theme_font_size_override("font_size", 19)
+	err_lbl.add_theme_color_override("font_color", Color(1.0, 0.42, 0.36))
+	vb.add_child(err_lbl)
+
+	var btn_confirm := Button.new()
+	btn_confirm.text = "Diyara Adım At"
+	btn_confirm.custom_minimum_size = Vector2(0, 64)
+	btn_confirm.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	if FontCinzelBold != null:
+		btn_confirm.add_theme_font_override("font", FontCinzelBold)
+	btn_confirm.add_theme_font_size_override("font_size", 24)
+	var ok_sb := StyleBoxFlat.new()
+	ok_sb.bg_color = Color(0.64, 0.46, 0.14, 1.0)
+	ok_sb.border_color = Color(0.98, 0.84, 0.42, 1.0)
+	ok_sb.set_border_width_all(2)
+	ok_sb.set_corner_radius_all(14)
+	ok_sb.set_content_margin_all(12)
+	btn_confirm.add_theme_stylebox_override("normal", ok_sb)
+	btn_confirm.add_theme_color_override("font_color", Color(1.0, 0.97, 0.88))
+	var ok_hover := ok_sb.duplicate() as StyleBoxFlat
+	ok_hover.bg_color = Color(0.75, 0.55, 0.18, 1.0)
+	btn_confirm.add_theme_stylebox_override("hover", ok_hover)
+	vb.add_child(btn_confirm)
+
+	var btn_cancel := Button.new()
+	btn_cancel.text = "Vazgeç"
+	btn_cancel.custom_minimum_size = Vector2(180, 48)
+	btn_cancel.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	if FontNunitoBold != null:
+		btn_cancel.add_theme_font_override("font", FontNunitoBold)
+	btn_cancel.add_theme_font_size_override("font_size", 19)
+	btn_cancel.pressed.connect(func():
+		_dismiss_name_modal()
+	)
+	vb.add_child(btn_cancel)
+
+	var submit_fn := func():
+		var chosen := name_edit.text.strip_edges()
+		if chosen.length() < 2:
+			err_lbl.text = "⚠️ Lütfen en az 2 karakterli bir Hükümdar ismi girin."
+			return
+		var norm := _normalize_name(chosen)
+		if norm.length() < 4:
+			err_lbl.text = "⚠️ Lütfen geçerli bir Hükümdar ismi girin."
+			return
+		btn_confirm.disabled = true
+		btn_confirm.text = "Kontrol Ediliyor..."
+		err_lbl.text = ""
+		var loop = Engine.get_main_loop()
+		var net = loop.root.get_node_or_null("NetworkManager") if loop is SceneTree else null
+		if net != null and net.has_method("login_online"):
+			net.login_online(prov, norm, func(ok: bool, res_data: Dictionary):
+				if not is_instance_valid(_name_modal):
+					return
+				if ok:
+					_dismiss_name_modal()
+					var prof := get_profile()
+					prof["_server_synced"] = true
+					if on_complete.is_valid():
+						on_complete.call(prof)
+					return
+				btn_confirm.disabled = false
+				btn_confirm.text = "Diyara Adım At"
+				var http_code := int(res_data.get("_http_code", 0))
+				var err_code := str(res_data.get("error_code", ""))
+				var detail := str(res_data.get("detail", ""))
+				if http_code == 409 or err_code == "NAME_TAKEN":
+					err_lbl.text = "⚠️ " + (detail if not detail.is_empty() else "Bu Lord ismi daha önce alınmış! Lütfen başka bir Lord ismi seçin.")
+				elif not detail.is_empty():
+					err_lbl.text = "⚠️ " + detail
+				else:
+					err_lbl.text = "⚠️ Sunucuya bağlanılamadı. Lütfen tekrar deneyin."
+			, 0, clean_email, clean_uid)
+		else:
+			_dismiss_name_modal()
+			var prof := complete_external_login(prov, norm, clean_email, clean_uid)
+			if on_complete.is_valid():
+				on_complete.call(prof)
+
+	btn_confirm.pressed.connect(submit_fn)
+	name_edit.text_submitted.connect(func(_txt: String): submit_fn.call())
+
+	var host := parent_node.get_tree().root if (parent_node != null and parent_node.get_tree() != null) else get_tree().root
+	if host != null:
+		host.add_child(_name_modal)
+	elif parent_node != null:
+		parent_node.add_child(_name_modal)
+	name_edit.call_deferred("grab_focus")

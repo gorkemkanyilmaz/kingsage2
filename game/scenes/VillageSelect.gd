@@ -410,63 +410,22 @@ func _maybe_show_boot_splash() -> void:
 	splash.add_child(bg)
 	bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 
-	var center := CenterContainer.new()
-	splash.add_child(center)
-	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-
-	var vb := VBoxContainer.new()
-	vb.alignment = BoxContainer.ALIGNMENT_CENTER
-	vb.add_theme_constant_override("separation", 18)
-	center.add_child(vb)
-
-	var icon_tex := load("res://assets/icons/app_icon_180.png")
-	if icon_tex is Texture2D:
-		var tr := TextureRect.new()
-		tr.texture = icon_tex
-		tr.custom_minimum_size = Vector2(180, 180)
-		tr.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-		tr.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-		vb.add_child(tr)
-
-	var title_lbl := Label.new()
-	title_lbl.text = "TAHT VE KILIÇ"
-	title_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	title_lbl.add_theme_font_override("font", FontCinzelBold)
-	title_lbl.add_theme_font_size_override("font_size", 46)
-	title_lbl.add_theme_color_override("font_color", Color(0.95, 0.81, 0.40, 1.0))
-	vb.add_child(title_lbl)
-
-	var sub_lbl := Label.new()
-	sub_lbl.text = "Diyar hazırlanıyor..."
-	sub_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	sub_lbl.add_theme_font_override("font", FontNunitoBold)
-	sub_lbl.add_theme_font_size_override("font_size", 24)
-	sub_lbl.add_theme_color_override("font_color", Color(0.78, 0.75, 0.67, 1.0))
-	vb.add_child(sub_lbl)
-
-	var bar := ProgressBar.new()
-	bar.custom_minimum_size = Vector2(360, 14)
-	bar.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-	bar.show_percentage = false
-	bar.min_value = 0.0
-	bar.max_value = 100.0
-	bar.value = 10.0
-	var pbg := StyleBoxFlat.new()
-	pbg.bg_color = Color(0.10, 0.08, 0.13, 1.0)
-	pbg.border_color = Color(0.42, 0.33, 0.15, 1.0)
-	pbg.set_border_width_all(1)
-	pbg.set_corner_radius_all(8)
-	var pfg := StyleBoxFlat.new()
-	pfg.bg_color = Color(0.90, 0.75, 0.33, 1.0)
-	pfg.set_corner_radius_all(8)
-	bar.add_theme_stylebox_override("background", pbg)
-	bar.add_theme_stylebox_override("fill", pfg)
-	vb.add_child(bar)
+	var launch_tex := load("res://assets/icons/ios_launch_2x.png")
+	var hero: TextureRect = null
+	if launch_tex is Texture2D:
+		hero = TextureRect.new()
+		hero.texture = launch_tex
+		hero.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		hero.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		hero.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		splash.add_child(hero)
+		hero.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 
 	var tw := create_tween()
-	tw.tween_property(bar, "value", 100.0, 0.72).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
-	tw.tween_property(bg, "modulate:a", 0.0, 0.22)
-	tw.parallel().tween_property(center, "modulate:a", 0.0, 0.22)
+	tw.tween_interval(0.38)
+	tw.tween_property(bg, "modulate:a", 0.0, 0.24)
+	if hero != null:
+		tw.parallel().tween_property(hero, "modulate:a", 0.0, 0.24)
 	tw.tween_callback(func():
 		if is_instance_valid(splash):
 			splash.queue_free()
@@ -481,12 +440,13 @@ func _do_login(provider: String) -> void:
 		auth.authenticate_with_provider(provider, desired_name, self, func(prof: Dictionary):
 			if not bool(prof.get("is_logged_in", false)):
 				return
-			var canonical_name := str(prof.get("name", desired_name))
-			if canonical_name.is_empty():
-				canonical_name = "Lord Gorkem" if provider == "google" else "Lord Roland"
-			var net = Engine.get_main_loop().root.get_node_or_null("NetworkManager") if Engine.get_main_loop() is SceneTree else null
-			if net != null:
-				net.login_online(provider, canonical_name)
+			if not bool(prof.get("_server_synced", false)):
+				var canonical_name := str(prof.get("name", desired_name))
+				if canonical_name.is_empty():
+					canonical_name = "Lord Gorkem" if provider == "google" else "Lord Roland"
+				var net = Engine.get_main_loop().root.get_node_or_null("NetworkManager") if Engine.get_main_loop() is SceneTree else null
+				if net != null:
+					net.login_online(provider, canonical_name)
 			_refresh_auth_state()
 		)
 		return

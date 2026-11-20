@@ -18,7 +18,7 @@ from typing import Dict, Any, List, Optional
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException, Header, Depends, Query, Request
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
@@ -376,6 +376,12 @@ class AuthLoginRequest(BaseModel):
     email: Optional[str] = Field(None, max_length=120)
     provider_uid: Optional[str] = Field(None, max_length=160)
 
+
+class CheckAccountRequest(BaseModel):
+    provider: str = Field(..., max_length=20)
+    email: Optional[str] = Field(None, max_length=120)
+    provider_uid: Optional[str] = Field(None, max_length=160)
+
 class JoinWorldRequest(BaseModel):
     world_id: int = Field(1, ge=1, le=10)
     target_x: int = Field(100, ge=0, le=200)
@@ -555,6 +561,12 @@ def simulate_village_lazy(v_dict: Dict[str, Any], now: int, conn: sqlite3.Connec
 # API Endpointleri (100+ Eşzamanlı Oyuncu Desteği)
 # -----------------------------------------------------------------------------
 
+def _row_first_int(row) -> int:
+    if not row:
+        return 0
+    return int((list(row.values())[0] if isinstance(row, dict) else row[0]) or 0)
+
+
 @app.get("/api")
 @app.get("/api/")
 @app.get("/api/health")
@@ -569,15 +581,19 @@ def health():
         cursor = conn.cursor()
         ensure_cloud_saves_table(cursor, conn.is_pg)
         _ensure_world_reset_epoch(cursor, now)
+        _ensure_world1_bots_seeded(cursor, now)
         cursor.execute("SELECT COUNT(*) FROM users")
-        u_count = cursor.fetchone()[0]
+        u_count = _row_first_int(cursor.fetchone())
         cursor.execute("SELECT COUNT(*) FROM villages WHERE is_bot = 0")
-        real_villages = cursor.fetchone()[0]
+        real_villages = _row_first_int(cursor.fetchone())
+        cursor.execute("SELECT COUNT(*) FROM villages WHERE world_id = 1 AND is_bot = 1")
+        bot_villages = _row_first_int(cursor.fetchone())
         conn.commit()
         conn.close()
     except Exception as e:
         db_status = "error"
         err_msg = str(e)
+        bot_villages = 0
 
     return {
         "status": "online",
@@ -590,17 +606,277 @@ def health():
         "march_speed_boost": MARCH_SPEED_BOOST,
         "registered_players": u_count,
         "real_player_villages": real_villages,
+        "world1_bot_villages": bot_villages,
         "server_time_unix": int(time.time()),
         "security": "100% Parameterized SQL (Injection-Proof), Bearer Auth, Server-Authoritative"
     }
 
 
-WORLD_RESET_EPOCH = 4
+WORLD_RESET_EPOCH = 5
 MARCH_SPEED_BOOST = 1.5
 MAX_REAL_PLAYERS_PER_WORLD = 100
 WORLDS_COUNT = 10
 MAP_SIZE = 200
 MIN_VILLAGE_DISTANCE = 9
+
+WORLD1_BOT_NAMES = [
+    "Lord Edward", "Baron Roland", "Kont Vlad", "Dük William", "Prens Arthur",
+    "Lord Richard", "Baron Godfrey", "Kont Baldwin", "Dük Robert", "Lord Henry",
+    "Baron Simon", "Kont Raymond", "Dük Geoffrey", "Lord Stephen", "Baron Guy",
+    "Kont Bohemond", "Dük Tancred", "Lord Walter", "Baron Hugh", "Kont Peter",
+    "Lord Gareth", "Baron Tristram", "Kont Lancelot", "Dük Galahad", "Lord Percival",
+    "Lord Bedivere", "Baron Kay", "Kont Lamorak", "Dük Gawain", "Lord Geraint",
+    "Baron Bors", "Kont Gaheris", "Dük Agravain", "Lord Ywain", "Baron Gareth II",
+    "Kont Dinadan", "Dük Palamedes", "Lord Sagramore", "Baron Lucan", "Kont Ector",
+    "Lord Colgrevance", "Baron Safir", "Kont Segwarides", "Dük Pelleas", "Lord Marhaus",
+    "Baron Dagonet", "Kont Tor", "Dük Bleoberis", "Lord Cador", "Baron Morholt",
+]
+
+POINTS_PER_LEVEL_PY = {
+    "main": 20, "stone": 20, "wood": 20, "iron": 20, "storage": 20, "farm": 10,
+    "barracks": 20, "wall": 20, "market": 20, "stable": 10, "hide": 10,
+    "garage": 20, "snob": 100, "smith": 40, "statue": 1000,
+}
+
+def _calc_village_points(blds: Dict[str, Any]) -> int:
+    return sum(int(POINTS_PER_LEVEL_PY.get(str(k), 0)) * int(v or 0) for k, v in (blds or {}).items())
+
+def _build_world1_bot_villages(now: int) -> List[Dict[str, Any]]:
+    rng = random.Random(1001)
+    placed: List[tuple] = []
+    out: List[Dict[str, Any]] = []
+    for idx, bname in enumerate(WORLD1_BOT_NAMES, start=1):
+        bx, by = 15, 15
+        for _ in range(300):
+            cx = rng.randint(15, 185)
+            cy = rng.randint(15, 185)
+            # Keep central spawn area around (100, 100) clear
+            if abs(cx - 100) < 11 and abs(cy - 100) < 11:
+                continue
+            if all(max(abs(cx - ox), abs(cy - oy)) >= MIN_VILLAGE_DISTANCE for ox, oy in placed):
+                bx, by = cx, cy
+                break
+        placed.append((bx, by))
+        tier_boost = idx % 3
+        blds = {
+            "main": 1 + (tier_boost >= 1),
+            "farm": 1 + (tier_boost >= 1),
+            "wood": 1 + (idx % 2),
+            "stone": 1 + ((idx + 1) % 2),
+            "iron": 1 + (tier_boost == 2),
+            "storage": 1 + (tier_boost >= 1),
+            "barracks": 1 if idx % 2 == 0 else 0,
+            "wall": 1 if idx % 3 == 0 else 0,
+            "hide": 1,
+        }
+        pts = _calc_village_points(blds)
+        units = {"spear": 4 + (idx % 7), "sword": (2 + idx % 4) if blds["barracks"] > 0 else 0}
+        out.append({
+            "id": idx,
+            "name": f"Kale {bname}",
+            "x": bx,
+            "y": by,
+            "owner": bname,
+            "points": pts,
+            "realm_of_power": pts,
+            "is_bot": True,
+            "is_barbarian": False,
+            "bonus_type": "",
+            "buildings": blds,
+            "resources": {"wood": 800, "stone": 800, "iron": 800},
+            "units": units,
+            "researched": {"spear": True, "sword": True} if blds["barracks"] > 0 else {"spear": True},
+            "support": [],
+            "protection_until": 0,
+            "conquest_protection_until": 0,
+            "last_sim_unix": now,
+        })
+    return out
+
+
+def _ensure_world1_bots_seeded(cursor, now: int) -> None:
+    cursor.execute("SELECT COUNT(*) FROM villages WHERE world_id = 1 AND is_bot = 1")
+    bot_cnt_row = cursor.fetchone()
+    bot_cnt = int((list(bot_cnt_row.values())[0] if isinstance(bot_cnt_row, dict) else bot_cnt_row[0]) or 0) if bot_cnt_row else 0
+    bots = None
+    if bot_cnt < 50:
+        bots = _build_world1_bot_villages(now)
+        for bv in bots:
+            cursor.execute("SELECT id FROM villages WHERE id = ?", (bv["id"],))
+            if not cursor.fetchone():
+                cursor.execute("""
+                    INSERT INTO villages (
+                        id, world_id, user_id, name, x, y, owner, points, is_bot, is_barbarian,
+                        buildings_json, resources_json, units_json, last_calc_unix, protection_until_unix
+                    ) VALUES (?, 1, NULL, ?, ?, ?, ?, ?, 1, 0, ?, ?, ?, ?, 0)
+                """, (
+                    bv["id"], bv["name"], bv["x"], bv["y"], bv["owner"], bv["points"],
+                    json.dumps(bv["buildings"]), json.dumps(bv["resources"]), json.dumps(bv["units"]), now
+                ))
+
+    cursor.execute("SELECT state_json FROM world_states WHERE world_id = 1")
+    ws_row = cursor.fetchone()
+    if not ws_row:
+        if bots is None:
+            bots = _build_world1_bot_villages(now)
+        tiles = {f"{bv['x']},{bv['y']}": bv["id"] for bv in bots}
+        w1_payload = {
+            "world_id": 1,
+            "world_name": "Dünya 1",
+            "seed": 1001,
+            "created_unix": now,
+            "last_saved_unix": now,
+            "last_bot_sim_unix": now,
+            "registered_real_players": [],
+            "state": {
+                "world": {
+                    "world_id": 1,
+                    "seed": 1001,
+                    "size": MAP_SIZE,
+                    "sim_now_unix": now,
+                    "base_speed": 1.0,
+                    "base_unit_speed": 1.0,
+                    "speed": 2.0,
+                    "unit_speed": 2.0,
+                    "starter_boost_days": 7,
+                    "tiles": tiles,
+                    "villages": bots,
+                    "player_profiles": {},
+                    "player_starter_boost": {},
+                },
+                "villages": bots,
+                "queues": [],
+                "movements": [],
+                "reports": [],
+                "messages": [],
+                "alliances": [],
+            },
+        }
+        cursor.execute(
+            "INSERT INTO world_states (world_id, state_json, updated_unix) VALUES (1, ?, ?)",
+            (json.dumps(w1_payload, ensure_ascii=False), now),
+        )
+    else:
+        try:
+            w_data = json.loads(ws_row["state_json"])
+            st = w_data.setdefault("state", {})
+            vills = st.get("villages") or []
+            existing_bot_cnt = sum(1 for v in vills if isinstance(v, dict) and bool(v.get("is_bot", False)))
+            if existing_bot_cnt == 0:
+                if bots is None:
+                    bots = _build_world1_bot_villages(now)
+                existing_ids = {int(v.get("id", 0) or 0) for v in vills if isinstance(v, dict)}
+                occupied = {(int(v.get("x", 0) or 0), int(v.get("y", 0) or 0)) for v in vills if isinstance(v, dict)}
+                for bv in bots:
+                    if bv["id"] in existing_ids:
+                        continue
+                    if not _is_spot_free_dist(occupied, bv["x"], bv["y"], MIN_VILLAGE_DISTANCE, MAP_SIZE):
+                        nx, ny = _find_free_spot_on_server(vills, bv["x"], bv["y"], MIN_VILLAGE_DISTANCE, MAP_SIZE)
+                        bv["x"], bv["y"] = nx, ny
+                    occupied.add((bv["x"], bv["y"]))
+                    vills.append(bv)
+                st["villages"] = sorted(vills, key=lambda v: int(v.get("id", 0) or 0))
+                _rebuild_tiles(st)
+                cursor.execute(
+                    "UPDATE world_states SET state_json = ?, updated_unix = ? WHERE world_id = 1",
+                    (json.dumps(w_data, ensure_ascii=False), now),
+                )
+        except Exception:
+            pass
+
+
+def _simulate_server_bots(w_data: Dict[str, Any], cursor, now: int) -> bool:
+    """Barışçıl bot gelişimi: 50 bot köyü binalarını geliştirir ve asker eğitir; kimseye saldırmaz."""
+    if not isinstance(w_data, dict):
+        return False
+    last_sim = int(w_data.get("last_bot_sim_unix", 0) or 0)
+    elapsed = now - last_sim
+    if elapsed < 90:
+        return False
+    elapsed = min(elapsed, 86400)
+    st = w_data.get("state")
+    if not isinstance(st, dict):
+        return False
+    vills = st.get("villages")
+    if not isinstance(vills, list):
+        return False
+
+    build_steps = max(1, min(6, elapsed // 180))
+    changed = False
+    for v in vills:
+        if not isinstance(v, dict) or not bool(v.get("is_bot", False)):
+            continue
+        blds = v.setdefault("buildings", {})
+        res = v.setdefault("resources", {"wood": 800, "stone": 800, "iron": 800})
+        units = v.setdefault("units", {})
+
+        # Kaynak üretimi
+        stor_lvl = max(1, int(blds.get("storage", 1) or 1))
+        cap = int(round(1000 * (1.23 ** (stor_lvl - 1))))
+        for rk in ("wood", "stone", "iron"):
+            lvl = max(1, int(blds.get(rk, 1) or 1))
+            rate_hr = 30.0 * (1.16 ** (lvl - 1)) * 2.0
+            res[rk] = min(cap, int(res.get(rk, 0) or 0) + int(rate_hr * elapsed / 3600.0))
+
+        # Barışçıl köy geliştirme ve asker eğitimi (botlar kimseye saldırmaz)
+        did_upgrade = False
+        for _ in range(build_steps):
+            # Kışla açmayı teşvik et (gerekli önkoşullar main 3, farm 3, storage 3 -> sonra barracks 1)
+            target_order = ["wood", "stone", "iron", "farm", "storage", "main", "barracks", "wall", "hide"]
+            if int(blds.get("main", 1) or 1) >= 3 and int(blds.get("farm", 1) or 1) >= 3 and int(blds.get("storage", 1) or 1) >= 3 and int(blds.get("barracks", 0) or 0) < 1:
+                pick = "barracks"
+            else:
+                pick = min(target_order, key=lambda k: (int(blds.get(k, 0) or 0), target_order.index(k)))
+                if pick == "barracks" and int(blds.get("barracks", 0) or 0) == 0:
+                    if int(blds.get("main", 1) or 1) < 3:
+                        pick = "main"
+                    elif int(blds.get("farm", 1) or 1) < 3:
+                        pick = "farm"
+                    elif int(blds.get("storage", 1) or 1) < 3:
+                        pick = "storage"
+
+            cur_lvl = int(blds.get(pick, 0) or 0)
+            max_lvl = 25 if pick in ("wood", "stone", "iron", "farm", "storage", "main") else 15
+            if cur_lvl < max_lvl:
+                cost = int(65 * (1.32 ** cur_lvl))
+                if res.get("wood", 0) >= cost and res.get("stone", 0) >= cost and res.get("iron", 0) >= cost:
+                    res["wood"] -= cost
+                    res["stone"] -= cost
+                    res["iron"] -= cost
+                    blds[pick] = cur_lvl + 1
+                    did_upgrade = True
+
+            # Kışlası açık botlar asker üretir (kışla yoksa temel çiftçi milisi)
+            if int(blds.get("barracks", 0) or 0) >= 1:
+                total_u = sum(int(val or 0) for val in units.values())
+                add_n = 2
+                if total_u < 120 and res.get("wood", 0) >= 50 * add_n and res.get("stone", 0) >= 30 * add_n and res.get("iron", 0) >= 40 * add_n:
+                    uk = "spear" if (total_u % 2 == 0) else "sword"
+                    res["wood"] -= 50 * add_n
+                    res["stone"] -= 30 * add_n
+                    res["iron"] -= 40 * add_n
+                    units[uk] = int(units.get(uk, 0) or 0) + add_n
+                    v.setdefault("researched", {})["spear"] = True
+                    v["researched"]["sword"] = True
+                    did_upgrade = True
+
+        if did_upgrade:
+            pts = _calc_village_points(blds)
+            v["points"] = pts
+            v["realm_of_power"] = pts
+            v["last_sim_unix"] = now
+            changed = True
+            try:
+                cursor.execute(
+                    "UPDATE villages SET points = ?, buildings_json = ?, resources_json = ?, units_json = ?, last_calc_unix = ? WHERE id = ? AND is_bot = 1",
+                    (pts, json.dumps(blds), json.dumps(res), json.dumps(units), now, int(v["id"])),
+                )
+            except Exception:
+                pass
+
+    w_data["last_bot_sim_unix"] = now
+    w_data["last_saved_unix"] = max(int(w_data.get("last_saved_unix", 0) or 0), now)
+    return changed or True
 
 
 def _norm_p_name(raw_name: str) -> str:
@@ -1236,19 +1512,42 @@ def merge_world_state(server_w: Optional[Dict[str, Any]], client_raw: Dict[str, 
         if _is_real_player_village(v) and _matches_player(str(v.get("owner", "")), act_name)
     }
 
-    # 3. Kuyruklar (queues): aktif oyuncunun köylerinin kuyruğu client'tan, diğerlerininki server'dan
+    bot_vids_now = {
+        int(v.get("id", 0)) for v in s_state["villages"]
+        if isinstance(v, dict) and bool(v.get("is_bot", False))
+    }
+    # 3. Kuyruklar (queues): aktif oyuncunun kuyrukları client'tan, diğer oyuncularınki server'dan, bot kuyrukları korunur
     merged_queues: List[Dict[str, Any]] = []
+    seen_q_sigs = set()
+    client_has_bot_q = any(
+        isinstance(q, dict) and int(q.get("village_id", 0) or 0) in bot_vids_now
+        for q in (c_state.get("queues") or [])
+    )
+    use_client_bots = client_has_bot_q and c_last >= s_last
     for q in (s_state.get("queues") or []):
-        if isinstance(q, dict) and int(q.get("village_id", 0) or 0) not in acting_vids_now:
+        if not isinstance(q, dict):
+            continue
+        q_vid = int(q.get("village_id", 0) or 0)
+        if q_vid in acting_vids_now:
+            continue
+        if q_vid in bot_vids_now and use_client_bots:
+            continue
+        q_sig = (q_vid, str(q.get("type", "")), str(q.get("key", "")), int(q.get("finish_unix", 0) or 0))
+        if q_sig not in seen_q_sigs:
+            seen_q_sigs.add(q_sig)
             merged_queues.append(q)
     for q in (c_state.get("queues") or []):
-        if isinstance(q, dict):
-            qc = copy.deepcopy(q)
-            q_vid = int(qc.get("village_id", 0) or 0)
-            if q_vid in vid_remap:
-                q_vid = vid_remap[q_vid]
-                qc["village_id"] = q_vid
-            if q_vid in acting_vids_now:
+        if not isinstance(q, dict):
+            continue
+        qc = copy.deepcopy(q)
+        q_vid = int(qc.get("village_id", 0) or 0)
+        if q_vid in vid_remap:
+            q_vid = vid_remap[q_vid]
+            qc["village_id"] = q_vid
+        if q_vid in acting_vids_now or (q_vid in bot_vids_now and use_client_bots):
+            q_sig = (q_vid, str(qc.get("type", "")), str(qc.get("key", "")), int(qc.get("finish_unix", 0) or 0))
+            if q_sig not in seen_q_sigs:
+                seen_q_sigs.add(q_sig)
                 merged_queues.append(qc)
     s_state["queues"] = merged_queues
 
@@ -1459,6 +1758,7 @@ def _ensure_world_reset_epoch(cursor, now: int) -> None:
     ):
         cursor.execute(f"DELETE FROM {tbl}")
     _ensure_worlds_rows(cursor, now)
+    _ensure_world1_bots_seeded(cursor, now)
     val_str = str(WORLD_RESET_EPOCH)
     if row:
         cursor.execute("UPDATE server_meta SET v = ? WHERE k = ?", (val_str, "world_reset_epoch"))
@@ -1543,11 +1843,22 @@ def _serialize_server_village(v_row) -> Optional[Dict[str, Any]]:
 
 def _fetch_cloud_and_village(cursor, user_id: str, display_name: str):
     now = int(time.time())
+    _ensure_world1_bots_seeded(cursor, now)
     _migrate_legacy_cloud_saves_to_world_states(cursor, now)
     worlds_meta = _sync_worlds_table_from_states(cursor, now)
 
     cursor.execute("SELECT world_id, state_json, updated_unix FROM world_states ORDER BY world_id ASC")
     ws_rows = cursor.fetchall()
+    for row in ws_rows:
+        if int(row["world_id"]) == 1:
+            try:
+                w1 = json.loads(row["state_json"])
+                if _simulate_server_bots(w1, cursor, now):
+                    new_js = json.dumps(w1, ensure_ascii=False)
+                    cursor.execute("UPDATE world_states SET state_json = ?, updated_unix = ? WHERE world_id = 1", (new_js, now))
+                    row["state_json"] = new_js
+            except Exception:
+                pass
 
     chosen_w = None
     chosen_updated = 0
@@ -1614,11 +1925,131 @@ def _fetch_cloud_and_village(cursor, user_id: str, display_name: str):
     return cloud_state, chosen_updated, server_village
 
 
+def _name_variants(raw_name: str) -> set:
+    norm = normalize_display_name(raw_name) or ""
+    if not norm:
+        return set()
+    bare = norm[5:].strip() if norm.lower().startswith("lord ") else norm
+    variants = {norm.lower()}
+    if bare:
+        variants.add(bare.lower())
+        variants.add(f"lord {bare.lower()}")
+    return variants
+
+
+def _is_display_name_taken(cursor, display_name: str, exclude_user_id: Optional[str] = None) -> bool:
+    wanted = _name_variants(display_name)
+    if not wanted:
+        return True
+
+    # 1. Bot isimleri ayrılmıştır
+    for bname in WORLD1_BOT_NAMES:
+        if _name_variants(bname) & wanted:
+            return True
+
+    # 2. Kayıtlı diğer oyuncular
+    cursor.execute("SELECT id, display_name FROM users")
+    for u in cursor.fetchall():
+        if exclude_user_id and str(u["id"]) == str(exclude_user_id):
+            continue
+        if _name_variants(str(u["display_name"] or "")) & wanted:
+            return True
+
+    # 3. Köyler tablosundaki gerçek oyuncular ve botlar
+    cursor.execute("SELECT user_id, owner, is_bot FROM villages WHERE is_barbarian = 0")
+    for vr in cursor.fetchall():
+        vr_d = dict(vr)
+        if exclude_user_id and vr_d.get("user_id") and str(vr_d["user_id"]) == str(exclude_user_id):
+            continue
+        if _name_variants(str(vr_d.get("owner") or "")) & wanted:
+            return True
+
+    # 4. Ortak dünya durumlarındaki kayıtlı gerçek oyuncular
+    cursor.execute("SELECT state_json FROM world_states")
+    for ws in cursor.fetchall():
+        try:
+            wd = json.loads(ws["state_json"])
+            for rp in _collect_real_players(wd):
+                if exclude_user_id:
+                    cursor.execute("SELECT display_name FROM users WHERE id = ?", (exclude_user_id,))
+                    ex_u = cursor.fetchone()
+                    if ex_u and _matches_player(rp, str(ex_u["display_name"] or "")):
+                        continue
+                if _name_variants(rp) & wanted:
+                    return True
+        except Exception:
+            pass
+    return False
+
+
+@app.post("/api/auth/check_account")
+def auth_check_account(req: CheckAccountRequest):
+    now = int(time.time())
+    provider = (req.provider or "google").strip().lower()
+    if provider not in ("google", "apple"):
+        provider = "google"
+    clean_email = (req.email or "").strip().lower()
+    clean_uid = (req.provider_uid or "").strip()
+
+    conn = get_db()
+    cursor = conn.cursor()
+    ensure_cloud_saves_table(cursor, conn.is_pg)
+    _ensure_world_reset_epoch(cursor, now)
+    _ensure_world1_bots_seeded(cursor, now)
+
+    existing = None
+    if clean_uid:
+        uid_hash = f"{provider}_{hashlib.sha256(f'{provider}:{clean_uid}'.encode('utf-8')).hexdigest()[:12]}"
+        cursor.execute("SELECT * FROM users WHERE id = ?", (uid_hash,))
+        existing = cursor.fetchone()
+        if not existing:
+            cursor.execute("SELECT * FROM users WHERE id = ?", (clean_uid,))
+            existing = cursor.fetchone()
+    if not existing and clean_email:
+        cursor.execute("SELECT * FROM users WHERE LOWER(email) = LOWER(?) AND provider = ?", (clean_email, provider))
+        existing = cursor.fetchone()
+
+    if not existing:
+        conn.commit()
+        conn.close()
+        return {"ok": True, "exists": False}
+
+    user_id = existing["id"]
+    display_name = existing["display_name"]
+    email = dict(existing).get("email") or clean_email
+    created_unix = int(existing["created_unix"] or now)
+    token = f"tk_tok_{secrets.token_hex(24)}"
+    cursor.execute("UPDATE users SET token = ?, last_login_unix = ? WHERE id = ?", (token, now, user_id))
+
+    cloud_state, cloud_updated_unix, server_village = _fetch_cloud_and_village(cursor, user_id, display_name)
+    worlds_meta = _sync_worlds_table_from_states(cursor, now)
+    has_village = bool(server_village is not None or _player_has_village_in_world(cloud_state, display_name))
+    conn.commit()
+    conn.close()
+
+    return {
+        "ok": True,
+        "exists": True,
+        "token": token,
+        "user_id": user_id,
+        "provider": provider,
+        "email": email,
+        "display_name": display_name,
+        "created_unix": created_unix,
+        "starter_boost_until_unix": created_unix + STARTER_BOOST_SECONDS,
+        "has_village": has_village,
+        "cloud_state": cloud_state,
+        "worlds_meta": worlds_meta,
+        "updated_unix": cloud_updated_unix,
+        "server_village": server_village,
+    }
+
+
 @app.post("/api/auth/login")
 def auth_login(req: AuthLoginRequest):
     display_name = normalize_display_name(req.display_name)
     if not display_name:
-        raise HTTPException(status_code=400, detail="Geçersiz kullanıcı adı.")
+        return JSONResponse(status_code=400, content={"ok": False, "error_code": "INVALID_NAME", "detail": "Geçersiz Lord ismi."})
 
     now = int(time.time())
     provider = (req.provider or "google").strip().lower()
@@ -1626,9 +2057,10 @@ def auth_login(req: AuthLoginRequest):
         provider = "google"
 
     clean_email = (req.email or "").strip().lower()
-    uid_seed = f"{provider}:{clean_email}" if clean_email else f"{provider}:{display_name.lower()}"
-    if req.provider_uid and req.provider_uid.strip():
-        uid_seed = f"{provider}:{req.provider_uid.strip()}"
+    clean_uid = (req.provider_uid or "").strip()
+    has_explicit_identity = bool(clean_email or clean_uid)
+
+    uid_seed = f"{provider}:{clean_uid}" if clean_uid else (f"{provider}:{clean_email}" if clean_email else f"{provider}:{display_name.lower()}")
     det_hash = hashlib.sha256(uid_seed.encode("utf-8")).hexdigest()[:12]
     user_id = f"{provider}_{det_hash}"
     token = f"tk_tok_{secrets.token_hex(24)}"
@@ -1638,6 +2070,7 @@ def auth_login(req: AuthLoginRequest):
     cursor = conn.cursor()
     ensure_cloud_saves_table(cursor, conn.is_pg)
     _ensure_world_reset_epoch(cursor, now)
+    _ensure_world1_bots_seeded(cursor, now)
 
     bare_name = display_name[5:].strip() if display_name.startswith("Lord ") else display_name
     candidates = [display_name]
@@ -1645,27 +2078,52 @@ def auth_login(req: AuthLoginRequest):
         candidates.append(bare_name)
 
     existing = None
-    if clean_email:
-        cursor.execute("SELECT * FROM users WHERE LOWER(email) = LOWER(?) AND provider = ?", (clean_email, provider))
-        existing = cursor.fetchone()
-    if not existing:
+    if has_explicit_identity:
+        # Gerçek Apple/Google hesabı: yalnızca kendi UID veya e-postasıyla eşleş; başka hesabın ismine sızma!
+        if clean_uid:
+            cursor.execute("SELECT * FROM users WHERE id = ?", (user_id,))
+            existing = cursor.fetchone()
+            if not existing:
+                cursor.execute("SELECT * FROM users WHERE id = ?", (clean_uid,))
+                existing = cursor.fetchone()
+        if not existing and clean_email:
+            cursor.execute("SELECT * FROM users WHERE LOWER(email) = LOWER(?) AND provider = ?", (clean_email, provider))
+            existing = cursor.fetchone()
+
+        exclude_uid = existing["id"] if existing else user_id
+        if _is_display_name_taken(cursor, display_name, exclude_user_id=exclude_uid):
+            conn.commit()
+            conn.close()
+            return JSONResponse(
+                status_code=409,
+                content={
+                    "ok": False,
+                    "error_code": "NAME_TAKEN",
+                    "detail": "Bu Lord ismi daha önce alınmış! Lütfen başka bir Lord ismi seçin.",
+                },
+            )
+    else:
+        # Geriye dönük uyumluluk: isimsiz/test login çağrıları
         for cand in candidates:
             cursor.execute("SELECT * FROM users WHERE LOWER(display_name) = LOWER(?) AND provider = ?", (cand, provider))
             existing = cursor.fetchone()
             if existing:
                 break
-    if not existing:
-        for cand in candidates:
-            cursor.execute("SELECT * FROM users WHERE LOWER(display_name) = LOWER(?)", (cand,))
-            existing = cursor.fetchone()
-            if existing:
-                break
+        if not existing:
+            for cand in candidates:
+                cursor.execute("SELECT * FROM users WHERE LOWER(display_name) = LOWER(?)", (cand,))
+                existing = cursor.fetchone()
+                if existing:
+                    break
 
     created_unix = now
     if existing:
         user_id = existing["id"]
-        display_name = existing["display_name"]
-        email = existing.get("email") or email
+        if not has_explicit_identity:
+            display_name = existing["display_name"]
+        elif existing["display_name"] != display_name:
+            cursor.execute("UPDATE users SET display_name = ? WHERE id = ?", (display_name, user_id))
+        email = dict(existing).get("email") or email
         created_unix = int(existing["created_unix"] or now)
         cursor.execute("UPDATE users SET token = ?, last_login_unix = ?, provider = ? WHERE id = ?", (token, now, provider, user_id))
     else:
@@ -1788,8 +2246,22 @@ def join_world(req: JoinWorldRequest, user: Dict[str, Any] = Depends(get_current
 
 @app.get("/api/worlds/{world_id}/map")
 def get_world_map(world_id: int):
+    now = int(time.time())
     conn = get_db()
     cursor = conn.cursor()
+    ensure_cloud_saves_table(cursor, conn.is_pg)
+    _ensure_world_reset_epoch(cursor, now)
+    if world_id == 1:
+        _ensure_world1_bots_seeded(cursor, now)
+        cursor.execute("SELECT state_json FROM world_states WHERE world_id = 1")
+        ws_row = cursor.fetchone()
+        if ws_row:
+            try:
+                w1 = json.loads(ws_row["state_json"])
+                if _simulate_server_bots(w1, cursor, now):
+                    cursor.execute("UPDATE world_states SET state_json = ?, updated_unix = ? WHERE world_id = 1", (json.dumps(w1, ensure_ascii=False), now))
+            except Exception:
+                pass
     cursor.execute("""
         SELECT v.id, v.name, v.x, v.y, v.owner, v.points, v.is_bot, v.is_barbarian,
                v.protection_until_unix, a.tag as alliance_tag
@@ -1799,6 +2271,7 @@ def get_world_map(world_id: int):
         WHERE v.world_id = ?
     """, (world_id,))
     rows = cursor.fetchall()
+    conn.commit()
     conn.close()
     return {"ok": True, "villages": [dict(r) for r in rows]}
 
@@ -2315,8 +2788,6 @@ def oauth_page(
     <form id="authForm" autocomplete="on">
       <label for="email">{"Apple ID E-posta" if is_apple else "Google E-posta (@gmail.com)"}</label>
       <input id="email" name="email" type="email" inputmode="email" autocomplete="email" placeholder="{html.escape(email_ph)}" required />
-      <label for="name">Hükümdar / Görünür Ad (İsteğe bağlı)</label>
-      <input id="name" name="name" type="text" autocomplete="name" placeholder="E-postadan otomatik doldurulur" />
       <div id="errBox" class="err"></div>
       <div class="actions">
         <button class="primary" type="submit" id="submitBtn">{"Apple ile Devam Et" if is_apple else "Google ile Devam Et"}</button>
@@ -2332,7 +2803,6 @@ def oauth_page(
       const STORE_KEY = "tvk_oauth_accounts_" + PROV;
       const savedDiv = document.getElementById("savedList");
       const emailInp = document.getElementById("email");
-      const nameInp = document.getElementById("name");
       const errBox = document.getElementById("errBox");
       const submitBtn = document.getElementById("submitBtn");
 
@@ -2342,10 +2812,10 @@ def oauth_page(
           return Array.isArray(list) ? list : [];
         }} catch(e) {{ return []; }}
       }}
-      function saveAccount(email, name) {{
+      function saveAccount(email) {{
         try {{
           let list = loadSaved().filter(a => a && a.email && a.email.toLowerCase() !== email.toLowerCase());
-          list.unshift({{ email, name }});
+          list.unshift({{ email }});
           localStorage.setItem(STORE_KEY, JSON.stringify(list.slice(0, 5)));
         }} catch(e) {{}}
       }}
@@ -2356,27 +2826,22 @@ def oauth_page(
           const btn = document.createElement("button");
           btn.type = "button";
           btn.className = "acct-btn";
-          const ch = (acc.name || acc.email || "?").charAt(0).toUpperCase();
+          const ch = (acc.email || "?").charAt(0).toUpperCase();
           const av = document.createElement("div");
           av.className = "acct-avatar";
           av.textContent = ch;
           const info = document.createElement("div");
           const b = document.createElement("div");
           b.style.fontWeight = "700";
-          b.textContent = acc.name || acc.email;
-          const s = document.createElement("div");
-          s.style.fontSize = "12px";
-          s.style.opacity = "0.75";
-          s.textContent = acc.email;
+          b.textContent = acc.email;
           info.appendChild(b);
-          info.appendChild(s);
           btn.appendChild(av);
           btn.appendChild(info);
-          btn.onclick = () => completeLogin(acc.email, acc.name);
+          btn.onclick = () => completeLogin(acc.email);
           savedDiv.appendChild(btn);
         }});
       }}
-      async function maybePasskey(email, name) {{
+      async function maybePasskey(email) {{
         if (PROV === "apple" && window.PublicKeyCredential && PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable) {{
           try {{
             const ok = await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable();
@@ -2387,7 +2852,7 @@ def oauth_page(
                 publicKey: {{
                   challenge: ch,
                   rp: {{ name: "Taht ve Kilic" }},
-                  user: {{ id: new TextEncoder().encode(email), name: email, displayName: name || email }},
+                  user: {{ id: new TextEncoder().encode(email), name: email, displayName: email }},
                   pubKeyCredParams: [{{ type: "public-key", alg: -7 }}, {{ type: "public-key", alg: -257 }}],
                   authenticatorSelection: {{ authenticatorAttachment: "platform", userVerification: "required" }},
                   timeout: 15000
@@ -2402,7 +2867,7 @@ def oauth_page(
         }}
         return true;
       }}
-      async function completeLogin(emailVal, nameVal) {{
+      async function completeLogin(emailVal) {{
         const cleanEmail = (emailVal || "").trim().toLowerCase();
         if (!cleanEmail || !cleanEmail.includes("@")) {{
           errBox.textContent = "Lütfen geçerli bir e-posta adresi girin.";
@@ -2411,7 +2876,7 @@ def oauth_page(
         submitBtn.disabled = true;
         errBox.textContent = "";
         if (PLAT === "web") {{
-          const passOk = await maybePasskey(cleanEmail, nameVal);
+          const passOk = await maybePasskey(cleanEmail);
           if (!passOk) {{
             submitBtn.disabled = false;
             errBox.textContent = "Face ID / Passkey doğrulaması iptal edildi.";
@@ -2421,21 +2886,21 @@ def oauth_page(
         const res = await fetch("/api/auth/oauth_submit", {{
           method: "POST",
           headers: {{ "Content-Type": "application/json" }},
-          body: JSON.stringify({{ session: SESS, provider: PROV, email: cleanEmail, name: (nameVal || "").trim(), cancelled: false }})
+          body: JSON.stringify({{ session: SESS, provider: PROV, email: cleanEmail, name: "", cancelled: false }})
         }});
         const data = await res.json();
-        saveAccount(data.email || cleanEmail, data.name || nameVal || cleanEmail);
+        saveAccount(data.email || cleanEmail);
         if (PLAT === "ios") {{
           const qs = new URLSearchParams({{
             ok: "1",
             provider: PROV,
             email: data.email || cleanEmail,
-            name: data.name || "",
+            name: "",
             provider_uid: data.provider_uid || ""
           }});
           window.location.href = "tahtkilic://auth?" + qs.toString();
         }} else {{
-          const msg = {{ type: "tvk_oauth", ok: true, session: SESS, provider: PROV, email: data.email, name: data.name, provider_uid: data.provider_uid }};
+          const msg = {{ type: "tvk_oauth", ok: true, session: SESS, provider: PROV, email: data.email, name: "", provider_uid: data.provider_uid }};
           try {{ if (window.parent && window.parent !== window) window.parent.postMessage(msg, "*"); }} catch(e) {{}}
           try {{ if (window.opener) window.opener.postMessage(msg, "*"); }} catch(e) {{}}
           setTimeout(() => {{ try {{ window.close(); }} catch(e) {{}} }}, 150);
@@ -2443,7 +2908,7 @@ def oauth_page(
       }}
       document.getElementById("authForm").onsubmit = (ev) => {{
         ev.preventDefault();
-        completeLogin(emailInp.value, nameInp.value);
+        completeLogin(emailInp.value);
       }};
       document.getElementById("cancelBtn").onclick = async () => {{
         try {{
@@ -2480,9 +2945,10 @@ def oauth_submit(req: OAuthSubmitRequest):
         status = "cancelled"
     else:
         clean_email = (req.email or "").strip().lower()
-        raw_name = (req.name or "").strip() or _derive_name_from_email(clean_email, "Lord" if prov == "google" else "Apple Lordu")
-        norm_name = normalize_display_name(raw_name) or "Lord"
-        uid = f"{prov}_{hashlib.sha256((prov + ':' + (clean_email or norm_name.lower())).encode('utf-8')).hexdigest()[:14]}"
+        raw_name = (req.name or "").strip()
+        norm_name = normalize_display_name(raw_name) if raw_name else ""
+        uid_key = clean_email or norm_name.lower() or sess
+        uid = f"{prov}_{hashlib.sha256((prov + ':' + uid_key).encode('utf-8')).hexdigest()[:14]}"
         payload = {
             "ok": True,
             "cancelled": False,
