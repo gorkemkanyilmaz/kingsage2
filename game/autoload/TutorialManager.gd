@@ -95,6 +95,9 @@ var _current_target_rect: Rect2 = Rect2()
 var _current_has_target: bool = false
 var _last_valid_target_rect: Rect2 = Rect2()
 var _last_valid_target_step: int = -1
+var _last_valid_target_ctrl_id: int = 0
+var _scrolled_target_tag: String = ""
+var _store_signal_connected: bool = false
 
 
 class TargetFXDrawer extends Control:
@@ -105,21 +108,27 @@ class TargetFXDrawer extends Control:
 	func _draw() -> void:
 		if not has_target or target_rect.size.x <= 2.0 or target_rect.size.y <= 2.0:
 			return
-		var blink: float = 0.5 + 0.5 * sin(anim_time * 6.5)
-		var pulse_grow: float = 4.0 + 7.0 * blink
-		var box := target_rect.grow(pulse_grow)
+		var p0 := target_rect.position.floor()
+		var p1 := target_rect.end.ceil()
+		var snapped := Rect2(p0, Vector2(maxf(0.0, p1.x - p0.x), maxf(0.0, p1.y - p0.y)))
+		if snapped.size.x <= 2.0 or snapped.size.y <= 2.0:
+			return
 
-		# Dış yumuşak altın hale (yanıp sönen)
-		var halo := box.grow(6.0)
-		draw_rect(halo, Color(1.0, 0.82, 0.25, 0.14 + 0.18 * blink), false, 6.0)
+		var alpha_wave: float = 0.78 + 0.22 * sin(anim_time * 2.5)
+		var soft_wave: float = 0.5 + 0.5 * sin(anim_time * 2.5)
+		var box := snapped.grow(6.0)
+		var halo := box.grow(5.0)
+
+		# Dış yumuşak altın hale (sabit tam piksel boyut, yalnızca yumuşak alfa nefesi)
+		draw_rect(halo, Color(1.0, 0.82, 0.25, (0.10 + 0.14 * soft_wave) * alpha_wave), false, 5.0)
 
 		# Ana parlak çerçeve
-		var border_col := Color(1.0, 0.88, 0.38, 0.72 + 0.28 * blink)
-		draw_rect(box, border_col, false, 3.5)
+		var border_col := Color(1.0, 0.88, 0.38, 0.88 * alpha_wave)
+		draw_rect(box, border_col, false, 3.0)
 
-		# 4 Köşe süslü nişangah dirsekleri
-		var clen := clampf(minf(box.size.x, box.size.y) * 0.26, 16.0, 38.0)
-		var ccol := Color(1.0, 0.96, 0.65, 0.85 + 0.15 * blink)
+		# 4 Köşe süslü nişangah dirsekleri (tam piksel)
+		var clen := roundf(clampf(minf(box.size.x, box.size.y) * 0.26, 16.0, 38.0))
+		var ccol := Color(1.0, 0.96, 0.65, alpha_wave)
 		var w := 5.0
 		var x0 := box.position.x
 		var y0 := box.position.y
@@ -139,15 +148,15 @@ class TargetFXDrawer extends Control:
 		draw_line(Vector2(x1, y1), Vector2(x1, y1 - clen), ccol, w)
 
 		# Hedef merkezinde genişleyen sonar dalgası
-		var center := target_rect.get_center()
+		var center := snapped.get_center().round()
 		# Geniş butonlarda metni kapatmamak için merkez nişangahını gizle; yalnız altın çerçeve + parmak yeter
-		if not (target_rect.size.x >= 360.0 and target_rect.size.y <= 76.0):
+		if not (snapped.size.x >= 360.0 and snapped.size.y <= 76.0):
 			var ripple_t := fposmod(anim_time * 1.15, 1.0)
-			var max_r := clampf(minf(target_rect.size.x, target_rect.size.y) * 0.45, 22.0, 56.0)
+			var max_r := clampf(minf(snapped.size.x, snapped.size.y) * 0.45, 22.0, 56.0)
 			var rad := lerpf(8.0, max_r, ripple_t)
-			var r_col := Color(1.0, 0.90, 0.40, (1.0 - ripple_t) * 0.85)
+			var r_col := Color(1.0, 0.90, 0.40, (1.0 - ripple_t) * 0.78 * alpha_wave)
 			draw_arc(center, rad, 0.0, TAU, 36, r_col, 3.0)
-			draw_circle(center, 7.0 + 3.0 * blink, Color(1.0, 0.94, 0.55, 0.55 + 0.35 * blink))
+			draw_circle(center, 8.0, Color(1.0, 0.94, 0.55, (0.45 + 0.30 * soft_wave) * alpha_wave))
 
 
 func _ready() -> void:
@@ -155,6 +164,7 @@ func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	_build_ui()
 	_set_overlay_visible(false)
+	_ensure_store_signal_connected()
 
 
 # =============================================================================
@@ -686,9 +696,11 @@ func start_tutorial() -> void:
 		gs.player["tutorial_completed"] = false
 		gs.player["tutorial_skipped"] = false
 		gs.player["tutorial_step"] = Step.WELCOME_INTRO
+		gs.player["tutorial_scroll_taught"] = false
 	_current_step = Step.WELCOME_INTRO
 	_shown_step = -1
 	_shown_substate = ""
+	_scrolled_target_tag = ""
 	_victory_reward_granted = false
 	_active = true
 	_save_game()
@@ -729,6 +741,144 @@ func _gs() -> Node:
 	return null
 
 
+func _store() -> Node:
+	var loop := Engine.get_main_loop()
+	if loop is SceneTree and (loop as SceneTree).root != null:
+		return (loop as SceneTree).root.get_node_or_null("StoreManager")
+	return null
+
+
+func _ensure_store_signal_connected() -> void:
+	if _store_signal_connected:
+		return
+	var st := _store()
+	if st == null:
+		return
+	if st.has_signal("scroll_used") and not st.scroll_used.is_connected(_on_store_scroll_used):
+		st.scroll_used.connect(_on_store_scroll_used)
+	_store_signal_connected = true
+
+
+func _on_store_scroll_used(category: String, _scroll_id: String, _seconds_reduced: int) -> void:
+	var gs := _gs()
+	if gs != null and _active and _current_step == Step.UPGRADE_WOOD_CAMP and category == "build":
+		gs.player["tutorial_scroll_taught"] = true
+		_shown_substate = ""
+		_save_game()
+
+
+func _get_diamonds() -> int:
+	var st := _store()
+	if st != null and st.has_method("get_diamonds"):
+		return int(st.call("get_diamonds"))
+	var gs := _gs()
+	return int(gs.player.get("diamonds", 0)) if gs != null else 0
+
+
+func _get_scroll_count(scroll_id: String) -> int:
+	var st := _store()
+	if st != null and st.has_method("get_scroll_count"):
+		return int(st.call("get_scroll_count", scroll_id))
+	var gs := _gs()
+	if gs != null and gs.player.get("scrolls") is Dictionary:
+		return int((gs.player["scrolls"] as Dictionary).get(scroll_id, 0))
+	return 0
+
+
+func _get_market_modal(scene_node: Node = null) -> Node:
+	var loop := Engine.get_main_loop()
+	if loop is SceneTree and (loop as SceneTree).root != null:
+		var m := (loop as SceneTree).root.get_node_or_null("RoyalMarketModal")
+		if m != null and is_instance_valid(m) and not m.is_queued_for_deletion() and (not (m is CanvasLayer) or (m as CanvasLayer).visible):
+			return m
+	if scene_node != null:
+		var sm := scene_node.get_node_or_null("RoyalMarketModal")
+		if sm != null and is_instance_valid(sm) and not sm.is_queued_for_deletion() and (not (sm is CanvasLayer) or (sm as CanvasLayer).visible):
+			return sm
+	return null
+
+
+func _get_speedup_modal(scene_node: Node = null) -> Node:
+	var loop := Engine.get_main_loop()
+	if loop is SceneTree and (loop as SceneTree).root != null:
+		var m := (loop as SceneTree).root.get_node_or_null("SpeedupModal")
+		if m != null and is_instance_valid(m) and not m.is_queued_for_deletion() and (not (m is CanvasLayer) or (m as CanvasLayer).visible):
+			return m
+	if scene_node != null:
+		var sm := scene_node.get_node_or_null("SpeedupModal")
+		if sm != null and is_instance_valid(sm) and not sm.is_queued_for_deletion() and (not (sm is CanvasLayer) or (sm as CanvasLayer).visible):
+			return sm
+	return null
+
+
+func _is_market_build_tab_active(market_modal: Node) -> bool:
+	if market_modal == null:
+		return false
+	var buy_btn := market_modal.find_child("BuyScrollBtn_build_10m", true, false) as Control
+	return buy_btn != null and buy_btn.is_visible_in_tree()
+
+
+func _is_market_scroll_lesson_active(gs: Node) -> bool:
+	if gs == null or _current_step != Step.UPGRADE_WOOD_CAMP:
+		return false
+	if bool(gs.player.get("tutorial_scroll_taught", false)):
+		return false
+	if _active_queues(gs, "build").is_empty():
+		return false
+	return _get_scroll_count("build_10m") > 0 or _get_diamonds() >= 5
+
+
+func _find_market_btn(scene_node: Node) -> Control:
+	if scene_node == null:
+		return null
+	var rbar := scene_node.get_node_or_null("ResourceBar")
+	if rbar != null:
+		var b := rbar.find_child("BtnMarket", true, false) as Control
+		if b != null:
+			return b
+	return scene_node.find_child("BtnMarket", true, false) as Control
+
+
+func _find_speedup_btn(scene_node: Node, bp: Node) -> Control:
+	if bp != null and (bp is Control) and (bp as Control).visible:
+		var bp_spd := bp.find_child("BuildSpeedupButton", true, false) as Control
+		if bp_spd != null and bp_spd.is_visible_in_tree():
+			return bp_spd
+	if scene_node != null:
+		var qhud := scene_node.get_node_or_null("QueueHUD")
+		if qhud != null and (not (qhud is Control) or (qhud as Control).visible):
+			var q_spd := qhud.find_child("SpeedupButton", true, false) as Control
+			if q_spd != null and q_spd.is_visible_in_tree():
+				return q_spd
+	return null
+
+
+func _get_top_bar_height(scene_node: Node) -> float:
+	var safe_top := 0.0
+	var loop := Engine.get_main_loop()
+	if loop is SceneTree and (loop as SceneTree).root != null:
+		var gc_node := (loop as SceneTree).root.get_node_or_null("GameConfig")
+		if gc_node != null and gc_node.has_method("get_ios_safe_top"):
+			safe_top = float(gc_node.get_ios_safe_top())
+	if scene_node != null:
+		var rbar := scene_node.get_node_or_null("ResourceBar") as Control
+		if rbar != null:
+			if rbar.has_method("get_bar_height"):
+				var bh := float(rbar.call("get_bar_height"))
+				if bh > 10.0:
+					return rbar.global_position.y + bh
+			var gr := rbar.get_global_rect()
+			if gr.size.y > 10.0:
+				return gr.end.y
+	return 138.0 + safe_top
+
+
+func _snap_rect(r: Rect2) -> Rect2:
+	var p0 := r.position.floor()
+	var p1 := r.end.ceil()
+	return Rect2(p0, Vector2(maxf(0.0, p1.x - p0.x), maxf(0.0, p1.y - p0.y)))
+
+
 func _save_game() -> void:
 	var loop := Engine.get_main_loop()
 	if loop is SceneTree and (loop as SceneTree).root != null:
@@ -762,6 +912,7 @@ func _current_scene_name(scene_node: Node) -> String:
 
 func _process(delta: float) -> void:
 	_anim_time += delta
+	_ensure_store_signal_connected()
 
 	if _btn_skip != null and _skip_confirm_until > 0.0 and _anim_time > _skip_confirm_until:
 		_skip_confirm_until = 0.0
@@ -821,12 +972,18 @@ func _advance_to(next_step: int, gs: Node, scene_node: Node = null) -> void:
 		_save_game()
 	_shown_step = -1
 	_shown_substate = ""
+	_scrolled_target_tag = ""
 	if scene_node != null and scene_node.has_method("focus_building_for_tutorial"):
 		match _current_step:
 			Step.SELECT_MAIN_CASTLE:
 				scene_node.focus_building_for_tutorial("main")
 			Step.SELECT_WOOD_CAMP:
 				scene_node.focus_building_for_tutorial("wood")
+			Step.COMPLETE_BARRACKS_PREREQS:
+				if gs != null:
+					var bld_adv: Dictionary = gs.get_active_village().get("buildings", {})
+					var focus_k := "storage" if int(bld_adv.get("storage", 0)) < 3 else "farm"
+					scene_node.focus_building_for_tutorial(focus_k)
 			Step.CHECK_BARRACKS_REQS, Step.BUILD_BARRACKS_LV1, Step.RESEARCH_SPEAR, Step.TRAIN_10_SPEAR:
 				scene_node.focus_building_for_tutorial("barracks")
 	if _current_step == Step.OPEN_WORLD_MAP and scene_node != null:
@@ -918,6 +1075,13 @@ func _evaluate_progression(scene_node: Node, scene_name: String, gs: Node) -> vo
 
 		Step.UPGRADE_WOOD_CAMP:
 			if int(bld.get("wood", 0)) >= 2:
+				gs.player["tutorial_scroll_taught"] = true
+				var spd_open := _get_speedup_modal(scene_node)
+				if spd_open != null and _active_queues(gs, "build").is_empty():
+					if spd_open.has_method("close"):
+						spd_open.call("close")
+					else:
+						spd_open.queue_free()
 				_advance_to(Step.CHECK_BARRACKS_REQS, gs, scene_node)
 
 		Step.CHECK_BARRACKS_REQS:
@@ -949,6 +1113,9 @@ func _evaluate_progression(scene_node: Node, scene_name: String, gs: Node) -> vo
 				_advance_to(Step.BUILD_BARRACKS_LV1, gs, scene_node)
 
 		Step.BUILD_BARRACKS_LV1:
+			if int(bld.get("storage", 0)) < 3 or int(bld.get("farm", 0)) < 3:
+				_advance_to(Step.COMPLETE_BARRACKS_PREREQS, gs, scene_node)
+				return
 			if int(bld.get("barracks", 0)) >= 1:
 				_advance_to(Step.RESEARCH_SPEAR, gs, scene_node)
 			elif _active_queues(gs, "build").is_empty():
@@ -987,10 +1154,20 @@ func _compute_substate(scene_node: Node, scene_name: String, gs: Node) -> String
 	var q_build := _active_queues(gs, "build").size()
 	var q_res := _active_queues(gs, "research").size()
 	var q_train := _active_queues(gs, "train").size()
-	return "%s|%s|%d|%d|%d|%d|%d|%d|%d|%d" % [
+	var mkt := _get_market_modal(scene_node)
+	var spd := _get_speedup_modal(scene_node)
+	var mkt_open := 1 if mkt != null else 0
+	var mkt_build := 1 if (mkt != null and _is_market_build_tab_active(mkt)) else 0
+	var spd_open := 1 if spd != null else 0
+	var scroll_b10 := _get_scroll_count("build_10m")
+	var dia := _get_diamonds()
+	var scroll_taught := 1 if bool(gs.player.get("tutorial_scroll_taught", false)) else 0
+	var spd_btn_vis := 1 if _find_speedup_btn(scene_node, bp) != null else 0
+	return "%s|%s|%d|%d|%d|%d|%d|%d|%d|%d|%d|%d|%d|%d|%d|%d|%d" % [
 		scene_name, bp_key, bp_tab,
 		int(bld.get("storage", 0)), int(bld.get("farm", 0)),
-		int(bld.get("barracks", 0)), q_build, q_res, q_train, spin_val
+		int(bld.get("barracks", 0)), q_build, q_res, q_train, spin_val,
+		mkt_open, mkt_build, spd_open, scroll_b10, dia, scroll_taught, spd_btn_vis
 	]
 
 
@@ -1096,9 +1273,9 @@ func _get_step_copy(scene_node: Node, _scene_name: String, gs: Node) -> Dictiona
 		Step.RESOURCE_BAR_TOUR:
 			return {
 				"chapter": "BÖLÜM 1/5 • KÖY DÜZENİ",
-				"title": "Hazine, Depo ve Nüfus Dengesi",
-				"dialogue": "[b][color=#FFD86B]Lordum,[/color][/b] üst şeritte sırasıyla [b]Odun, Taş, Demir[/b] stokunuz, [b]Depo tavanınız[/b] ve Değirmen'in besleyeceği [b]Boş Vatandaş[/b] sayınız yer alır.",
-				"objective": "Kaynak çubuğunu inceleyin ve devam edin.",
+				"title": "Hazine, Nüfus ve Elmas Pazarı",
+				"dialogue": "[b][color=#FFD86B]Lordum,[/color][/b] üst şeritte [b]Odun, Taş, Demir[/b] stokunuz ile [b]Boş Vatandaş[/b] sayınız yer alır. Sağ üstteki [b][color=#78D8FF]💎 Elmas Pazarı[/color][/b] düğmesinden hızlandırma parşömenleri alabilirsiniz; başlangıç hazinenizde [b][color=#78F096]35 💎 Elmas[/color][/b] var!",
+				"objective": "Üst kaynak çubuğunu ve 💎 Elmas Pazarı düğmesini inceleyip devam edin.",
 				"next_text": "Anladım ➔",
 				"hint": "Devam Et"
 			}
@@ -1154,6 +1331,65 @@ func _get_step_copy(scene_node: Node, _scene_name: String, gs: Node) -> Dictiona
 		Step.UPGRADE_WOOD_CAMP:
 			var wood_q := _active_queues(gs, "build")
 			if not wood_q.is_empty():
+				if _is_market_scroll_lesson_active(gs):
+					var scroll_cnt := _get_scroll_count("build_10m")
+					var diamonds := _get_diamonds()
+					var mkt := _get_market_modal(scene_node)
+					var spd := _get_speedup_modal(scene_node)
+					if scroll_cnt == 0:
+						if mkt != null:
+							if not _is_market_build_tab_active(mkt):
+								return {
+									"chapter": "BÖLÜM 2/5 • EKONOMİ",
+									"title": "İnşaat Parşömenleri Sekmesi",
+									"dialogue": "[b][color=#FFD86B]Lordum,[/color][/b] Kraliyet Elmas Pazarı açıldı! İnşaat sürelerini kısaltan parşömenleri görmek için [b]'🔨 İnşaat'[/b] sekmesine dokunun.",
+									"objective": "Pazarda 'İnşaat' sekmesine dokunun.",
+									"next_text": "",
+									"hint": "İnşaat Sekmesi"
+								}
+							return {
+								"chapter": "BÖLÜM 2/5 • EKONOMİ",
+								"title": "10 Dk İnşaat Parşömeni Alın",
+								"dialogue": "[b][color=#FFD86B]Lordum,[/color][/b] bu parşömen aktif inşaat süresini [b]10 dakika[/b] kısaltır. Şimdi [b]5 💎 Elmas[/b] karşılığında [b]'10 Dk İnşaat Parşömeni'[/b] satın alın!",
+								"objective": "'10 Dk İnşaat' parşömenini (💎 5) satın alın.",
+								"next_text": "",
+								"hint": "Satın Al (5 💎)"
+							}
+						return {
+							"chapter": "BÖLÜM 2/5 • EKONOMİ",
+							"title": "Elmas Pazarı ile Hızlandırma",
+							"dialogue": "[b][color=#FFD86B]Lordum,[/color][/b] hazinenizde [b][color=#78D8FF]%d 💎 Elmas[/color][/b] var! Sağ üstteki Elmas Pazarı'ndan [b]5 💎[/b] karşılığında [b]'10 Dk İnşaat Parşömeni'[/b] alın ve inşaatı anında hızlandırın!" % diamonds,
+							"objective": "Sağ üstteki 💎 Elmas Pazarı butonuna dokunun.",
+							"next_text": "",
+							"hint": "Elmas Pazarı"
+						}
+					# scroll_cnt > 0
+					if mkt != null:
+						return {
+							"chapter": "BÖLÜM 2/5 • EKONOMİ",
+							"title": "Parşömen Hazır — Pazarı Kapatın",
+							"dialogue": "[b][color=#FFD86B]Lordum,[/color][/b] [b]10 Dk İnşaat Parşömeni[/b] envanterinize eklendi! Şimdi pazarı kapatıp inşaatı hızlandıralım.",
+							"objective": "Sağ üstteki Kapat (✕) butonuna dokunun.",
+							"next_text": "",
+							"hint": "Pazarı Kapat"
+						}
+					if spd != null:
+						return {
+							"chapter": "BÖLÜM 2/5 • EKONOMİ",
+							"title": "Parşömeni Uygulayın",
+							"dialogue": "[b][color=#FFD86B]Lordum,[/color][/b] yeşil [b]'⚡ Kullan (10 Dk)'[/b] butonuna dokunun; Oduncu Kampı Sv.2 anında tamamlanacak!",
+							"objective": "'⚡ Kullan (10 Dk)' butonuna dokunun.",
+							"next_text": "",
+							"hint": "Parşömeni Kullan"
+						}
+					return {
+						"chapter": "BÖLÜM 2/5 • EKONOMİ",
+						"title": "İnşaatı Parşömenle Hızlandırın",
+						"dialogue": "[b][color=#FFD86B]Lordum,[/color][/b] parşömenimiz hazır! Şimdi aktif inşaat satırındaki [b][color=#78F096]'⚡ Hızlandır'[/color][/b] butonuna basarak hızlandırma penceresini açın.",
+						"objective": "'⚡ Hızlandır' butonuna dokunun.",
+						"next_text": "",
+						"hint": "Hızlandır"
+					}
 				return {
 					"chapter": "BÖLÜM 2/5 • EKONOMİ",
 					"title": "Kraliyet Fermanı ile Hızlandırın",
@@ -1161,6 +1397,15 @@ func _get_step_copy(scene_node: Node, _scene_name: String, gs: Node) -> Dictiona
 					"objective": "'Kraliyet Fermanı: İnşaatı Tamamla' butonuna dokunun.",
 					"next_text": "",
 					"hint": "Hemen Tamamla"
+				}
+			if bp_vis and bp_key != "wood":
+				return {
+					"chapter": "BÖLÜM 2/5 • EKONOMİ",
+					"title": "Açık Pencereyi Kapatın",
+					"dialogue": "[b][color=#FFD86B]Lordum,[/color][/b] Oduncu Kampı'nı yükseltmeden önce açık olan bina penceresini sağ üstteki [b][color=#FFD86B]✕ (Kapat)[/color][/b] butonuna tıklayarak kapatın.",
+					"objective": "Sağ üstteki Kapat (✕) butonuna dokunun.",
+					"next_text": "",
+					"hint": "Pencereyi Kapat"
 				}
 			return {
 				"chapter": "BÖLÜM 2/5 • EKONOMİ",
@@ -1222,6 +1467,15 @@ func _get_step_copy(scene_node: Node, _scene_name: String, gs: Node) -> Dictiona
 						"next_text": "",
 						"hint": "Depo Yükselt"
 					}
+				elif bp_vis:
+					return {
+						"chapter": "BÖLÜM 2/5 • GEREKSİNİM ZİNCİRİ",
+						"title": "Açık Pencereyi Kapatın",
+						"dialogue": "[b][color=#FFD86B]Lordum,[/color][/b] Depo'ya geçebilmek için önce açık pencereyi sağ üstteki [b][color=#FFD86B]✕ (Kapat)[/color][/b] butonuna dokunarak kapatın.",
+						"objective": "%s — Sağ üstteki Kapat (✕) butonuna dokunun." % progress_str,
+						"next_text": "",
+						"hint": "Pencereyi Kapat"
+					}
 				return {
 					"chapter": "BÖLÜM 2/5 • GEREKSİNİM ZİNCİRİ",
 					"title": "Hedef: Depo Seviye 3",
@@ -1248,6 +1502,15 @@ func _get_step_copy(scene_node: Node, _scene_name: String, gs: Node) -> Dictiona
 					"objective": "%s — Değirmen'i yükseltin (Hedef: Sv. 3)." % progress_str,
 					"next_text": "",
 					"hint": "Değirmen Yükselt"
+				}
+			elif bp_vis:
+				return {
+					"chapter": "BÖLÜM 2/5 • GEREKSİNİM ZİNCİRİ",
+					"title": "Depo Penceresini Kapatın",
+					"dialogue": "[b][color=#FFD86B]Lordum,[/color][/b] Depo Sv.3 tamamlandı! Şimdi [b]Değirmen[/b] binasını Seviye 3'e çıkarmak için bu pencereyi sağ üstteki [b][color=#FFD86B]✕ (Kapat)[/color][/b] butonundan kapatın.",
+					"objective": "%s — Değirmen'e geçmek için Kapat (✕) butonuna dokunun." % progress_str,
+					"next_text": "",
+					"hint": "Pencereyi Kapat"
 				}
 			return {
 				"chapter": "BÖLÜM 2/5 • GEREKSİNİM ZİNCİRİ",
@@ -1454,6 +1717,59 @@ func _resolve_target_control(scene_node: Node, scene_name: String, gs: Node) -> 
 	if _current_step == Step.GRADUATION_MODAL:
 		return null
 
+	var v: Dictionary = gs.get_active_village() if gs != null else {}
+	var bld: Dictionary = v.get("buildings", {})
+	var bp = scene_node.get("building_panel") if scene_node != null else null
+	var bp_vis: bool = (bp != null and bp.visible)
+	var bp_key: String = str(bp.get("_current_key")) if bp_vis else ""
+	var bp_tab: int = int(bp.get("_current_tab")) if bp_vis else -1
+
+	if _current_step == Step.UPGRADE_WOOD_CAMP and _is_market_scroll_lesson_active(gs):
+		var scroll_cnt := _get_scroll_count("build_10m")
+		var mkt := _get_market_modal(scene_node)
+		var spd := _get_speedup_modal(scene_node)
+		if scroll_cnt == 0:
+			if mkt != null:
+				if not _is_market_build_tab_active(mkt):
+					var tab_btn := mkt.find_child("TabMarket_build", true, false) as Control
+					if tab_btn != null:
+						return tab_btn
+				var buy_btn := mkt.find_child("BuyScrollBtn_build_10m", true, false) as Control
+				if buy_btn != null:
+					return buy_btn
+				var mkt_close := mkt.find_child("MarketCloseBtn", true, false) as Control
+				if mkt_close != null:
+					return mkt_close
+			elif spd != null:
+				var open_mkt_btn := spd.find_child("SpeedupOpenMarketBtn", true, false) as Control
+				if open_mkt_btn != null and open_mkt_btn.is_visible_in_tree():
+					return open_mkt_btn
+				var spd_close0 := spd.find_child("SpeedupCloseBtn", true, false) as Control
+				if spd_close0 != null:
+					return spd_close0
+			else:
+				var btn_mkt := _find_market_btn(scene_node)
+				if btn_mkt != null and btn_mkt.is_visible_in_tree():
+					return btn_mkt
+		else:
+			if mkt != null:
+				var mkt_close := mkt.find_child("MarketCloseBtn", true, false) as Control
+				if mkt_close != null:
+					return mkt_close
+			if spd != null:
+				var use_btn := spd.find_child("UseScrollBtn_build_10m", true, false) as Control
+				if use_btn != null and use_btn.is_visible_in_tree():
+					return use_btn
+				var spd_close := spd.find_child("SpeedupCloseBtn", true, false) as Control
+				if spd_close != null:
+					return spd_close
+			else:
+				var spd_btn := _find_speedup_btn(scene_node, bp)
+				if spd_btn != null and spd_btn.is_visible_in_tree():
+					return spd_btn
+		if _btn_speedup != null and _btn_speedup.visible:
+			return _btn_speedup
+
 	# Aktif kuyruk varsa ve Royal Decree hızlandırma butonu görünürse doğrudan onu işaret et
 	if _btn_speedup != null and _btn_speedup.visible and _current_step in [
 		Step.UPGRADE_WOOD_CAMP,
@@ -1463,13 +1779,6 @@ func _resolve_target_control(scene_node: Node, scene_name: String, gs: Node) -> 
 		Step.TRAIN_10_SPEAR,
 	]:
 		return _btn_speedup
-
-	var v: Dictionary = gs.get_active_village() if gs != null else {}
-	var bld: Dictionary = v.get("buildings", {})
-	var bp = scene_node.get("building_panel") if scene_node != null else null
-	var bp_vis: bool = (bp != null and bp.visible)
-	var bp_key: String = str(bp.get("_current_key")) if bp_vis else ""
-	var bp_tab: int = int(bp.get("_current_tab")) if bp_vis else -1
 
 	match _current_step:
 		Step.WELCOME_INTRO:
@@ -1509,11 +1818,15 @@ func _resolve_target_control(scene_node: Node, scene_name: String, gs: Node) -> 
 
 		Step.COMPLETE_BARRACKS_PREREQS:
 			var sto_lvl := int(bld.get("storage", 0))
+			var frm_lvl := int(bld.get("farm", 0))
+			if sto_lvl >= 3 and frm_lvl >= 3:
+				return _btn_next
 			var need_key := "storage" if sto_lvl < 3 else "farm"
 			if bp_vis and bp_key == "barracks":
 				var gbtn := bp.find_child("GotoBtn_" + need_key, true, false) as Control
-				if gbtn != null and gbtn.visible:
+				if gbtn != null and gbtn.is_visible_in_tree():
 					return gbtn
+				return bp.get_node_or_null("VBox/Header/CloseButton") as Control
 			if bp_vis and bp_key == need_key:
 				return bp.get_node_or_null("VBox/UpgradeButton") as Control
 			if bp_vis:
@@ -1548,6 +1861,13 @@ func _resolve_target_control(scene_node: Node, scene_name: String, gs: Node) -> 
 			return _bottom_nav_btn(scene_node, "BtnVillage")
 
 		Step.BUILD_BARRACKS_LV1:
+			if int(bld.get("storage", 0)) < 3 or int(bld.get("farm", 0)) < 3:
+				var fallback_key := "storage" if int(bld.get("storage", 0)) < 3 else "farm"
+				if bp_vis and bp_key != fallback_key:
+					return bp.get_node_or_null("VBox/Header/CloseButton") as Control
+				if bp_vis and bp_key == fallback_key:
+					return bp.get_node_or_null("VBox/UpgradeButton") as Control
+				return _building_view_ctrl(scene_node, fallback_key)
 			if bp_vis and bp_key == "barracks":
 				return bp.get_node_or_null("VBox/UpgradeButton") as Control
 			if bp_vis:
@@ -1556,24 +1876,36 @@ func _resolve_target_control(scene_node: Node, scene_name: String, gs: Node) -> 
 
 		Step.RESEARCH_SPEAR:
 			if not bp_vis:
+				_scrolled_target_tag = ""
 				return _building_view_ctrl(scene_node, "barracks")
 			if bp_key != "barracks":
+				_scrolled_target_tag = ""
 				return bp.get_node_or_null("VBox/Header/CloseButton") as Control
 			if bp_tab != 1:
+				_scrolled_target_tag = ""
 				return bp.get_node_or_null("VBox/TabBar/TabResearchBtn") as Control
-			if bp.has_method("scroll_to_unit_card"):
-				bp.scroll_to_unit_card("spear")
+			var res_scroll_tag := "%d:%s:%d" % [_current_step, bp_key, bp_tab]
+			if _scrolled_target_tag != res_scroll_tag:
+				_scrolled_target_tag = res_scroll_tag
+				if bp.has_method("scroll_to_unit_card"):
+					bp.scroll_to_unit_card("spear")
 			return bp.find_child("ResearchBtn_spear", true, false) as Control
 
 		Step.TRAIN_10_SPEAR:
 			if not bp_vis:
+				_scrolled_target_tag = ""
 				return _building_view_ctrl(scene_node, "barracks")
 			if bp_key != "barracks":
+				_scrolled_target_tag = ""
 				return bp.get_node_or_null("VBox/Header/CloseButton") as Control
 			if bp_tab != 2:
+				_scrolled_target_tag = ""
 				return bp.get_node_or_null("VBox/TabBar/TabTrainBtn") as Control
-			if bp.has_method("scroll_to_unit_card"):
-				bp.scroll_to_unit_card("spear")
+			var train_scroll_tag := "%d:%s:%d" % [_current_step, bp_key, bp_tab]
+			if _scrolled_target_tag != train_scroll_tag:
+				_scrolled_target_tag = train_scroll_tag
+				if bp.has_method("scroll_to_unit_card"):
+					bp.scroll_to_unit_card("spear")
 			var have := int(v.get("units", {}).get("spear", 0))
 			var needed := maxi(1, 10 - have)
 			var sp := bp.find_child("Spin_spear", true, false) as SpinBox
@@ -1613,8 +1945,10 @@ func _update_visual_animations(delta: float, scene_node: Node, scene_name: Strin
 	var vp_size := vp_rect.size
 	if vp_size.x <= 10.0 or vp_size.y <= 10.0:
 		vp_size = Vector2(1080.0, 1920.0)
+	vp_size = Vector2(ceilf(vp_size.x), ceilf(vp_size.y))
 
 	if _current_step == Step.GRADUATION_MODAL:
+		layer = 110
 		_dim_top.hide()
 		_dim_bottom.hide()
 		_dim_left.hide()
@@ -1626,57 +1960,72 @@ func _update_visual_animations(delta: float, scene_node: Node, scene_name: Strin
 		var min_sz := _victory_modal.get_combined_minimum_size()
 		var m_size := Vector2(920.0, clampf(min_sz.y, 580.0, 960.0))
 		_victory_modal.size = m_size
-		_victory_modal.position = Vector2((vp_size.x - m_size.x) * 0.5, (vp_size.y - m_size.y) * 0.5)
+		_victory_modal.position = Vector2(roundf((vp_size.x - m_size.x) * 0.5), roundf((vp_size.y - m_size.y) * 0.5))
 		return
 
-	if _last_valid_target_step != _current_step:
-		_last_valid_target_step = _current_step
-		_last_valid_target_rect = Rect2()
+	var mkt_modal := _get_market_modal(scene_node)
+	var spd_modal := _get_speedup_modal(scene_node)
+	var modal_open := (mkt_modal != null or spd_modal != null)
+	layer = 170 if modal_open else 110
 
 	var target_ctrl := _resolve_target_control(scene_node, scene_name, gs)
+	var target_ctrl_id := target_ctrl.get_instance_id() if target_ctrl != null else 0
+	if _last_valid_target_step != _current_step or _last_valid_target_ctrl_id != target_ctrl_id:
+		_last_valid_target_step = _current_step
+		_last_valid_target_ctrl_id = target_ctrl_id
+		_last_valid_target_rect = Rect2()
+
 	var has_target := (target_ctrl != null and target_ctrl.is_inside_tree() and target_ctrl.visible)
 	var t_rect := Rect2()
 	if has_target:
-		t_rect = target_ctrl.get_global_rect()
+		t_rect = _snap_rect(target_ctrl.get_global_rect())
 		if t_rect.size.x < 12.0 or t_rect.size.y < 12.0 or (t_rect.position.length_squared() < 2.0 and target_ctrl != _dim_top):
 			if _last_valid_target_rect.size.x >= 12.0 and _last_valid_target_rect.size.y >= 12.0:
-				t_rect = _last_valid_target_rect
+				t_rect = _snap_rect(_last_valid_target_rect)
 			else:
 				has_target = false
 		else:
 			_last_valid_target_rect = t_rect
 
-	# Baş Vezir kartını hedefi veya açık BuildingPanel'i kapatmayacak şekilde konumlandır
+	# Baş Vezir kartını hedefi, ResourceBar'ı veya açık pencereyi kapatmayacak şekilde konumlandır
 	var bp = scene_node.get("building_panel") if scene_node != null else null
 	var bp_vis: bool = (bp != null and bp.visible)
-	var card_w := clampf(vp_size.x - 36.0, 560.0, 1044.0)
+	var card_w := roundf(clampf(vp_size.x - 36.0, 560.0, 1044.0))
 	_vizier_card.custom_minimum_size = Vector2(card_w, 0.0)
 	var min_card_h := _vizier_card.get_combined_minimum_size().y
-	var card_h := clampf(min_card_h, 250.0, 390.0)
+	var card_h := roundf(clampf(min_card_h, 250.0, 390.0))
 	_vizier_card.size = Vector2(card_w, card_h)
 
 	var dock_bottom := false
-	if bp_vis:
+	if modal_open:
+		if has_target and target_ctrl != _btn_next and target_ctrl != _btn_speedup:
+			dock_bottom = (t_rect.get_center().y < vp_size.y * 0.56)
+		else:
+			dock_bottom = true
+	elif bp_vis:
 		dock_bottom = false
 	elif _current_step in [Step.WELCOME_INTRO, Step.WORLD_MAP_TOUR, Step.ALLIANCE_TOUR, Step.RESOURCE_BAR_TOUR, Step.SELECT_MAIN_CASTLE, Step.OPEN_ALLIANCE]:
 		dock_bottom = true
 	elif has_target and target_ctrl != _btn_next and target_ctrl != _btn_speedup:
 		dock_bottom = (t_rect.get_center().y < vp_size.y * 0.44)
 
-	var safe_top := 0.0
 	var safe_bottom := 0.0
 	var gc_node = Engine.get_main_loop().root.get_node_or_null("GameConfig") if Engine.get_main_loop() is SceneTree else null
-	if gc_node != null:
-		if gc_node.has_method("get_ios_safe_top"):
-			safe_top = float(gc_node.get_ios_safe_top())
-		if gc_node.has_method("get_ios_safe_bottom"):
-			safe_bottom = float(gc_node.get_ios_safe_bottom())
-	var target_card_y := (146.0 + safe_top) if not dock_bottom else clampf(vp_size.y - 266.0 - safe_bottom - card_h, 520.0, vp_size.y - safe_bottom - card_h - 20.0)
-	var target_card_x := (vp_size.x - card_w) * 0.5
-	if _vizier_card.position.distance_to(Vector2(target_card_x, target_card_y)) > 260.0 or DisplayServer.get_name() == "headless":
-		_vizier_card.position = Vector2(target_card_x, target_card_y)
+	if gc_node != null and gc_node.has_method("get_ios_safe_bottom"):
+		safe_bottom = float(gc_node.get_ios_safe_bottom())
+
+	var bar_h := _get_top_bar_height(scene_node)
+	var top_bar_bottom := ceilf(bar_h)
+	var top_card_y := roundf(bar_h + 10.0)
+	var bottom_card_y := roundf(vp_size.y - safe_bottom - card_h - 18.0) if modal_open else roundf(clampf(vp_size.y - 266.0 - safe_bottom - card_h, 520.0, vp_size.y - safe_bottom - card_h - 20.0))
+	var target_card_y := top_card_y if not dock_bottom else bottom_card_y
+	var target_card_x := roundf((vp_size.x - card_w) * 0.5)
+	var target_card_pos := Vector2(target_card_x, target_card_y)
+	var card_dist := _vizier_card.position.distance_to(target_card_pos)
+	if card_dist <= 2.0 or card_dist > 260.0 or DisplayServer.get_name() == "headless":
+		_vizier_card.position = target_card_pos
 	else:
-		_vizier_card.position = _vizier_card.position.lerp(Vector2(target_card_x, target_card_y), clampf(delta * 14.0, 0.0, 1.0))
+		_vizier_card.position = _vizier_card.position.lerp(target_card_pos, clampf(delta * 14.0, 0.0, 1.0))
 
 	# Tour adımlarında (Karşılama / Harita / İttifak / ResourceBar): spotlight büyük alanı aydınlatırken parmağı 'Devam Et' butonuna tut
 	var passive_welcome := (_current_step == Step.WELCOME_INTRO)
@@ -1684,7 +2033,12 @@ func _update_visual_animations(delta: float, scene_node: Node, scene_name: Strin
 	var finger_ctrl := target_ctrl
 	if _current_step in [Step.WELCOME_INTRO, Step.RESOURCE_BAR_TOUR, Step.WORLD_MAP_TOUR, Step.ALLIANCE_TOUR] and _btn_next != null and _btn_next.visible:
 		finger_ctrl = _btn_next
-		t_rect = _btn_next.get_global_rect()
+		t_rect = _snap_rect(_btn_next.get_global_rect())
+
+	var rbar := scene_node.get_node_or_null("ResourceBar") as Control if scene_node != null else null
+	var target_in_rbar := (target_ctrl != null and rbar != null and (target_ctrl == rbar or rbar.is_ancestor_of(target_ctrl)))
+	var target_in_modal := (target_ctrl != null) and ((mkt_modal != null and mkt_modal.is_ancestor_of(target_ctrl)) or (spd_modal != null and spd_modal.is_ancestor_of(target_ctrl)))
+	var target_in_self := (target_ctrl != null and _root_ctrl != null and _root_ctrl.is_ancestor_of(target_ctrl))
 
 	# Vezir portre çerçevesinde hafif canlı altın parıltı
 	if _vizier_portrait_box != null:
@@ -1700,19 +2054,53 @@ func _update_visual_animations(delta: float, scene_node: Node, scene_name: Strin
 		_dim_left.hide()
 		_dim_right.hide()
 	elif has_target:
-		var hole := spotlight_rect.grow(10.0).intersection(Rect2(Vector2.ZERO, vp_size))
-		_dim_top.show()
-		_dim_bottom.show()
-		_dim_left.show()
-		_dim_right.show()
-		_dim_top.position = Vector2.ZERO
-		_dim_top.size = Vector2(vp_size.x, hole.position.y)
-		_dim_bottom.position = Vector2(0.0, hole.end.y)
-		_dim_bottom.size = Vector2(vp_size.x, maxf(0.0, vp_size.y - hole.end.y))
-		_dim_left.position = Vector2(0.0, hole.position.y)
-		_dim_left.size = Vector2(hole.position.x, hole.size.y)
-		_dim_right.position = Vector2(hole.end.x, hole.position.y)
-		_dim_right.size = Vector2(maxf(0.0, vp_size.x - hole.end.x), hole.size.y)
+		var hole := _snap_rect(spotlight_rect.grow(10.0)).intersection(Rect2(Vector2.ZERO, vp_size))
+		if not target_in_rbar and not target_in_modal and not target_in_self and hole.end.y > top_bar_bottom and hole.position.y < top_bar_bottom:
+			var clip_dy := top_bar_bottom - hole.position.y
+			hole.position.y = top_bar_bottom
+			hole.size.y = maxf(0.0, hole.size.y - clip_dy)
+		hole = _snap_rect(hole)
+		if hole.size.x >= 4.0 and hole.size.y >= 4.0:
+			var top_h := floorf(hole.position.y)
+			if top_h >= 4.0:
+				_dim_top.show()
+				_dim_top.position = Vector2.ZERO
+				_dim_top.size = Vector2(vp_size.x, top_h)
+			else:
+				_dim_top.hide()
+
+			var bot_y := ceilf(hole.end.y)
+			var bot_h := maxf(0.0, vp_size.y - bot_y)
+			if bot_h >= 4.0:
+				_dim_bottom.show()
+				_dim_bottom.position = Vector2(0.0, bot_y)
+				_dim_bottom.size = Vector2(vp_size.x, bot_h)
+			else:
+				_dim_bottom.hide()
+
+			var mid_y := floorf(hole.position.y)
+			var mid_h := maxf(0.0, ceilf(hole.end.y) - mid_y)
+			var left_w := floorf(hole.position.x)
+			if left_w >= 4.0 and mid_h >= 4.0:
+				_dim_left.show()
+				_dim_left.position = Vector2(0.0, mid_y)
+				_dim_left.size = Vector2(left_w, mid_h)
+			else:
+				_dim_left.hide()
+
+			var right_x := ceilf(hole.end.x)
+			var right_w := maxf(0.0, vp_size.x - right_x)
+			if right_w >= 4.0 and mid_h >= 4.0:
+				_dim_right.show()
+				_dim_right.position = Vector2(right_x, mid_y)
+				_dim_right.size = Vector2(right_w, mid_h)
+			else:
+				_dim_right.hide()
+		else:
+			_dim_top.hide()
+			_dim_bottom.hide()
+			_dim_left.hide()
+			_dim_right.hide()
 	else:
 		_dim_top.hide()
 		_dim_bottom.hide()
@@ -1720,7 +2108,16 @@ func _update_visual_animations(delta: float, scene_node: Node, scene_name: Strin
 		_dim_right.hide()
 
 	# Hedef çizici & Yanıp Sönen Parmak Eldiveni
-	var finger_rect := t_rect if (finger_ctrl != null and finger_ctrl.is_inside_tree() and finger_ctrl.visible) else Rect2()
+	var finger_rect := _snap_rect(t_rect) if (finger_ctrl != null and finger_ctrl.is_inside_tree() and finger_ctrl.visible) else Rect2()
+	var finger_in_rbar := (finger_ctrl != null and rbar != null and (finger_ctrl == rbar or rbar.is_ancestor_of(finger_ctrl)))
+	var finger_in_modal := (finger_ctrl != null) and ((mkt_modal != null and mkt_modal.is_ancestor_of(finger_ctrl)) or (spd_modal != null and spd_modal.is_ancestor_of(finger_ctrl)))
+	var finger_in_self := (finger_ctrl != null and _root_ctrl != null and _root_ctrl.is_ancestor_of(finger_ctrl))
+	if not finger_in_rbar and not finger_in_modal and not finger_in_self and finger_rect.end.y > top_bar_bottom + 12.0 and finger_rect.position.y < top_bar_bottom:
+		var old_end_y := finger_rect.end.y
+		finger_rect.position.y = top_bar_bottom
+		finger_rect.size.y = maxf(12.0, old_end_y - top_bar_bottom)
+		finger_rect = _snap_rect(finger_rect)
+
 	if has_target and finger_rect.size.x > 12.0 and finger_rect.size.y > 12.0:
 		_current_has_target = true
 		_current_target_rect = finger_rect
@@ -1746,8 +2143,8 @@ func _update_visual_animations(delta: float, scene_node: Node, scene_name: Strin
 		var tip_offset := Vector2(88.0 if flip else 10.0, 11.0)
 		var poke_dir := Vector2(-0.707, 0.707) if flip else Vector2(0.707, 0.707)
 		var hand_pos := (aim_pt - tip_offset) + poke_dir * poke
-		hand_pos.x = clampf(hand_pos.x, 4.0, vp_size.x - 102.0)
-		hand_pos.y = clampf(hand_pos.y, 4.0, vp_size.y - 102.0)
+		hand_pos.x = roundf(clampf(hand_pos.x, 4.0, vp_size.x - 102.0))
+		hand_pos.y = roundf(clampf(hand_pos.y, 4.0, vp_size.y - 102.0))
 		_hand_sprite.position = hand_pos
 
 		# Yüzen İpucu Baloncuğu (kart içi butonlarda metni kapatmamak için gizle)
@@ -1758,11 +2155,12 @@ func _update_visual_animations(delta: float, scene_node: Node, scene_name: Strin
 			var pill_size := _hand_hint_pill.size
 			if pill_size.x < 40.0:
 				pill_size = Vector2(160.0, 42.0)
-			var pill_x := clampf(center.x - pill_size.x * 0.5, 12.0, vp_size.x - pill_size.x - 12.0)
+			var pill_x := roundf(clampf(center.x - pill_size.x * 0.5, 12.0, vp_size.x - pill_size.x - 12.0))
+			var min_pill_y := (top_bar_bottom + 6.0) if (not finger_in_rbar and not finger_in_modal and not finger_in_self) else 14.0
 			var pill_y := finger_rect.position.y - pill_size.y - 14.0
-			if pill_y < 14.0:
+			if pill_y < min_pill_y:
 				pill_y = finger_rect.end.y + 18.0
-			pill_y = clampf(pill_y, 12.0, vp_size.y - pill_size.y - 12.0)
+			pill_y = roundf(clampf(pill_y, 12.0, vp_size.y - pill_size.y - 12.0))
 			_hand_hint_pill.position = Vector2(pill_x, pill_y)
 			_hand_hint_pill.modulate = Color(1.0, 1.0, 1.0, 0.85 + 0.15 * blink_wave)
 	else:
@@ -1837,6 +2235,18 @@ func _on_skip_pressed() -> void:
 
 
 func _on_speedup_pressed() -> void:
+	var gs := _gs()
+	if _current_step == Step.UPGRADE_WOOD_CAMP and _get_scroll_count("build_10m") > 0:
+		var st := _store()
+		if st != null and st.has_method("apply_scroll_to_queue"):
+			var res = st.call("apply_scroll_to_queue", "build_10m", "build")
+			if typeof(res) == TYPE_DICTIONARY and bool((res as Dictionary).get("ok", false)):
+				if gs != null:
+					gs.player["tutorial_scroll_taught"] = true
+					_save_game()
+				if gs != null and not _active_queues(gs, "build").is_empty():
+					complete_active_queue_instantly()
+				return
 	complete_active_queue_instantly()
 
 

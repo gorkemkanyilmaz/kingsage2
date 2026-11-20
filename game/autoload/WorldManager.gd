@@ -601,6 +601,25 @@ func join_world(world_id: int, player_name: String, target_x: int = 100, target_
 	var auth_j = loop_j.root.get_node_or_null("AuthManager") if loop_j is SceneTree else null
 	var p_provider := str(auth_j.auth_provider) if (auth_j != null and bool(auth_j.is_logged_in)) else ""
 	var p_auth_id := str(auth_j.user_id) if (auth_j != null and bool(auth_j.is_logged_in) and not str(auth_j.user_id).is_empty()) else ""
+	var existing_profs: Dictionary = world_dict.get("player_profiles", {}) if typeof(world_dict.get("player_profiles")) == TYPE_DICTIONARY else {}
+	var existing_prof: Dictionary = {}
+	for pk in existing_profs.keys():
+		if _matches_player(str(pk), player_name) and typeof(existing_profs[pk]) == TYPE_DICTIONARY:
+			existing_prof = existing_profs[pk] as Dictionary
+			break
+	var gs_j := _find_game_state()
+	var gs_same := (gs_j != null and _matches_player(str(gs_j.player.get("name", "")), player_name))
+	var join_diamonds := 35
+	if existing_prof.has("diamonds") and existing_prof.get("diamonds") != null:
+		join_diamonds = maxi(0, int(existing_prof.get("diamonds", 35)))
+	elif gs_same and gs_j.player.has("diamonds") and gs_j.player.get("diamonds") != null:
+		join_diamonds = maxi(0, int(gs_j.player.get("diamonds", 35)))
+	var join_scrolls: Dictionary = {}
+	if typeof(existing_prof.get("scrolls")) == TYPE_DICTIONARY:
+		join_scrolls = (existing_prof["scrolls"] as Dictionary).duplicate(true)
+	elif gs_same and typeof(gs_j.player.get("scrolls")) == TYPE_DICTIONARY:
+		join_scrolls = (gs_j.player["scrolls"] as Dictionary).duplicate(true)
+
 	state["player"] = {
 		"id": 1,
 		"auth_id": p_auth_id,
@@ -616,6 +635,8 @@ func join_world(world_id: int, player_name: String, target_x: int = 100, target_
 		"tutorial_step": 0,
 		"quests": {"claimed": [], "stats": {}},
 		"gold_armour": 0,
+		"diamonds": join_diamonds,
+		"scrolls": join_scrolls,
 		"premium": false,
 	}
 	_sync_player_profile_to_world(state)
@@ -950,6 +971,10 @@ func _sync_player_profile_to_world(state_dict: Dictionary) -> void:
 	var quests_copy: Dictionary = {"claimed": [], "stats": {}}
 	if typeof(p.get("quests")) == TYPE_DICTIONARY:
 		quests_copy = (p["quests"] as Dictionary).duplicate(true)
+	var scrolls_copy: Dictionary = {}
+	if typeof(p.get("scrolls")) == TYPE_DICTIONARY:
+		scrolls_copy = (p["scrolls"] as Dictionary).duplicate(true)
+	var p_diamonds := maxi(0, int(p.get("diamonds", 35))) if (p.has("diamonds") and p.get("diamonds") != null) else 35
 	var prof := {
 		"name": p_name,
 		"provider": str(p.get("provider", "")),
@@ -965,6 +990,8 @@ func _sync_player_profile_to_world(state_dict: Dictionary) -> void:
 		"tutorial_reward_claimed": bool(p.get("tutorial_reward_claimed", false)),
 		"quests": quests_copy,
 		"gold_armour": int(p.get("gold_armour", 0)),
+		"diamonds": p_diamonds,
+		"scrolls": scrolls_copy,
 		"active_village_id": int(state_dict.get("active_village_id", -1)),
 	}
 	profiles[p_name] = prof
@@ -997,6 +1024,16 @@ func _restore_player_profile_from_world(state_dict: Dictionary, player_name: Str
 	var q_dict: Dictionary = {"claimed": [], "stats": {}}
 	if typeof(found.get("quests")) == TYPE_DICTIONARY:
 		q_dict = (found["quests"] as Dictionary).duplicate(true)
+	var r_scrolls: Dictionary = {}
+	if typeof(found.get("scrolls")) == TYPE_DICTIONARY:
+		r_scrolls = (found["scrolls"] as Dictionary).duplicate(true)
+	elif cur_same and typeof(cur_p.get("scrolls")) == TYPE_DICTIONARY:
+		r_scrolls = (cur_p["scrolls"] as Dictionary).duplicate(true)
+	var r_diamonds := 35
+	if found.has("diamonds") and found.get("diamonds") != null:
+		r_diamonds = maxi(0, int(found.get("diamonds", 35)))
+	elif cur_same and cur_p.has("diamonds") and cur_p.get("diamonds") != null:
+		r_diamonds = maxi(0, int(cur_p.get("diamonds", 35)))
 	var restored := {
 		"id": 1,
 		"name": norm_p,
@@ -1013,6 +1050,8 @@ func _restore_player_profile_from_world(state_dict: Dictionary, player_name: Str
 		"tutorial_reward_claimed": bool(found.get("tutorial_reward_claimed", false)),
 		"quests": q_dict,
 		"gold_armour": int(found.get("gold_armour", 0)),
+		"diamonds": r_diamonds,
+		"scrolls": r_scrolls,
 		"premium": false,
 	}
 	state_dict["player"] = restored
@@ -1287,6 +1326,13 @@ func _live_sync_game_state_from_world(merged_w: Dictionary, p_name: String) -> v
 	elif first_owned_vid < 0 and (prev_owned or is_player_conquered(w_id, p_name)):
 		gs.active_village_id = -1
 	gs.player["points"] = total_pts
+	if typeof(st.get("player")) == TYPE_DICTIONARY:
+		var rp: Dictionary = st["player"]
+		if _matches_player(str(rp.get("name", "")), p_name):
+			if rp.has("diamonds") and rp.get("diamonds") != null:
+				gs.player["diamonds"] = maxi(0, int(rp.get("diamonds", 35)))
+			if typeof(rp.get("scrolls")) == TYPE_DICTIONARY:
+				gs.player["scrolls"] = (rp["scrolls"] as Dictionary).duplicate(true)
 
 	if typeof(st.get("alliances")) == TYPE_ARRAY:
 		gs.alliances = (st["alliances"] as Array).duplicate(true)
@@ -1342,6 +1388,15 @@ func apply_cloud_sync(res_data: Dictionary, from_save_response: bool = false) ->
 	if res_data.has("worlds_meta"):
 		_sync_worlds_meta_from_server(res_data.get("worlds_meta", []))
 
+	var gs_sync := _find_game_state()
+	if gs_sync != null and not from_save_response:
+		if res_data.has("diamonds") and res_data.get("diamonds") != null:
+			gs_sync.player["diamonds"] = maxi(0, int(res_data.get("diamonds", 35)))
+		if typeof(res_data.get("scrolls")) == TYPE_DICTIONARY:
+			gs_sync.player["scrolls"] = (res_data.get("scrolls") as Dictionary).duplicate(true)
+		if res_data.has("diamonds") or res_data.has("scrolls"):
+			gs_sync._emit_state_changed()
+
 	var raw_cs = res_data.get("cloud_state", null)
 	if raw_cs == null and res_data.has("state"):
 		raw_cs = res_data.get("state", null)
@@ -1381,6 +1436,14 @@ func apply_cloud_sync(res_data: Dictionary, from_save_response: bool = false) ->
 			_save_meta()
 
 		_live_sync_game_state_from_world(merged_w, p_name)
+
+		if gs_sync != null and not from_save_response:
+			if res_data.has("diamonds") and res_data.get("diamonds") != null:
+				gs_sync.player["diamonds"] = maxi(0, int(res_data.get("diamonds", 35)))
+			if typeof(res_data.get("scrolls")) == TYPE_DICTIONARY:
+				gs_sync.player["scrolls"] = (res_data.get("scrolls") as Dictionary).duplicate(true)
+			if res_data.has("diamonds") or res_data.has("scrolls"):
+				gs_sync._emit_state_changed()
 
 		if not from_save_response and local_has and local_ts > cloud_ts and _cloud_enabled() and loop is SceneTree:
 			var net = loop.root.get_node_or_null("NetworkManager")

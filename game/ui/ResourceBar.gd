@@ -1,289 +1,556 @@
 extends PanelContainer
-## ResourceBar — Üst kaynak ve köy durumu çubuğu (Taht ve Kılıç / A-ARAYUZ).
 
-const Palette := preload("res://themes/Palette.gd")
-const RulesEngineScript := preload("res://scripts/rules/RulesEngine.gd")
-const VillageModelScript := preload("res://scripts/model/VillageModel.gd")
-const FontNunitoBold := preload("res://assets/fonts/Nunito-Bold.ttf")
+const DESKTOP_BAR_HEIGHT := 116.0
+const EconomyAPI := preload("res://scripts/sim/economy/EconomyAPI.gd")
+const RulesEngine := preload("res://scripts/rules/RulesEngine.gd")
+const ICON_WOOD: Texture2D = preload("res://assets/sprites/ui/nano_banana/sharp_icon_wood.tres")
+const ICON_STONE: Texture2D = preload("res://assets/sprites/ui/nano_banana/sharp_icon_stone.tres")
+const ICON_IRON: Texture2D = preload("res://assets/sprites/ui/nano_banana/sharp_icon_iron.tres")
+const ICON_CITIZENS: Texture2D = preload("res://assets/sprites/ui/nano_banana/sharp_icon_citizens.tres")
+const ICON_STORAGE: Texture2D = preload("res://assets/sprites/ui/nano_banana/sharp_icon_storage.tres")
+const FONT_BOLD: Font = preload("res://assets/fonts/Nunito-Bold.ttf")
+const FONT_SEMIBOLD: Font = preload("res://assets/fonts/Nunito-SemiBold.ttf")
 
-var village_name_label: Label = null
-var points_label: Label = null
-var wood_label: Label = null
-var stone_label: Label = null
-var iron_label: Label = null
-var storage_bar: ProgressBar = null
-var storage_label: Label = null
-var citizens_label: Label = null
-var realm_label: Label = null
-var btn_prev: Button = null
-var btn_next: Button = null
+var top_row: HBoxContainer
+var resources_row: HBoxContainer
+var vbox_root: VBoxContainer
+var village_info_box: HBoxContainer
+var island_spacer: Control
+var right_wing: HBoxContainer
+
+var village_name_label: Label
+var points_box: Control
+var points_label: Label
+var wood_box: Control
+var wood_label: Label
+var wood_bar: ProgressBar
+var stone_box: Control
+var stone_label: Label
+var stone_bar: ProgressBar
+var iron_box: Control
+var iron_label: Label
+var iron_bar: ProgressBar
+var citizens_box: Control
+var citizens_label: Label
+
+var storage_bar: ProgressBar
+var storage_label: Label
+var realm_label: Label
+var btn_prev: Button
+var btn_next: Button
+var btn_market: Button
+
+var _pb_fill_ok: StyleBoxFlat
+var _pb_fill_warn: StyleBoxFlat
+var _pb_fill_full: StyleBoxFlat
+var _last_bar_height: float = DESKTOP_BAR_HEIGHT
+var _switcher_modal: CanvasLayer = null
+var _economy_modal: CanvasLayer = null
+var _rename_modal: CanvasLayer = null
 
 
 func _ensure_nodes() -> void:
-	if wood_label == null:
+	if vbox_root == null:
+		vbox_root = get_node_or_null("VBox") as VBoxContainer
+	if top_row == null:
+		top_row = find_child("TopRow", true, false) as HBoxContainer
+	if resources_row == null:
+		resources_row = find_child("ResourcesRow", true, false) as HBoxContainer
+	if village_info_box == null:
+		village_info_box = find_child("VillageInfo", true, false) as HBoxContainer
+	if island_spacer == null:
+		island_spacer = find_child("IslandSpacer", true, false) as Control
+	if right_wing == null:
+		right_wing = find_child("RightWing", true, false) as HBoxContainer
+
+	if village_name_label == null:
 		village_name_label = find_child("VillageName", true, false) as Label
+	if points_box == null:
+		points_box = find_child("PointsBox", true, false) as Control
+	if points_label == null:
 		points_label = find_child("Points", true, false) as Label
+	if wood_box == null:
+		wood_box = find_child("WoodBox", true, false) as Control
+	if wood_label == null:
 		wood_label = find_child("WoodLabel", true, false) as Label
+	if wood_bar == null:
+		wood_bar = find_child("WoodBar", true, false) as ProgressBar
+	if stone_box == null:
+		stone_box = find_child("StoneBox", true, false) as Control
+	if stone_label == null:
 		stone_label = find_child("StoneLabel", true, false) as Label
+	if stone_bar == null:
+		stone_bar = find_child("StoneBar", true, false) as ProgressBar
+	if iron_box == null:
+		iron_box = find_child("IronBox", true, false) as Control
+	if iron_label == null:
 		iron_label = find_child("IronLabel", true, false) as Label
-		storage_bar = find_child("StorageBar", true, false) as ProgressBar
-		storage_label = find_child("StorageLabel", true, false) as Label
+	if iron_bar == null:
+		iron_bar = find_child("IronBar", true, false) as ProgressBar
+	if citizens_box == null:
+		citizens_box = find_child("CitizensBox", true, false) as Control
+	if citizens_label == null:
 		citizens_label = find_child("CitizensLabel", true, false) as Label
+
+	if storage_bar == null:
+		storage_bar = find_child("StorageBar", true, false) as ProgressBar
+	if storage_label == null:
+		storage_label = find_child("StorageLabel", true, false) as Label
+	if realm_label == null:
 		realm_label = find_child("RealmLabel", true, false) as Label
+	if btn_prev == null:
 		btn_prev = find_child("BtnPrevVillage", true, false) as Button
+	if btn_next == null:
 		btn_next = find_child("BtnNextVillage", true, false) as Button
-		_style_nav_btn(btn_prev)
-		_style_nav_btn(btn_next)
+	if btn_market == null:
+		btn_market = find_child("BtnMarket", true, false) as Button
+
+	if _pb_fill_ok == null:
+		_pb_fill_ok = StyleBoxFlat.new()
+		_pb_fill_ok.bg_color = Color(0.28, 0.78, 0.44, 1.0)
+		_pb_fill_ok.set_corner_radius_all(2)
+	if _pb_fill_warn == null:
+		_pb_fill_warn = StyleBoxFlat.new()
+		_pb_fill_warn.bg_color = Color(0.94, 0.72, 0.22, 1.0)
+		_pb_fill_warn.set_corner_radius_all(2)
+	if _pb_fill_full == null:
+		_pb_fill_full = StyleBoxFlat.new()
+		_pb_fill_full.bg_color = Color(0.92, 0.30, 0.26, 1.0)
+		_pb_fill_full.set_corner_radius_all(2)
 
 
-func _style_nav_btn(b: Button) -> void:
-	if b == null:
-		return
-	var sb := StyleBoxFlat.new()
-	sb.bg_color = Color(0.20, 0.16, 0.24, 0.95)
-	sb.border_color = Color(0.92, 0.78, 0.40, 0.95)
-	sb.set_border_width_all(2)
-	sb.set_corner_radius_all(10)
-	sb.content_margin_left = 6
-	sb.content_margin_right = 6
-	b.add_theme_stylebox_override("normal", sb)
-	var h_sb = sb.duplicate() as StyleBoxFlat
-	h_sb.bg_color = Color(0.35, 0.28, 0.42, 1.0)
-	b.add_theme_stylebox_override("hover", h_sb)
-	b.add_theme_stylebox_override("pressed", h_sb)
-	b.add_theme_color_override("font_color", Color(1.0, 0.92, 0.55))
+func _scene_tree() -> SceneTree:
+	if is_inside_tree():
+		var t := get_tree()
+		if t != null:
+			return t
+	var loop := Engine.get_main_loop()
+	return loop as SceneTree if loop is SceneTree else null
+
+
+func _autoload(node_name: String) -> Node:
+	var tree := _scene_tree()
+	if tree != null and tree.root != null:
+		var found := tree.root.get_node_or_null(node_name)
+		if found != null:
+			return found
+	var cur: Node = self
+	while cur.get_parent() != null:
+		cur = cur.get_parent()
+	return cur.get_node_or_null(node_name) if cur != self else null
 
 
 func _ready() -> void:
 	_ensure_nodes()
+	_apply_responsive_layout()
+
+	var eb := _autoload("EventBus")
+	if eb != null:
+		if eb.has_signal("resources_changed") and not eb.resources_changed.is_connected(_on_resources_changed):
+			eb.resources_changed.connect(_on_resources_changed)
+		if eb.has_signal("building_completed") and not eb.building_completed.is_connected(_on_building_completed):
+			eb.building_completed.connect(_on_building_completed)
+		if eb.has_signal("realm_changed") and not eb.realm_changed.is_connected(_on_realm_changed):
+			eb.realm_changed.connect(_on_realm_changed)
+		if eb.has_signal("village_switched") and not eb.village_switched.is_connected(_on_village_switched):
+			eb.village_switched.connect(_on_village_switched)
+
+	var sm := _autoload("StoreManager")
+	if sm != null and sm.has_signal("diamonds_changed") and not sm.diamonds_changed.is_connected(_on_diamonds_changed):
+		sm.diamonds_changed.connect(_on_diamonds_changed)
+
 	if btn_prev != null and not btn_prev.pressed.is_connected(_on_prev_village_pressed):
 		btn_prev.pressed.connect(_on_prev_village_pressed)
 	if btn_next != null and not btn_next.pressed.is_connected(_on_next_village_pressed):
 		btn_next.pressed.connect(_on_next_village_pressed)
+	if btn_market != null and not btn_market.pressed.is_connected(_on_market_pressed):
+		btn_market.pressed.connect(_on_market_pressed)
 
 	if village_name_label != null:
 		village_name_label.mouse_filter = Control.MOUSE_FILTER_STOP
-		village_name_label.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+		village_name_label.clip_text = true
+		village_name_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 		if not village_name_label.gui_input.is_connected(_on_village_name_gui_input):
 			village_name_label.gui_input.connect(_on_village_name_gui_input)
 
-	var bus = Engine.get_main_loop().root.get_node_or_null("EventBus") if Engine.get_main_loop() is SceneTree else null
-	if bus != null:
-		if bus.has_signal("resources_changed") and not bus.resources_changed.is_connected(_on_resources_changed):
-			bus.resources_changed.connect(_on_resources_changed)
-		if bus.has_signal("building_completed") and not bus.building_completed.is_connected(_on_building_completed):
-			bus.building_completed.connect(_on_building_completed)
-		if bus.has_signal("realm_of_power_changed") and not bus.realm_of_power_changed.is_connected(_on_realm_changed):
-			bus.realm_of_power_changed.connect(_on_realm_changed)
-		if bus.has_signal("state_changed") and not bus.state_changed.is_connected(refresh):
-			bus.state_changed.connect(refresh)
+	for box in [points_box, wood_box, stone_box, iron_box, citizens_box]:
+		if box != null:
+			box.mouse_filter = Control.MOUSE_FILTER_STOP
+			if not box.gui_input.is_connected(_on_economy_box_gui_input):
+				box.gui_input.connect(_on_economy_box_gui_input)
+
+	if not resized.is_connected(_on_self_resized):
+		resized.connect(_on_self_resized)
+
 	refresh()
 
 
+func _on_self_resized() -> void:
+	_apply_responsive_layout()
+
+
+func get_bar_height() -> float:
+	_apply_responsive_layout()
+	return _last_bar_height
+
+
+func _apply_responsive_layout() -> void:
+	_ensure_nodes()
+	var gc := _autoload("GameConfig")
+	var safe_top := 0.0
+	var island_w := 0.0
+	if gc != null:
+		if gc.has_method("get_ios_safe_top"):
+			safe_top = float(gc.call("get_ios_safe_top"))
+		if gc.has_method("get_ios_dynamic_island_width"):
+			island_w = float(gc.call("get_ios_dynamic_island_width"))
+
+	var has_island := island_w > 0.0
+	var top_pad := 9.0
+	var bottom_pad := 9.0
+	var sep := 6
+	var top_row_h := 46.0
+	var res_row_h := 46.0
+
+	if has_island:
+		top_pad = 4.0
+		bottom_pad = 8.0
+		sep = 4
+		top_row_h = maxf(48.0, safe_top - 2.0)
+	elif safe_top > 0.0:
+		top_pad = maxf(9.0, safe_top + 2.0)
+
+	var total_h := top_pad + top_row_h + float(sep) + res_row_h + bottom_pad
+	_last_bar_height = total_h
+
+	var panel_sb := get_theme_stylebox("panel") as StyleBoxFlat
+	if panel_sb != null:
+		var mut_sb := panel_sb
+		if not mut_sb.resource_local_to_scene:
+			mut_sb = panel_sb.duplicate() as StyleBoxFlat
+			mut_sb.resource_local_to_scene = true
+			add_theme_stylebox_override("panel", mut_sb)
+		mut_sb.content_margin_top = top_pad
+		mut_sb.content_margin_bottom = bottom_pad
+		mut_sb.content_margin_left = 10.0 if has_island else 14.0
+		mut_sb.content_margin_right = 10.0 if has_island else 14.0
+
+	if vbox_root != null:
+		vbox_root.add_theme_constant_override("separation", sep)
+	if top_row != null:
+		top_row.custom_minimum_size.y = top_row_h
+	if resources_row != null:
+		resources_row.custom_minimum_size.y = res_row_h
+
+	if island_spacer != null:
+		island_spacer.visible = has_island
+		island_spacer.custom_minimum_size = Vector2(island_w if has_island else 0.0, 0.0)
+
+	if right_wing != null:
+		right_wing.size_flags_horizontal = Control.SIZE_EXPAND_FILL if has_island else Control.SIZE_SHRINK_END
+
+	if points_box != null:
+		points_box.visible = not has_island
+	if btn_prev != null:
+		btn_prev.custom_minimum_size = Vector2(32, 34) if has_island else Vector2(36, 36)
+	if btn_next != null:
+		btn_next.custom_minimum_size = Vector2(32, 34) if has_island else Vector2(36, 36)
+	if btn_market != null:
+		btn_market.custom_minimum_size = Vector2(118, 36) if has_island else Vector2(132, 38)
+		btn_market.add_theme_font_size_override("font_size", 17 if has_island else 19)
+	if village_name_label != null:
+		village_name_label.add_theme_font_size_override("font_size", 18 if has_island else 21)
+
+	custom_minimum_size.y = total_h
+	offset_top = 0.0
+	offset_bottom = total_h
+
+
+func _is_tap_event(event: InputEvent) -> bool:
+	if event is InputEventMouseButton:
+		var mb := event as InputEventMouseButton
+		return mb.button_index == MOUSE_BUTTON_LEFT and mb.pressed
+	if event is InputEventScreenTouch:
+		var st := event as InputEventScreenTouch
+		return st.pressed
+	return false
+
+
 func _on_village_name_gui_input(event: InputEvent) -> void:
-	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
-		var gs = Engine.get_main_loop().root.get_node_or_null("GameState") if Engine.get_main_loop() is SceneTree else null
-		if gs != null and gs.has_method("get_player_villages") and gs.get_player_villages().size() > 1:
-			_show_village_switcher_modal()
-		else:
-			_show_rename_modal()
+	if _is_tap_event(event):
+		accept_event()
+		_show_village_switcher_modal()
+
+
+func _on_economy_box_gui_input(event: InputEvent) -> void:
+	if _is_tap_event(event):
+		accept_event()
+		_show_economy_modal()
 
 
 func _on_prev_village_pressed() -> void:
-	var gs = Engine.get_main_loop().root.get_node_or_null("GameState") if Engine.get_main_loop() is SceneTree else null
-	if gs != null and gs.has_method("cycle_active_village"):
-		gs.cycle_active_village(-1)
-		var wm = Engine.get_main_loop().root.get_node_or_null("WorldManager") if Engine.get_main_loop() is SceneTree else null
-		if wm != null and wm.has_method("save_active_world"):
-			wm.save_active_world()
+	var gs := _get_game_state()
+	if gs != null:
+		if gs.has_method("cycle_active_village"):
+			gs.call("cycle_active_village", -1)
 		refresh()
 
 
 func _on_next_village_pressed() -> void:
-	var gs = Engine.get_main_loop().root.get_node_or_null("GameState") if Engine.get_main_loop() is SceneTree else null
-	if gs != null and gs.has_method("cycle_active_village"):
-		gs.cycle_active_village(1)
-		var wm = Engine.get_main_loop().root.get_node_or_null("WorldManager") if Engine.get_main_loop() is SceneTree else null
-		if wm != null and wm.has_method("save_active_world"):
-			wm.save_active_world()
+	var gs := _get_game_state()
+	if gs != null:
+		if gs.has_method("cycle_active_village"):
+			gs.call("cycle_active_village", 1)
 		refresh()
 
 
+func _on_market_pressed() -> void:
+	var sm := _autoload("StoreManager")
+	if sm != null and sm.has_method("open_market"):
+		sm.call("open_market", self, "build")
+
+
 func _on_resources_changed(village_id: int) -> void:
-	var gs = Engine.get_main_loop().root.get_node_or_null("GameState") if Engine.get_main_loop() is SceneTree else null
-	if gs != null and gs.has_active_village() and village_id != gs.active_village_id:
-		return
-	refresh()
+	var gs := _get_game_state()
+	if gs != null and int(gs.get("active_village_id")) == village_id:
+		refresh()
 
 
 func _on_building_completed(village_id: int, _key: String, _level: int) -> void:
-	var gs = Engine.get_main_loop().root.get_node_or_null("GameState") if Engine.get_main_loop() is SceneTree else null
-	if gs != null and gs.has_active_village() and village_id != gs.active_village_id:
-		return
-	refresh()
+	var gs := _get_game_state()
+	if gs != null and int(gs.get("active_village_id")) == village_id:
+		refresh()
 
 
 func _on_realm_changed(village_id: int, _val: int) -> void:
-	var gs = Engine.get_main_loop().root.get_node_or_null("GameState") if Engine.get_main_loop() is SceneTree else null
-	if gs != null and gs.has_active_village() and village_id != gs.active_village_id:
-		return
+	var gs := _get_game_state()
+	if gs != null and int(gs.get("active_village_id")) == village_id:
+		refresh()
+
+
+func _on_village_switched(_village_id: int) -> void:
 	refresh()
 
 
+func _on_diamonds_changed(_amount: int) -> void:
+	_update_market_button()
+
+
 func _get_game_state() -> Node:
-	if is_inside_tree() and has_node("/root/GameState"):
-		return get_node("/root/GameState")
-	if get_parent() != null and get_parent().has_node("GameState"):
-		return get_parent().get_node("GameState")
-	var loop = Engine.get_main_loop()
-	if loop is SceneTree:
-		var root_node = (loop as SceneTree).root
-		if root_node != null:
-			if root_node.has_node("GameState"):
-				return root_node.get_node("GameState")
-			var GSScript = load("res://autoload/GameState.gd")
-			for child in root_node.get_children():
-				if child.name == "GameState" or child.name.contains("GameState") or (GSScript != null and child.get_script() == GSScript):
-					return child
-	return null
+	return _autoload("GameState")
+
+
+func _update_market_button() -> void:
+	_ensure_nodes()
+	if btn_market == null:
+		return
+	var diamonds := 0
+	var sm := _autoload("StoreManager")
+	if sm != null and sm.has_method("get_diamonds"):
+		diamonds = int(sm.call("get_diamonds"))
+	else:
+		var gs := _get_game_state()
+		if gs != null:
+			var p = gs.get("player")
+			if p is Dictionary:
+				diamonds = int((p as Dictionary).get("diamonds", 0))
+	btn_market.text = "💎 %d  +" % diamonds
+
+
+func _apply_gauge(bar: ProgressBar, amount: float, cap: int) -> void:
+	if bar == null:
+		return
+	var safe_cap := maxf(1.0, float(cap))
+	bar.max_value = safe_cap
+	bar.value = clampf(amount, 0.0, safe_cap)
+	var ratio := amount / safe_cap
+	var sb := _pb_fill_ok
+	if ratio >= 0.95:
+		sb = _pb_fill_full
+	elif ratio >= 0.75:
+		sb = _pb_fill_warn
+	bar.add_theme_stylebox_override("fill", sb)
 
 
 func refresh() -> void:
 	_ensure_nodes()
-	var gs = _get_game_state()
-	if gs == null or not gs.has_active_village():
+	_apply_responsive_layout()
+	_update_market_button()
+
+	var gs := _get_game_state()
+	if gs == null:
+		return
+	var v: Dictionary = gs.call("get_active_village") if gs.has_method("get_active_village") else {}
+	if v.is_empty():
 		return
 
-	var v: Dictionary = gs.get_active_village()
-	var p_vills: Array = gs.get_player_villages() if gs.has_method("get_player_villages") else []
-	var total_vills := p_vills.size()
-	var cur_idx := 1
-	for i in range(total_vills):
-		if int(p_vills[i].get("id", -1)) == gs.active_village_id:
-			cur_idx = i + 1
-			break
+	var player_dict: Dictionary = gs.get("player") if gs.get("player") is Dictionary else {}
+	var p_name := str(player_dict.get("name", "Lord"))
+	var v_name := str(v.get("name", "Köy"))
+	var vx := int(v.get("x", 0))
+	var vy := int(v.get("y", 0))
 
-	if btn_prev != null:
-		btn_prev.visible = (total_vills > 1)
-	if btn_next != null:
-		btn_next.visible = (total_vills > 1)
+	var gc := _autoload("GameConfig")
+	var island_w := float(gc.call("get_ios_dynamic_island_width")) if gc != null and gc.has_method("get_ios_dynamic_island_width") else 0.0
 
 	if village_name_label != null:
-		var auth = Engine.get_main_loop().root.get_node_or_null("AuthManager") if Engine.get_main_loop() is SceneTree else null
-		var existing_p := str(gs.player.get("name", "")).strip_edges()
-		var v_owner := str(v.get("owner", "")).strip_edges()
-		var user_name := ""
-		if not existing_p.is_empty() and existing_p != "Kral" and (v_owner == existing_p or auth == null or not auth.is_logged_in or auth.display_name.is_empty()):
-			user_name = existing_p
-		elif auth != null and auth.is_logged_in and not auth.display_name.is_empty():
-			user_name = auth.display_name
-			gs.player["name"] = user_name
+		if island_w > 0.0:
+			village_name_label.text = "🏰 %s (%d|%d)" % [v_name, vx, vy]
 		else:
-			user_name = existing_p
-		if user_name.is_empty() or user_name == "Kral":
-			user_name = "Lord Gorkem"
-			gs.player["name"] = user_name
+			village_name_label.text = "%s | 🏰 %s (%d|%d)" % [p_name, v_name, vx, vy]
+		village_name_label.tooltip_text = "%s | 🏰 %s (%d|%d)\nKöyleri görmek ve seçmek için dokun" % [p_name, v_name, vx, vy]
 
-		if str(v.get("owner", "")) == "Kral" or str(v.get("owner", "")).is_empty():
-			v["owner"] = user_name
-
-		var count_str := " [%d/%d] ▾" % [cur_idx, total_vills] if total_vills > 1 else ""
-		var v_name := str(v.get("name", "Başkent"))
-		village_name_label.text = "%s | %s (%d|%d)%s" % [user_name, v_name, int(v.get("x", 0)), int(v.get("y", 0)), count_str]
-		village_name_label.tooltip_text = "Köy Değiştir / İsim Düzenle" if total_vills > 1 else "Köy Adını Düzenle"
+	var villages_list = gs.get("villages")
+	var multi: bool = (villages_list is Array and (villages_list as Array).size() > 1)
+	if btn_prev != null:
+		btn_prev.visible = multi
+	if btn_next != null:
+		btn_next.visible = multi
 
 	if points_label != null:
-		points_label.text = "%d P" % int(v.get("points", 0))
-		points_label.tooltip_text = "Köy Puanı: %d" % int(v.get("points", 0))
+		var v_pts := int(v.get("points", 0))
+		if villages_list is Array and (villages_list as Array).size() > 1:
+			var total_pts := 0
+			for item in villages_list:
+				total_pts += int(item.get("points", 0))
+			points_label.text = "👑 %d P (%d)" % [v_pts, total_pts]
+		else:
+			points_label.text = "👑 %d P" % v_pts
 
 	var res: Dictionary = v.get("resources", {})
+	var w := float(res.get("wood", 0))
+	var s := float(res.get("stone", 0))
+	var i := float(res.get("iron", 0))
+
 	if wood_label != null:
-		wood_label.text = str(int(res.get("wood", 0)))
+		wood_label.text = "%d" % int(w)
 	if stone_label != null:
-		stone_label.text = str(int(res.get("stone", 0)))
+		stone_label.text = "%d" % int(s)
 	if iron_label != null:
-		iron_label.text = str(int(res.get("iron", 0)))
+		iron_label.text = "%d" % int(i)
 
-	var storage_lvl: int = int(v.get("buildings", {}).get("storage", 1))
-	var storage_cap: int = RulesEngineScript.storage_capacity(storage_lvl)
-	var max_res: int = maxi(int(res.get("wood", 0)), maxi(int(res.get("stone", 0)), int(res.get("iron", 0))))
+	var b: Dictionary = v.get("buildings", {})
+	var wh_lvl := int(b.get("warehouse", 1))
+	var cap := int(RulesEngine.storage_capacity(wh_lvl))
+	if cap <= 0:
+		cap = 1000
 
-	if storage_bar != null:
-		storage_bar.max_value = storage_cap
-		storage_bar.value = max_res
-	if storage_label != null:
-		storage_label.text = str(storage_cap)
+	_apply_gauge(wood_bar, w, cap)
+	_apply_gauge(stone_bar, s, cap)
+	_apply_gauge(iron_bar, i, cap)
 
-	var farm_lvl: int = int(v.get("buildings", {}).get("farm", 1))
-	var max_pop: int = RulesEngineScript.max_population(farm_lvl)
-	var free_pop: int = VillageModelScript.population_free(v)
+	var pop: Dictionary = EconomyAPI.population_summary(v)
+	var free_pop := int(pop.get("free", 0))
 	if citizens_label != null:
-		citizens_label.text = "👥 %d/%d" % [free_pop, max_pop]
-		citizens_label.tooltip_text = "Vatandaş Durumu: %d Boş / %d Kapasite" % [free_pop, max_pop]
+		citizens_label.text = "%d Boş" % free_pop
 
+	var rlm: Dictionary = EconomyAPI.realm_summary(v)
+	var max_res := maxf(w, maxf(s, i))
+	if storage_bar != null:
+		storage_bar.max_value = float(cap)
+		storage_bar.value = clampf(max_res, 0.0, float(cap))
+	if storage_label != null:
+		storage_label.text = "%d / %d" % [int(max_res), cap]
 	if realm_label != null:
-		var cur_realm: int = int(v.get("realm_of_power", 0))
-		var max_realm: int = int(v.get("points", 0))
-		realm_label.text = "⚡ %d" % cur_realm
-		realm_label.tooltip_text = "Güç Alanı: %d / %d (Mevcut / Tavan). Köy Puanı: %d" % [cur_realm, max_realm, max_realm]
+		realm_label.text = "%d / %d" % [int(rlm.get("value", 0)), int(rlm.get("cap", 0))]
 
 
-var _rename_modal: CanvasLayer = null
-var _switcher_modal: CanvasLayer = null
+func _get_sim_now_unix() -> int:
+	var gl := _autoload("GameLoop")
+	if gl != null and gl.has_method("now_unix"):
+		return int(gl.call("now_unix"))
+	var clock := _autoload("GameClock")
+	if clock != null and clock.has_method("now_unix"):
+		return int(clock.call("now_unix"))
+	return int(Time.get_unix_time_from_system())
 
 
-func _show_village_switcher_modal() -> void:
-	if _switcher_modal != null and is_instance_valid(_switcher_modal):
-		_switcher_modal.queue_free()
+func _fmt_duration(secs: int) -> String:
+	var s := maxi(0, secs)
+	var sm := _autoload("StoreManager")
+	if sm != null and sm.has_method("format_duration"):
+		return str(sm.call("format_duration", s))
+	var h := s / 3600
+	var m := (s % 3600) / 60
+	var rem := s % 60
+	if h > 0:
+		return "%02d:%02d:%02d" % [h, m, rem]
+	return "%02d:%02d" % [m, rem]
 
-	var gs = Engine.get_main_loop().root.get_node_or_null("GameState") if Engine.get_main_loop() is SceneTree else null
-	if gs == null or not gs.has_method("get_player_villages"):
+
+func _show_economy_modal() -> void:
+	var tree := _scene_tree()
+	if tree == null:
 		return
-	var player_villages: Array = gs.get_player_villages()
-	if player_villages.size() <= 1:
-		_show_rename_modal()
+	var root := tree.current_scene
+	if root == null:
+		root = tree.root
+	if root == null:
+		return
+	if is_instance_valid(_economy_modal):
+		_economy_modal.queue_free()
+	var prev := root.get_node_or_null("EconomySummaryModal")
+	if prev != null:
+		prev.queue_free()
+
+	var gs := _get_game_state()
+	if gs == null:
+		return
+	var v: Dictionary = gs.call("get_active_village") if gs.has_method("get_active_village") else {}
+	if v.is_empty():
 		return
 
-	var vp_size := get_viewport().get_visible_rect().size if is_inside_tree() and get_viewport() != null else Vector2(1080.0, 1920.0)
-	if vp_size.x < 100.0 or vp_size.y < 100.0:
-		vp_size = Vector2(1080.0, 1920.0)
-	var card_w := clampf(vp_size.x - 64.0, 460.0, 860.0)
-	var card_h := clampf(vp_size.y - 260.0, 380.0, 820.0)
+	var b: Dictionary = v.get("buildings", {})
+	var res: Dictionary = v.get("resources", {})
+	var wh_lvl := int(b.get("warehouse", 1))
+	var cap := maxi(1000, int(RulesEngine.storage_capacity(wh_lvl)))
 
-	_switcher_modal = CanvasLayer.new()
-	_switcher_modal.name = "VillageSwitcherModal"
-	_switcher_modal.layer = 135
+	var wood := int(res.get("wood", 0))
+	var stone := int(res.get("stone", 0))
+	var iron := int(res.get("iron", 0))
+	var wood_hr := int(round(RulesEngine.production_per_hour("lumber", int(b.get("lumber", 0)))))
+	var stone_hr := int(round(RulesEngine.production_per_hour("quarry", int(b.get("quarry", 0)))))
+	var iron_hr := int(round(RulesEngine.production_per_hour("ironmine", int(b.get("ironmine", 0)))))
 
-	var root_ctrl := Control.new()
-	root_ctrl.name = "ModalRoot"
-	root_ctrl.mouse_filter = Control.MOUSE_FILTER_STOP
-	_switcher_modal.add_child(root_ctrl)
-	root_ctrl.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	var pop: Dictionary = EconomyAPI.population_summary(v)
+	var rlm: Dictionary = EconomyAPI.realm_summary(v)
+	var now := _get_sim_now_unix()
+	var prot_until := maxi(int(v.get("protection_until", 0)), int(v.get("protection_until_unix", 0)))
+	var conq_until := maxi(int(v.get("conquest_protection_until", 0)), int(v.get("conquest_protection_until_unix", 0)))
+	var prot_rem := maxi(0, prot_until - now)
+	var conq_rem := maxi(0, conq_until - now)
+
+	var layer := CanvasLayer.new()
+	layer.name = "EconomySummaryModal"
+	layer.layer = 136
+	_economy_modal = layer
+	root.add_child(layer)
 
 	var dim := ColorRect.new()
-	dim.color = Color(0.04, 0.03, 0.06, 0.84)
-	dim.mouse_filter = Control.MOUSE_FILTER_STOP
-	dim.gui_input.connect(func(ev):
-		if ev is InputEventMouseButton and ev.pressed:
-			_switcher_modal.queue_free()
+	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
+	dim.color = Color(0.03, 0.02, 0.05, 0.72)
+	layer.add_child(dim)
+	dim.gui_input.connect(func(ev: InputEvent):
+		if _is_tap_event(ev):
+			layer.queue_free()
 	)
-	root_ctrl.add_child(dim)
-	dim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 
 	var center := CenterContainer.new()
-	center.mouse_filter = Control.MOUSE_FILTER_PASS
-	root_ctrl.add_child(center)
-	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	center.set_anchors_preset(Control.PRESET_FULL_RECT)
+	center.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	layer.add_child(center)
 
 	var card := PanelContainer.new()
-	card.custom_minimum_size = Vector2(card_w, card_h)
+	card.custom_minimum_size = Vector2(780, 0)
 	var card_sb := StyleBoxFlat.new()
-	card_sb.bg_color = Color(0.11, 0.09, 0.15, 0.98)
-	card_sb.border_color = Color(0.88, 0.74, 0.42, 1.0)
-	card_sb.set_border_width_all(3)
-	card_sb.border_width_top = 5
+	card_sb.bg_color = Color(0.10, 0.09, 0.14, 0.98)
+	card_sb.border_color = Color(0.86, 0.68, 0.28, 0.96)
+	card_sb.set_border_width_all(2)
 	card_sb.set_corner_radius_all(18)
-	card_sb.set_content_margin_all(22)
+	card_sb.content_margin_left = 24
+	card_sb.content_margin_right = 24
+	card_sb.content_margin_top = 20
+	card_sb.content_margin_bottom = 20
 	card.add_theme_stylebox_override("panel", card_sb)
 	center.add_child(card)
 
@@ -291,33 +558,290 @@ func _show_village_switcher_modal() -> void:
 	vb.add_theme_constant_override("separation", 14)
 	card.add_child(vb)
 
-	var hdr := HBoxContainer.new()
-	hdr.add_theme_constant_override("separation", 10)
-	vb.add_child(hdr)
+	var head := HBoxContainer.new()
+	vb.add_child(head)
+	var title := Label.new()
+	title.text = "🏰 Köy Ekonomisi & Depo Özeti"
+	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	title.add_theme_font_override("font", FONT_BOLD)
+	title.add_theme_font_size_override("font_size", 28)
+	title.add_theme_color_override("font_color", Color(0.98, 0.85, 0.45))
+	head.add_child(title)
 
-	var title_lbl := Label.new()
-	title_lbl.text = "🏰 Köylerim (%d Köy)" % player_villages.size()
-	title_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	title_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
-	var FontCinzelBold = load("res://assets/fonts/Cinzel-Bold.ttf")
-	if FontCinzelBold != null:
-		title_lbl.add_theme_font_override("font", FontCinzelBold)
-	title_lbl.add_theme_font_size_override("font_size", 28)
-	title_lbl.add_theme_color_override("font_color", Color(1.0, 0.92, 0.65))
-	hdr.add_child(title_lbl)
+	var close_x := Button.new()
+	close_x.text = "✕"
+	close_x.custom_minimum_size = Vector2(44, 44)
+	_style_modal_btn(close_x, Color(0.32, 0.14, 0.14, 0.95), Color(0.84, 0.38, 0.34, 0.9))
+	close_x.pressed.connect(func(): layer.queue_free())
+	head.add_child(close_x)
 
-	var btn_x := Button.new()
-	btn_x.text = "✕"
-	btn_x.custom_minimum_size = Vector2(46, 46)
-	btn_x.add_theme_font_override("font", FontNunitoBold)
-	btn_x.add_theme_font_size_override("font_size", 22)
-	btn_x.pressed.connect(func(): _switcher_modal.queue_free())
-	hdr.add_child(btn_x)
+	var sub := Label.new()
+	sub.text = "%s (%d|%d)   •   👑 %d Puan   •   🏛️ Depo Sv.%d (Kapasite: %d)" % [
+		str(v.get("name", "Köy")), int(v.get("x", 0)), int(v.get("y", 0)), int(v.get("points", 0)), wh_lvl, cap
+	]
+	sub.add_theme_font_override("font", FONT_SEMIBOLD)
+	sub.add_theme_font_size_override("font_size", 19)
+	sub.add_theme_color_override("font_color", Color(0.86, 0.82, 0.72))
+	vb.add_child(sub)
+
+	var res_entries := [
+		{"icon": ICON_WOOD, "name": "Odun (Oduncu Sv.%d)" % int(b.get("lumber", 0)), "cur": wood, "rate": wood_hr, "tint": Color(0.56, 0.86, 0.46)},
+		{"icon": ICON_STONE, "name": "Taş (Taş Ocağı Sv.%d)" % int(b.get("quarry", 0)), "cur": stone, "rate": stone_hr, "tint": Color(0.78, 0.80, 0.84)},
+		{"icon": ICON_IRON, "name": "Demir (Demir Madeni Sv.%d)" % int(b.get("ironmine", 0)), "cur": iron, "rate": iron_hr, "tint": Color(0.62, 0.78, 0.96)},
+	]
+	for entry in res_entries:
+		var row_card := PanelContainer.new()
+		var r_sb := StyleBoxFlat.new()
+		r_sb.bg_color = Color(0.14, 0.12, 0.19, 0.94)
+		r_sb.border_color = Color(0.38, 0.32, 0.24, 0.85)
+		r_sb.set_border_width_all(1)
+		r_sb.set_corner_radius_all(12)
+		r_sb.content_margin_left = 14
+		r_sb.content_margin_right = 14
+		r_sb.content_margin_top = 10
+		r_sb.content_margin_bottom = 10
+		row_card.add_theme_stylebox_override("panel", r_sb)
+		vb.add_child(row_card)
+
+		var r_hb := HBoxContainer.new()
+		r_hb.add_theme_constant_override("separation", 12)
+		row_card.add_child(r_hb)
+
+		var tex := TextureRect.new()
+		tex.texture = entry["icon"]
+		tex.custom_minimum_size = Vector2(36, 36)
+		tex.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		tex.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		r_hb.add_child(tex)
+
+		var info_vb := VBoxContainer.new()
+		info_vb.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		info_vb.add_theme_constant_override("separation", 4)
+		r_hb.add_child(info_vb)
+
+		var top_line := HBoxContainer.new()
+		info_vb.add_child(top_line)
+
+		var nm := Label.new()
+		nm.text = str(entry["name"])
+		nm.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		nm.add_theme_font_override("font", FONT_BOLD)
+		nm.add_theme_font_size_override("font_size", 20)
+		nm.add_theme_color_override("font_color", Color(0.96, 0.93, 0.85))
+		top_line.add_child(nm)
+
+		var val_lbl := Label.new()
+		val_lbl.text = "%d / %d   (+%d/saat)" % [int(entry["cur"]), cap, int(entry["rate"])]
+		val_lbl.add_theme_font_override("font", FONT_BOLD)
+		val_lbl.add_theme_font_size_override("font_size", 20)
+		val_lbl.add_theme_color_override("font_color", entry["tint"])
+		top_line.add_child(val_lbl)
+
+		var pb := ProgressBar.new()
+		pb.show_percentage = false
+		pb.custom_minimum_size = Vector2(0, 8)
+		pb.max_value = float(cap)
+		pb.value = clampf(float(entry["cur"]), 0.0, float(cap))
+		pb.add_theme_stylebox_override("background", _make_pb_bg())
+		pb.add_theme_stylebox_override("fill", _make_pb_fill(entry["tint"]))
+		info_vb.add_child(pb)
+
+	var stats_card := PanelContainer.new()
+	var s_sb := StyleBoxFlat.new()
+	s_sb.bg_color = Color(0.13, 0.11, 0.17, 0.95)
+	s_sb.border_color = Color(0.54, 0.44, 0.24, 0.85)
+	s_sb.set_border_width_all(1)
+	s_sb.set_corner_radius_all(12)
+	s_sb.content_margin_left = 14
+	s_sb.content_margin_right = 14
+	s_sb.content_margin_top = 12
+	s_sb.content_margin_bottom = 12
+	stats_card.add_theme_stylebox_override("panel", s_sb)
+	vb.add_child(stats_card)
+
+	var stats_vb := VBoxContainer.new()
+	stats_vb.add_theme_constant_override("separation", 8)
+	stats_card.add_child(stats_vb)
+
+	var pop_lbl := Label.new()
+	pop_lbl.text = "👥 Vatandaş: %d Boş  /  %d Toplam  (Kullanılan: %d)" % [
+		int(pop.get("free", 0)), int(pop.get("max", 0)), int(pop.get("used", 0))
+	]
+	pop_lbl.add_theme_font_override("font", FONT_SEMIBOLD)
+	pop_lbl.add_theme_font_size_override("font_size", 20)
+	pop_lbl.add_theme_color_override("font_color", Color(0.84, 0.96, 0.86))
+	stats_vb.add_child(pop_lbl)
+
+	var rlm_lbl := Label.new()
+	rlm_lbl.text = "✨ Güç Alanı: %d / %d  (+%d/saat)" % [
+		int(rlm.get("value", 0)), int(rlm.get("cap", 0)), int(round(float(rlm.get("hourly_gain", 0))))
+	]
+	rlm_lbl.add_theme_font_override("font", FONT_SEMIBOLD)
+	rlm_lbl.add_theme_font_size_override("font_size", 20)
+	rlm_lbl.add_theme_color_override("font_color", Color(0.76, 0.88, 0.98))
+	stats_vb.add_child(rlm_lbl)
+
+	var prot_txt := "🛡️ Saldırı Koruması: "
+	if prot_rem > 0:
+		prot_txt += _fmt_duration(prot_rem)
+	else:
+		prot_txt += "Yok"
+	if conq_rem > 0:
+		prot_txt += "   •   🏰 Fetih Koruması: " + _fmt_duration(conq_rem)
+	var prot_lbl := Label.new()
+	prot_lbl.text = prot_txt
+	prot_lbl.add_theme_font_override("font", FONT_SEMIBOLD)
+	prot_lbl.add_theme_font_size_override("font_size", 19)
+	prot_lbl.add_theme_color_override("font_color", Color(0.96, 0.86, 0.52) if (prot_rem > 0 or conq_rem > 0) else Color(0.72, 0.70, 0.68))
+	stats_vb.add_child(prot_lbl)
+
+	var btns := HBoxContainer.new()
+	btns.alignment = BoxContainer.ALIGNMENT_END
+	btns.add_theme_constant_override("separation", 10)
+	vb.add_child(btns)
+
+	var btn_rename := Button.new()
+	btn_rename.text = "✏️ Köy Adı Değiştir"
+	btn_rename.custom_minimum_size = Vector2(210, 48)
+	_style_modal_btn(btn_rename, Color(0.20, 0.18, 0.28, 0.96), Color(0.78, 0.62, 0.30, 0.90))
+	btn_rename.pressed.connect(func():
+		layer.queue_free()
+		_show_rename_modal()
+	)
+	btns.add_child(btn_rename)
+
+	var btn_open_mkt := Button.new()
+	btn_open_mkt.text = "🛒 Kraliyet Pazarı"
+	btn_open_mkt.custom_minimum_size = Vector2(210, 48)
+	_style_modal_btn(btn_open_mkt, Color(0.14, 0.28, 0.50, 0.98), Color(0.94, 0.78, 0.36, 0.96))
+	btn_open_mkt.pressed.connect(func():
+		layer.queue_free()
+		_on_market_pressed()
+	)
+	btns.add_child(btn_open_mkt)
+
+	var btn_ok := Button.new()
+	btn_ok.text = "Kapat"
+	btn_ok.custom_minimum_size = Vector2(130, 48)
+	_style_modal_btn(btn_ok, Color(0.22, 0.19, 0.24, 0.95), Color(0.62, 0.56, 0.44, 0.85))
+	btn_ok.pressed.connect(func(): layer.queue_free())
+	btns.add_child(btn_ok)
+
+
+func _make_pb_bg() -> StyleBoxFlat:
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color(0.06, 0.05, 0.09, 0.96)
+	sb.set_corner_radius_all(4)
+	return sb
+
+
+func _make_pb_fill(col: Color) -> StyleBoxFlat:
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = col
+	sb.set_corner_radius_all(4)
+	return sb
+
+
+func _style_modal_btn(b: Button, bg: Color, border: Color) -> void:
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = bg
+	sb.border_color = border
+	sb.set_border_width_all(2)
+	sb.set_corner_radius_all(10)
+	sb.content_margin_left = 14
+	sb.content_margin_right = 14
+	sb.content_margin_top = 8
+	sb.content_margin_bottom = 8
+	var sb_h := sb.duplicate() as StyleBoxFlat
+	sb_h.bg_color = bg.lightened(0.12)
+	b.add_theme_stylebox_override("normal", sb)
+	b.add_theme_stylebox_override("hover", sb_h)
+	b.add_theme_stylebox_override("pressed", sb_h)
+	b.add_theme_font_override("font", FONT_BOLD)
+	b.add_theme_font_size_override("font_size", 19)
+	b.add_theme_color_override("font_color", Color(0.98, 0.95, 0.86))
+
+
+func _show_village_switcher_modal() -> void:
+	var gs := _get_game_state()
+	if gs == null:
+		return
+	var tree := _scene_tree()
+	if tree == null:
+		return
+	var root := tree.current_scene
+	if root == null:
+		root = tree.root
+	if root == null:
+		return
+	if is_instance_valid(_switcher_modal):
+		_switcher_modal.queue_free()
+	var prev := root.get_node_or_null("VillageSwitcherModal")
+	if prev != null:
+		prev.queue_free()
+
+	var layer := CanvasLayer.new()
+	layer.name = "VillageSwitcherModal"
+	layer.layer = 135
+	_switcher_modal = layer
+	root.add_child(layer)
+
+	var dim := ColorRect.new()
+	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
+	dim.color = Color(0.03, 0.02, 0.05, 0.72)
+	layer.add_child(dim)
+	dim.gui_input.connect(func(ev: InputEvent):
+		if _is_tap_event(ev):
+			layer.queue_free()
+	)
+
+	var center := CenterContainer.new()
+	center.set_anchors_preset(Control.PRESET_FULL_RECT)
+	center.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	layer.add_child(center)
+
+	var card := PanelContainer.new()
+	card.custom_minimum_size = Vector2(760, 0)
+	var card_sb := StyleBoxFlat.new()
+	card_sb.bg_color = Color(0.10, 0.09, 0.14, 0.98)
+	card_sb.border_color = Color(0.86, 0.68, 0.28, 0.96)
+	card_sb.set_border_width_all(2)
+	card_sb.set_corner_radius_all(18)
+	card_sb.content_margin_left = 24
+	card_sb.content_margin_right = 24
+	card_sb.content_margin_top = 20
+	card_sb.content_margin_bottom = 20
+	card.add_theme_stylebox_override("panel", card_sb)
+	center.add_child(card)
+
+	var vb := VBoxContainer.new()
+	vb.add_theme_constant_override("separation", 12)
+	card.add_child(vb)
+
+	var header := HBoxContainer.new()
+	vb.add_child(header)
+	var title := Label.new()
+	title.text = "🏰 Köylerim"
+	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	title.add_theme_font_override("font", FONT_BOLD)
+	title.add_theme_font_size_override("font_size", 28)
+	title.add_theme_color_override("font_color", Color(0.98, 0.85, 0.45))
+	header.add_child(title)
+
+	var rename_btn := Button.new()
+	rename_btn.text = "✏️ Adı Değiştir"
+	rename_btn.custom_minimum_size = Vector2(180, 44)
+	_style_modal_btn(rename_btn, Color(0.20, 0.18, 0.28, 0.96), Color(0.78, 0.62, 0.30, 0.90))
+	rename_btn.pressed.connect(func():
+		layer.queue_free()
+		_show_rename_modal()
+	)
+	header.add_child(rename_btn)
 
 	var scroll := ScrollContainer.new()
+	scroll.custom_minimum_size = Vector2(0, 440)
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scroll.scroll_deadzone = 12
 	vb.add_child(scroll)
 
 	var list_vb := VBoxContainer.new()
@@ -325,324 +849,185 @@ func _show_village_switcher_modal() -> void:
 	list_vb.add_theme_constant_override("separation", 10)
 	scroll.add_child(list_vb)
 
-	for pv in player_villages:
-		if typeof(pv) != TYPE_DICTIONARY:
-			continue
-		var pvd := pv as Dictionary
-		var vid := int(pvd.get("id", -1))
-		var vname := str(pvd.get("name", "Köy"))
-		var vx := int(pvd.get("x", 0))
-		var vy := int(pvd.get("y", 0))
-		var vpts := int(pvd.get("points", 0))
-		var is_active := (vid == int(gs.active_village_id))
-		var res_d: Dictionary = pvd.get("resources", {}) if typeof(pvd.get("resources")) == TYPE_DICTIONARY else {}
-		var unit_d: Dictionary = pvd.get("units", {}) if typeof(pvd.get("units")) == TYPE_DICTIONARY else {}
-		var total_troops := 0
-		for uk in unit_d.keys():
-			total_troops += int(unit_d.get(uk, 0))
+	var active_id := int(gs.get("active_village_id"))
+	var villages_arr = gs.get("villages")
+	if villages_arr is Array:
+		for item in villages_arr:
+			if not (item is Dictionary):
+				continue
+			var v: Dictionary = item
+			var vid := int(v.get("id", -1))
+			var is_cur := (vid == active_id)
 
-		var row_panel := PanelContainer.new()
-		var r_sb := StyleBoxFlat.new()
-		r_sb.bg_color = Color(0.22, 0.18, 0.12, 0.96) if is_active else Color(0.16, 0.14, 0.21, 0.94)
-		r_sb.border_color = Color(0.95, 0.80, 0.35, 1.0) if is_active else Color(0.45, 0.40, 0.55, 0.70)
-		r_sb.set_border_width_all(2)
-		r_sb.set_corner_radius_all(12)
-		r_sb.set_content_margin_all(14)
-		row_panel.add_theme_stylebox_override("panel", r_sb)
-		list_vb.add_child(row_panel)
+			var row := PanelContainer.new()
+			row.mouse_filter = Control.MOUSE_FILTER_PASS
+			var r_sb := StyleBoxFlat.new()
+			r_sb.bg_color = Color(0.18, 0.16, 0.24, 0.98) if is_cur else Color(0.13, 0.11, 0.17, 0.94)
+			r_sb.border_color = Color(0.95, 0.78, 0.34, 0.95) if is_cur else Color(0.42, 0.36, 0.26, 0.85)
+			r_sb.set_border_width_all(2 if is_cur else 1)
+			r_sb.set_corner_radius_all(12)
+			r_sb.content_margin_left = 14
+			r_sb.content_margin_right = 14
+			r_sb.content_margin_top = 10
+			r_sb.content_margin_bottom = 10
+			row.add_theme_stylebox_override("panel", r_sb)
+			list_vb.add_child(row)
 
-		var row := HBoxContainer.new()
-		row.add_theme_constant_override("separation", 12)
-		row_panel.add_child(row)
+			var hb := HBoxContainer.new()
+			hb.mouse_filter = Control.MOUSE_FILTER_PASS
+			hb.add_theme_constant_override("separation", 10)
+			row.add_child(hb)
 
-		var info_vb := VBoxContainer.new()
-		info_vb.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		info_vb.add_theme_constant_override("separation", 4)
-		row.add_child(info_vb)
+			var info_vb := VBoxContainer.new()
+			info_vb.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			info_vb.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			hb.add_child(info_vb)
 
-		var info_lbl := Label.new()
-		var active_badge := " ★ AKTİF" if is_active else ""
-		info_lbl.text = "%s (%d|%d) — %d Puan%s" % [vname, vx, vy, vpts, active_badge]
-		info_lbl.clip_text = true
-		info_lbl.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
-		info_lbl.add_theme_font_override("font", FontNunitoBold)
-		info_lbl.add_theme_font_size_override("font_size", 22)
-		info_lbl.add_theme_color_override("font_color", Color(1.0, 0.94, 0.72) if is_active else Color(0.94, 0.91, 0.86))
-		info_vb.add_child(info_lbl)
+			var nm := Label.new()
+			nm.text = "%s%s (%d|%d) • 👑 %d P" % [
+				"▶ " if is_cur else "🏰 ", str(v.get("name", "Köy")), int(v.get("x", 0)), int(v.get("y", 0)), int(v.get("points", 0))
+			]
+			nm.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			nm.add_theme_font_override("font", FONT_BOLD)
+			nm.add_theme_font_size_override("font_size", 21)
+			nm.add_theme_color_override("font_color", Color(0.98, 0.88, 0.56) if is_cur else Color(0.96, 0.93, 0.85))
+			info_vb.add_child(nm)
 
-		var sub_stats := Label.new()
-		sub_stats.text = "Odun: %d  |  Taş: %d  |  Demir: %d  |  Asker: %d" % [
-			int(res_d.get("wood", 0)), int(res_d.get("stone", 0)), int(res_d.get("iron", 0)), total_troops
-		]
-		sub_stats.clip_text = true
-		sub_stats.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
-		sub_stats.add_theme_font_override("font", FontNunitoBold)
-		sub_stats.add_theme_font_size_override("font_size", 17)
-		sub_stats.add_theme_color_override("font_color", Color(0.76, 0.82, 0.88))
-		info_vb.add_child(sub_stats)
+			var v_res: Dictionary = v.get("resources", {})
+			var v_pop: Dictionary = EconomyAPI.population_summary(v)
+			var sub := Label.new()
+			sub.text = "🪵 %d  🪨 %d  ⛏️ %d  👥 %d Boş" % [
+				int(v_res.get("wood", 0)), int(v_res.get("stone", 0)), int(v_res.get("iron", 0)), int(v_pop.get("free", 0))
+			]
+			sub.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			sub.add_theme_font_override("font", FONT_SEMIBOLD)
+			sub.add_theme_font_size_override("font_size", 18)
+			sub.add_theme_color_override("font_color", Color(0.80, 0.78, 0.72))
+			info_vb.add_child(sub)
 
-		var btn_go := Button.new()
-		btn_go.text = "✓ AKTİF" if is_active else "Köye Geç"
-		btn_go.disabled = is_active
-		btn_go.custom_minimum_size = Vector2(146, 52)
-		btn_go.add_theme_font_override("font", FontNunitoBold)
-		btn_go.add_theme_font_size_override("font_size", 20)
-		btn_go.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
-		var g_sb := StyleBoxFlat.new()
-		g_sb.bg_color = Color(0.22, 0.48, 0.26, 0.95) if not is_active else Color(0.28, 0.25, 0.16, 0.95)
-		g_sb.border_color = Color(0.55, 0.90, 0.55, 1.0) if not is_active else Color(0.90, 0.78, 0.35, 1.0)
-		g_sb.set_border_width_all(2)
-		g_sb.set_corner_radius_all(10)
-		btn_go.add_theme_stylebox_override("normal", g_sb)
-		btn_go.add_theme_stylebox_override("disabled", g_sb)
-		btn_go.add_theme_color_override("font_color", Color(1.0, 0.98, 0.90))
-		btn_go.pressed.connect(func():
-			if gs.has_method("set_active_village"):
-				gs.set_active_village(vid)
-			var wm = Engine.get_main_loop().root.get_node_or_null("WorldManager") if Engine.get_main_loop() is SceneTree else null
-			if wm != null and wm.has_method("save_active_world"):
-				wm.save_active_world()
-			refresh()
-			_switcher_modal.queue_free()
-		)
-		row.add_child(btn_go)
+			var sel_btn := Button.new()
+			sel_btn.text = "Seçili" if is_cur else "Geçiş Yap"
+			sel_btn.disabled = is_cur
+			sel_btn.mouse_filter = Control.MOUSE_FILTER_PASS
+			sel_btn.custom_minimum_size = Vector2(140, 44)
+			_style_modal_btn(sel_btn, Color(0.18, 0.42, 0.24, 0.96), Color(0.45, 0.84, 0.52, 0.90))
+			sel_btn.pressed.connect(func():
+				if gs.has_method("set_active_village"):
+					gs.call("set_active_village", vid)
+				refresh()
+				layer.queue_free()
+			)
+			hb.add_child(sel_btn)
 
-	var foot := HBoxContainer.new()
-	foot.add_theme_constant_override("separation", 14)
-	foot.alignment = BoxContainer.ALIGNMENT_CENTER
-	vb.add_child(foot)
+	var close_btn := Button.new()
+	close_btn.text = "Kapat"
+	close_btn.custom_minimum_size = Vector2(160, 46)
+	_style_modal_btn(close_btn, Color(0.22, 0.19, 0.24, 0.95), Color(0.62, 0.56, 0.44, 0.85))
+	close_btn.pressed.connect(func(): layer.queue_free())
+	vb.add_child(close_btn)
 
-	var btn_rename := Button.new()
-	btn_rename.text = "✏️ Aktif Köyün Adını Değiştir"
-	btn_rename.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	btn_rename.custom_minimum_size = Vector2(240, 52)
-	btn_rename.add_theme_font_override("font", FontNunitoBold)
-	btn_rename.add_theme_font_size_override("font_size", 20)
-	var rn_sb := StyleBoxFlat.new()
-	rn_sb.bg_color = Color(0.24, 0.20, 0.32, 0.95)
-	rn_sb.border_color = Color(0.85, 0.72, 0.42, 0.95)
-	rn_sb.set_border_width_all(2)
-	rn_sb.set_corner_radius_all(10)
-	btn_rename.add_theme_stylebox_override("normal", rn_sb)
-	btn_rename.add_theme_color_override("font_color", Color(1.0, 0.94, 0.78))
-	btn_rename.pressed.connect(func():
-		_switcher_modal.queue_free()
-		_show_rename_modal()
-	)
-	foot.add_child(btn_rename)
-
-	var btn_close := Button.new()
-	btn_close.text = "Kapat"
-	btn_close.custom_minimum_size = Vector2(140, 52)
-	btn_close.add_theme_font_override("font", FontNunitoBold)
-	btn_close.add_theme_font_size_override("font_size", 20)
-	var cl_sb := StyleBoxFlat.new()
-	cl_sb.bg_color = Color(0.42, 0.16, 0.16, 0.95)
-	cl_sb.border_color = Color(0.85, 0.38, 0.38, 1.0)
-	cl_sb.set_border_width_all(2)
-	cl_sb.set_corner_radius_all(10)
-	btn_close.add_theme_stylebox_override("normal", cl_sb)
-	btn_close.add_theme_color_override("font_color", Color(1.0, 0.95, 0.95))
-	btn_close.pressed.connect(func(): _switcher_modal.queue_free())
-	foot.add_child(btn_close)
-
-	var root = get_tree().root
-	if root != null:
-		root.add_child(_switcher_modal)
-	else:
-		add_child(_switcher_modal)
 
 func _show_rename_modal() -> void:
-	if _rename_modal != null and is_instance_valid(_rename_modal):
-		_rename_modal.queue_free()
-
-	var gs = Engine.get_main_loop().root.get_node_or_null("GameState") if Engine.get_main_loop() is SceneTree else null
-	if gs == null or not gs.has_active_village():
+	var gs := _get_game_state()
+	if gs == null:
 		return
-	var v: Dictionary = gs.get_active_village()
-	var cur_name := str(v.get("name", "Başkent"))
+	var v: Dictionary = gs.call("get_active_village") if gs.has_method("get_active_village") else {}
+	if v.is_empty():
+		return
 
-	var vp_size := get_viewport().get_visible_rect().size if is_inside_tree() and get_viewport() != null else Vector2(1080.0, 1920.0)
-	if vp_size.x < 100.0 or vp_size.y < 100.0:
-		vp_size = Vector2(1080.0, 1920.0)
+	var tree := _scene_tree()
+	if tree == null:
+		return
+	var root := tree.current_scene
+	if root == null:
+		root = tree.root
+	if root == null:
+		return
+	if is_instance_valid(_rename_modal):
+		_rename_modal.queue_free()
+	var prev := root.get_node_or_null("VillageRenameModal")
+	if prev != null:
+		prev.queue_free()
 
-	_rename_modal = CanvasLayer.new()
-	_rename_modal.name = "RenameVillageModal"
-	_rename_modal.layer = 140
+	var layer := CanvasLayer.new()
+	layer.name = "VillageRenameModal"
+	layer.layer = 138
+	_rename_modal = layer
+	root.add_child(layer)
 
-	var root_ctrl := Control.new()
-	root_ctrl.name = "ModalRoot"
-	root_ctrl.mouse_filter = Control.MOUSE_FILTER_STOP
-	_rename_modal.add_child(root_ctrl)
-	root_ctrl.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-
-	# Koyu arkaplan karartması
 	var dim := ColorRect.new()
-	dim.color = Color(0.04, 0.03, 0.06, 0.82)
-	dim.mouse_filter = Control.MOUSE_FILTER_STOP
-	root_ctrl.add_child(dim)
-	dim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
+	dim.color = Color(0.03, 0.02, 0.05, 0.72)
+	layer.add_child(dim)
+	dim.gui_input.connect(func(ev: InputEvent):
+		if _is_tap_event(ev):
+			layer.queue_free()
+	)
 
-	# Ortalanmış kart
 	var center := CenterContainer.new()
-	center.mouse_filter = Control.MOUSE_FILTER_PASS
-	root_ctrl.add_child(center)
-	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	center.set_anchors_preset(Control.PRESET_FULL_RECT)
+	center.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	layer.add_child(center)
 
 	var card := PanelContainer.new()
-	card.custom_minimum_size = Vector2(clampf(vp_size.x - 80.0, 440.0, 680.0), 360)
+	card.custom_minimum_size = Vector2(600, 0)
 	var card_sb := StyleBoxFlat.new()
-	card_sb.bg_color = Color(0.12, 0.10, 0.16, 0.98)
-	card_sb.border_color = Color(0.88, 0.74, 0.42, 1.0)
-	card_sb.set_border_width_all(3)
-	card_sb.border_width_top = 5
+	card_sb.bg_color = Color(0.10, 0.09, 0.14, 0.98)
+	card_sb.border_color = Color(0.86, 0.68, 0.28, 0.96)
+	card_sb.set_border_width_all(2)
 	card_sb.set_corner_radius_all(18)
-	card_sb.set_content_margin_all(28)
-	card_sb.shadow_color = Color(0, 0, 0, 0.6)
-	card_sb.shadow_size = 18
+	card_sb.content_margin_left = 24
+	card_sb.content_margin_right = 24
+	card_sb.content_margin_top = 20
+	card_sb.content_margin_bottom = 20
 	card.add_theme_stylebox_override("panel", card_sb)
 	center.add_child(card)
 
 	var vb := VBoxContainer.new()
-	vb.add_theme_constant_override("separation", 20)
-	vb.alignment = BoxContainer.ALIGNMENT_CENTER
+	vb.add_theme_constant_override("separation", 14)
 	card.add_child(vb)
 
-	# Başlık
-	var title_lbl := Label.new()
-	title_lbl.text = "✏️ Köy Adını Değiştir"
-	title_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	var FontCinzelBold = load("res://assets/fonts/Cinzel-Bold.ttf")
-	if FontCinzelBold != null:
-		title_lbl.add_theme_font_override("font", FontCinzelBold)
-	title_lbl.add_theme_font_size_override("font_size", 30)
-	title_lbl.add_theme_color_override("font_color", Color(1.0, 0.92, 0.65))
-	vb.add_child(title_lbl)
+	var title := Label.new()
+	title.text = "✏️ Köy Adını Değiştir"
+	title.add_theme_font_override("font", FONT_BOLD)
+	title.add_theme_font_size_override("font_size", 26)
+	title.add_theme_color_override("font_color", Color(0.98, 0.85, 0.45))
+	vb.add_child(title)
 
-	var sub_lbl := Label.new()
-	sub_lbl.text = "Köyünüz için yeni bir isim belirleyin:"
-	sub_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	sub_lbl.add_theme_font_override("font", FontNunitoBold)
-	sub_lbl.add_theme_font_size_override("font_size", 20)
-	sub_lbl.add_theme_color_override("font_color", Color(0.85, 0.82, 0.75))
-	vb.add_child(sub_lbl)
+	var line := LineEdit.new()
+	line.text = str(v.get("name", ""))
+	line.max_length = 24
+	line.placeholder_text = "Yeni köy adını girin..."
+	line.custom_minimum_size = Vector2(0, 52)
+	line.add_theme_font_override("font", FONT_BOLD)
+	line.add_theme_font_size_override("font_size", 22)
+	vb.add_child(line)
 
-	var edit := LineEdit.new()
-	edit.text = cur_name
-	edit.placeholder_text = "Köy İsmi"
-	edit.custom_minimum_size = Vector2(0, 56)
-	edit.alignment = HORIZONTAL_ALIGNMENT_CENTER
-	edit.add_theme_font_override("font", FontNunitoBold)
-	edit.add_theme_font_size_override("font_size", 24)
-	edit.add_theme_color_override("font_color", Color(1.0, 0.96, 0.90))
-	edit.add_theme_color_override("font_selected_color", Color(1.0, 1.0, 1.0))
-	edit.add_theme_color_override("font_placeholder_color", Color(0.60, 0.55, 0.50))
-	edit.add_theme_color_override("caret_color", Color(1.0, 0.85, 0.40))
-	edit.add_theme_color_override("selection_color", Color(0.28, 0.42, 0.72, 0.90))
-	edit.max_length = 30
-	var edit_sb := StyleBoxFlat.new()
-	edit_sb.bg_color = Color(0.08, 0.07, 0.10, 0.95)
-	edit_sb.border_color = Color(0.85, 0.70, 0.40, 0.95)
-	edit_sb.set_border_width_all(2)
-	edit_sb.set_corner_radius_all(10)
-	edit_sb.set_content_margin_all(10)
-	edit.add_theme_stylebox_override("normal", edit_sb)
-	edit.add_theme_stylebox_override("focus", edit_sb)
-	vb.add_child(edit)
+	var hb := HBoxContainer.new()
+	hb.alignment = BoxContainer.ALIGNMENT_END
+	hb.add_theme_constant_override("separation", 10)
+	vb.add_child(hb)
 
-	# Butonlar
-	var hbox := HBoxContainer.new()
-	hbox.add_theme_constant_override("separation", 20)
-	hbox.alignment = BoxContainer.ALIGNMENT_CENTER
+	var cancel_btn := Button.new()
+	cancel_btn.text = "İptal"
+	cancel_btn.custom_minimum_size = Vector2(130, 48)
+	_style_modal_btn(cancel_btn, Color(0.22, 0.19, 0.24, 0.95), Color(0.62, 0.56, 0.44, 0.85))
+	cancel_btn.pressed.connect(func(): layer.queue_free())
+	hb.add_child(cancel_btn)
 
-	var btn_cancel := Button.new()
-	btn_cancel.text = "İptal"
-	btn_cancel.custom_minimum_size = Vector2(160, 52)
-	btn_cancel.add_theme_font_override("font", FontNunitoBold)
-	btn_cancel.add_theme_font_size_override("font_size", 22)
-	btn_cancel.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
-
-	var c_sb := StyleBoxFlat.new()
-	c_sb.bg_color = Color(0.42, 0.16, 0.16, 0.95)
-	c_sb.border_color = Color(0.85, 0.38, 0.38, 1.0)
-	c_sb.set_border_width_all(2)
-	c_sb.set_corner_radius_all(10)
-	btn_cancel.add_theme_stylebox_override("normal", c_sb)
-
-	var c_hover := c_sb.duplicate() as StyleBoxFlat
-	c_hover.bg_color = Color(0.55, 0.22, 0.22, 1.0)
-	c_hover.border_color = Color(1.0, 0.50, 0.50, 1.0)
-	btn_cancel.add_theme_stylebox_override("hover", c_hover)
-
-	var c_pressed := c_sb.duplicate() as StyleBoxFlat
-	c_pressed.bg_color = Color(0.32, 0.12, 0.12, 1.0)
-	btn_cancel.add_theme_stylebox_override("pressed", c_pressed)
-	btn_cancel.add_theme_stylebox_override("focus", c_hover)
-
-	btn_cancel.add_theme_color_override("font_color", Color(1.0, 0.95, 0.95))
-	btn_cancel.add_theme_color_override("font_hover_color", Color(1.0, 1.0, 1.0))
-	btn_cancel.add_theme_color_override("font_pressed_color", Color(0.92, 0.88, 0.88))
-	btn_cancel.add_theme_color_override("font_focus_color", Color(1.0, 0.95, 0.95))
-
-	btn_cancel.pressed.connect(func():
-		_rename_modal.queue_free()
-	)
-	hbox.add_child(btn_cancel)
-
-	var btn_save := Button.new()
-	btn_save.text = "💾 Kaydet"
-	btn_save.custom_minimum_size = Vector2(160, 52)
-	btn_save.add_theme_font_override("font", FontNunitoBold)
-	btn_save.add_theme_font_size_override("font_size", 22)
-	btn_save.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
-
-	var s_sb := StyleBoxFlat.new()
-	s_sb.bg_color = Color(0.88, 0.72, 0.36, 1.0)
-	s_sb.border_color = Color(1.0, 0.90, 0.55, 1.0)
-	s_sb.set_border_width_all(2)
-	s_sb.set_corner_radius_all(10)
-	btn_save.add_theme_stylebox_override("normal", s_sb)
-
-	var s_hover := s_sb.duplicate() as StyleBoxFlat
-	s_hover.bg_color = Color(0.96, 0.82, 0.45, 1.0)
-	s_hover.border_color = Color(1.0, 0.95, 0.70, 1.0)
-	btn_save.add_theme_stylebox_override("hover", s_hover)
-
-	var s_pressed := s_sb.duplicate() as StyleBoxFlat
-	s_pressed.bg_color = Color(0.76, 0.62, 0.28, 1.0)
-	btn_save.add_theme_stylebox_override("pressed", s_pressed)
-	btn_save.add_theme_stylebox_override("focus", s_hover)
-
-	btn_save.add_theme_color_override("font_color", Color(0.16, 0.10, 0.04))
-	btn_save.add_theme_color_override("font_hover_color", Color(0.10, 0.05, 0.02))
-	btn_save.add_theme_color_override("font_pressed_color", Color(0.12, 0.08, 0.03))
-	btn_save.add_theme_color_override("font_focus_color", Color(0.16, 0.10, 0.04))
-
-	var do_save := func():
-		var new_name := edit.text.strip_edges()
+	var save_btn := Button.new()
+	save_btn.text = "Kaydet"
+	save_btn.custom_minimum_size = Vector2(150, 48)
+	_style_modal_btn(save_btn, Color(0.18, 0.44, 0.24, 0.96), Color(0.45, 0.86, 0.52, 0.95))
+	save_btn.pressed.connect(func():
+		var new_name := line.text.strip_edges()
 		if not new_name.is_empty():
 			if gs.has_method("rename_village"):
-				gs.rename_village(gs.active_village_id, new_name)
+				gs.call("rename_village", int(v.get("id", -1)), new_name)
 			else:
 				v["name"] = new_name
-				var sm = Engine.get_main_loop().root.get_node_or_null("SaveManager") if Engine.get_main_loop() is SceneTree else null
-				if sm != null:
-					sm.save_game()
-				gs._emit_state_changed()
 			refresh()
-		_rename_modal.queue_free()
-
-	btn_save.pressed.connect(do_save)
-	edit.text_submitted.connect(func(_t): do_save.call())
-	hbox.add_child(btn_save)
-
-	vb.add_child(hbox)
-
-	var root = get_tree().root
-	if root != null:
-		root.add_child(_rename_modal)
-	else:
-		add_child(_rename_modal)
-	edit.grab_focus()
-	edit.select_all()
-
+		layer.queue_free()
+	)
+	hb.add_child(save_btn)
+	line.grab_focus()

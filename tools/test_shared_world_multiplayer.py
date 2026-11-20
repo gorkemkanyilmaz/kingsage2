@@ -531,6 +531,71 @@ def test_bots_and_unique_lord_name(TestClient):
         assert r_dup.json()["error_code"] == "NAME_TAKEN"
 
     print("[PASS] 50 bariscil bot, check_account ve benzersiz Lord ismi (409 NAME_TAKEN) dogrulandi!")
+    test_store_endpoints(client)
+
+
+def test_store_endpoints(client):
+    # 1. Mağaza kataloğu & başlangıç 35 elmas
+    r_cat = client.get("/api/store/catalog")
+    assert r_cat.status_code == 200, r_cat.text
+    j_cat = r_cat.json()
+    assert j_cat["starter_diamonds"] == 35
+    assert len(j_cat["diamond_packs"]) == 5
+    assert len(j_cat["speedup_scrolls"]) == 12
+
+    r_usr = client.post("/api/auth/login", json={
+        "provider": "apple",
+        "display_name": "Pazar Lordu",
+        "email": "pazar@icloud.com",
+        "provider_uid": "apple_pazar_1",
+    })
+    assert r_usr.status_code == 200, r_usr.text
+    ju = r_usr.json()
+    tok = ju["token"]
+    assert ju["diamonds"] == 35, f"Başlangıç elması 35 olmalı: {ju}"
+    assert ju["scrolls"] == {}, ju
+
+    # 2. Elmas ile parşömen satın alma (build_10m = 5 elmas -> 30 kalır)
+    r_buy = client.post("/api/store/buy_scroll", headers={"Authorization": f"Bearer {tok}"}, json={
+        "scroll_id": "build_10m", "qty": 1
+    })
+    assert r_buy.status_code == 200, r_buy.text
+    jb = r_buy.json()
+    assert jb["diamonds"] == 30 and jb["scrolls"]["build_10m"] == 1, jb
+
+    # Yetersiz elmasta 400 dönmeli (march_60m x2 = 60 > 30)
+    r_fail = client.post("/api/store/buy_scroll", headers={"Authorization": f"Bearer {tok}"}, json={
+        "scroll_id": "march_60m", "qty": 2
+    })
+    assert r_fail.status_code == 400, r_fail.text
+
+    # 3. IAP doğrulama (50 elmas paketi) + mükerrer transaction_id engeli
+    r_iap1 = client.post("/api/store/verify_iap", headers={"Authorization": f"Bearer {tok}"}, json={
+        "product_id": "com.tahtkilic.kingsage2.diamonds_50",
+        "transaction_id": "tx_asc_unique_001",
+        "platform": "ios",
+    })
+    assert r_iap1.status_code == 200, r_iap1.text
+    ji1 = r_iap1.json()
+    assert ji1["diamonds"] == 80 and ji1["added"] == 50 and ji1["duplicate"] is False, ji1
+
+    r_iap_dup = client.post("/api/store/verify_iap", headers={"Authorization": f"Bearer {tok}"}, json={
+        "product_id": "com.tahtkilic.kingsage2.diamonds_50",
+        "transaction_id": "tx_asc_unique_001",
+        "platform": "ios",
+    })
+    assert r_iap_dup.status_code == 200, r_iap_dup.text
+    jid = r_iap_dup.json()
+    assert jid["diamonds"] == 80 and jid["added"] == 0 and jid["duplicate"] is True, jid
+
+    # 4. Yeniden girişte elmas ve parşömen cüzdanı korunmalı
+    r_relog = client.post("/api/auth/check_account", json={
+        "provider": "apple", "email": "pazar@icloud.com", "provider_uid": "apple_pazar_1"
+    })
+    assert r_relog.status_code == 200, r_relog.text
+    jr = r_relog.json()
+    assert jr["diamonds"] == 80 and jr["scrolls"].get("build_10m") == 1, jr
+    print("[PASS] Elmas magazasi (/api/store/*), 35 baslangic elmasi, parşomen alimi ve IAP tekrar korumasi dogrulandi!")
 
 
 if __name__ == "__main__":

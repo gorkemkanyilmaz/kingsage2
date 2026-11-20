@@ -50,9 +50,13 @@ var _scaffold_panel: Panel
 var _hammer_icon: Label
 var _hammer_tween: Tween
 var _progress_bar: ProgressBar
+var _countdown_pill: PanelContainer
 var _countdown_label: Label
 var _level_up_popup: Node = null
 var _level_up_tween: Tween = null
+var _cached_badge_state: String = ""
+var _cached_badge_sb: StyleBoxFlat = null
+var _cached_name_sb: StyleBoxFlat = null
 
 
 func _exit_tree() -> void:
@@ -114,33 +118,57 @@ func _build_ui() -> void:
 
 	# 5. Mini İnşaat İlerleme Çubuğu ve Kalan Süre
 	_progress_bar = ProgressBar.new()
-	_progress_bar.custom_minimum_size = Vector2(90, 10)
-	_progress_bar.size = Vector2(90, 10)
-	_progress_bar.position = Vector2((size.x - 90) * 0.5, size.y - 10)
 	_progress_bar.show_percentage = false
+	_progress_bar.custom_minimum_size = Vector2(114, 10)
+	_progress_bar.size = Vector2(114, 10)
+	_progress_bar.position = Vector2((size.x - 114.0) * 0.5, size.y - 12.0)
 	_progress_bar.mouse_filter = MOUSE_FILTER_IGNORE
 	var pb_bg := StyleBoxFlat.new()
-	pb_bg.bg_color = Color(0.12, 0.10, 0.08, 0.90)
+	pb_bg.bg_color = Color(0.08, 0.06, 0.05, 0.94)
+	pb_bg.border_color = Color(0.84, 0.68, 0.30, 0.94)
+	pb_bg.set_border_width_all(1)
 	pb_bg.set_corner_radius_all(5)
 	var pb_fg := StyleBoxFlat.new()
-	pb_fg.bg_color = Color(0.96, 0.72, 0.22, 1.0)
+	pb_fg.bg_color = Color(0.96, 0.72, 0.20, 1.0)
+	pb_fg.border_color = Color(1.0, 0.90, 0.52, 0.95)
+	pb_fg.border_width_top = 1
 	pb_fg.set_corner_radius_all(5)
 	_progress_bar.add_theme_stylebox_override("background", pb_bg)
 	_progress_bar.add_theme_stylebox_override("fill", pb_fg)
 	_progress_bar.hide()
 	add_child(_progress_bar)
 
+	_countdown_pill = PanelContainer.new()
+	_countdown_pill.custom_minimum_size = Vector2(114, 24)
+	_countdown_pill.size = Vector2(114, 24)
+	_countdown_pill.position = Vector2((size.x - 114.0) * 0.5, size.y - 40.0)
+	_countdown_pill.mouse_filter = MOUSE_FILTER_IGNORE
+	var pill_sb := StyleBoxFlat.new()
+	pill_sb.bg_color = Color(0.06, 0.05, 0.08, 0.94)
+	pill_sb.border_color = Color(0.95, 0.78, 0.34, 0.96)
+	pill_sb.set_border_width_all(2)
+	pill_sb.set_corner_radius_all(8)
+	pill_sb.content_margin_left = 8.0
+	pill_sb.content_margin_right = 8.0
+	pill_sb.content_margin_top = 2.0
+	pill_sb.content_margin_bottom = 2.0
+	_countdown_pill.add_theme_stylebox_override("panel", pill_sb)
+	_countdown_pill.hide()
+	add_child(_countdown_pill)
+
 	_countdown_label = Label.new()
-	_countdown_label.custom_minimum_size = Vector2(90, 18)
-	_countdown_label.position = Vector2((size.x - 90) * 0.5, size.y - 32)
+	_countdown_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_countdown_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_countdown_label.add_theme_font_size_override("font_size", 13)
-	_countdown_label.add_theme_color_override("font_color", Color(1.0, 0.96, 0.75))
-	_countdown_label.add_theme_color_override("font_outline_color", Color(0.08, 0.05, 0.02, 0.95))
-	_countdown_label.add_theme_constant_override("outline_size", 4)
+	_countdown_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	var nunito_bold: Font = ResourceLoader.load("res://assets/fonts/Nunito-Bold.ttf") as Font
+	if nunito_bold != null:
+		_countdown_label.add_theme_font_override("font", nunito_bold)
+	_countdown_label.add_theme_font_size_override("font_size", 17)
+	_countdown_label.add_theme_color_override("font_color", Color(1.0, 0.93, 0.56))
+	_countdown_label.add_theme_color_override("font_outline_color", Color(0.04, 0.03, 0.05, 0.98))
+	_countdown_label.add_theme_constant_override("outline_size", 2)
 	_countdown_label.mouse_filter = MOUSE_FILTER_IGNORE
-	_countdown_label.hide()
-	add_child(_countdown_label)
+	_countdown_pill.add_child(_countdown_label)
 
 	# 6. King's Age Tarzı: BÜYÜK, NET, OKUNAKLI SEVİYE PLAKETİ (70x36 px)
 	_level_badge = PanelContainer.new()
@@ -310,9 +338,9 @@ func setup(key: String, b_name: String, _texture_path: String = "", custom_size:
 	if _name_label != null:
 		_name_label.text = b_name
 	if _progress_bar != null:
-		_progress_bar.position = Vector2((size.x - 90) * 0.5, size.y - 10)
-	if _countdown_label != null:
-		_countdown_label.position = Vector2((size.x - 90) * 0.5, size.y - 32)
+		_progress_bar.position = Vector2((size.x - 114.0) * 0.5, size.y - 12.0)
+	if _countdown_pill != null:
+		_countdown_pill.position = Vector2((size.x - maxf(_countdown_pill.size.x, _countdown_pill.custom_minimum_size.x)) * 0.5, size.y - 40.0)
 	_update_badge_position()
 
 
@@ -353,7 +381,7 @@ func _update_visuals(progress_pct: float = 0.0, rem_seconds: int = 0) -> void:
 		badge_sb.border_color = Color(1.0, 0.94, 0.55, 1.0)
 		badge_sb.set_border_width_all(2)
 		_badge_label.text = "🔨%d" % (current_level + 1)
-		_badge_label.add_theme_color_override("font_color", Color(1, 1, 1))
+		_badge_label.add_theme_color_override("font_color", Color(0.10, 0.07, 0.03))
 
 		name_sb.bg_color = Color(0.96, 0.68, 0.18, 0.98)
 		name_sb.border_color = Color(1.0, 0.94, 0.55, 1.0)
@@ -364,8 +392,12 @@ func _update_visuals(progress_pct: float = 0.0, rem_seconds: int = 0) -> void:
 		_hammer_icon.show()
 		_progress_bar.show()
 		_progress_bar.value = progress_pct
-		_countdown_label.show()
-		_countdown_label.text = "%02d:%02d" % [rem_seconds / 60, rem_seconds % 60]
+		_countdown_label.text = "⏱ %s" % _format_countdown(rem_seconds)
+		if _countdown_pill != null:
+			_countdown_pill.show()
+			_countdown_pill.reset_size()
+			var pill_w := maxf(_countdown_pill.size.x, _countdown_pill.custom_minimum_size.x)
+			_countdown_pill.position = Vector2((size.x - pill_w) * 0.5, size.y - 40.0)
 		_start_hammer_anim()
 
 	elif current_level > 0:
@@ -385,7 +417,8 @@ func _update_visuals(progress_pct: float = 0.0, rem_seconds: int = 0) -> void:
 		_stop_hammer_anim()
 		_hammer_icon.hide()
 		_progress_bar.hide()
-		_countdown_label.hide()
+		if _countdown_pill != null:
+			_countdown_pill.hide()
 
 	elif is_locked:
 		# Kilitli: Mat koyu antrasit rozet
@@ -404,7 +437,8 @@ func _update_visuals(progress_pct: float = 0.0, rem_seconds: int = 0) -> void:
 		_stop_hammer_anim()
 		_hammer_icon.hide()
 		_progress_bar.hide()
-		_countdown_label.hide()
+		if _countdown_pill != null:
+			_countdown_pill.hide()
 
 	else:
 		# Seviye 0 İnşa Edilebilir: Canlı mavi kare rozet
@@ -423,7 +457,8 @@ func _update_visuals(progress_pct: float = 0.0, rem_seconds: int = 0) -> void:
 		_stop_hammer_anim()
 		_hammer_icon.hide()
 		_progress_bar.hide()
-		_countdown_label.hide()
+		if _countdown_pill != null:
+			_countdown_pill.hide()
 
 	_level_badge.add_theme_stylebox_override("panel", badge_sb)
 	if _name_plate != null:
@@ -531,3 +566,17 @@ func get_level_label() -> Label:
 
 func get_name_label() -> Label:
 	return _name_label
+
+
+func _format_countdown(secs: int) -> String:
+	var s := maxi(0, secs)
+	var loop := Engine.get_main_loop()
+	var sm: Node = (loop as SceneTree).root.get_node_or_null("StoreManager") if loop is SceneTree and (loop as SceneTree).root != null else null
+	if sm != null and sm.has_method("format_duration"):
+		return str(sm.call("format_duration", s))
+	var h := s / 3600
+	var m := (s % 3600) / 60
+	var rem := s % 60
+	if h > 0:
+		return "%02d:%02d:%02d" % [h, m, rem]
+	return "%02d:%02d" % [m, rem]

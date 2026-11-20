@@ -84,6 +84,12 @@ func _ensure_nodes() -> void:
 
 func _ready() -> void:
 	_ensure_nodes()
+	_sync_top_bar_layout()
+	if not resized.is_connected(_sync_top_bar_layout):
+		resized.connect(_sync_top_bar_layout)
+	var rbar := get_node_or_null("ResourceBar") as Control
+	if rbar != null and not rbar.resized.is_connected(_sync_top_bar_layout):
+		rbar.resized.connect(_sync_top_bar_layout)
 	_style_detail_panel()
 	_setup_tabs()
 	_setup_composer()
@@ -105,6 +111,23 @@ func _ready() -> void:
 			eb.message_created.connect(_on_report_event)
 		if eb.has_signal("state_changed") and not eb.state_changed.is_connected(_on_report_event):
 			eb.state_changed.connect(_on_report_event)
+
+
+func _sync_top_bar_layout() -> void:
+	var rbar := get_node_or_null("ResourceBar") as Control
+	var bar_h := 116.0
+	if rbar != null:
+		if rbar.has_method("get_bar_height"):
+			bar_h = float(rbar.call("get_bar_height"))
+		elif rbar.size.y > 0.0:
+			bar_h = rbar.size.y
+	var header := get_node_or_null("Header") as Control
+	if header != null:
+		header.offset_top = bar_h + 8.0
+		header.offset_bottom = bar_h + 104.0
+	var cont := get_node_or_null("Container") as Control
+	if cont != null:
+		cont.offset_top = bar_h + 114.0
 
 
 func _style_detail_panel() -> void:

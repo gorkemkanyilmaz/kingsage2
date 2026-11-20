@@ -60,9 +60,9 @@ layout_mode = 1
 anchors_preset = 10
 anchor_right = 1.0
 offset_left = 20.0
-offset_top = 122.0
+offset_top = 124.0
 offset_right = -20.0
-offset_bottom = 218.0
+offset_bottom = 220.0
 grow_horizontal = 2
 theme_override_styles/panel = SubResource("StyleBoxFlat_header")
 
@@ -90,7 +90,7 @@ text = "Savaş, casusluk ve ticaret kayıtları"
 layout_mode = 1
 anchors_preset = 10
 anchor_right = 1.0
-offset_bottom = 110.0
+offset_bottom = 116.0
 grow_horizontal = 2
 
 [node name="Container" type="Control" parent="."]
@@ -99,7 +99,7 @@ anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
 offset_left = 30.0
-offset_top = 236.0
+offset_top = 230.0
 offset_right = -30.0
 offset_bottom = -260.0
 grow_horizontal = 2

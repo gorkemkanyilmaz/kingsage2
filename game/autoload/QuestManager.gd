@@ -33,6 +33,8 @@ var _open_modal_quest_id: String = ""
 var _last_hud_sig: String = ""
 var _toast_until_sec: float = 0.0
 var _elapsed_sec: float = 0.0
+var _last_scene_id: int = 0
+var _last_top_y: float = -1.0
 
 # HUD Düğümleri
 var _root_ctrl: Control
@@ -458,6 +460,13 @@ func _ready() -> void:
 	visible = false
 	_build_ui()
 	_connect_signals()
+	var vp := get_viewport()
+	if vp != null and not vp.size_changed.is_connected(_on_viewport_resized):
+		vp.size_changed.connect(_on_viewport_resized)
+
+
+func _on_viewport_resized() -> void:
+	_sync_live_positions()
 
 
 func _connect_signals() -> void:
@@ -588,6 +597,16 @@ func _process(delta: float) -> void:
 		if should_show:
 			_sync_live_positions()
 			refresh_quests(true)
+
+	if should_show or (_toast_panel != null and _toast_panel.visible):
+		var loop := Engine.get_main_loop()
+		var cur_sid := 0
+		if loop is SceneTree and (loop as SceneTree).current_scene != null:
+			cur_sid = (loop as SceneTree).current_scene.get_instance_id()
+		var anchor_y := _get_top_anchor_y()
+		if cur_sid != _last_scene_id or absf(anchor_y - _last_top_y) > 0.5:
+			_last_scene_id = cur_sid
+			_sync_live_positions()
 
 	if should_show and _tracker_panel != null:
 		# Paneli ve başlığı canlı parıltıyla güncelle
@@ -935,10 +954,10 @@ func _build_ui() -> void:
 	_root_ctrl.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(_root_ctrl)
 
-	# Sol üst panel (BtnAlliance'ın tam ters tarafı: left=20, top=152)
+	# Sol üst panel (BtnAlliance'ın tam ters tarafı: left=20, top=bar_h+12)
 	_tracker_panel = VBoxContainer.new()
 	_tracker_panel.name = "QuestTrackerPanel"
-	_tracker_panel.position = Vector2(20.0, 152.0 + _safe_top_offset())
+	_tracker_panel.position = Vector2(20.0, _get_top_anchor_y())
 	_tracker_panel.custom_minimum_size = Vector2(400.0, 0.0)
 	_tracker_panel.size = Vector2(400.0, 60.0)
 	_tracker_panel.add_theme_constant_override("separation", 6)
@@ -1979,7 +1998,7 @@ func _show_toast(msg: String) -> void:
 	var vp := get_viewport().get_visible_rect().size
 	if vp.x < 100.0:
 		vp = Vector2(1080, 1920)
-	_toast_panel.position = Vector2((vp.x - _toast_panel.size.x) * 0.5, 152.0 + _safe_top_offset())
+	_toast_panel.position = Vector2((vp.x - _toast_panel.size.x) * 0.5, _get_top_anchor_y())
 
 
 # =============================================================================
@@ -1995,15 +2014,45 @@ func _safe_top_offset() -> float:
 	return 0.0
 
 
+func _get_top_anchor_y() -> float:
+	var bar_h := 138.0 + _safe_top_offset()
+	var loop := Engine.get_main_loop()
+	if loop is SceneTree:
+		var st := loop as SceneTree
+		var cur := st.current_scene
+		if cur == null and st.root != null and st.root.get_child_count() > 0:
+			cur = st.root.get_child(st.root.get_child_count() - 1)
+		if cur != null:
+			var rbar := cur.get_node_or_null("ResourceBar") as Control
+			if rbar != null:
+				if rbar.has_method("get_bar_height"):
+					var bh := float(rbar.call("get_bar_height"))
+					if bh > 10.0:
+						bar_h = rbar.global_position.y + bh
+				elif rbar.get_global_rect().size.y > 10.0:
+					bar_h = rbar.get_global_rect().end.y
+	return roundf(bar_h + 12.0)
+
+
 func _sync_live_positions() -> void:
-	var st := _safe_top_offset()
+	var top_y := _get_top_anchor_y()
+	_last_top_y = top_y
 	if _tracker_panel != null:
-		_tracker_panel.position = Vector2(20.0, 152.0 + st)
+		_tracker_panel.position = Vector2(20.0, top_y)
 	if _toast_panel != null and _toast_panel.visible:
 		var vp := get_viewport().get_visible_rect().size
 		if vp.x < 100.0:
 			vp = Vector2(1080, 1920)
-		_toast_panel.position = Vector2((vp.x - _toast_panel.size.x) * 0.5, 152.0 + st)
+		_toast_panel.position = Vector2(roundf((vp.x - _toast_panel.size.x) * 0.5), top_y)
+	if _detail_modal != null and _detail_modal.visible:
+		var vp2 := get_viewport().get_visible_rect().size
+		if vp2.x < 100.0:
+			vp2 = Vector2(1080, 1920)
+		var ms := _detail_modal.get_combined_minimum_size()
+		var w := clampf(vp2.x - 80.0, 720.0, 940.0)
+		var h := clampf(ms.y + 10.0, 560.0, vp2.y - 180.0)
+		_detail_modal.size = Vector2(w, h)
+		_detail_modal.position = Vector2(roundf((vp2.x - w) * 0.5), roundf((vp2.y - h) * 0.5))
 
 
 func _gs() -> Node:

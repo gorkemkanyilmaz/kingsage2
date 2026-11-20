@@ -1,268 +1,436 @@
-[gd_scene format=3 uid="uid://c3f0b2r7k1y8p"]
+[gd_scene load_steps=19 format=3]
 
 [ext_resource type="Script" path="res://ui/ResourceBar.gd" id="1_rbar"]
 [ext_resource type="Theme" path="res://themes/TahtVeKilic.tres" id="2_theme"]
-[ext_resource type="Script" path="res://ui/ResourcePill.gd" id="3_rpill"]
-[ext_resource type="Texture2D" path="res://assets/sprites/ui/nano_banana/sharp_icon_wood.tres" id="4_wood_tex"]
-[ext_resource type="Texture2D" path="res://assets/sprites/ui/nano_banana/sharp_icon_stone.tres" id="5_stone_tex"]
-[ext_resource type="Texture2D" path="res://assets/sprites/ui/nano_banana/sharp_icon_iron.tres" id="6_iron_tex"]
-[ext_resource type="Texture2D" path="res://assets/sprites/ui/nano_banana/sharp_icon_storage.tres" id="7_storage_tex"]
-[ext_resource type="FontFile" path="res://assets/fonts/Nunito-Bold.ttf" id="8_nunito_bold"]
-[ext_resource type="FontFile" path="res://assets/fonts/Nunito-SemiBold.ttf" id="9_nunito_semibold"]
+[ext_resource type="Texture2D" path="res://assets/sprites/ui/nano_banana/sharp_icon_wood.tres" id="3_wood_tex"]
+[ext_resource type="Texture2D" path="res://assets/sprites/ui/nano_banana/sharp_icon_stone.tres" id="4_stone_tex"]
+[ext_resource type="Texture2D" path="res://assets/sprites/ui/nano_banana/sharp_icon_iron.tres" id="5_iron_tex"]
+[ext_resource type="Texture2D" path="res://assets/sprites/ui/nano_banana/sharp_icon_citizens.tres" id="6_citizens_tex"]
+[ext_resource type="FontFile" path="res://assets/fonts/Nunito-Bold.ttf" id="7_nunito_bold"]
+[ext_resource type="FontFile" path="res://assets/fonts/Nunito-SemiBold.ttf" id="8_nunito_semibold"]
 
-[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_bg"]
-content_margin_left = 16.0
-content_margin_top = 8.0
-content_margin_right = 16.0
-content_margin_bottom = 8.0
-bg_color = Color(0.10, 0.09, 0.13, 0.98)
-border_width_bottom = 3
-border_color = Color(0.88, 0.74, 0.44, 0.95)
-shadow_color = Color(0, 0, 0, 0.6)
-shadow_size = 10
+[sub_resource type="StyleBoxFlat" id="sb_bar"]
+bg_color = Color(0.08, 0.07, 0.11, 0.98)
+border_width_bottom = 2
+border_color = Color(0.84, 0.68, 0.3, 0.92)
+content_margin_left = 14.0
+content_margin_top = 9.0
+content_margin_right = 14.0
+content_margin_bottom = 9.0
+shadow_color = Color(0, 0, 0, 0.45)
+shadow_size = 6
+shadow_offset = Vector2(0, 2)
 
-[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_storage_bg"]
-bg_color = Color(0.12, 0.10, 0.08, 0.9)
-corner_radius_top_left = 3
-corner_radius_top_right = 3
-corner_radius_bottom_right = 3
-corner_radius_bottom_left = 3
+[sub_resource type="StyleBoxFlat" id="sb_nav_btn"]
+bg_color = Color(0.15, 0.13, 0.2, 0.96)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.76, 0.6, 0.28, 0.78)
+corner_radius_top_left = 8
+corner_radius_top_right = 8
+corner_radius_bottom_right = 8
+corner_radius_bottom_left = 8
+content_margin_left = 6.0
+content_margin_top = 4.0
+content_margin_right = 6.0
+content_margin_bottom = 4.0
 
-[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_storage_fg"]
-bg_color = Color(0.92, 0.75, 0.35, 1.0)
-corner_radius_top_left = 3
-corner_radius_top_right = 3
-corner_radius_bottom_right = 3
-corner_radius_bottom_left = 3
+[sub_resource type="StyleBoxFlat" id="sb_nav_btn_hover"]
+bg_color = Color(0.24, 0.2, 0.3, 0.98)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.95, 0.78, 0.36, 0.95)
+corner_radius_top_left = 8
+corner_radius_top_right = 8
+corner_radius_bottom_right = 8
+corner_radius_bottom_left = 8
+content_margin_left = 6.0
+content_margin_top = 4.0
+content_margin_right = 6.0
+content_margin_bottom = 4.0
+
+[sub_resource type="StyleBoxFlat" id="sb_points_badge"]
+bg_color = Color(0.14, 0.12, 0.19, 0.96)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.76, 0.6, 0.28, 0.85)
+corner_radius_top_left = 10
+corner_radius_top_right = 10
+corner_radius_bottom_right = 10
+corner_radius_bottom_left = 10
+content_margin_left = 10.0
+content_margin_top = 4.0
+content_margin_right = 10.0
+content_margin_bottom = 4.0
+
+[sub_resource type="StyleBoxFlat" id="sb_market_btn"]
+bg_color = Color(0.12, 0.24, 0.44, 0.98)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.92, 0.76, 0.36, 0.96)
+corner_radius_top_left = 12
+corner_radius_top_right = 12
+corner_radius_bottom_right = 12
+corner_radius_bottom_left = 12
+content_margin_left = 12.0
+content_margin_top = 4.0
+content_margin_right = 12.0
+content_margin_bottom = 4.0
+
+[sub_resource type="StyleBoxFlat" id="sb_market_btn_hover"]
+bg_color = Color(0.18, 0.33, 0.58, 1)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(1, 0.88, 0.5, 1)
+corner_radius_top_left = 12
+corner_radius_top_right = 12
+corner_radius_bottom_right = 12
+corner_radius_bottom_left = 12
+content_margin_left = 12.0
+content_margin_top = 4.0
+content_margin_right = 12.0
+content_margin_bottom = 4.0
+
+[sub_resource type="StyleBoxFlat" id="sb_res_card"]
+bg_color = Color(0.12, 0.1, 0.16, 0.96)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.45, 0.38, 0.24, 0.88)
+corner_radius_top_left = 10
+corner_radius_top_right = 10
+corner_radius_bottom_right = 10
+corner_radius_bottom_left = 10
+content_margin_left = 10.0
+content_margin_top = 4.0
+content_margin_right = 10.0
+content_margin_bottom = 4.0
+
+[sub_resource type="StyleBoxFlat" id="sb_res_pb_bg"]
+bg_color = Color(0.06, 0.05, 0.08, 0.95)
+corner_radius_top_left = 2
+corner_radius_top_right = 2
+corner_radius_bottom_right = 2
+corner_radius_bottom_left = 2
+
+[sub_resource type="StyleBoxFlat" id="sb_res_pb_fill"]
+bg_color = Color(0.28, 0.78, 0.44, 1)
+corner_radius_top_left = 2
+corner_radius_top_right = 2
+corner_radius_bottom_right = 2
+corner_radius_bottom_left = 2
 
 [node name="ResourceBar" type="PanelContainer"]
-custom_minimum_size = Vector2(1080, 134)
-offset_right = 1080.0
-offset_bottom = 134.0
-mouse_filter = 1
+custom_minimum_size = Vector2(0, 116)
+anchors_preset = 10
+anchor_right = 1.0
+offset_bottom = 116.0
+grow_horizontal = 2
 theme = ExtResource("2_theme")
-theme_override_styles/panel = SubResource("StyleBoxFlat_bg")
+theme_override_styles/panel = SubResource("sb_bar")
 script = ExtResource("1_rbar")
 
 [node name="VBox" type="VBoxContainer" parent="."]
 layout_mode = 2
-mouse_filter = 1
 theme_override_constants/separation = 6
-alignment = 1
 
 [node name="TopRow" type="HBoxContainer" parent="VBox"]
+custom_minimum_size = Vector2(0, 46)
 layout_mode = 2
-mouse_filter = 1
-theme_override_constants/separation = 10
-alignment = 1
+theme_override_constants/separation = 8
 
 [node name="VillageInfo" type="HBoxContainer" parent="VBox/TopRow"]
 layout_mode = 2
-mouse_filter = 1
 size_flags_horizontal = 3
 theme_override_constants/separation = 6
-alignment = 0
 
 [node name="BtnPrevVillage" type="Button" parent="VBox/TopRow/VillageInfo"]
-custom_minimum_size = Vector2(34, 32)
+custom_minimum_size = Vector2(36, 36)
 layout_mode = 2
-mouse_filter = 0
-theme_override_fonts/font = ExtResource("8_nunito_bold")
+size_flags_vertical = 4
+theme_override_colors/font_color = Color(0.98, 0.85, 0.46, 1)
+theme_override_colors/font_hover_color = Color(1, 0.96, 0.78, 1)
 theme_override_font_sizes/font_size = 18
+theme_override_styles/normal = SubResource("sb_nav_btn")
+theme_override_styles/hover = SubResource("sb_nav_btn_hover")
+theme_override_styles/pressed = SubResource("sb_nav_btn_hover")
 text = "◀"
 
 [node name="VillageName" type="Label" parent="VBox/TopRow/VillageInfo"]
 layout_mode = 2
 size_flags_horizontal = 3
+size_flags_vertical = 4
 mouse_filter = 0
-mouse_default_cursor_shape = 2
-theme_override_colors/font_color = Color(1, 0.97, 0.92, 1)
-theme_override_colors/font_shadow_color = Color(0, 0, 0, 0.98)
-theme_override_constants/shadow_offset_y = 2
-theme_override_fonts/font = ExtResource("8_nunito_bold")
+theme_override_colors/font_color = Color(0.98, 0.94, 0.84, 1)
+theme_override_fonts/font = ExtResource("7_nunito_bold")
 theme_override_font_sizes/font_size = 21
-text = "Lord Gorkem | Başkent (100|100)"
+text = "Lord | 🏰 Başkent (0|0)"
+vertical_alignment = 1
 clip_text = true
 text_overrun_behavior = 3
 
 [node name="BtnNextVillage" type="Button" parent="VBox/TopRow/VillageInfo"]
-custom_minimum_size = Vector2(34, 32)
+custom_minimum_size = Vector2(36, 36)
 layout_mode = 2
-mouse_filter = 0
-theme_override_fonts/font = ExtResource("8_nunito_bold")
+size_flags_vertical = 4
+theme_override_colors/font_color = Color(0.98, 0.85, 0.46, 1)
+theme_override_colors/font_hover_color = Color(1, 0.96, 0.78, 1)
 theme_override_font_sizes/font_size = 18
+theme_override_styles/normal = SubResource("sb_nav_btn")
+theme_override_styles/hover = SubResource("sb_nav_btn_hover")
+theme_override_styles/pressed = SubResource("sb_nav_btn_hover")
 text = "▶"
 
-[node name="PointsBox" type="HBoxContainer" parent="VBox/TopRow"]
+[node name="PointsBox" type="PanelContainer" parent="VBox/TopRow/VillageInfo"]
 layout_mode = 2
-alignment = 1
+size_flags_vertical = 4
+mouse_filter = 0
+theme_override_styles/panel = SubResource("sb_points_badge")
 
-[node name="Points" type="Label" parent="VBox/TopRow/PointsBox"]
+[node name="Points" type="Label" parent="VBox/TopRow/VillageInfo/PointsBox"]
 layout_mode = 2
-theme_override_colors/font_color = Color(1, 0.88, 0.35, 1)
-theme_override_colors/font_shadow_color = Color(0, 0, 0, 0.98)
-theme_override_constants/shadow_offset_y = 2
-theme_override_fonts/font = ExtResource("8_nunito_bold")
-theme_override_font_sizes/font_size = 20
-text = "110 P"
+mouse_filter = 2
+theme_override_colors/font_color = Color(0.98, 0.84, 0.42, 1)
+theme_override_fonts/font = ExtResource("7_nunito_bold")
+theme_override_font_sizes/font_size = 18
+text = "👑 0 P"
+vertical_alignment = 1
 
-[node name="RealmBox" type="HBoxContainer" parent="VBox/TopRow"]
+[node name="IslandSpacer" type="Control" parent="VBox/TopRow"]
+visible = false
 layout_mode = 2
-alignment = 1
+mouse_filter = 2
 
-[node name="RealmLabel" type="Label" parent="VBox/TopRow/RealmBox"]
+[node name="RightWing" type="HBoxContainer" parent="VBox/TopRow"]
 layout_mode = 2
-theme_override_colors/font_color = Color(0.45, 0.88, 1, 1)
-theme_override_colors/font_shadow_color = Color(0, 0, 0, 0.98)
-theme_override_constants/shadow_offset_y = 2
-theme_override_fonts/font = ExtResource("8_nunito_bold")
-theme_override_font_sizes/font_size = 20
-text = "⚡ 110"
-
-[node name="CitizensBox" type="HBoxContainer" parent="VBox/TopRow"]
-layout_mode = 2
+size_flags_horizontal = 8
 alignment = 2
+theme_override_constants/separation = 8
 
-[node name="CitizensLabel" type="Label" parent="VBox/TopRow/CitizensBox"]
+[node name="BtnMarket" type="Button" parent="VBox/TopRow/RightWing"]
+custom_minimum_size = Vector2(132, 38)
 layout_mode = 2
-theme_override_colors/font_color = Color(0.96, 0.94, 0.88, 1)
-theme_override_colors/font_shadow_color = Color(0, 0, 0, 0.98)
-theme_override_constants/shadow_offset_y = 2
-theme_override_fonts/font = ExtResource("8_nunito_bold")
-theme_override_font_sizes/font_size = 20
-text = "👥 233/250"
+size_flags_vertical = 4
+theme_override_colors/font_color = Color(0.98, 0.95, 0.86, 1)
+theme_override_colors/font_hover_color = Color(1, 0.98, 0.92, 1)
+theme_override_colors/font_pressed_color = Color(1, 0.95, 0.8, 1)
+theme_override_fonts/font = ExtResource("7_nunito_bold")
+theme_override_font_sizes/font_size = 19
+theme_override_styles/normal = SubResource("sb_market_btn")
+theme_override_styles/hover = SubResource("sb_market_btn_hover")
+theme_override_styles/pressed = SubResource("sb_market_btn_hover")
+text = "💎 0  +"
 
 [node name="ResourcesRow" type="HBoxContainer" parent="VBox"]
+custom_minimum_size = Vector2(0, 46)
 layout_mode = 2
 theme_override_constants/separation = 8
-alignment = 1
 
-[node name="WoodBox" type="HBoxContainer" parent="VBox/ResourcesRow"]
-custom_minimum_size = Vector2(0, 52)
+[node name="WoodBox" type="PanelContainer" parent="VBox/ResourcesRow"]
 layout_mode = 2
 size_flags_horizontal = 3
-theme_override_constants/separation = 6
-alignment = 1
-script = ExtResource("3_rpill")
-bg_color = Color(0.12, 0.20, 0.14, 0.96)
-border_color = Color(0.44, 0.82, 0.50, 0.95)
-corner_radius = 12
-border_width = 2
+mouse_filter = 0
+theme_override_styles/panel = SubResource("sb_res_card")
 
-[node name="Icon" type="TextureRect" parent="VBox/ResourcesRow/WoodBox"]
-custom_minimum_size = Vector2(38, 38)
+[node name="VBox" type="VBoxContainer" parent="VBox/ResourcesRow/WoodBox"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 3
+
+[node name="Row" type="HBoxContainer" parent="VBox/ResourcesRow/WoodBox/VBox"]
+layout_mode = 2
+size_flags_vertical = 3
+mouse_filter = 2
+theme_override_constants/separation = 6
+
+[node name="Icon" type="TextureRect" parent="VBox/ResourcesRow/WoodBox/VBox/Row"]
+custom_minimum_size = Vector2(24, 24)
 layout_mode = 2
 size_flags_vertical = 4
-texture = ExtResource("4_wood_tex")
+mouse_filter = 2
+texture = ExtResource("3_wood_tex")
 expand_mode = 1
 stretch_mode = 5
 
-[node name="WoodLabel" type="Label" parent="VBox/ResourcesRow/WoodBox"]
-layout_mode = 2
-theme_override_colors/font_color = Color(1, 1, 1, 1)
-theme_override_colors/font_shadow_color = Color(0, 0, 0, 0.95)
-theme_override_constants/shadow_offset_y = 2
-theme_override_fonts/font = ExtResource("8_nunito_bold")
-theme_override_font_sizes/font_size = 24
-text = "1000"
-
-[node name="StoneBox" type="HBoxContainer" parent="VBox/ResourcesRow"]
-custom_minimum_size = Vector2(0, 52)
+[node name="WoodLabel" type="Label" parent="VBox/ResourcesRow/WoodBox/VBox/Row"]
 layout_mode = 2
 size_flags_horizontal = 3
-theme_override_constants/separation = 6
-alignment = 1
-script = ExtResource("3_rpill")
-bg_color = Color(0.22, 0.18, 0.14, 0.96)
-border_color = Color(0.85, 0.62, 0.46, 0.95)
-corner_radius = 12
-border_width = 2
-
-[node name="Icon" type="TextureRect" parent="VBox/ResourcesRow/StoneBox"]
-custom_minimum_size = Vector2(38, 38)
-layout_mode = 2
 size_flags_vertical = 4
-texture = ExtResource("5_stone_tex")
-expand_mode = 1
-stretch_mode = 5
+mouse_filter = 2
+theme_override_colors/font_color = Color(0.97, 0.94, 0.86, 1)
+theme_override_fonts/font = ExtResource("7_nunito_bold")
+theme_override_font_sizes/font_size = 20
+text = "0"
+horizontal_alignment = 2
+vertical_alignment = 1
+clip_text = true
 
-[node name="StoneLabel" type="Label" parent="VBox/ResourcesRow/StoneBox"]
+[node name="WoodBar" type="ProgressBar" parent="VBox/ResourcesRow/WoodBox/VBox"]
+custom_minimum_size = Vector2(0, 3)
 layout_mode = 2
-theme_override_colors/font_color = Color(1, 1, 1, 1)
-theme_override_colors/font_shadow_color = Color(0, 0, 0, 0.95)
-theme_override_constants/shadow_offset_y = 2
-theme_override_fonts/font = ExtResource("8_nunito_bold")
-theme_override_font_sizes/font_size = 24
-text = "1000"
-
-[node name="IronBox" type="HBoxContainer" parent="VBox/ResourcesRow"]
-custom_minimum_size = Vector2(0, 52)
-layout_mode = 2
-size_flags_horizontal = 3
-theme_override_constants/separation = 6
-alignment = 1
-script = ExtResource("3_rpill")
-bg_color = Color(0.14, 0.22, 0.32, 0.96)
-border_color = Color(0.48, 0.74, 0.95, 0.95)
-corner_radius = 12
-border_width = 2
-
-[node name="Icon" type="TextureRect" parent="VBox/ResourcesRow/IronBox"]
-custom_minimum_size = Vector2(38, 38)
-layout_mode = 2
-size_flags_vertical = 4
-texture = ExtResource("6_iron_tex")
-expand_mode = 1
-stretch_mode = 5
-
-[node name="IronLabel" type="Label" parent="VBox/ResourcesRow/IronBox"]
-layout_mode = 2
-theme_override_colors/font_color = Color(1, 1, 1, 1)
-theme_override_colors/font_shadow_color = Color(0, 0, 0, 0.95)
-theme_override_constants/shadow_offset_y = 2
-theme_override_fonts/font = ExtResource("8_nunito_bold")
-theme_override_font_sizes/font_size = 24
-text = "1000"
-
-[node name="StorageBox" type="HBoxContainer" parent="VBox/ResourcesRow"]
-custom_minimum_size = Vector2(0, 52)
-layout_mode = 2
-size_flags_horizontal = 3
-theme_override_constants/separation = 6
-alignment = 1
-script = ExtResource("3_rpill")
-bg_color = Color(0.24, 0.18, 0.10, 0.96)
-border_color = Color(0.92, 0.74, 0.38, 0.95)
-corner_radius = 12
-border_width = 2
-
-[node name="Icon" type="TextureRect" parent="VBox/ResourcesRow/StorageBox"]
-custom_minimum_size = Vector2(38, 38)
-layout_mode = 2
-size_flags_vertical = 4
-texture = ExtResource("7_storage_tex")
-expand_mode = 1
-stretch_mode = 5
-
-[node name="StorageVBox" type="VBoxContainer" parent="VBox/ResourcesRow/StorageBox"]
-layout_mode = 2
-alignment = 1
-theme_override_constants/separation = 2
-
-[node name="StorageLabel" type="Label" parent="VBox/ResourcesRow/StorageBox/StorageVBox"]
-layout_mode = 2
-theme_override_colors/font_color = Color(1, 0.95, 0.85, 1)
-theme_override_colors/font_shadow_color = Color(0, 0, 0, 0.95)
-theme_override_constants/shadow_offset_y = 2
-theme_override_fonts/font = ExtResource("8_nunito_bold")
-theme_override_font_sizes/font_size = 24
-text = "1000"
-
-[node name="StorageBar" type="ProgressBar" parent="VBox/ResourcesRow/StorageBox/StorageVBox"]
-custom_minimum_size = Vector2(65, 5)
-layout_mode = 2
-theme_override_styles/background = SubResource("StyleBoxFlat_storage_bg")
-theme_override_styles/fill = SubResource("StyleBoxFlat_storage_fg")
-value = 50.0
+mouse_filter = 2
+theme_override_styles/background = SubResource("sb_res_pb_bg")
+theme_override_styles/fill = SubResource("sb_res_pb_fill")
+max_value = 1000.0
+value = 500.0
 show_percentage = false
 
+[node name="StoneBox" type="PanelContainer" parent="VBox/ResourcesRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+mouse_filter = 0
+theme_override_styles/panel = SubResource("sb_res_card")
+
+[node name="VBox" type="VBoxContainer" parent="VBox/ResourcesRow/StoneBox"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 3
+
+[node name="Row" type="HBoxContainer" parent="VBox/ResourcesRow/StoneBox/VBox"]
+layout_mode = 2
+size_flags_vertical = 3
+mouse_filter = 2
+theme_override_constants/separation = 6
+
+[node name="Icon" type="TextureRect" parent="VBox/ResourcesRow/StoneBox/VBox/Row"]
+custom_minimum_size = Vector2(24, 24)
+layout_mode = 2
+size_flags_vertical = 4
+mouse_filter = 2
+texture = ExtResource("4_stone_tex")
+expand_mode = 1
+stretch_mode = 5
+
+[node name="StoneLabel" type="Label" parent="VBox/ResourcesRow/StoneBox/VBox/Row"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 4
+mouse_filter = 2
+theme_override_colors/font_color = Color(0.97, 0.94, 0.86, 1)
+theme_override_fonts/font = ExtResource("7_nunito_bold")
+theme_override_font_sizes/font_size = 20
+text = "0"
+horizontal_alignment = 2
+vertical_alignment = 1
+clip_text = true
+
+[node name="StoneBar" type="ProgressBar" parent="VBox/ResourcesRow/StoneBox/VBox"]
+custom_minimum_size = Vector2(0, 3)
+layout_mode = 2
+mouse_filter = 2
+theme_override_styles/background = SubResource("sb_res_pb_bg")
+theme_override_styles/fill = SubResource("sb_res_pb_fill")
+max_value = 1000.0
+value = 500.0
+show_percentage = false
+
+[node name="IronBox" type="PanelContainer" parent="VBox/ResourcesRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+mouse_filter = 0
+theme_override_styles/panel = SubResource("sb_res_card")
+
+[node name="VBox" type="VBoxContainer" parent="VBox/ResourcesRow/IronBox"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 3
+
+[node name="Row" type="HBoxContainer" parent="VBox/ResourcesRow/IronBox/VBox"]
+layout_mode = 2
+size_flags_vertical = 3
+mouse_filter = 2
+theme_override_constants/separation = 6
+
+[node name="Icon" type="TextureRect" parent="VBox/ResourcesRow/IronBox/VBox/Row"]
+custom_minimum_size = Vector2(24, 24)
+layout_mode = 2
+size_flags_vertical = 4
+mouse_filter = 2
+texture = ExtResource("5_iron_tex")
+expand_mode = 1
+stretch_mode = 5
+
+[node name="IronLabel" type="Label" parent="VBox/ResourcesRow/IronBox/VBox/Row"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 4
+mouse_filter = 2
+theme_override_colors/font_color = Color(0.97, 0.94, 0.86, 1)
+theme_override_fonts/font = ExtResource("7_nunito_bold")
+theme_override_font_sizes/font_size = 20
+text = "0"
+horizontal_alignment = 2
+vertical_alignment = 1
+clip_text = true
+
+[node name="IronBar" type="ProgressBar" parent="VBox/ResourcesRow/IronBox/VBox"]
+custom_minimum_size = Vector2(0, 3)
+layout_mode = 2
+mouse_filter = 2
+theme_override_styles/background = SubResource("sb_res_pb_bg")
+theme_override_styles/fill = SubResource("sb_res_pb_fill")
+max_value = 1000.0
+value = 500.0
+show_percentage = false
+
+[node name="CitizensBox" type="PanelContainer" parent="VBox/ResourcesRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+mouse_filter = 0
+theme_override_styles/panel = SubResource("sb_res_card")
+
+[node name="Row" type="HBoxContainer" parent="VBox/ResourcesRow/CitizensBox"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 6
+
+[node name="Icon" type="TextureRect" parent="VBox/ResourcesRow/CitizensBox/Row"]
+custom_minimum_size = Vector2(24, 24)
+layout_mode = 2
+size_flags_vertical = 4
+mouse_filter = 2
+texture = ExtResource("6_citizens_tex")
+expand_mode = 1
+stretch_mode = 5
+
+[node name="CitizensLabel" type="Label" parent="VBox/ResourcesRow/CitizensBox/Row"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 4
+mouse_filter = 2
+theme_override_colors/font_color = Color(0.84, 0.96, 0.86, 1)
+theme_override_fonts/font = ExtResource("8_nunito_semibold")
+theme_override_font_sizes/font_size = 18
+text = "0 Boş"
+horizontal_alignment = 2
+vertical_alignment = 1
+clip_text = true
+
+[node name="CompatHidden" type="Control" parent="VBox"]
+visible = false
+layout_mode = 2
+mouse_filter = 2
+
+[node name="StorageBar" type="ProgressBar" parent="VBox/CompatHidden"]
+layout_mode = 0
+max_value = 1000.0
+show_percentage = false
+
+[node name="StorageLabel" type="Label" parent="VBox/CompatHidden"]
+layout_mode = 0
+text = "0 / 1000"
+
+[node name="RealmLabel" type="Label" parent="VBox/CompatHidden"]
+layout_mode = 0
+text = "0 / 0"

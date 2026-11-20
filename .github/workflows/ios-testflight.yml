@@ -6,7 +6,7 @@ on:
       build_number:
         description: "TestFlight Build Number (e.g. 1, 2, 3, 4, 5, 6)"
         required: true
-        default: "7"
+        default: "8"
       runner:
         description: "GitHub macOS Runner"
         required: true
@@ -188,13 +188,13 @@ jobs:
                   if "OTHER_LDFLAGS = (" in block:
                       block = block.replace(
                           "OTHER_LDFLAGS = (",
-                          'OTHER_LDFLAGS = (\n\t\t\t\t\t"-ObjC",\n\t\t\t\t\t"-weak_framework",\n\t\t\t\t\tAuthenticationServices,\n\t\t\t\t\t"-weak_framework",\n\t\t\t\t\tLocalAuthentication,\n\t\t\t\t\t"-weak_framework",\n\t\t\t\t\tWebKit,',
+                          'OTHER_LDFLAGS = (\n\t\t\t\t\t"-ObjC",\n\t\t\t\t\t"-weak_framework",\n\t\t\t\t\tAuthenticationServices,\n\t\t\t\t\t"-weak_framework",\n\t\t\t\t\tLocalAuthentication,\n\t\t\t\t\t"-weak_framework",\n\t\t\t\t\tWebKit,\n\t\t\t\t\t"-framework",\n\t\t\t\t\tStoreKit,',
                           1,
                       )
                   else:
                       block = block.replace(
                           "buildSettings = {",
-                          'buildSettings = {\n\t\t\t\tOTHER_LDFLAGS = (\n\t\t\t\t\t"$(inherited)",\n\t\t\t\t\t"-ObjC",\n\t\t\t\t\t"-weak_framework",\n\t\t\t\t\tAuthenticationServices,\n\t\t\t\t\t"-weak_framework",\n\t\t\t\t\tLocalAuthentication,\n\t\t\t\t\t"-weak_framework",\n\t\t\t\t\tWebKit,\n\t\t\t\t);',
+                          'buildSettings = {\n\t\t\t\tOTHER_LDFLAGS = (\n\t\t\t\t\t"$(inherited)",\n\t\t\t\t\t"-ObjC",\n\t\t\t\t\t"-weak_framework",\n\t\t\t\t\tAuthenticationServices,\n\t\t\t\t\t"-weak_framework",\n\t\t\t\t\tLocalAuthentication,\n\t\t\t\t\t"-weak_framework",\n\t\t\t\t\tWebKit,\n\t\t\t\t\t"-framework",\n\t\t\t\t\tStoreKit,\n\t\t\t\t);',
                           1,
                       )
                   return block
@@ -202,7 +202,7 @@ jobs:
               txt = re.sub(r"buildSettings = \{.*?\n\t\t\t\};", patch_build_settings, txt, flags=re.S)
               with open(pbx, "w", encoding="utf-8") as f:
                   f.write(txt)
-              print(f"Patched {pbx} for Objective-C++ ARC and AuthenticationServices/LocalAuthentication/WebKit")
+              print(f"Patched {pbx} for Objective-C++ ARC and AuthenticationServices/LocalAuthentication/WebKit/StoreKit")
 
           # 2. Ensure URL scheme tahtkilic and Face ID usage description exist in Info.plist
           for plist_path in glob.glob("build/ios/**/*Info.plist", recursive=True):

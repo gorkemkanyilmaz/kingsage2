@@ -354,7 +354,7 @@ theme_override_styles/panel = SubResource("StyleBoxFlat_active_build")
 
 [node name="HBox" type="HBoxContainer" parent="VBox/ActiveBuildBox"]
 layout_mode = 2
-theme_override_constants/separation = 14
+theme_override_constants/separation = 10
 alignment = 1
 
 [node name="IconLabel" type="Label" parent="VBox/ActiveBuildBox/HBox"]
@@ -366,7 +366,7 @@ theme_override_constants/shadow_offset_x = 1
 theme_override_colors/font_outline_color = Color(0.12, 0.08, 0.02, 0.95)
 theme_override_constants/outline_size = 4
 theme_override_fonts/font = ExtResource("7_nunito_bold")
-theme_override_font_sizes/font_size = 30
+theme_override_font_sizes/font_size = 24
 text = "🔨 İnşaat Sürüyor: Seviye 2"
 
 [node name="TimeLabel" type="Label" parent="VBox/ActiveBuildBox/HBox"]
@@ -380,19 +380,29 @@ theme_override_constants/shadow_offset_x = 1
 theme_override_colors/font_outline_color = Color(0.02, 0.10, 0.18, 0.95)
 theme_override_constants/outline_size = 4
 theme_override_fonts/font = ExtResource("7_nunito_bold")
-theme_override_font_sizes/font_size = 28
+theme_override_font_sizes/font_size = 22
 text = "Kalan: 01:20"
 
 [node name="ProgressBar" type="ProgressBar" parent="VBox/ActiveBuildBox/HBox"]
-custom_minimum_size = Vector2(170, 28)
+custom_minimum_size = Vector2(115, 28)
 layout_mode = 2
 size_flags_vertical = 4
 theme_override_styles/background = SubResource("StyleBoxFlat_progress_bg")
 theme_override_styles/fill = SubResource("StyleBoxFlat_progress_fg")
 show_percentage = false
 
+[node name="BuildSpeedupButton" type="Button" parent="VBox/ActiveBuildBox/HBox"]
+custom_minimum_size = Vector2(175, 52)
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_colors/font_shadow_color = Color(0, 0, 0, 0.95)
+theme_override_constants/shadow_offset_y = 2
+theme_override_fonts/font = ExtResource("7_nunito_bold")
+theme_override_font_sizes/font_size = 20
+text = "⚡ Hızlandır"
+
 [node name="CancelButton" type="Button" parent="VBox/ActiveBuildBox/HBox"]
-custom_minimum_size = Vector2(120, 52)
+custom_minimum_size = Vector2(106, 52)
 layout_mode = 2
 theme_override_styles/normal = SubResource("StyleBoxFlat_cancel_btn")
 theme_override_colors/font_color = Color(1, 1, 1, 1)
@@ -402,7 +412,7 @@ theme_override_colors/font_focus_color = Color(1, 1, 1, 1)
 theme_override_colors/font_shadow_color = Color(0, 0, 0, 0.95)
 theme_override_constants/shadow_offset_y = 2
 theme_override_fonts/font = ExtResource("7_nunito_bold")
-theme_override_font_sizes/font_size = 24
+theme_override_font_sizes/font_size = 22
 text = "✕ İptal"
 
 [node name="CostContainer" type="HBoxContainer" parent="VBox"]
@@ -548,7 +558,10 @@ text = "Önce şunlar gerekli (Gereksinim Zinciri):"
 [node name="ReqScroll" type="ScrollContainer" parent="VBox/RequirementSection"]
 custom_minimum_size = Vector2(0, 240)
 layout_mode = 2
+size_flags_horizontal = 3
 size_flags_vertical = 3
+scroll_deadzone = 12
+horizontal_scroll_mode = 0
 
 [node name="ReqList" type="VBoxContainer" parent="VBox/RequirementSection/ReqScroll"]
 layout_mode = 2
@@ -568,7 +581,7 @@ theme_override_styles/panel = SubResource("StyleBoxFlat_active_build")
 
 [node name="HBox" type="HBoxContainer" parent="VBox/ResearchSection/ActiveResearchBox"]
 layout_mode = 2
-theme_override_constants/separation = 14
+theme_override_constants/separation = 10
 alignment = 1
 
 [node name="IconLabel" type="Label" parent="VBox/ResearchSection/ActiveResearchBox/HBox"]
@@ -580,7 +593,7 @@ theme_override_constants/shadow_offset_x = 1
 theme_override_colors/font_outline_color = Color(0.12, 0.08, 0.02, 0.95)
 theme_override_constants/outline_size = 4
 theme_override_fonts/font = ExtResource("7_nunito_bold")
-theme_override_font_sizes/font_size = 28
+theme_override_font_sizes/font_size = 23
 text = "🔬 Araştırma Sürüyor"
 
 [node name="TimeLabel" type="Label" parent="VBox/ResearchSection/ActiveResearchBox/HBox"]
@@ -594,25 +607,35 @@ theme_override_constants/shadow_offset_x = 1
 theme_override_colors/font_outline_color = Color(0.02, 0.1, 0.18, 0.95)
 theme_override_constants/outline_size = 4
 theme_override_fonts/font = ExtResource("7_nunito_bold")
-theme_override_font_sizes/font_size = 26
+theme_override_font_sizes/font_size = 21
 text = "Kalan: 00:00"
 
 [node name="ProgressBar" type="ProgressBar" parent="VBox/ResearchSection/ActiveResearchBox/HBox"]
-custom_minimum_size = Vector2(170, 28)
+custom_minimum_size = Vector2(115, 28)
 layout_mode = 2
 size_flags_vertical = 4
 theme_override_styles/background = SubResource("StyleBoxFlat_progress_bg")
 theme_override_styles/fill = SubResource("StyleBoxFlat_progress_fg")
 show_percentage = false
 
-[node name="CancelButton" type="Button" parent="VBox/ResearchSection/ActiveResearchBox/HBox"]
-custom_minimum_size = Vector2(120, 50)
+[node name="ResearchSpeedupButton" type="Button" parent="VBox/ResearchSection/ActiveResearchBox/HBox"]
+custom_minimum_size = Vector2(175, 50)
 layout_mode = 2
 theme_override_colors/font_color = Color(1, 1, 1, 1)
 theme_override_colors/font_shadow_color = Color(0, 0, 0, 0.95)
 theme_override_constants/shadow_offset_y = 2
 theme_override_fonts/font = ExtResource("7_nunito_bold")
-theme_override_font_sizes/font_size = 24
+theme_override_font_sizes/font_size = 20
+text = "⚡ Hızlandır"
+
+[node name="CancelButton" type="Button" parent="VBox/ResearchSection/ActiveResearchBox/HBox"]
+custom_minimum_size = Vector2(106, 50)
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_colors/font_shadow_color = Color(0, 0, 0, 0.95)
+theme_override_constants/shadow_offset_y = 2
+theme_override_fonts/font = ExtResource("7_nunito_bold")
+theme_override_font_sizes/font_size = 22
 theme_override_styles/normal = SubResource("StyleBoxFlat_cancel_btn")
 text = "✕ İptal"
 
@@ -621,6 +644,7 @@ custom_minimum_size = Vector2(0, 480)
 layout_mode = 2
 size_flags_horizontal = 3
 size_flags_vertical = 3
+scroll_deadzone = 12
 horizontal_scroll_mode = 0
 
 [node name="ResearchList" type="VBoxContainer" parent="VBox/ResearchSection/ResearchScroll"]
@@ -685,7 +709,10 @@ text = "Müsait Vatandaş: 0 / 0"
 [node name="TrainScroll" type="ScrollContainer" parent="VBox/TrainSection"]
 custom_minimum_size = Vector2(0, 480)
 layout_mode = 2
+size_flags_horizontal = 3
 size_flags_vertical = 3
+scroll_deadzone = 12
+horizontal_scroll_mode = 0
 
 [node name="TrainList" type="VBoxContainer" parent="VBox/TrainSection/TrainScroll"]
 layout_mode = 2

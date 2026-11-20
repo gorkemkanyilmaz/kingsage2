@@ -101,6 +101,7 @@ var _tab_inact_sb: StyleBox = null
 @onready var active_build_icon_lbl: Label = $VBox/ActiveBuildBox/HBox/IconLabel
 @onready var active_build_time_lbl: Label = $VBox/ActiveBuildBox/HBox/TimeLabel
 @onready var active_build_progress: ProgressBar = $VBox/ActiveBuildBox/HBox/ProgressBar
+@onready var active_build_speedup_btn: Button = $VBox/ActiveBuildBox/HBox/BuildSpeedupButton if has_node("VBox/ActiveBuildBox/HBox/BuildSpeedupButton") else null
 @onready var active_build_cancel_btn: Button = $VBox/ActiveBuildBox/HBox/CancelButton
 
 @onready var cost_wood: Label = $VBox/CostContainer/WoodBox/Label
@@ -119,6 +120,7 @@ var _tab_inact_sb: StyleBox = null
 @onready var active_research_icon_lbl: Label = $VBox/ResearchSection/ActiveResearchBox/HBox/IconLabel
 @onready var active_research_time_lbl: Label = $VBox/ResearchSection/ActiveResearchBox/HBox/TimeLabel
 @onready var active_research_progress: ProgressBar = $VBox/ResearchSection/ActiveResearchBox/HBox/ProgressBar
+@onready var active_research_speedup_btn: Button = $VBox/ResearchSection/ActiveResearchBox/HBox/ResearchSpeedupButton if has_node("VBox/ResearchSection/ActiveResearchBox/HBox/ResearchSpeedupButton") else null
 @onready var active_research_cancel_btn: Button = $VBox/ResearchSection/ActiveResearchBox/HBox/CancelButton
 @onready var research_list: VBoxContainer = $VBox/ResearchSection/ResearchScroll/ResearchList
 
@@ -128,6 +130,15 @@ var _tab_inact_sb: StyleBox = null
 @onready var train_queue_list: VBoxContainer = $VBox/TrainSection/ActiveTrainBox/VBox/QueueList
 @onready var citizen_label: Label = $VBox/TrainSection/CitizenInfoBar/CitizenLabel
 @onready var train_list: VBoxContainer = $VBox/TrainSection/TrainScroll/TrainList
+
+var _cached_speedup_have_sb: StyleBoxFlat = null
+var _cached_speedup_have_hover: StyleBoxFlat = null
+var _cached_speedup_buy_sb: StyleBoxFlat = null
+var _cached_speedup_buy_hover: StyleBoxFlat = null
+var _cached_train_pb_bg: StyleBoxFlat = null
+var _cached_train_pb_fg: StyleBoxFlat = null
+var _cached_train_cancel_sb: StyleBoxFlat = null
+var _cached_train_cancel_hover: StyleBoxFlat = null
 
 
 func _ensure_nodes() -> void:
@@ -161,6 +172,7 @@ func _ensure_nodes() -> void:
 		active_build_icon_lbl = $VBox/ActiveBuildBox/HBox/IconLabel
 		active_build_time_lbl = $VBox/ActiveBuildBox/HBox/TimeLabel
 		active_build_progress = $VBox/ActiveBuildBox/HBox/ProgressBar
+		active_build_speedup_btn = $VBox/ActiveBuildBox/HBox/BuildSpeedupButton if has_node("VBox/ActiveBuildBox/HBox/BuildSpeedupButton") else null
 		active_build_cancel_btn = $VBox/ActiveBuildBox/HBox/CancelButton
 
 	if research_section == null and has_node("VBox/ResearchSection"):
@@ -169,6 +181,7 @@ func _ensure_nodes() -> void:
 		active_research_icon_lbl = $VBox/ResearchSection/ActiveResearchBox/HBox/IconLabel
 		active_research_time_lbl = $VBox/ResearchSection/ActiveResearchBox/HBox/TimeLabel
 		active_research_progress = $VBox/ResearchSection/ActiveResearchBox/HBox/ProgressBar
+		active_research_speedup_btn = $VBox/ResearchSection/ActiveResearchBox/HBox/ResearchSpeedupButton if has_node("VBox/ResearchSection/ActiveResearchBox/HBox/ResearchSpeedupButton") else null
 		active_research_cancel_btn = $VBox/ResearchSection/ActiveResearchBox/HBox/CancelButton
 		research_list = $VBox/ResearchSection/ResearchScroll/ResearchList
 
@@ -179,6 +192,7 @@ func _ensure_nodes() -> void:
 		citizen_label = $VBox/TrainSection/CitizenInfoBar/CitizenLabel
 		train_list = $VBox/TrainSection/TrainScroll/TrainList
 
+	_configure_scroll_containers()
 	_ensure_description_and_production_nodes()
 
 
@@ -544,6 +558,7 @@ func _format_number(val: int) -> String:
 
 func _ready() -> void:
 	_ensure_nodes()
+	_configure_scroll_containers()
 	if close_btn != null and not close_btn.pressed.is_connected(_on_close_pressed):
 		close_btn.pressed.connect(_on_close_pressed)
 	if upgrade_btn != null and not upgrade_btn.pressed.is_connected(_on_upgrade_pressed):
@@ -580,7 +595,7 @@ func _ready() -> void:
 			tw.tween_property(upgrade_btn, "scale", Vector2(1.0, 1.0), 0.2)
 		)
 
-	# EventBus listeners for reactive UI
+	# EventBus & StoreManager listeners for reactive UI
 	var bus = Engine.get_main_loop().root.get_node_or_null("EventBus") if Engine.get_main_loop() is SceneTree else null
 	if bus != null:
 		if bus.has_signal("research_completed") and not bus.research_completed.is_connected(_on_bus_research_completed):
@@ -591,6 +606,96 @@ func _ready() -> void:
 			bus.resources_changed.connect(_on_bus_resources_changed)
 		if bus.has_signal("state_changed") and not bus.state_changed.is_connected(_on_bus_state_changed):
 			bus.state_changed.connect(_on_bus_state_changed)
+
+	var sm := _get_store_manager()
+	if sm != null and sm.has_signal("scrolls_changed") and not sm.scrolls_changed.is_connected(_on_scrolls_changed):
+		sm.scrolls_changed.connect(_on_scrolls_changed)
+
+
+func _get_store_manager() -> Node:
+	var loop := Engine.get_main_loop()
+	if loop is SceneTree and (loop as SceneTree).root != null:
+		return (loop as SceneTree).root.get_node_or_null("StoreManager")
+	return null
+
+
+func _on_scrolls_changed(_scrolls: Dictionary) -> void:
+	if visible:
+		_update_active_build_info()
+		_update_active_research_info()
+		_update_active_train_info()
+
+
+func _configure_scroll_containers() -> void:
+	for sc_path in ["VBox/RequirementSection/ReqScroll", "VBox/ResearchSection/ResearchScroll", "VBox/TrainSection/TrainScroll"]:
+		var sc := get_node_or_null(sc_path) as ScrollContainer
+		if sc != null:
+			sc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+			sc.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			sc.scroll_deadzone = 12
+
+
+func _fmt_duration(secs: int) -> String:
+	var s := maxi(0, secs)
+	var sm := _get_store_manager()
+	if sm != null and sm.has_method("format_duration"):
+		return str(sm.call("format_duration", s))
+	var h := s / 3600
+	var m := (s % 3600) / 60
+	var rem := s % 60
+	if h > 0:
+		return "%02d:%02d:%02d" % [h, m, rem]
+	return "%02d:%02d" % [m, rem]
+
+
+func _ensure_speedup_styles() -> void:
+	if _cached_speedup_have_sb == null:
+		_cached_speedup_have_sb = StyleBoxFlat.new()
+		_cached_speedup_have_sb.bg_color = Color(0.16, 0.44, 0.24, 0.98)
+		_cached_speedup_have_sb.border_color = Color(0.95, 0.80, 0.36, 0.98)
+		_cached_speedup_have_sb.set_border_width_all(2)
+		_cached_speedup_have_sb.set_corner_radius_all(12)
+		_cached_speedup_have_sb.content_margin_left = 10
+		_cached_speedup_have_sb.content_margin_right = 10
+		_cached_speedup_have_hover = _cached_speedup_have_sb.duplicate() as StyleBoxFlat
+		_cached_speedup_have_hover.bg_color = Color(0.22, 0.56, 0.32, 1.0)
+	if _cached_speedup_buy_sb == null:
+		_cached_speedup_buy_sb = StyleBoxFlat.new()
+		_cached_speedup_buy_sb.bg_color = Color(0.12, 0.25, 0.46, 0.98)
+		_cached_speedup_buy_sb.border_color = Color(0.92, 0.76, 0.34, 0.96)
+		_cached_speedup_buy_sb.set_border_width_all(2)
+		_cached_speedup_buy_sb.set_corner_radius_all(12)
+		_cached_speedup_buy_sb.content_margin_left = 10
+		_cached_speedup_buy_sb.content_margin_right = 10
+		_cached_speedup_buy_hover = _cached_speedup_buy_sb.duplicate() as StyleBoxFlat
+		_cached_speedup_buy_hover.bg_color = Color(0.18, 0.34, 0.60, 1.0)
+
+
+func _apply_speedup_btn_style(btn: Button, category: String) -> void:
+	if btn == null:
+		return
+	_ensure_speedup_styles()
+	var sm := _get_store_manager()
+	var count := 0
+	if sm != null and sm.has_method("get_category_scroll_total"):
+		count = int(sm.call("get_category_scroll_total", category))
+	btn.text = "⚡ Hızlandır (%d)" % count if count > 0 else "🛒 Parşömen Al"
+	var sb_n := _cached_speedup_have_sb if count > 0 else _cached_speedup_buy_sb
+	var sb_h := _cached_speedup_have_hover if count > 0 else _cached_speedup_buy_hover
+	btn.add_theme_stylebox_override("normal", sb_n)
+	btn.add_theme_stylebox_override("hover", sb_h)
+	btn.add_theme_stylebox_override("pressed", sb_h)
+	btn.add_theme_color_override("font_color", Color(1.0, 0.96, 0.84))
+	btn.add_theme_color_override("font_hover_color", Color(1.0, 1.0, 1.0))
+	btn.add_theme_color_override("font_pressed_color", Color(1.0, 0.92, 0.62))
+
+
+func _open_speedup(category: String, target_id: Variant, title_text: String) -> void:
+	var sm := _get_store_manager()
+	if sm != null and sm.has_method("open_speedup_modal"):
+		sm.call("open_speedup_modal", self, category, target_id, title_text)
+	elif sm != null and sm.has_method("open_market"):
+		sm.call("open_market", self, category)
 
 
 func _on_bus_research_completed(_vid: int, _ukey: String) -> void:
@@ -681,11 +786,10 @@ func _update_tab_buttons_styling(barracks_level: int) -> void:
 	if tab_bar == null:
 		return
 
-	if _tab_act_sb == null or _tab_inact_sb == null:
-		var act_sb := preload("res://ui/BuildingPanel.tscn").instantiate()
-		_tab_act_sb = act_sb.get_node("VBox/TabBar/TabUpgradeBtn").get_theme_stylebox("normal")
-		_tab_inact_sb = act_sb.get_node("VBox/TabBar/TabResearchBtn").get_theme_stylebox("normal")
-		act_sb.queue_free()
+	if _tab_act_sb == null and tab_upgrade_btn != null:
+		_tab_act_sb = tab_upgrade_btn.get_theme_stylebox("normal")
+	if _tab_inact_sb == null and tab_research_btn != null:
+		_tab_inact_sb = tab_research_btn.get_theme_stylebox("normal")
 	var s_act = _tab_act_sb
 	var s_inact = _tab_inact_sb
 
@@ -1156,16 +1260,25 @@ func _update_active_build_info() -> void:
 
 	if is_active:
 		active_build_icon_lbl.text = "🔨 İnşaat Sürüyor: Seviye %d" % tgt
-		active_build_time_lbl.text = "Kalan: %02d:%02d" % [rem / 60, rem % 60]
+		active_build_time_lbl.text = "Kalan: %s" % _fmt_duration(rem)
 		active_build_time_lbl.add_theme_color_override("font_color", Color(0.42, 0.90, 1.0))
 	else:
 		active_build_icon_lbl.text = "⏳ Sırada Bekliyor: Seviye %d" % tgt
-		active_build_time_lbl.text = "Süre: %02d:%02d (Sırada)" % [rem / 60, rem % 60]
+		active_build_time_lbl.text = "Süre: %s (Sırada)" % _fmt_duration(rem)
 		active_build_time_lbl.add_theme_color_override("font_color", Color(1.0, 0.85, 0.40))
 
 	active_build_progress.value = pct
 
 	var item_id: int = int(active_item.get("id", -1))
+	if active_build_speedup_btn != null:
+		_apply_speedup_btn_style(active_build_speedup_btn, "build")
+		var old_sp_id = active_build_speedup_btn.get_meta("item_id", -1)
+		if old_sp_id != item_id:
+			active_build_speedup_btn.set_meta("item_id", item_id)
+			for conn in active_build_speedup_btn.pressed.get_connections():
+				active_build_speedup_btn.pressed.disconnect(conn["callable"])
+			active_build_speedup_btn.pressed.connect(_open_speedup.bind("build", item_id, active_build_icon_lbl.text))
+
 	var old_id = active_build_cancel_btn.get_meta("item_id", -1)
 	if old_id != item_id:
 		active_build_cancel_btn.set_meta("item_id", item_id)
@@ -1258,7 +1371,6 @@ func _populate_research_list() -> void:
 	var vid := int(_village.get("id", -1))
 	var cur_barracks_lvl := int(_village.get("buildings", {}).get("barracks", 0))
 
-	# Active research item in queue
 	var active_research_unit := ""
 	if gs != null:
 		for item in gs.queues:
@@ -1266,41 +1378,11 @@ func _populate_research_list() -> void:
 				active_research_unit = str(item.get("key", ""))
 				break
 
-	var sig_parts: Array[String] = [str(cur_barracks_lvl), active_research_unit]
-	for u_key in BARRACKS_UNITS:
-		sig_parts.append("%s:%d:%d:%s" % [
-			u_key,
-			1 if RulesEngineScript.is_researched(_village, u_key) else 0,
-			1 if ArmyAPI.can_research(_village, u_key, state) else 0,
-			ArmyAPI.research_block_reason(_village, u_key, state)
-		])
-	var res_sig := "|".join(sig_parts)
-	if res_sig == _last_research_sig and research_list.get_child_count() == BARRACKS_UNITS.size():
-		return
-	_last_research_sig = res_sig
+	if research_list.get_child_count() != BARRACKS_UNITS.size():
+		for child in research_list.get_children():
+			research_list.remove_child(child)
+			child.queue_free()
 
-	for child in research_list.get_children():
-		research_list.remove_child(child)
-		child.queue_free()
-
-	for u_key in BARRACKS_UNITS:
-		var u_name: String = GameDataScript.get_singleton().get_unit_name(u_key)
-		var u_icon: String = UNIT_ICONS.get(u_key, "⚔️")
-		var u_class: String = UNIT_CLASS_NAMES.get(u_key, "Piyade")
-
-		var req_barracks := RulesEngineScript.research_requirement(u_key)
-		var is_researched := RulesEngineScript.is_researched(_village, u_key)
-		var r_cost := RulesEngineScript.research_cost(u_key)
-		var r_secs := int(ceil(RulesEngineScript.research_seconds(u_key, cur_barracks_lvl)))
-
-		var res_dict: Dictionary = _village.get("resources", {})
-		var cur_w: int = int(res_dict.get("wood", 0))
-		var cur_s: int = int(res_dict.get("stone", 0))
-		var cur_i: int = int(res_dict.get("iron", 0))
-
-		var card := PanelContainer.new()
-		card.name = "ResearchCard_" + u_key
-		card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		var card_sb := StyleBoxFlat.new()
 		card_sb.bg_color = Color(0.12, 0.11, 0.15, 0.98)
 		card_sb.border_color = Color(0.48, 0.42, 0.34, 0.9)
@@ -1310,214 +1392,263 @@ func _populate_research_list() -> void:
 		card_sb.content_margin_top = 14
 		card_sb.content_margin_right = 16
 		card_sb.content_margin_bottom = 14
-		card.add_theme_stylebox_override("panel", card_sb)
 
-		var vbox := VBoxContainer.new()
-		vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		vbox.add_theme_constant_override("separation", 8)
-		card.add_child(vbox)
+		var b_sb_done := StyleBoxFlat.new()
+		b_sb_done.bg_color = Color(0.12, 0.28, 0.16, 0.95)
+		b_sb_done.border_color = Color(0.40, 0.85, 0.50, 0.9)
+		b_sb_done.set_border_width_all(2)
+		b_sb_done.set_corner_radius_all(12)
 
-		# Top row: Unit icon, name, class badge, requirement
-		var top_row := HBoxContainer.new()
-		top_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		top_row.add_theme_constant_override("separation", 10)
+		var b_sb_prog := StyleBoxFlat.new()
+		b_sb_prog.bg_color = Color(0.12, 0.22, 0.35, 0.95)
+		b_sb_prog.border_color = Color(0.45, 0.78, 1.0, 0.9)
+		b_sb_prog.set_border_width_all(2)
+		b_sb_prog.set_corner_radius_all(12)
 
-		var name_lbl := Label.new()
-		name_lbl.text = "%s %s" % [u_icon, u_name]
-		name_lbl.add_theme_font_override("font", FontNunitoBold)
-		name_lbl.add_theme_font_size_override("font_size", 26)
-		name_lbl.add_theme_constant_override("outline_size", 0)
-		name_lbl.add_theme_color_override("font_color", Color(1.0, 0.95, 0.82))
-		name_lbl.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0))
-		top_row.add_child(name_lbl)
+		var r_sb := StyleBoxFlat.new()
+		r_sb.bg_color = Color(0.20, 0.58, 0.32, 1.0)
+		r_sb.border_color = Color(0.60, 0.95, 0.70, 1.0)
+		r_sb.set_border_width_all(2)
+		r_sb.set_corner_radius_all(12)
+		r_sb.shadow_size = 4
+		r_sb.shadow_color = Color(0, 0, 0, 0.4)
+		var r_pressed := r_sb.duplicate() as StyleBoxFlat
+		r_pressed.bg_color = Color(0.12, 0.45, 0.22, 1.0)
+		r_pressed.border_color = Color(1.0, 0.90, 0.50, 1.0)
 
-		var class_badge := Label.new()
-		class_badge.text = "[%s]" % u_class
-		class_badge.add_theme_font_override("font", FontNunitoSemiBold)
-		class_badge.add_theme_font_size_override("font_size", 20)
-		class_badge.add_theme_constant_override("outline_size", 0)
-		class_badge.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0))
-		class_badge.add_theme_color_override("font_color", Color(0.75, 0.88, 1.0))
-		top_row.add_child(class_badge)
+		var d_sb := StyleBoxFlat.new()
+		d_sb.bg_color = Color(0.18, 0.17, 0.20, 0.9)
+		d_sb.border_color = Color(0.38, 0.35, 0.42, 0.75)
+		d_sb.set_border_width_all(2)
+		d_sb.set_corner_radius_all(12)
 
-		var spacer := Control.new()
-		spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		top_row.add_child(spacer)
+		for u_key in BARRACKS_UNITS:
+			var u_name: String = GameDataScript.get_singleton().get_unit_name(u_key)
+			var u_icon: String = UNIT_ICONS.get(u_key, "⚔️")
+			var u_class: String = UNIT_CLASS_NAMES.get(u_key, "Piyade")
+			var req_barracks := RulesEngineScript.research_requirement(u_key)
+			var r_cost := RulesEngineScript.research_cost(u_key)
 
-		var req_lbl := Label.new()
-		req_lbl.add_theme_font_override("font", FontNunitoBold)
-		req_lbl.add_theme_font_size_override("font_size", 22)
-		req_lbl.add_theme_constant_override("outline_size", 0)
-		req_lbl.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0))
-		if cur_barracks_lvl >= req_barracks:
-			req_lbl.text = "✓ Kışla Sv. %d" % req_barracks
-			req_lbl.add_theme_color_override("font_color", Color(0.45, 0.95, 0.56))
-		else:
-			req_lbl.text = "✗ Kışla Sv. %d Gerekli" % req_barracks
-			req_lbl.add_theme_color_override("font_color", Color(1.0, 0.55, 0.48))
-		top_row.add_child(req_lbl)
+			var card := PanelContainer.new()
+			card.name = "ResearchCard_" + u_key
+			card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			card.mouse_filter = Control.MOUSE_FILTER_PASS
+			card.add_theme_stylebox_override("panel", card_sb)
 
-		vbox.add_child(top_row)
+			var vbox := VBoxContainer.new()
+			vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			vbox.mouse_filter = Control.MOUSE_FILTER_PASS
+			vbox.add_theme_constant_override("separation", 8)
+			card.add_child(vbox)
 
-		# Combat stats line
-		var combat := RulesEngineScript.unit_combat(u_key)
-		var spd := RulesEngineScript.unit_speed(u_key)
-		var carry := RulesEngineScript.unit_carry(u_key)
-		var settlers := RulesEngineScript.unit_settlers(u_key)
+			var top_row := HBoxContainer.new()
+			top_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			top_row.mouse_filter = Control.MOUSE_FILTER_PASS
+			top_row.add_theme_constant_override("separation", 10)
 
-		var stats_lbl := Label.new()
-		stats_lbl.text = "⚔️ Saldırı: %d  |  🛡️ Sav: %d (Süv:%d / Okç:%d)  |  ⏱️ Hız: %.1f dk/alan  |  🎒 Taşıma: %d  |  👥 Nüfus: %d" % [
-			combat.attack, combat.def_inf, combat.def_cav, combat.def_arch, spd, carry, settlers
-		]
-		stats_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		stats_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		stats_lbl.add_theme_font_override("font", FontNunitoSemiBold)
-		stats_lbl.add_theme_font_size_override("font_size", 20)
-		stats_lbl.add_theme_constant_override("outline_size", 0)
-		stats_lbl.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0))
-		stats_lbl.add_theme_color_override("font_color", Color(0.90, 0.88, 0.82))
-		vbox.add_child(stats_lbl)
+			var name_lbl := Label.new()
+			name_lbl.text = "%s %s" % [u_icon, u_name]
+			name_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			name_lbl.add_theme_font_override("font", FontNunitoBold)
+			name_lbl.add_theme_font_size_override("font_size", 26)
+			name_lbl.add_theme_constant_override("outline_size", 0)
+			name_lbl.add_theme_color_override("font_color", Color(1.0, 0.95, 0.82))
+			name_lbl.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0))
+			top_row.add_child(name_lbl)
 
-		# Cost row and action button
-		var bottom_row := HBoxContainer.new()
-		bottom_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		bottom_row.add_theme_constant_override("separation", 12)
+			var class_badge := Label.new()
+			class_badge.text = "[%s]" % u_class
+			class_badge.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			class_badge.add_theme_font_override("font", FontNunitoSemiBold)
+			class_badge.add_theme_font_size_override("font_size", 20)
+			class_badge.add_theme_constant_override("outline_size", 0)
+			class_badge.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0))
+			class_badge.add_theme_color_override("font_color", Color(0.75, 0.88, 1.0))
+			top_row.add_child(class_badge)
 
-		# Cost items
-		var cost_hbox := HBoxContainer.new()
-		cost_hbox.add_theme_constant_override("separation", 12)
-		cost_hbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			var spacer := Control.new()
+			spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			spacer.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			top_row.add_child(spacer)
 
-		var w_pill := _create_mini_resource_pill(IconWood, int(r_cost.get("wood", 0)), cur_w)
-		var s_pill := _create_mini_resource_pill(IconStone, int(r_cost.get("stone", 0)), cur_s)
-		var i_pill := _create_mini_resource_pill(IconIron, int(r_cost.get("iron", 0)), cur_i)
-		cost_hbox.add_child(w_pill)
-		cost_hbox.add_child(s_pill)
-		cost_hbox.add_child(i_pill)
+			var req_lbl := Label.new()
+			req_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			req_lbl.add_theme_font_override("font", FontNunitoBold)
+			req_lbl.add_theme_font_size_override("font_size", 22)
+			req_lbl.add_theme_constant_override("outline_size", 0)
+			req_lbl.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0))
+			top_row.add_child(req_lbl)
+			vbox.add_child(top_row)
 
-		var time_info := Label.new()
-		time_info.text = "⏱️ %s" % _format_time_str(r_secs)
-		time_info.add_theme_font_override("font", FontNunitoBold)
-		time_info.add_theme_font_size_override("font_size", 21)
-		time_info.add_theme_constant_override("outline_size", 2)
-		time_info.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.95))
-		time_info.add_theme_color_override("font_color", Color(0.95, 0.90, 0.80))
-		time_info.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-		cost_hbox.add_child(time_info)
+			var combat := RulesEngineScript.unit_combat(u_key)
+			var spd := RulesEngineScript.unit_speed(u_key)
+			var carry := RulesEngineScript.unit_carry(u_key)
+			var settlers := RulesEngineScript.unit_settlers(u_key)
 
-		bottom_row.add_child(cost_hbox)
+			var stats_lbl := Label.new()
+			stats_lbl.text = "⚔️ Saldırı: %d  |  🛡️ Sav: %d (Süv:%d / Okç:%d)  |  ⏱️ Hız: %.1f dk/alan  |  🎒 Taşıma: %d  |  👥 Nüfus: %d" % [
+				combat.attack, combat.def_inf, combat.def_cav, combat.def_arch, spd, carry, settlers
+			]
+			stats_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			stats_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			stats_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			stats_lbl.add_theme_font_override("font", FontNunitoSemiBold)
+			stats_lbl.add_theme_font_size_override("font_size", 20)
+			stats_lbl.add_theme_constant_override("outline_size", 0)
+			stats_lbl.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0))
+			stats_lbl.add_theme_color_override("font_color", Color(0.90, 0.88, 0.82))
+			vbox.add_child(stats_lbl)
 
-		# Button or Status Badge
-		if is_researched:
-			var badge := Label.new()
-			badge.text = "✓ Araştırıldı"
-			badge.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-			badge.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-			badge.custom_minimum_size = Vector2(185, 52)
-			badge.add_theme_font_override("font", FontNunitoBold)
-			badge.add_theme_font_size_override("font_size", 24)
-			badge.add_theme_constant_override("outline_size", 3)
-			badge.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.95))
-			badge.add_theme_color_override("font_color", Color(0.40, 0.95, 0.55))
-			var b_sb := StyleBoxFlat.new()
-			b_sb.bg_color = Color(0.12, 0.28, 0.16, 0.95)
-			b_sb.border_color = Color(0.40, 0.85, 0.50, 0.9)
-			b_sb.set_border_width_all(2)
-			b_sb.set_corner_radius_all(12)
-			badge.add_theme_stylebox_override("normal", b_sb)
-			bottom_row.add_child(badge)
-		elif active_research_unit == u_key:
-			var badge := Label.new()
-			badge.text = "⏳ Araştırılıyor..."
-			badge.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-			badge.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-			badge.custom_minimum_size = Vector2(185, 52)
-			badge.add_theme_font_override("font", FontNunitoBold)
-			badge.add_theme_font_size_override("font_size", 24)
-			badge.add_theme_constant_override("outline_size", 3)
-			badge.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.95))
-			badge.add_theme_color_override("font_color", Color(0.50, 0.90, 1.0))
-			var b_sb := StyleBoxFlat.new()
-			b_sb.bg_color = Color(0.12, 0.22, 0.35, 0.95)
-			b_sb.border_color = Color(0.45, 0.78, 1.0, 0.9)
-			b_sb.set_border_width_all(2)
-			b_sb.set_corner_radius_all(12)
-			badge.add_theme_stylebox_override("normal", b_sb)
-			bottom_row.add_child(badge)
-		else:
+			var bottom_row := HBoxContainer.new()
+			bottom_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			bottom_row.mouse_filter = Control.MOUSE_FILTER_PASS
+			bottom_row.add_theme_constant_override("separation", 12)
+
+			var cost_hbox := HBoxContainer.new()
+			cost_hbox.add_theme_constant_override("separation", 12)
+			cost_hbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			cost_hbox.mouse_filter = Control.MOUSE_FILTER_PASS
+
+			var w_req := int(r_cost.get("wood", 0))
+			var s_req := int(r_cost.get("stone", 0))
+			var i_req := int(r_cost.get("iron", 0))
+			var w_pill := _create_mini_resource_pill(IconWood, w_req, -1)
+			var s_pill := _create_mini_resource_pill(IconStone, s_req, -1)
+			var i_pill := _create_mini_resource_pill(IconIron, i_req, -1)
+			cost_hbox.add_child(w_pill)
+			cost_hbox.add_child(s_pill)
+			cost_hbox.add_child(i_pill)
+
+			var time_info := Label.new()
+			time_info.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			time_info.add_theme_font_override("font", FontNunitoBold)
+			time_info.add_theme_font_size_override("font_size", 21)
+			time_info.add_theme_constant_override("outline_size", 2)
+			time_info.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.95))
+			time_info.add_theme_color_override("font_color", Color(0.95, 0.90, 0.80))
+			time_info.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+			cost_hbox.add_child(time_info)
+			bottom_row.add_child(cost_hbox)
+
+			var status_badge := Label.new()
+			status_badge.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+			status_badge.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+			status_badge.custom_minimum_size = Vector2(185, 52)
+			status_badge.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			status_badge.add_theme_font_override("font", FontNunitoBold)
+			status_badge.add_theme_font_size_override("font_size", 24)
+			status_badge.add_theme_constant_override("outline_size", 3)
+			status_badge.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.95))
+			bottom_row.add_child(status_badge)
+
 			var res_btn := Button.new()
 			res_btn.name = "ResearchBtn_" + u_key
 			res_btn.custom_minimum_size = Vector2(185, 52)
+			res_btn.mouse_filter = Control.MOUSE_FILTER_PASS
 			res_btn.add_theme_font_override("font", FontNunitoBold)
 			res_btn.add_theme_font_size_override("font_size", 24)
 			res_btn.add_theme_constant_override("outline_size", 3)
 			res_btn.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.95))
 			res_btn.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.95))
 			res_btn.add_theme_constant_override("shadow_offset_y", 2)
-
-			var can_res := ArmyAPI.can_research(_village, u_key, state)
-			var reason := ArmyAPI.research_block_reason(_village, u_key, state)
-
-			if can_res:
-				res_btn.text = "🔬 Araştır"
-				var r_sb := StyleBoxFlat.new()
-				r_sb.bg_color = Color(0.20, 0.58, 0.32, 1.0)
-				r_sb.border_color = Color(0.60, 0.95, 0.70, 1.0)
-				r_sb.set_border_width_all(2)
-				r_sb.set_corner_radius_all(12)
-				r_sb.shadow_size = 4
-				r_sb.shadow_color = Color(0, 0, 0, 0.4)
-				var r_pressed := r_sb.duplicate() as StyleBoxFlat
-				r_pressed.bg_color = Color(0.12, 0.45, 0.22, 1.0)
-				r_pressed.border_color = Color(1.0, 0.90, 0.50, 1.0)
-				res_btn.add_theme_stylebox_override("normal", r_sb)
-				res_btn.add_theme_stylebox_override("hover", r_sb)
-				res_btn.add_theme_stylebox_override("pressed", r_pressed)
-				res_btn.add_theme_color_override("font_color", Color(1, 1, 1))
-				res_btn.add_theme_color_override("font_hover_color", Color(1, 1, 1))
-				res_btn.add_theme_color_override("font_pressed_color", Color(1.0, 0.95, 0.75))
-				res_btn.add_theme_color_override("font_focus_color", Color(1, 1, 1))
-				res_btn.pressed.connect(_on_start_research_pressed.bind(u_key))
-			else:
-				res_btn.disabled = true
-				var d_sb := StyleBoxFlat.new()
-				d_sb.bg_color = Color(0.18, 0.17, 0.20, 0.9)
-				d_sb.border_color = Color(0.38, 0.35, 0.42, 0.75)
-				d_sb.set_border_width_all(2)
-				d_sb.set_corner_radius_all(12)
-				res_btn.add_theme_stylebox_override("normal", d_sb)
-				res_btn.add_theme_stylebox_override("disabled", d_sb)
-				res_btn.add_theme_color_override("font_color", Color(0.70, 0.68, 0.65))
-
-				if reason == "barracks_too_low":
-					res_btn.text = "Kışla Sv. %d Gerekli" % req_barracks
-				elif reason == "research_in_progress":
-					res_btn.text = "Sırada İş Var"
-				elif reason == "not_enough_resources":
-					res_btn.text = "Yetersiz Kaynak"
-				else:
-					res_btn.text = "Araştırılamaz"
-
+			res_btn.pressed.connect(_on_start_research_pressed.bind(u_key))
 			bottom_row.add_child(res_btn)
 
-		vbox.add_child(bottom_row)
-		research_list.add_child(card)
+			vbox.add_child(bottom_row)
+			research_list.add_child(card)
+
+			var w_lbl := w_pill.get_node("AmtLabel") as Label
+			var s_lbl := s_pill.get_node("AmtLabel") as Label
+			var i_lbl := i_pill.get_node("AmtLabel") as Label
+			var update_fn := func(b_lvl: int, act_unit: String, cur_state: Dictionary):
+				var res_dict: Dictionary = _village.get("resources", {})
+				var cur_w: int = int(res_dict.get("wood", 0))
+				var cur_s: int = int(res_dict.get("stone", 0))
+				var cur_i: int = int(res_dict.get("iron", 0))
+
+				if b_lvl >= req_barracks:
+					req_lbl.text = "✓ Kışla Sv. %d" % req_barracks
+					req_lbl.add_theme_color_override("font_color", Color(0.45, 0.95, 0.56))
+				else:
+					req_lbl.text = "✗ Kışla Sv. %d Gerekli" % req_barracks
+					req_lbl.add_theme_color_override("font_color", Color(1.0, 0.55, 0.48))
+
+				w_lbl.add_theme_color_override("font_color", Color(1.0, 0.42, 0.38) if cur_w < w_req else Color(1.0, 1.0, 1.0))
+				s_lbl.add_theme_color_override("font_color", Color(1.0, 0.42, 0.38) if cur_s < s_req else Color(1.0, 1.0, 1.0))
+				i_lbl.add_theme_color_override("font_color", Color(1.0, 0.42, 0.38) if cur_i < i_req else Color(1.0, 1.0, 1.0))
+
+				var r_secs := int(ceil(RulesEngineScript.research_seconds(u_key, b_lvl)))
+				time_info.text = "⏱️ %s" % _format_time_str(r_secs)
+
+				var is_res := RulesEngineScript.is_researched(_village, u_key)
+				if is_res:
+					status_badge.show()
+					status_badge.text = "✓ Araştırıldı"
+					status_badge.add_theme_color_override("font_color", Color(0.40, 0.95, 0.55))
+					status_badge.add_theme_stylebox_override("normal", b_sb_done)
+					res_btn.hide()
+				elif act_unit == u_key:
+					status_badge.show()
+					status_badge.text = "⏳ Araştırılıyor..."
+					status_badge.add_theme_color_override("font_color", Color(0.50, 0.90, 1.0))
+					status_badge.add_theme_stylebox_override("normal", b_sb_prog)
+					res_btn.hide()
+				else:
+					status_badge.hide()
+					res_btn.show()
+					var can_res := ArmyAPI.can_research(_village, u_key, cur_state)
+					var reason := ArmyAPI.research_block_reason(_village, u_key, cur_state)
+					if can_res:
+						res_btn.disabled = false
+						res_btn.text = "🔬 Araştır"
+						res_btn.add_theme_stylebox_override("normal", r_sb)
+						res_btn.add_theme_stylebox_override("hover", r_sb)
+						res_btn.add_theme_stylebox_override("pressed", r_pressed)
+						res_btn.add_theme_color_override("font_color", Color(1, 1, 1))
+						res_btn.add_theme_color_override("font_hover_color", Color(1, 1, 1))
+						res_btn.add_theme_color_override("font_pressed_color", Color(1.0, 0.95, 0.75))
+						res_btn.add_theme_color_override("font_focus_color", Color(1, 1, 1))
+					else:
+						res_btn.disabled = true
+						res_btn.add_theme_stylebox_override("normal", d_sb)
+						res_btn.add_theme_stylebox_override("disabled", d_sb)
+						res_btn.add_theme_color_override("font_color", Color(0.70, 0.68, 0.65))
+						if reason == "barracks_too_low":
+							res_btn.text = "Kışla Sv. %d Gerekli" % req_barracks
+						elif reason == "research_in_progress":
+							res_btn.text = "Sırada İş Var"
+						elif reason == "not_enough_resources":
+							res_btn.text = "Yetersiz Kaynak"
+						else:
+							res_btn.text = "Araştırılamaz"
+
+			card.set_meta("update_research_card", update_fn)
+
+	for child in research_list.get_children():
+		if child.has_meta("update_research_card"):
+			var cb = child.get_meta("update_research_card")
+			if cb is Callable:
+				(cb as Callable).call(cur_barracks_lvl, active_research_unit, state)
 
 
 func _create_mini_resource_pill(icon_tex: Texture2D, req_amount: int, cur_amount: int) -> HBoxContainer:
 	var box := HBoxContainer.new()
+	box.mouse_filter = Control.MOUSE_FILTER_PASS
 	box.add_theme_constant_override("separation", 6)
 
 	var icon_rect := TextureRect.new()
 	icon_rect.texture = icon_tex
 	icon_rect.custom_minimum_size = Vector2(28, 28)
 	icon_rect.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	icon_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	icon_rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	icon_rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	box.add_child(icon_rect)
 
 	var lbl := Label.new()
+	lbl.name = "AmtLabel"
 	lbl.text = str(req_amount)
+	lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	lbl.add_theme_font_override("font", FontNunitoBold)
 	lbl.add_theme_font_size_override("font_size", 21)
 	lbl.add_theme_constant_override("outline_size", 0)
@@ -1562,12 +1693,21 @@ func _update_active_research_info() -> void:
 	var rem := maxi(0, finish - now)
 
 	active_research_icon_lbl.text = "🔬 Araştırma Sürüyor: %s" % u_name
-	active_research_time_lbl.text = "Kalan: %02d:%02d" % [rem / 60, rem % 60]
+	active_research_time_lbl.text = "Kalan: %s" % _fmt_duration(rem)
 
 	var pct := float(total_dur - rem) / float(total_dur) * 100.0
 	active_research_progress.value = clampf(pct, 0.0, 100.0)
 
 	var item_id: int = int(active_item.get("id", -1))
+	if active_research_speedup_btn != null:
+		_apply_speedup_btn_style(active_research_speedup_btn, "research")
+		var old_sp_id = active_research_speedup_btn.get_meta("item_id", -1)
+		if old_sp_id != item_id:
+			active_research_speedup_btn.set_meta("item_id", item_id)
+			for conn in active_research_speedup_btn.pressed.get_connections():
+				active_research_speedup_btn.pressed.disconnect(conn["callable"])
+			active_research_speedup_btn.pressed.connect(_open_speedup.bind("research", item_id, active_research_icon_lbl.text))
+
 	var old_id = active_research_cancel_btn.get_meta("item_id", -1)
 	if old_id != item_id:
 		active_research_cancel_btn.set_meta("item_id", item_id)
@@ -1691,10 +1831,9 @@ func _populate_train_list() -> void:
 
 	var sig_parts: Array[String] = [str(cur_barracks_lvl)]
 	for u_key in BARRACKS_UNITS:
-		sig_parts.append("%s:%d:%d" % [
+		sig_parts.append("%s:%d" % [
 			u_key,
-			1 if RulesEngineScript.is_researched(_village, u_key) else 0,
-			int(_village.get("units", {}).get(u_key, 0))
+			1 if RulesEngineScript.is_researched(_village, u_key) else 0
 		])
 	var train_sig := "|".join(sig_parts)
 	if train_sig == _last_train_sig and train_list.get_child_count() == BARRACKS_UNITS.size():
@@ -1719,27 +1858,34 @@ func _populate_train_list() -> void:
 
 		var card := PanelContainer.new()
 		card.name = "TrainCard_" + u_key
+		card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		card.mouse_filter = Control.MOUSE_FILTER_PASS
 		var card_sb := StyleBoxFlat.new()
 		card_sb.bg_color = Color(0.12, 0.11, 0.15, 0.98)
 		card_sb.border_color = Color(0.48, 0.42, 0.34, 0.9)
 		card_sb.set_border_width_all(2)
 		card_sb.set_corner_radius_all(14)
-		card_sb.content_margin_left = 18
-		card_sb.content_margin_top = 16
-		card_sb.content_margin_right = 18
-		card_sb.content_margin_bottom = 16
+		card_sb.content_margin_left = 16
+		card_sb.content_margin_top = 14
+		card_sb.content_margin_right = 16
+		card_sb.content_margin_bottom = 14
 		card.add_theme_stylebox_override("panel", card_sb)
 
 		var vbox := VBoxContainer.new()
+		vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		vbox.mouse_filter = Control.MOUSE_FILTER_PASS
 		vbox.add_theme_constant_override("separation", 10)
 		card.add_child(vbox)
 
 		# Top row: Unit icon, name, class badge, existing troop count
 		var top_row := HBoxContainer.new()
-		top_row.add_theme_constant_override("separation", 12)
+		top_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		top_row.mouse_filter = Control.MOUSE_FILTER_PASS
+		top_row.add_theme_constant_override("separation", 10)
 
 		var name_lbl := Label.new()
 		name_lbl.text = "%s %s" % [u_icon, u_name]
+		name_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		name_lbl.add_theme_font_override("font", FontNunitoBold)
 		name_lbl.add_theme_font_size_override("font_size", 28)
 		name_lbl.add_theme_constant_override("outline_size", 0)
@@ -1749,6 +1895,7 @@ func _populate_train_list() -> void:
 
 		var class_badge := Label.new()
 		class_badge.text = "[%s]" % u_class
+		class_badge.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		class_badge.add_theme_font_override("font", FontNunitoSemiBold)
 		class_badge.add_theme_font_size_override("font_size", 22)
 		class_badge.add_theme_constant_override("outline_size", 0)
@@ -1758,13 +1905,15 @@ func _populate_train_list() -> void:
 
 		var spacer := Control.new()
 		spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		spacer.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		top_row.add_child(spacer)
 
 		var have_units := int(_village.get("units", {}).get(u_key, 0))
 		var have_lbl := Label.new()
 		have_lbl.text = "Mevcut: %d Adet" % have_units
+		have_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		have_lbl.add_theme_font_override("font", FontNunitoBold)
-		have_lbl.add_theme_font_size_override("font_size", 26)
+		have_lbl.add_theme_font_size_override("font_size", 25)
 		have_lbl.add_theme_constant_override("outline_size", 0)
 		have_lbl.add_theme_color_override("font_color", Color(1.0, 0.88, 0.45))
 		have_lbl.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0))
@@ -1775,11 +1924,14 @@ func _populate_train_list() -> void:
 		if not is_researched:
 			# Unresearched notice
 			var lock_row := HBoxContainer.new()
+			lock_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			lock_row.mouse_filter = Control.MOUSE_FILTER_PASS
 			lock_row.add_theme_constant_override("separation", 14)
 
 			var lock_lbl := Label.new()
 			lock_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 			lock_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			lock_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
 			lock_lbl.text = "🔒 Bu birim henüz araştırılmadı. (Gereken: Kışla Seviye %d)" % req_barracks
 			lock_lbl.add_theme_font_override("font", FontNunitoSemiBold)
 			lock_lbl.add_theme_font_size_override("font_size", 23)
@@ -1791,6 +1943,7 @@ func _populate_train_list() -> void:
 			var goto_res_btn := Button.new()
 			goto_res_btn.name = "GotoResearchBtn_" + u_key
 			goto_res_btn.text = "Birim Araştır ➔"
+			goto_res_btn.mouse_filter = Control.MOUSE_FILTER_PASS
 			goto_res_btn.custom_minimum_size = Vector2(185, 52)
 			goto_res_btn.add_theme_font_override("font", FontNunitoBold)
 			goto_res_btn.add_theme_font_size_override("font_size", 24)
@@ -1820,6 +1973,9 @@ func _populate_train_list() -> void:
 			lock_row.add_child(goto_res_btn)
 
 			vbox.add_child(lock_row)
+			var locked_update := func():
+				have_lbl.text = "Mevcut: %d Adet" % int(_village.get("units", {}).get(u_key, 0))
+			card.set_meta("update_calc", locked_update)
 		else:
 			# Combat stats line
 			var combat := RulesEngineScript.unit_combat(u_key)
@@ -1830,8 +1986,11 @@ func _populate_train_list() -> void:
 			stats_lbl.text = "Saldırı: %d | Savunma (Piy:%d / Süv:%d / Okç:%d) | Hız: %.1f dk | Taşıma: %d" % [
 				combat.attack, combat.def_inf, combat.def_cav, combat.def_arch, spd, carry
 			]
+			stats_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			stats_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			stats_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
 			stats_lbl.add_theme_font_override("font", FontNunitoBold)
-			stats_lbl.add_theme_font_size_override("font_size", 22)
+			stats_lbl.add_theme_font_size_override("font_size", 21)
 			stats_lbl.add_theme_constant_override("outline_size", 2)
 			stats_lbl.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.95))
 			stats_lbl.add_theme_color_override("font_color", Color(0.90, 0.88, 0.82))
@@ -1843,12 +2002,15 @@ func _populate_train_list() -> void:
 			var single_settler := RulesEngineScript.unit_settlers(u_key)
 
 			var cost_row := HBoxContainer.new()
-			cost_row.add_theme_constant_override("separation", 14)
+			cost_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			cost_row.mouse_filter = Control.MOUSE_FILTER_PASS
+			cost_row.add_theme_constant_override("separation", 12)
 
 			var cost_title := Label.new()
 			cost_title.text = "Birim Başı:"
+			cost_title.mouse_filter = Control.MOUSE_FILTER_IGNORE
 			cost_title.add_theme_font_override("font", FontNunitoBold)
-			cost_title.add_theme_font_size_override("font_size", 24)
+			cost_title.add_theme_font_size_override("font_size", 22)
 			cost_title.add_theme_constant_override("outline_size", 3)
 			cost_title.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.95))
 			cost_title.add_theme_color_override("font_color", Color(1.0, 0.92, 0.80))
@@ -1865,8 +2027,9 @@ func _populate_train_list() -> void:
 
 			var time_info := Label.new()
 			time_info.text = "⏱️ %s" % _format_time_str(single_sec)
+			time_info.mouse_filter = Control.MOUSE_FILTER_IGNORE
 			time_info.add_theme_font_override("font", FontNunitoBold)
-			time_info.add_theme_font_size_override("font_size", 24)
+			time_info.add_theme_font_size_override("font_size", 22)
 			time_info.add_theme_constant_override("outline_size", 2)
 			time_info.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.95))
 			time_info.add_theme_color_override("font_color", Color(0.92, 0.88, 0.80))
@@ -1877,7 +2040,9 @@ func _populate_train_list() -> void:
 
 			# Training input controls
 			var input_row := HBoxContainer.new()
-			input_row.add_theme_constant_override("separation", 10)
+			input_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			input_row.mouse_filter = Control.MOUSE_FILTER_PASS
+			input_row.add_theme_constant_override("separation", 8)
 
 			# Quick buttons (+1, +5, +10, Maks)
 			var btn_p1 := _create_quick_button("+1")
@@ -1901,13 +2066,15 @@ func _populate_train_list() -> void:
 			spin.max_value = 99999
 			spin.step = 1
 			spin.value = int(_train_counts.get(u_key, 0))
-			spin.custom_minimum_size = Vector2(135, 54)
+			spin.custom_minimum_size = Vector2(120, 54)
 			spin.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+			spin.mouse_filter = Control.MOUSE_FILTER_PASS
 			var s_line := spin.get_line_edit()
 			if s_line != null:
+				s_line.mouse_filter = Control.MOUSE_FILTER_PASS
 				s_line.alignment = HORIZONTAL_ALIGNMENT_CENTER
 				s_line.add_theme_font_override("font", FontNunitoBold)
-				s_line.add_theme_font_size_override("font_size", 26)
+				s_line.add_theme_font_size_override("font_size", 24)
 				s_line.add_theme_constant_override("outline_size", 2)
 				s_line.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.95))
 			input_row.add_child(spin)
@@ -1916,9 +2083,10 @@ func _populate_train_list() -> void:
 			train_btn.name = "TrainBtn_" + u_key
 			train_btn.text = "⚔️ Eğit"
 			train_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-			train_btn.custom_minimum_size = Vector2(160, 54)
+			train_btn.custom_minimum_size = Vector2(150, 54)
+			train_btn.mouse_filter = Control.MOUSE_FILTER_PASS
 			train_btn.add_theme_font_override("font", FontNunitoBold)
-			train_btn.add_theme_font_size_override("font_size", 26)
+			train_btn.add_theme_font_size_override("font_size", 24)
 			train_btn.add_theme_constant_override("outline_size", 3)
 			train_btn.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.95))
 			train_btn.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.95))
@@ -1954,16 +2122,20 @@ func _populate_train_list() -> void:
 
 			# Calculation summary line
 			var calc_summary := Label.new()
+			calc_summary.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			calc_summary.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			calc_summary.mouse_filter = Control.MOUSE_FILTER_IGNORE
 			calc_summary.add_theme_font_override("font", FontNunitoBold)
-			calc_summary.add_theme_font_size_override("font_size", 24)
+			calc_summary.add_theme_font_size_override("font_size", 22)
 			calc_summary.add_theme_constant_override("outline_size", 3)
 			calc_summary.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.95))
 			calc_summary.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.95))
 			calc_summary.add_theme_constant_override("shadow_offset_y", 2)
 			vbox.add_child(calc_summary)
 
-			# Dynamic update closure
+			# Dynamic update closure (in-place updates, zero card rebuilds)
 			var update_calc = func():
+				have_lbl.text = "Mevcut: %d Adet" % int(_village.get("units", {}).get(u_key, 0))
 				var c := int(spin.value)
 				_train_counts[u_key] = c
 				var max_train := _calculate_max_trainable(u_key)
@@ -2012,9 +2184,10 @@ func _populate_train_list() -> void:
 func _create_quick_button(btn_text: String) -> Button:
 	var btn := Button.new()
 	btn.text = btn_text
-	btn.custom_minimum_size = Vector2(76, 54)
+	btn.custom_minimum_size = Vector2(68, 54)
+	btn.mouse_filter = Control.MOUSE_FILTER_PASS
 	btn.add_theme_font_override("font", FontNunitoBold)
-	btn.add_theme_font_size_override("font_size", 26)
+	btn.add_theme_font_size_override("font_size", 24)
 	btn.add_theme_constant_override("outline_size", 3)
 	btn.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.95))
 	btn.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.95))
@@ -2046,6 +2219,27 @@ func _create_quick_button(btn_text: String) -> Button:
 	return btn
 
 
+func _ensure_train_queue_styles() -> void:
+	if _cached_train_pb_bg == null:
+		_cached_train_pb_bg = StyleBoxFlat.new()
+		_cached_train_pb_bg.bg_color = Color(0.08, 0.07, 0.10, 0.95)
+		_cached_train_pb_bg.border_color = Color(0.50, 0.42, 0.30, 0.8)
+		_cached_train_pb_bg.set_border_width_all(1)
+		_cached_train_pb_bg.set_corner_radius_all(6)
+	if _cached_train_pb_fg == null:
+		_cached_train_pb_fg = StyleBoxFlat.new()
+		_cached_train_pb_fg.bg_color = Color(0.20, 0.80, 0.42, 1.0)
+		_cached_train_pb_fg.set_corner_radius_all(5)
+	if _cached_train_cancel_sb == null:
+		_cached_train_cancel_sb = StyleBoxFlat.new()
+		_cached_train_cancel_sb.bg_color = Color(0.68, 0.18, 0.15, 0.95)
+		_cached_train_cancel_sb.border_color = Color(0.98, 0.55, 0.45, 0.95)
+		_cached_train_cancel_sb.set_border_width_all(2)
+		_cached_train_cancel_sb.set_corner_radius_all(10)
+		_cached_train_cancel_hover = _cached_train_cancel_sb.duplicate() as StyleBoxFlat
+		_cached_train_cancel_hover.bg_color = Color(0.84, 0.24, 0.20, 1.0)
+
+
 func _update_active_train_info() -> void:
 	if active_train_box == null or train_queue_list == null:
 		return
@@ -2066,18 +2260,19 @@ func _update_active_train_info() -> void:
 		return
 
 	active_train_box.show()
+	_ensure_train_queue_styles()
 	var now := _current_now()
 
-	# Rebuild or update rows
 	while train_queue_list.get_child_count() < train_items.size():
 		var row := HBoxContainer.new()
-		row.add_theme_constant_override("separation", 14)
+		row.add_theme_constant_override("separation", 10)
 
 		var name_lbl := Label.new()
 		name_lbl.name = "NameLabel"
 		name_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		name_lbl.clip_text = true
 		name_lbl.add_theme_font_override("font", FontNunitoBold)
-		name_lbl.add_theme_font_size_override("font_size", 24)
+		name_lbl.add_theme_font_size_override("font_size", 22)
 		name_lbl.add_theme_constant_override("outline_size", 2)
 		name_lbl.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.95))
 		name_lbl.add_theme_color_override("font_color", Color(1.0, 0.92, 0.50))
@@ -2086,7 +2281,7 @@ func _update_active_train_info() -> void:
 		var time_lbl := Label.new()
 		time_lbl.name = "TimeLabel"
 		time_lbl.add_theme_font_override("font", FontNunitoBold)
-		time_lbl.add_theme_font_size_override("font_size", 24)
+		time_lbl.add_theme_font_size_override("font_size", 22)
 		time_lbl.add_theme_constant_override("outline_size", 2)
 		time_lbl.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.95))
 		time_lbl.add_theme_color_override("font_color", Color(0.42, 0.90, 1.0))
@@ -2094,37 +2289,34 @@ func _update_active_train_info() -> void:
 
 		var prog := ProgressBar.new()
 		prog.name = "ProgressBar"
-		prog.custom_minimum_size = Vector2(150, 26)
+		prog.custom_minimum_size = Vector2(110, 26)
 		prog.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		prog.show_percentage = false
-		var p_bg := StyleBoxFlat.new()
-		p_bg.bg_color = Color(0.08, 0.07, 0.10, 0.95)
-		p_bg.border_color = Color(0.50, 0.42, 0.30, 0.8)
-		p_bg.set_border_width_all(1)
-		p_bg.set_corner_radius_all(6)
-		var p_fg := StyleBoxFlat.new()
-		p_fg.bg_color = Color(0.20, 0.80, 0.42, 1.0)
-		p_fg.set_corner_radius_all(5)
-		prog.add_theme_stylebox_override("background", p_bg)
-		prog.add_theme_stylebox_override("fill", p_fg)
+		prog.add_theme_stylebox_override("background", _cached_train_pb_bg)
+		prog.add_theme_stylebox_override("fill", _cached_train_pb_fg)
 		row.add_child(prog)
+
+		var s_btn := Button.new()
+		s_btn.name = "TrainSpeedupButton"
+		s_btn.text = "⚡ Hızlandır"
+		s_btn.custom_minimum_size = Vector2(165, 48)
+		s_btn.add_theme_font_override("font", FontNunitoBold)
+		s_btn.add_theme_font_size_override("font_size", 19)
+		s_btn.add_theme_constant_override("outline_size", 2)
+		s_btn.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.95))
+		row.add_child(s_btn)
 
 		var c_btn := Button.new()
 		c_btn.name = "CancelButton"
 		c_btn.text = "✕ İptal"
-		c_btn.custom_minimum_size = Vector2(110, 48)
+		c_btn.custom_minimum_size = Vector2(96, 48)
 		c_btn.add_theme_font_override("font", FontNunitoBold)
-		c_btn.add_theme_font_size_override("font_size", 22)
+		c_btn.add_theme_font_size_override("font_size", 20)
 		c_btn.add_theme_constant_override("outline_size", 2)
 		c_btn.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.95))
-		var c_sb := StyleBoxFlat.new()
-		c_sb.bg_color = Color(0.68, 0.18, 0.15, 0.95)
-		c_sb.border_color = Color(0.98, 0.55, 0.45, 0.95)
-		c_sb.set_border_width_all(2)
-		c_sb.set_corner_radius_all(10)
-		c_sb.shadow_size = 4
-		c_btn.add_theme_stylebox_override("normal", c_sb)
-		c_btn.add_theme_stylebox_override("hover", c_sb)
+		c_btn.add_theme_stylebox_override("normal", _cached_train_cancel_sb)
+		c_btn.add_theme_stylebox_override("hover", _cached_train_cancel_hover)
+		c_btn.add_theme_stylebox_override("pressed", _cached_train_cancel_hover)
 		c_btn.add_theme_color_override("font_color", Color(1, 1, 1))
 		row.add_child(c_btn)
 
@@ -2148,16 +2340,28 @@ func _update_active_train_info() -> void:
 		var rem := maxi(0, finish - now)
 
 		var name_lbl: Label = row.get_node("NameLabel")
-		name_lbl.text = "⚔️ %d %s" % [count, u_name]
+		var label_title := "⚔️ %d %s" % [count, u_name]
+		name_lbl.text = label_title
 
 		var time_lbl: Label = row.get_node("TimeLabel")
-		time_lbl.text = "%02d:%02d" % [rem / 60, rem % 60]
+		time_lbl.text = _fmt_duration(rem)
 
 		var prog: ProgressBar = row.get_node("ProgressBar")
 		prog.value = clampf(float(total_dur - rem) / float(total_dur) * 100.0, 0.0, 100.0)
 
-		var c_btn: Button = row.get_node("CancelButton")
 		var q_id: int = int(item.get("id", -1))
+		var s_btn: Button = row.get_node_or_null("TrainSpeedupButton") as Button
+		if s_btn != null:
+			_apply_speedup_btn_style(s_btn, "train")
+			var old_sp_key = str(s_btn.get_meta("sp_key", ""))
+			var next_sp_key := "%d_%s" % [q_id, label_title]
+			if old_sp_key != next_sp_key:
+				s_btn.set_meta("sp_key", next_sp_key)
+				for conn in s_btn.pressed.get_connections():
+					s_btn.pressed.disconnect(conn["callable"])
+				s_btn.pressed.connect(_open_speedup.bind("train", q_id, label_title))
+
+		var c_btn: Button = row.get_node("CancelButton")
 		var old_id = c_btn.get_meta("item_id", -1)
 		if old_id != q_id:
 			c_btn.set_meta("item_id", q_id)

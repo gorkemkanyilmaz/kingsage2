@@ -23,7 +23,8 @@ tests = [
     "test_three_players_full_playthrough.gd",
     "test_two_players_conquest_100x.gd",
     "test_village_isolation_and_restart.gd",
-    "test_v3_parity_fixes.gd"
+    "test_v3_parity_fixes.gd",
+    "test_store_and_speedups.gd"
 ]
 
 godot = os.path.abspath(r"tools/godot/Godot_v4.7.2-stable_win64_console.exe")

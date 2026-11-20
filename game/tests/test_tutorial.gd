@@ -148,17 +148,53 @@ func _run_tests() -> void:
 	await _tick(2)
 	_check(int(tm.call("get_current_step")) == 4, "Adım 4 (SELECT_WOOD_CAMP) geçildi")
 
-	# 3. Oduncu seç ve Sv.2'ye yükselt (Adım 4 -> 5 -> 6)
+	# 3. Oduncu seç ve Sv.2'ye yükselt (Adım 4 -> 5 -> Elmas Pazarı -> Parşömen -> Hızlandırma -> 6)
+	var store := root.get_node_or_null("StoreManager")
+	_check(store != null and int(store.call("get_diamonds")) == 35, "Yeni oyuncu başlangıçta 35 Elmas (💎) ile başladı")
 	await _click_building(village, "wood")
 	_check(int(tm.call("get_current_step")) == 5, "Adım 5 (UPGRADE_WOOD_CAMP) geçildi")
 	var upg_btn := bp.get_node_or_null("VBox/UpgradeButton") as BaseButton
 	_press_button(upg_btn)
 	await _tick(2)
-	_check(btn_speedup != null and btn_speedup.visible, "Oduncu inşaatında Kraliyet Fermanı butonu göründü")
-	_press_button(btn_speedup)
-	await _tick(3)
+	var rbar_tut := village.get_node_or_null("ResourceBar")
+	var btn_mkt_tut := rbar_tut.find_child("BtnMarket", true, false) as BaseButton if rbar_tut != null else null
+	_check(btn_mkt_tut != null, "Üst barda 💎 Elmas Pazarı butonu mevcut")
+	_check(tm.call("_resolve_target_control", village, "Village.tscn", gs) == btn_mkt_tut, "Oduncu inşaatında sağ üst 💎 Elmas Pazarı hedeflendi")
+	if btn_mkt_tut != null:
+		_press_button(btn_mkt_tut)
+		await _tick(3)
+	var mkt_modal := root.get_node_or_null("RoyalMarketModal")
+	_check(mkt_modal != null, "Elmas Pazarı modalı açıldı")
+	var buy_b10 := mkt_modal.find_child("BuyScrollBtn_build_10m", true, false) as BaseButton if mkt_modal != null else null
+	_check(buy_b10 != null, "10 Dk İnşaat Parşömeni satın al butonu (BuyScrollBtn_build_10m) bulundu")
+	_check(tm.call("_resolve_target_control", village, "Village.tscn", gs) == buy_b10, "Pazar içinde BuyScrollBtn_build_10m hedeflendi")
+	if buy_b10 != null:
+		_press_button(buy_b10)
+		await _tick(2)
+	_check(int(store.call("get_diamonds")) == 30 and int(store.call("get_scroll_count", "build_10m")) == 1, "5 Elmas ile 1 adet İnşaat 10 Dk parşömeni alındı (30 💎 kaldı)")
+	var mkt_close := mkt_modal.find_child("MarketCloseBtn", true, false) as BaseButton if mkt_modal != null else null
+	if mkt_close != null:
+		_press_button(mkt_close)
+		await _tick(2)
+	var build_spd_btn := bp.find_child("BuildSpeedupButton", true, false) as BaseButton
+	_check(build_spd_btn != null and build_spd_btn.visible, "İnşaat kutusunda BuildSpeedupButton görünüyor")
+	if build_spd_btn != null:
+		_press_button(build_spd_btn)
+		await _tick(2)
+	var spd_modal := root.get_node_or_null("SpeedupModal")
+	_check(spd_modal != null, "Hızlandırma Parşömeni modalı (SpeedupModal) açıldı")
+	var use_b10 := spd_modal.find_child("UseScrollBtn_build_10m", true, false) as BaseButton if spd_modal != null else null
+	_check(use_b10 != null, "UseScrollBtn_build_10m butonu bulundu")
+	_check(tm.call("_resolve_target_control", village, "Village.tscn", gs) == use_b10, "SpeedupModal içinde UseScrollBtn_build_10m hedeflendi")
+	if use_b10 != null:
+		_press_button(use_b10)
+		await _tick(3)
+	elif btn_speedup != null and btn_speedup.visible:
+		_press_button(btn_speedup)
+		await _tick(3)
 	var active_v: Dictionary = gs.call("get_active_village")
-	_check(int(active_v["buildings"].get("wood", 0)) >= 2, "Oduncu Sv.2 tamamlandı")
+	_check(int(active_v["buildings"].get("wood", 0)) >= 2, "Oduncu Sv.2 parşömen ile anında tamamlandı")
+	_check(int(store.call("get_scroll_count", "build_10m")) == 0, "Kullanılan 10 Dk İnşaat parşömeni envanterden düştü")
 	_check(int(tm.call("get_current_step")) == 6, "Adım 6 (CHECK_BARRACKS_REQS) geçildi")
 
 	# 4. Oduncu paneli hala açıksa önce Kapat (✕) butonunu hedefle, kapanınca Kışla'yı hedefle
@@ -185,11 +221,20 @@ func _run_tests() -> void:
 		await _tick(2)
 	active_v = gs.call("get_active_village")
 	_check(int(active_v["buildings"].get("storage", 0)) >= 3, "Depo Sv.3 tamamlandı")
+	var target_after_sto = tm.call("_resolve_target_control", village, "Village.tscn", gs)
+	_check(target_after_sto == close_btn, "Depo Sv.3 tamamlanıp Değirmen < 3 iken Depo penceresini kapatma hedeflendi (Kışla'ya atlamadı)")
+
+	# Değirmen Lv.3 olmadan yanlışlıkla BUILD_BARRACKS_LV1'e geçilse bile COMPLETE_BARRACKS_PREREQS'e geri dönmeli
+	tm.set("_current_step", 14)
+	await _tick(2)
+	_check(int(tm.call("get_current_step")) == 7, "Değirmen Sv.3 yapılmadan Kışla adımına (14) izin verilmedi, Adım 7'ye geri döndü")
 
 	# Değirmen'i kapatıp aç ve Lv.2 -> Lv.3 yap
 	if bp.visible:
 		_press_button(close_btn)
 		await _tick(2)
+	var farm_bv = village.call("get_building_view", "farm")
+	_check(tm.call("_resolve_target_control", village, "Village.tscn", gs) == farm_bv, "Panel kapanınca Kışla yerine Değirmen hedefe geçti")
 	await _click_building(village, "farm")
 	for target_lvl in [2, 3]:
 		_press_button(upg_btn)

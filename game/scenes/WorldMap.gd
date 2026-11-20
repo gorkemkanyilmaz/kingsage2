@@ -69,6 +69,7 @@ var _detail_status_lbl: Label
 var _detail_timer_lbl: Label
 var _detail_sub_timer_lbl: Label
 var _detail_units_grid: GridContainer
+var _detail_btn_speedup: Button
 var _detail_btn_cancel: Button
 var _detail_cancel_note: Label
 var _last_village_click_ms: int = -10000
@@ -102,6 +103,12 @@ func _ready() -> void:
 	_build_villages()
 	_create_floating_controls()
 	_setup_movement_status_bar()
+	_sync_top_bars_layout()
+
+	if not resized.is_connected(_sync_top_bars_layout):
+		resized.connect(_sync_top_bars_layout)
+	if resource_bar != null and not resource_bar.resized.is_connected(_sync_top_bars_layout):
+		resource_bar.resized.connect(_sync_top_bars_layout)
 
 	# Başlangıçta oyuncu köyüne ortala
 	_center_on_home(false)
@@ -118,6 +125,58 @@ func _ready() -> void:
 			bus.state_changed.connect(_on_world_state_changed)
 		if bus.has_signal("village_conquered") and not bus.village_conquered.is_connected(_on_village_conquered_map):
 			bus.village_conquered.connect(_on_village_conquered_map)
+	var sm := _get_store_manager()
+	if sm != null and sm.has_signal("scrolls_changed") and not sm.scrolls_changed.is_connected(_on_scrolls_changed):
+		sm.scrolls_changed.connect(_on_scrolls_changed)
+
+
+func _get_store_manager() -> Node:
+	var loop := Engine.get_main_loop()
+	if loop is SceneTree and (loop as SceneTree).root != null:
+		return (loop as SceneTree).root.get_node_or_null("StoreManager")
+	return null
+
+
+func _fmt_duration(secs: int) -> String:
+	var s := maxi(0, secs)
+	var sm := _get_store_manager()
+	if sm != null and sm.has_method("format_duration"):
+		return str(sm.call("format_duration", s))
+	var h := s / 3600
+	var m := (s % 3600) / 60
+	var rem := s % 60
+	if h > 0:
+		return "%02d:%02d:%02d" % [h, m, rem]
+	return "%02d:%02d" % [m, rem]
+
+
+func _get_top_bar_height() -> float:
+	if resource_bar != null:
+		if resource_bar.has_method("get_bar_height"):
+			return float(resource_bar.call("get_bar_height"))
+		if resource_bar.size.y > 0.0:
+			return resource_bar.size.y
+	return 116.0
+
+
+func _sync_top_bars_layout() -> void:
+	var bar_h := _get_top_bar_height()
+	var header := get_node_or_null("Header") as Control
+	if header != null:
+		header.offset_top = bar_h + 8.0
+		header.offset_bottom = bar_h + 100.0
+	var legend := get_node_or_null("Legend") as Control
+	if legend != null:
+		legend.offset_top = bar_h + 108.0
+		legend.offset_bottom = bar_h + 152.0
+	if movement_status_bar != null:
+		movement_status_bar.offset_top = bar_h + 106.0
+		movement_status_bar.offset_bottom = bar_h + 156.0
+
+
+func _on_scrolls_changed(_scrolls: Dictionary) -> void:
+	if movement_detail_panel != null and movement_detail_panel.visible:
+		_update_movement_detail_timer()
 
 
 func _process(_delta: float) -> void:
@@ -976,7 +1035,7 @@ func _on_draw_movements() -> void:
 
 		# 4) Kalan Varış Zamanı Plaketi (süre 00:00 olduğunda rakip/ev köyüne varır)
 		var rem_secs := maxi(0, arrive_unix - now)
-		var time_str := "%02d:%02d" % [rem_secs / 60, rem_secs % 60]
+		var time_str := _fmt_duration(rem_secs)
 		var total_units := 0
 		for uk in units_dict.keys():
 			total_units += int(units_dict.get(uk, 0))
@@ -1191,7 +1250,7 @@ func _refresh_movement_status_bar() -> void:
 	var is_trade := (m_type == "trade")
 	var arrive_unix := int(active_m.get("arrive_unix", now))
 	var rem_secs := maxi(0, arrive_unix - now)
-	var time_str := "%02d:%02d" % [rem_secs / 60, rem_secs % 60]
+	var time_str := _fmt_duration(rem_secs)
 
 	if is_returning:
 		movement_status_label.text = " Birlik Dönüş Yolunda! Üsse Kalan Süre: %s (Toplam %d)" % [time_str, my_movements.size()]
@@ -1460,16 +1519,31 @@ func _create_movement_detail_panel() -> void:
 	_detail_cancel_note.add_theme_color_override("font_color", Color(0.35, 0.95, 1.0))
 	main_vbox.add_child(_detail_cancel_note)
 
-	# 6) Butonlar (İptal Et & Kapat)
+	# 6) Butonlar (Hızlandır, İptal Et & Kapat)
 	var btns_hbox := HBoxContainer.new()
-	btns_hbox.add_theme_constant_override("separation", 16)
+	btns_hbox.add_theme_constant_override("separation", 12)
+
+	_detail_btn_speedup = Button.new()
+	_detail_btn_speedup.name = "DetailSpeedupButton"
+	_detail_btn_speedup.text = "⚡ Hızlandır"
+	_detail_btn_speedup.custom_minimum_size = Vector2(220, 56)
+	_detail_btn_speedup.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_detail_btn_speedup.add_theme_font_override("font", FontNunitoBold)
+	_detail_btn_speedup.add_theme_font_size_override("font_size", 22)
+	_detail_btn_speedup.add_theme_constant_override("outline_size", 3)
+	_detail_btn_speedup.add_theme_color_override("font_outline_color", Color(0, 0, 0, 1.0))
+	_detail_btn_speedup.add_theme_color_override("font_color", Color(1.0, 0.96, 0.86))
+	_detail_btn_speedup.add_theme_color_override("font_hover_color", Color(1.0, 1.0, 1.0))
+	_detail_btn_speedup.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	_detail_btn_speedup.pressed.connect(_on_detail_speedup_pressed)
+	btns_hbox.add_child(_detail_btn_speedup)
 
 	_detail_btn_cancel = Button.new()
 	_detail_btn_cancel.text = " Saldırıyı İptal Et (Geri Çağır)"
 	_detail_btn_cancel.custom_minimum_size = Vector2(0, 56)
 	_detail_btn_cancel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_detail_btn_cancel.add_theme_font_override("font", FontNunitoBold)
-	_detail_btn_cancel.add_theme_font_size_override("font_size", 24)
+	_detail_btn_cancel.add_theme_font_size_override("font_size", 22)
 	_detail_btn_cancel.add_theme_constant_override("outline_size", 3)
 	_detail_btn_cancel.add_theme_color_override("font_outline_color", Color(0, 0, 0, 1.0))
 	_detail_btn_cancel.add_theme_color_override("font_color", Color(1.0, 0.95, 0.90))
@@ -1497,9 +1571,9 @@ func _create_movement_detail_panel() -> void:
 
 	var btn_dismiss := Button.new()
 	btn_dismiss.text = "Kapat"
-	btn_dismiss.custom_minimum_size = Vector2(200, 56)
+	btn_dismiss.custom_minimum_size = Vector2(150, 56)
 	btn_dismiss.add_theme_font_override("font", FontNunitoBold)
-	btn_dismiss.add_theme_font_size_override("font_size", 24)
+	btn_dismiss.add_theme_font_size_override("font_size", 22)
 	btn_dismiss.add_theme_constant_override("outline_size", 2)
 	btn_dismiss.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.95))
 	btn_dismiss.add_theme_color_override("font_color", Color(0.95, 0.90, 0.82))
@@ -1643,13 +1717,91 @@ func _refresh_movement_detail_content() -> void:
 		_detail_btn_cancel.show()
 		_detail_cancel_note.text = " İptal edildiğinde birlikler bulundukları noktadan derhal üsse geri dönerler."
 		_detail_cancel_note.show()
+	_refresh_detail_speedup_button()
+
+
+func _is_player_owned_movement(m: Dictionary, gs: Node) -> bool:
+	if gs == null:
+		return false
+	var player_name := str(gs.player.get("name", "")) if gs.get("player") is Dictionary else ""
+	var m_owner := str(m.get("owner", ""))
+	if not player_name.is_empty() and m_owner == player_name:
+		return true
+	var my_ids: Dictionary = {}
+	var v_list = gs.get("villages")
+	if v_list is Array:
+		for v in v_list:
+			if v is Dictionary:
+				my_ids[int((v as Dictionary).get("id", -1))] = true
+	var from_id := int(m.get("from_village_id", -1))
+	var to_id := int(m.get("to_village_id", -1))
+	var vill_id := int(m.get("village_id", -1))
+	var is_ret := (str(m.get("state", "")) == "returning" or str(m.get("type", "")) == "return")
+	if is_ret:
+		return my_ids.has(to_id) or my_ids.has(vill_id)
+	return my_ids.has(from_id)
+
+
+func _refresh_detail_speedup_button() -> void:
+	if _detail_btn_speedup == null:
+		return
+	var gs = Engine.get_main_loop().root.get_node_or_null("GameState") if Engine.get_main_loop() is SceneTree else null
+	if _detail_movement_ref.is_empty() or not _is_player_owned_movement(_detail_movement_ref, gs):
+		_detail_btn_speedup.hide()
+		return
+	_detail_btn_speedup.show()
+	var sm := _get_store_manager()
+	var cnt := int(sm.call("get_category_scroll_total", "march")) if sm != null and sm.has_method("get_category_scroll_total") else 0
+	_detail_btn_speedup.text = "⚡ Hızlandır (%d)" % cnt if cnt > 0 else "🛒 Parşömen Al"
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color(0.16, 0.44, 0.24, 0.98) if cnt > 0 else Color(0.12, 0.25, 0.46, 0.98)
+	sb.border_color = Color(0.95, 0.80, 0.36, 0.98)
+	sb.set_border_width_all(2)
+	sb.set_corner_radius_all(14)
+	var sb_h := sb.duplicate() as StyleBoxFlat
+	sb_h.bg_color = sb.bg_color.lightened(0.12)
+	_detail_btn_speedup.add_theme_stylebox_override("normal", sb)
+	_detail_btn_speedup.add_theme_stylebox_override("hover", sb_h)
+	_detail_btn_speedup.add_theme_stylebox_override("pressed", sb_h)
+
+
+func _on_detail_speedup_pressed() -> void:
+	if _detail_movement_ref.is_empty():
+		return
+	var sm := _get_store_manager()
+	var target_id: Variant = _detail_movement_ref.get("id", null)
+	var title_txt := _detail_title_lbl.text if _detail_title_lbl != null else "Ordu Seferi"
+	if sm != null and sm.has_method("open_speedup_modal"):
+		sm.call("open_speedup_modal", self, "march", target_id, title_txt)
+	elif sm != null and sm.has_method("open_market"):
+		sm.call("open_market", self, "march")
+
+
+func _find_detail_live_movement() -> Dictionary:
+	var target_id := int(_detail_movement_ref.get("id", -1))
+	if target_id <= 0:
+		return _detail_movement_ref
+	var gs = Engine.get_main_loop().root.get_node_or_null("GameState") if Engine.get_main_loop() is SceneTree else null
+	if gs == null:
+		return _detail_movement_ref
+	for item in gs.movements:
+		if typeof(item) == TYPE_DICTIONARY and int((item as Dictionary).get("id", -1)) == target_id:
+			_detail_movement_ref = item
+			return item
+	return {}
 
 
 func _update_movement_detail_timer() -> void:
 	if movement_detail_panel == null or not movement_detail_panel.visible or _detail_movement_ref.is_empty():
 		return
 
-	var m := _detail_movement_ref
+	var live_m := _find_detail_live_movement()
+	if live_m.is_empty():
+		_detail_movement_ref = {}
+		movement_detail_panel.hide()
+		return
+
+	var m := live_m
 	var now := int(Time.get_unix_time_from_system())
 	var depart_unix := int(m.get("depart_unix", now))
 	var arrive_unix := int(m.get("arrive_unix", now + 60))
@@ -1659,16 +1811,19 @@ func _update_movement_detail_timer() -> void:
 
 	var is_returning := (str(m.get("state", "")) == "returning" or str(m.get("type", "")) == "return")
 	var target_label := "Üsse Varışa Kalan Süre:" if is_returning else "Hedefe Kalan Süre:"
-	var time_str := "%02d:%02d" % [rem_secs / 60, rem_secs % 60]
+	var time_str := _fmt_duration(rem_secs)
 
 	_detail_timer_lbl.text = "%s %s" % [target_label, time_str]
-	_detail_sub_timer_lbl.text = "İlerleme: %%%d | Kalan: %d saniye" % [int(progress * 100.0), rem_secs]
+	_detail_sub_timer_lbl.text = "İlerleme: %%%d | Kalan: %s" % [int(progress * 100.0), _fmt_duration(rem_secs)]
+	_refresh_detail_speedup_button()
 
 
 func _on_cancel_movement_pressed() -> void:
 	if _detail_movement_ref.is_empty():
 		return
-	var m := _detail_movement_ref
+	var m := _find_detail_live_movement()
+	if m.is_empty():
+		m = _detail_movement_ref
 	var now := int(Time.get_unix_time_from_system())
 	var depart_unix := int(m.get("depart_unix", now))
 	var arrive_unix := int(m.get("arrive_unix", now + 60))
@@ -1696,9 +1851,9 @@ func _on_cancel_movement_pressed() -> void:
 	var curr_x := lerpf(orig_x, tgt_x, progress)
 	var curr_y := lerpf(orig_y, tgt_y, progress)
 
-	# Birlikler bulundukları noktadan köye geri dönmeye başlarlar.
-	# Gidilen süre kadar dönüş süresi işletilir.
-	var return_duration := elapsed
+	# Birlikler bulundukları noktadan köye geri dönmeye başlarlar (hızlandırılmış sefer olsa bile mesafeye oranlı tam hız).
+	var base_travel := int(m.get("base_travel_seconds", total_dur))
+	var return_duration := maxi(1, int(round(float(base_travel) * progress)))
 	var return_arrive_unix := now + return_duration
 
 	m["state"] = "returning"
@@ -1713,6 +1868,17 @@ func _on_cancel_movement_pressed() -> void:
 	m["depart_unix"] = now
 	m["arrive_unix"] = return_arrive_unix
 	m["return_unix"] = return_arrive_unix
+	m["base_travel_seconds"] = return_duration
+
+	var wm = Engine.get_main_loop().root.get_node_or_null("WorldManager") if Engine.get_main_loop() is SceneTree else null
+	if wm != null and wm.has_method("save_active_world"):
+		wm.call("save_active_world")
+	var save_m = Engine.get_main_loop().root.get_node_or_null("SaveManager") if Engine.get_main_loop() is SceneTree else null
+	if save_m != null and save_m.has_method("save_game"):
+		save_m.call("save_game")
+	var bus = Engine.get_main_loop().root.get_node_or_null("EventBus") if Engine.get_main_loop() is SceneTree else null
+	if bus != null and bus.has_signal("state_changed"):
+		bus.state_changed.emit()
 
 	_refresh_movement_detail_content()
 	if movements_layer != null:

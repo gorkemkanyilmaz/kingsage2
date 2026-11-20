@@ -123,7 +123,7 @@ const BUILDING_CONFIG := {
 ## Geriye dönük uyumluluk tablosu
 const BUILDING_SPRITES := {}
 
-const BASE_OFFSET_Y: float = 138.0
+const BASE_OFFSET_Y: float = 116.0
 
 @onready var village_area: Control = $VillageArea
 
@@ -145,6 +145,17 @@ var _overscan_bg: ColorRect = null
 
 var _game_loop: Node = null
 var _building_nodes: Dictionary = {}
+
+var _q_pb_bg: StyleBoxFlat = null
+var _q_pb_fg: StyleBoxFlat = null
+var _q_cancel_norm: StyleBoxFlat = null
+var _q_cancel_hover: StyleBoxFlat = null
+var _q_cancel_pressed: StyleBoxFlat = null
+var _q_cancel_dis: StyleBoxFlat = null
+var _q_speedup_have_sb: StyleBoxFlat = null
+var _q_speedup_have_hover: StyleBoxFlat = null
+var _q_speedup_buy_sb: StyleBoxFlat = null
+var _q_speedup_buy_hover: StyleBoxFlat = null
 
 
 func _ensure_nodes() -> void:
@@ -209,13 +220,18 @@ func _ready() -> void:
 
 	_setup_overscan_bg()
 
-	# Arka plan ve binalar ResourceBar (138px) bitiminden başlar, kale tamamen görünür
+	# Arka plan ve binalar dinamik ResourceBar altından başlar
+	_sync_top_bar_layout()
 	if village_area != null:
-		village_area.position = Vector2(0.0, BASE_OFFSET_Y)
+		village_area.position = Vector2(0.0, _get_top_bar_height())
 		_clamp_village_area()
 		var vp := get_viewport()
-		if vp != null and not vp.size_changed.is_connected(_clamp_village_area):
-			vp.size_changed.connect(_clamp_village_area)
+		if vp != null and not vp.size_changed.is_connected(_on_layout_resized):
+			vp.size_changed.connect(_on_layout_resized)
+	if not resized.is_connected(_on_layout_resized):
+		resized.connect(_on_layout_resized)
+	if resource_bar != null and not resource_bar.resized.is_connected(_on_layout_resized):
+		resource_bar.resized.connect(_on_layout_resized)
 
 	building_panel.hide()
 	if not building_panel.building_switched.is_connected(_on_building_selected):
@@ -386,13 +402,7 @@ func _setup_village_nodes() -> void:
 func _get_game_state() -> Node:
 	if get_parent() != null and get_parent().has_node("GameState"):
 		return get_parent().get_node("GameState")
-	if is_inside_tree():
-		if has_node("/root/GameState"):
-			return get_node("/root/GameState")
-		var tree = get_tree()
-		if tree != null and tree.root != null and tree.root.has_node("GameState"):
-			return tree.root.get_node("GameState")
-	var loop = Engine.get_main_loop()
+	var loop := Engine.get_main_loop()
 	if loop is SceneTree and (loop as SceneTree).root != null and (loop as SceneTree).root.has_node("GameState"):
 		return (loop as SceneTree).root.get_node("GameState")
 	return null
@@ -550,15 +560,20 @@ func _update_queue_ui() -> void:
 				})
 				incoming_count += 1
 
-	# 2) Çıkan Askeri Seferler
+	# 2) Çıkan ve Dönen Askeri Seferler
 	for m in gs.movements:
 		if typeof(m) == TYPE_DICTIONARY:
-			var from_id = int((m as Dictionary).get("from_village_id", -1))
-			var m_state = str((m as Dictionary).get("state", ""))
-			if from_id == vid and (m_state == "outgoing" or m_state == "returning"):
+			var m_dict := m as Dictionary
+			var from_id := int(m_dict.get("from_village_id", -1))
+			var to_id := int(m_dict.get("to_village_id", -1))
+			var vill_id := int(m_dict.get("village_id", -1))
+			var m_state := str(m_dict.get("state", ""))
+			var m_type := str(m_dict.get("type", "attack"))
+			var is_ret := (m_state == "returning" or m_type == "return")
+			if (from_id == vid and not is_ret and m_state == "outgoing") or (is_ret and (to_id == vid or vill_id == vid)):
 				activities.append({
 					"category": "outgoing_attack",
-					"type": str((m as Dictionary).get("type", "attack")),
+					"type": m_type,
 					"data": m
 				})
 
@@ -612,7 +627,89 @@ func _update_queue_ui() -> void:
 		_bind_queue_row(row, act, now)
 
 
+func _ensure_queue_styles() -> void:
+	if _q_pb_bg == null:
+		_q_pb_bg = StyleBoxFlat.new()
+		_q_pb_bg.bg_color = Color(0.08, 0.07, 0.10, 0.95)
+		_q_pb_bg.border_color = Color(0.50, 0.42, 0.30, 0.8)
+		_q_pb_bg.set_border_width_all(1)
+		_q_pb_bg.set_corner_radius_all(8)
+	if _q_pb_fg == null:
+		_q_pb_fg = StyleBoxFlat.new()
+		_q_pb_fg.bg_color = Color(0.20, 0.80, 0.42, 1.0)
+		_q_pb_fg.set_corner_radius_all(7)
+	if _q_cancel_norm == null:
+		_q_cancel_norm = StyleBoxFlat.new()
+		_q_cancel_norm.bg_color = Color(0.68, 0.18, 0.15, 0.95)
+		_q_cancel_norm.border_color = Color(0.98, 0.55, 0.45, 0.95)
+		_q_cancel_norm.set_border_width_all(2)
+		_q_cancel_norm.set_corner_radius_all(12)
+		_q_cancel_hover = _q_cancel_norm.duplicate() as StyleBoxFlat
+		_q_cancel_hover.bg_color = Color(0.84, 0.24, 0.20, 1.0)
+		_q_cancel_hover.border_color = Color(1.0, 0.72, 0.62, 1.0)
+		_q_cancel_pressed = _q_cancel_norm.duplicate() as StyleBoxFlat
+		_q_cancel_pressed.bg_color = Color(0.50, 0.12, 0.10, 1.0)
+	if _q_cancel_dis == null:
+		_q_cancel_dis = StyleBoxFlat.new()
+		_q_cancel_dis.bg_color = Color(0.26, 0.14, 0.14, 0.78)
+		_q_cancel_dis.border_color = Color(0.55, 0.30, 0.30, 0.72)
+		_q_cancel_dis.set_border_width_all(2)
+		_q_cancel_dis.set_corner_radius_all(12)
+	if _q_speedup_have_sb == null:
+		_q_speedup_have_sb = StyleBoxFlat.new()
+		_q_speedup_have_sb.bg_color = Color(0.16, 0.44, 0.24, 0.98)
+		_q_speedup_have_sb.border_color = Color(0.95, 0.80, 0.36, 0.98)
+		_q_speedup_have_sb.set_border_width_all(2)
+		_q_speedup_have_sb.set_corner_radius_all(12)
+		_q_speedup_have_hover = _q_speedup_have_sb.duplicate() as StyleBoxFlat
+		_q_speedup_have_hover.bg_color = Color(0.22, 0.56, 0.32, 1.0)
+	if _q_speedup_buy_sb == null:
+		_q_speedup_buy_sb = StyleBoxFlat.new()
+		_q_speedup_buy_sb.bg_color = Color(0.12, 0.25, 0.46, 0.98)
+		_q_speedup_buy_sb.border_color = Color(0.92, 0.76, 0.34, 0.96)
+		_q_speedup_buy_sb.set_border_width_all(2)
+		_q_speedup_buy_sb.set_corner_radius_all(12)
+		_q_speedup_buy_hover = _q_speedup_buy_sb.duplicate() as StyleBoxFlat
+		_q_speedup_buy_hover.bg_color = Color(0.18, 0.34, 0.60, 1.0)
+
+
+func _fmt_duration(secs: int) -> String:
+	var s := maxi(0, secs)
+	var sm = Engine.get_main_loop().root.get_node_or_null("StoreManager") if Engine.get_main_loop() is SceneTree else null
+	if sm != null and sm.has_method("format_duration"):
+		return str(sm.call("format_duration", s))
+	var h := s / 3600
+	var m := (s % 3600) / 60
+	var rem := s % 60
+	if h > 0:
+		return "%02d:%02d:%02d" % [h, m, rem]
+	return "%02d:%02d" % [m, rem]
+
+
+func _apply_queue_speedup_style(btn: Button, category: String) -> void:
+	_ensure_queue_styles()
+	var sm = Engine.get_main_loop().root.get_node_or_null("StoreManager") if Engine.get_main_loop() is SceneTree else null
+	var count := 0
+	if sm != null and sm.has_method("get_category_scroll_total"):
+		count = int(sm.call("get_category_scroll_total", category))
+	btn.text = "⚡ Hızlandır (%d)" % count if count > 0 else "🛒 Parşömen Al"
+	var sb_n := _q_speedup_have_sb if count > 0 else _q_speedup_buy_sb
+	var sb_h := _q_speedup_have_hover if count > 0 else _q_speedup_buy_hover
+	btn.add_theme_stylebox_override("normal", sb_n)
+	btn.add_theme_stylebox_override("hover", sb_h)
+	btn.add_theme_stylebox_override("pressed", sb_h)
+
+
+func _open_queue_speedup(category: String, target_id: Variant, title_text: String) -> void:
+	var sm = Engine.get_main_loop().root.get_node_or_null("StoreManager") if Engine.get_main_loop() is SceneTree else null
+	if sm != null and sm.has_method("open_speedup_modal"):
+		sm.call("open_speedup_modal", self, category, target_id, title_text)
+	elif sm != null and sm.has_method("open_market"):
+		sm.call("open_market", self, category)
+
+
 func _setup_queue_hud_styling() -> void:
+	_ensure_queue_styles()
 	if queue_hud != null:
 		var q_sb := StyleBoxFlat.new()
 		q_sb.bg_color = Color(0.12, 0.10, 0.14, 0.98)
@@ -634,13 +731,15 @@ func _setup_queue_hud_styling() -> void:
 
 
 func _create_queue_row() -> HBoxContainer:
+	_ensure_queue_styles()
 	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", 14)
+	row.add_theme_constant_override("separation", 10)
 
 	var icon_name_lbl := Label.new()
 	icon_name_lbl.name = "IconNameLabel"
 	icon_name_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	icon_name_lbl.add_theme_font_size_override("font_size", 24)
+	icon_name_lbl.clip_text = true
+	icon_name_lbl.add_theme_font_size_override("font_size", 22)
 	icon_name_lbl.add_theme_color_override("font_color", Color(1.0, 0.95, 0.88))
 	icon_name_lbl.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.98))
 	icon_name_lbl.add_theme_constant_override("shadow_offset_y", 2)
@@ -648,9 +747,9 @@ func _create_queue_row() -> HBoxContainer:
 
 	var time_lbl := Label.new()
 	time_lbl.name = "TimeLabel"
-	time_lbl.custom_minimum_size = Vector2(90, 0)
+	time_lbl.custom_minimum_size = Vector2(98, 0)
 	time_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	time_lbl.add_theme_font_size_override("font_size", 24)
+	time_lbl.add_theme_font_size_override("font_size", 22)
 	time_lbl.add_theme_color_override("font_color", Color(0.42, 0.90, 1.0))
 	time_lbl.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.98))
 	time_lbl.add_theme_constant_override("shadow_offset_y", 2)
@@ -658,33 +757,41 @@ func _create_queue_row() -> HBoxContainer:
 
 	var progress := ProgressBar.new()
 	progress.name = "ProgressBar"
-	progress.custom_minimum_size = Vector2(130, 24)
+	progress.custom_minimum_size = Vector2(96, 24)
 	progress.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	progress.show_percentage = false
-	var p_bg := StyleBoxFlat.new()
-	p_bg.bg_color = Color(0.08, 0.07, 0.10, 0.95)
-	p_bg.border_color = Color(0.50, 0.42, 0.30, 0.8)
-	p_bg.set_border_width_all(1)
-	p_bg.set_corner_radius_all(8)
-	var p_fg := StyleBoxFlat.new()
-	p_fg.bg_color = Color(0.20, 0.80, 0.42, 1.0)
-	p_fg.set_corner_radius_all(7)
-	progress.add_theme_stylebox_override("background", p_bg)
-	progress.add_theme_stylebox_override("fill", p_fg)
+	progress.add_theme_stylebox_override("background", _q_pb_bg)
+	progress.add_theme_stylebox_override("fill", _q_pb_fg)
 	row.add_child(progress)
+
+	var speedup_btn := Button.new()
+	speedup_btn.name = "SpeedupButton"
+	speedup_btn.text = "⚡ Hızlandır"
+	speedup_btn.custom_minimum_size = Vector2(158, 44)
+	speedup_btn.add_theme_font_size_override("font_size", 18)
+	speedup_btn.add_theme_stylebox_override("normal", _q_speedup_have_sb)
+	speedup_btn.add_theme_stylebox_override("hover", _q_speedup_have_hover)
+	speedup_btn.add_theme_stylebox_override("pressed", _q_speedup_have_hover)
+	speedup_btn.add_theme_color_override("font_color", Color(1.0, 0.96, 0.86))
+	speedup_btn.add_theme_color_override("font_hover_color", Color(1, 1, 1))
+	speedup_btn.add_theme_color_override("font_pressed_color", Color(1.0, 0.92, 0.62))
+	speedup_btn.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.95))
+	speedup_btn.add_theme_constant_override("shadow_offset_y", 2)
+	row.add_child(speedup_btn)
 
 	var cancel_btn := Button.new()
 	cancel_btn.name = "CancelButton"
 	cancel_btn.text = "X İptal"
-	cancel_btn.custom_minimum_size = Vector2(110, 44)
-	cancel_btn.add_theme_font_size_override("font_size", 20)
-	var c_sb := StyleBoxFlat.new()
-	c_sb.bg_color = Color(0.68, 0.18, 0.15, 0.95)
-	c_sb.border_color = Color(0.98, 0.55, 0.45, 0.95)
-	c_sb.set_border_width_all(2)
-	c_sb.set_corner_radius_all(12)
-	cancel_btn.add_theme_stylebox_override("normal", c_sb)
+	cancel_btn.custom_minimum_size = Vector2(94, 44)
+	cancel_btn.add_theme_font_size_override("font_size", 19)
+	cancel_btn.add_theme_stylebox_override("normal", _q_cancel_norm)
+	cancel_btn.add_theme_stylebox_override("hover", _q_cancel_hover)
+	cancel_btn.add_theme_stylebox_override("pressed", _q_cancel_pressed)
+	cancel_btn.add_theme_stylebox_override("disabled", _q_cancel_dis)
 	cancel_btn.add_theme_color_override("font_color", Color(1, 1, 1))
+	cancel_btn.add_theme_color_override("font_hover_color", Color(1, 1, 1))
+	cancel_btn.add_theme_color_override("font_pressed_color", Color(1.0, 0.92, 0.72))
+	cancel_btn.add_theme_color_override("font_disabled_color", Color(0.82, 0.72, 0.72))
 	cancel_btn.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.95))
 	cancel_btn.add_theme_constant_override("shadow_offset_y", 2)
 	row.add_child(cancel_btn)
@@ -698,10 +805,12 @@ func _bind_queue_row(row: HBoxContainer, activity: Dictionary, now: int) -> void
 	var icon_name_lbl: Label = row.get_node("IconNameLabel")
 	var time_lbl: Label = row.get_node("TimeLabel")
 	var progress: ProgressBar = row.get_node("ProgressBar")
+	var speedup_btn: Button = row.get_node_or_null("SpeedupButton") as Button
 	var cancel_btn: Button = row.get_node("CancelButton")
 
 	var item_id: int = int(data.get("id", -1))
 	var meta_key := "%s_%d" % [category, item_id]
+	var speedup_cat := ""
 
 	match category:
 		"incoming_attack":
@@ -714,40 +823,40 @@ func _bind_queue_row(row: HBoxContainer, activity: Dictionary, now: int) -> void
 
 			icon_name_lbl.text = " DÜŞMAN SALDIRISI! (#%d)" % from_id
 			icon_name_lbl.add_theme_color_override("font_color", Color(1.0, 0.40, 0.40))
-			time_lbl.text = "%02d:%02d" % [rem / 60, rem % 60]
+			time_lbl.text = _fmt_duration(rem)
 			time_lbl.add_theme_color_override("font_color", Color(1.0, 0.35, 0.35))
 			progress.value = pct
 
-			cancel_btn.text = " Alarm!"
+			cancel_btn.text = "Alarm!"
 			cancel_btn.disabled = true
-			var dis_sb := StyleBoxFlat.new()
-			dis_sb.bg_color = Color(0.40, 0.12, 0.12, 0.8)
-			dis_sb.border_color = Color(0.80, 0.30, 0.30, 0.8)
-			dis_sb.set_border_width_all(2)
-			dis_sb.set_corner_radius_all(10)
-			cancel_btn.add_theme_stylebox_override("disabled", dis_sb)
+			if speedup_btn != null:
+				speedup_btn.hide()
 
 		"outgoing_attack":
+			speedup_cat = "march"
 			var to_id := int(data.get("to_village_id", 0))
+			var from_id := int(data.get("from_village_id", 0))
 			var m_state := str(data.get("state", "outgoing"))
-			var target_u := int(data.get("arrive_unix", now)) if m_state == "outgoing" else int(data.get("return_unix", now))
+			var m_type := str(data.get("type", "attack"))
+			var is_ret := (m_state == "returning" or m_type == "return")
+			var target_u := int(data.get("return_unix", data.get("arrive_unix", now))) if is_ret else int(data.get("arrive_unix", now))
 			var dep_u := int(data.get("depart_unix", now))
 			var rem := maxi(0, target_u - now)
 			var total_dur := maxi(1, target_u - dep_u)
 			var pct := clampf(float(total_dur - rem) / float(total_dur) * 100.0, 0.0, 100.0)
 
-			if m_state == "returning":
-				icon_name_lbl.text = "Ordu Dönüyor (#%d)" % to_id
-				icon_name_lbl.add_theme_color_override("font_color", Color(0.80, 0.85, 0.95))
+			if is_ret:
+				icon_name_lbl.text = "↩ Ordu Dönüyor (#%d)" % (from_id if from_id > 0 else to_id)
+				icon_name_lbl.add_theme_color_override("font_color", Color(0.75, 0.88, 1.0))
 			else:
-				icon_name_lbl.text = "Sefer: Hedef Köy #%d" % to_id
+				icon_name_lbl.text = "⚔️ Sefer: Köy #%d" % to_id
 				icon_name_lbl.add_theme_color_override("font_color", Color(1.0, 0.85, 0.40))
 
-			time_lbl.text = "%02d:%02d" % [rem / 60, rem % 60]
+			time_lbl.text = _fmt_duration(rem)
 			time_lbl.add_theme_color_override("font_color", Color(1.0, 0.85, 0.40))
 			progress.value = pct
 
-			var can_cancel := (m_state == "outgoing" and (now - dep_u) <= 90)
+			var can_cancel := (not is_ret and m_state == "outgoing" and (now - dep_u) <= 90)
 			cancel_btn.text = "Çek" if can_cancel else "Seferde"
 			cancel_btn.disabled = not can_cancel
 
@@ -760,6 +869,7 @@ func _bind_queue_row(row: HBoxContainer, activity: Dictionary, now: int) -> void
 					cancel_btn.pressed.connect(_on_cancel_activity_clicked.bind("outgoing_attack", item_id))
 
 		"build":
+			speedup_cat = "build"
 			var key: String = str(data.get("key", ""))
 			var tgt: int = int(data.get("target_level", 1))
 			var b_data := RulesEngineScript.building_data(key)
@@ -775,10 +885,10 @@ func _bind_queue_row(row: HBoxContainer, activity: Dictionary, now: int) -> void
 			icon_name_lbl.text = "%s (Sv. %d)" % [b_name, tgt]
 			icon_name_lbl.add_theme_color_override("font_color", Color(1.0, 0.95, 0.88))
 			if is_active:
-				time_lbl.text = "%02d:%02d" % [rem / 60, rem % 60]
+				time_lbl.text = _fmt_duration(rem)
 				time_lbl.add_theme_color_override("font_color", Color(0.42, 0.90, 1.0))
 			else:
-				time_lbl.text = "Sırada (%02d:%02d)" % [rem / 60, rem % 60]
+				time_lbl.text = "Sıra (%s)" % _fmt_duration(rem)
 				time_lbl.add_theme_color_override("font_color", Color(1.0, 0.85, 0.40))
 
 			progress.value = pct
@@ -793,6 +903,7 @@ func _bind_queue_row(row: HBoxContainer, activity: Dictionary, now: int) -> void
 				cancel_btn.pressed.connect(_on_cancel_activity_clicked.bind("build", item_id))
 
 		"research":
+			speedup_cat = "research"
 			var u_key: String = str(data.get("key", ""))
 			var u_name: String = GameDataScript.get_singleton().get_unit_name(u_key)
 			var start := int(data.get("start_unix", now))
@@ -803,7 +914,7 @@ func _bind_queue_row(row: HBoxContainer, activity: Dictionary, now: int) -> void
 
 			icon_name_lbl.text = "%s (Araştırma)" % u_name
 			icon_name_lbl.add_theme_color_override("font_color", Color(0.55, 0.90, 1.0))
-			time_lbl.text = "%02d:%02d" % [rem / 60, rem % 60]
+			time_lbl.text = _fmt_duration(rem)
 			time_lbl.add_theme_color_override("font_color", Color(0.42, 0.90, 1.0))
 
 			progress.value = pct
@@ -818,6 +929,7 @@ func _bind_queue_row(row: HBoxContainer, activity: Dictionary, now: int) -> void
 				cancel_btn.pressed.connect(_on_cancel_activity_clicked.bind("research", item_id))
 
 		"train":
+			speedup_cat = "train"
 			var u_key: String = str(data.get("key", ""))
 			var u_name: String = GameDataScript.get_singleton().get_unit_name(u_key)
 			var count: int = int(data.get("count", 0))
@@ -829,7 +941,7 @@ func _bind_queue_row(row: HBoxContainer, activity: Dictionary, now: int) -> void
 
 			icon_name_lbl.text = "%d %s (Eğitim)" % [count, u_name]
 			icon_name_lbl.add_theme_color_override("font_color", Color(0.60, 1.0, 0.65))
-			time_lbl.text = "%02d:%02d" % [rem / 60, rem % 60]
+			time_lbl.text = _fmt_duration(rem)
 			time_lbl.add_theme_color_override("font_color", Color(0.50, 0.95, 0.60))
 
 			progress.value = pct
@@ -842,6 +954,16 @@ func _bind_queue_row(row: HBoxContainer, activity: Dictionary, now: int) -> void
 				for conn in cancel_btn.pressed.get_connections():
 					cancel_btn.pressed.disconnect(conn["callable"])
 				cancel_btn.pressed.connect(_on_cancel_activity_clicked.bind("train", item_id))
+
+	if speedup_btn != null and not speedup_cat.is_empty():
+		speedup_btn.show()
+		_apply_queue_speedup_style(speedup_btn, speedup_cat)
+		var sp_meta_key := "%s_%d_%s" % [speedup_cat, item_id, icon_name_lbl.text]
+		if str(speedup_btn.get_meta("sp_key", "")) != sp_meta_key:
+			speedup_btn.set_meta("sp_key", sp_meta_key)
+			for conn in speedup_btn.pressed.get_connections():
+				speedup_btn.pressed.disconnect(conn["callable"])
+			speedup_btn.pressed.connect(_open_queue_speedup.bind(speedup_cat, item_id, icon_name_lbl.text))
 
 
 func _on_cancel_activity_clicked(category: String, item_id: int) -> void:
@@ -1036,9 +1158,34 @@ func _unhandled_input(event: InputEvent) -> void:
 			_pan_by(mm.relative)
 
 
+func _get_view_size() -> Vector2:
+	if size.x > 0.0 and size.y > 0.0:
+		return size
+	if is_inside_tree():
+		var vp := get_viewport_rect().size
+		if vp.x > 0.0 and vp.y > 0.0:
+			return vp
+	return Vector2(1080.0, 1920.0)
+
+
+func _sync_top_bar_layout() -> void:
+	var top_h := _get_top_bar_height()
+	if btn_alliance != null:
+		btn_alliance.offset_top = top_h + 14.0
+		btn_alliance.offset_bottom = top_h + 64.0
+
+
+func _on_layout_resized() -> void:
+	_sync_top_bar_layout()
+	_clamp_village_area()
+
+
 func _get_top_bar_height() -> float:
-	if resource_bar != null and resource_bar.size.y > 0.0:
-		return resource_bar.size.y
+	if resource_bar != null:
+		if resource_bar.has_method("get_bar_height"):
+			return float(resource_bar.call("get_bar_height"))
+		if resource_bar.size.y > 0.0:
+			return resource_bar.size.y
 	return BASE_OFFSET_Y
 
 
@@ -1058,10 +1205,7 @@ func _get_base_scale(vp_size: Vector2) -> float:
 
 
 func _effective_zoom() -> float:
-	var vp_size := get_viewport_rect().size if is_inside_tree() else Vector2(1080.0, 1920.0)
-	if vp_size.x <= 0.0 or vp_size.y <= 0.0:
-		vp_size = Vector2(1080.0, 1920.0)
-	return _get_base_scale(vp_size) * _current_zoom
+	return _get_base_scale(_get_view_size()) * _current_zoom
 
 
 func _pan_by(rel: Vector2) -> void:
@@ -1090,9 +1234,7 @@ func _apply_zoom(delta_zoom: float, focal: Vector2) -> void:
 func _clamp_village_area() -> void:
 	if village_area == null:
 		return
-	var vp_size := get_viewport_rect().size if is_inside_tree() else Vector2(1080.0, 1920.0)
-	if vp_size.x <= 0.0 or vp_size.y <= 0.0:
-		vp_size = Vector2(1080.0, 1920.0)
+	var vp_size := _get_view_size()
 	var eff := _effective_zoom()
 	var scaled_size := Vector2(1080.0, 1920.0) * eff
 	village_area.scale = Vector2(eff, eff)
@@ -1123,7 +1265,7 @@ func _clamp_village_area() -> void:
 func _reset_view() -> void:
 	_current_zoom = 1.0
 	if village_area != null:
-		var vp_size := get_viewport_rect().size if is_inside_tree() else Vector2(1080.0, 1920.0)
+		var vp_size := _get_view_size()
 		var eff := _effective_zoom()
 		var center_x := (vp_size.x - 1080.0 * eff) * 0.5
 		village_area.scale = Vector2(eff, eff)
@@ -1144,20 +1286,20 @@ func focus_building_for_tutorial(b_key: String) -> void:
 	if village_area == null:
 		return
 	_current_zoom = 1.0
-	var vp_size := get_viewport_rect().size if is_inside_tree() else Vector2(1080.0, 1920.0)
-	if vp_size.x <= 0.0 or vp_size.y <= 0.0:
-		vp_size = Vector2(1080.0, 1920.0)
+	var vp_size := _get_view_size()
+	var top_h := _get_top_bar_height()
+	var nav_h := _get_bottom_nav_height()
 	var eff := _effective_zoom()
 	var center_x := (vp_size.x - 1080.0 * eff) * 0.5
 	village_area.scale = Vector2(eff, eff)
-	village_area.position = Vector2(center_x, BASE_OFFSET_Y)
+	village_area.position = Vector2(center_x, top_h)
 	_clamp_village_area()
 
 	var b_view := get_building_view(b_key)
 	if b_view != null:
 		var grect := b_view.get_global_rect()
-		var safe_top := BASE_OFFSET_Y + 12.0
-		var safe_bot := vp_size.y - 260.0
+		var safe_top := top_h + 12.0
+		var safe_bot := vp_size.y - nav_h - 4.0
 		if grect.end.y > safe_bot:
 			village_area.position.y -= (grect.end.y - safe_bot + 24.0)
 		elif grect.position.y < safe_top:

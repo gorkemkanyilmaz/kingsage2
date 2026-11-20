@@ -21,9 +21,9 @@ script = ExtResource("1_vil")
 custom_minimum_size = Vector2(1080, 1920)
 layout_mode = 1
 anchors_preset = 0
-offset_top = 138.0
+offset_top = 116.0
 offset_right = 1080.0
-offset_bottom = 2058.0
+offset_bottom = 2036.0
 
 [node name="Background" type="TextureRect" parent="VillageArea"]
 custom_minimum_size = Vector2(1080, 1920)
@@ -45,7 +45,7 @@ offset_bottom = 1920.0
 layout_mode = 1
 anchors_preset = 10
 anchor_right = 1.0
-offset_bottom = 138.0
+offset_bottom = 116.0
 grow_horizontal = 2
 
 [node name="BtnAlliance" type="Button" parent="."]
@@ -57,9 +57,9 @@ anchors_preset = 1
 anchor_left = 1.0
 anchor_right = 1.0
 offset_left = -190.0
-offset_top = 152.0
+offset_top = 130.0
 offset_right = -20.0
-offset_bottom = 202.0
+offset_bottom = 180.0
 grow_horizontal = 0
 mouse_filter = 0
 theme_override_font_sizes/font_size = 22

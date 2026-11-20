@@ -14,12 +14,31 @@ var _non_member_tab: String = "create"
 
 func _ready() -> void:
 	_style_header()
+	_sync_top_bar_layout()
+	if not resized.is_connected(_sync_top_bar_layout):
+		resized.connect(_sync_top_bar_layout)
+	var rbar := get_node_or_null("ResourceBar") as Control
+	if rbar != null and not rbar.resized.is_connected(_sync_top_bar_layout):
+		rbar.resized.connect(_sync_top_bar_layout)
 	refresh_view()
 
 	var eb = Engine.get_main_loop().root.get_node_or_null("EventBus") if Engine.get_main_loop() is SceneTree else null
 	if eb != null:
 		if eb.has_signal("state_changed") and not eb.state_changed.is_connected(refresh_view):
 			eb.state_changed.connect(refresh_view)
+
+
+func _sync_top_bar_layout() -> void:
+	var rbar := get_node_or_null("ResourceBar") as Control
+	var bar_h := 116.0
+	if rbar != null:
+		if rbar.has_method("get_bar_height"):
+			bar_h = float(rbar.call("get_bar_height"))
+		elif rbar.size.y > 0.0:
+			bar_h = rbar.size.y
+	var main_cont := get_node_or_null("MainContainer") as Control
+	if main_cont != null:
+		main_cont.offset_top = bar_h + 6.0
 
 
 func _style_header() -> void:

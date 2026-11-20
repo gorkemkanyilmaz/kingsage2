@@ -30,7 +30,7 @@ color = Color(0.08, 0.07, 0.10, 1)
 layout_mode = 1
 anchors_preset = 10
 anchor_right = 1.0
-offset_bottom = 138.0
+offset_bottom = 116.0
 grow_horizontal = 2
 
 [node name="MainContainer" type="Control" parent="."]
@@ -38,7 +38,7 @@ layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
-offset_top = 142.0
+offset_top = 122.0
 offset_bottom = -116.0
 grow_horizontal = 2
 grow_vertical = 2

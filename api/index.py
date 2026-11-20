@@ -164,7 +164,20 @@ def init_db():
                 display_name TEXT NOT NULL UNIQUE,
                 token TEXT NOT NULL UNIQUE,
                 created_unix {0} NOT NULL,
-                last_login_unix {0} NOT NULL
+                last_login_unix {0} NOT NULL,
+                diamonds INTEGER DEFAULT 35,
+                scrolls_json TEXT DEFAULT '{{}}'
+            )""".format(bigint_t),
+
+            """CREATE TABLE IF NOT EXISTS iap_transactions (
+                transaction_id TEXT PRIMARY KEY,
+                user_id TEXT NOT NULL,
+                product_id TEXT NOT NULL,
+                pack_id TEXT NOT NULL,
+                diamonds_added INTEGER NOT NULL,
+                platform TEXT NOT NULL DEFAULT 'ios',
+                receipt_data TEXT DEFAULT '',
+                created_unix {0} NOT NULL
             )""".format(bigint_t),
 
             """CREATE TABLE IF NOT EXISTS worlds (
@@ -286,6 +299,7 @@ def init_db():
 
         for stmt in tables:
             cursor.execute(stmt)
+        _ensure_users_store_columns(cursor, conn.is_pg)
 
         # Varsayılan Dünya 1 kontrolü
         cursor.execute("SELECT id FROM worlds WHERE id = 1")
@@ -411,6 +425,19 @@ class CreateAllianceRequest(BaseModel):
     name: str = Field(..., min_length=3, max_length=32)
     tag: str = Field(..., min_length=2, max_length=6)
     description: Optional[str] = Field("", max_length=500)
+
+
+class BuyScrollRequest(BaseModel):
+    scroll_id: str = Field(..., min_length=2, max_length=60)
+    qty: int = Field(1, ge=1, le=999)
+
+
+class VerifyIapRequest(BaseModel):
+    product_id: str = Field(..., min_length=2, max_length=120)
+    transaction_id: str = Field(..., min_length=2, max_length=200)
+    pack_id: Optional[str] = Field(None, max_length=60)
+    platform: str = Field("ios", max_length=40)
+    receipt_data: Optional[str] = Field("", max_length=32768)
 
 # -----------------------------------------------------------------------------
 # Kimlik Doğrulama / Yetkilendirme (Bearer Token Dependency)
@@ -618,6 +645,106 @@ MAX_REAL_PLAYERS_PER_WORLD = 100
 WORLDS_COUNT = 10
 MAP_SIZE = 200
 MIN_VILLAGE_DISTANCE = 9
+
+STARTER_DIAMONDS = 35
+
+DIAMOND_PACKS: List[Dict[str, Any]] = [
+    {"id": "diamonds_10", "product_id": "com.tahtkilic.kingsage2.diamonds_10", "name": "Avuç Dolusu Elmas", "diamonds": 10, "badge": "Başlangıç", "usd": "$0.99", "eur": "€0.99", "try": "₺49,99"},
+    {"id": "diamonds_50", "product_id": "com.tahtkilic.kingsage2.diamonds_50", "name": "Kese Elmas", "diamonds": 50, "badge": "+%10 Değer", "usd": "$4.99", "eur": "€5.99", "try": "₺249,99"},
+    {"id": "diamonds_100", "product_id": "com.tahtkilic.kingsage2.diamonds_100", "name": "Hazine Sandığı", "diamonds": 100, "badge": "⭐ En Popüler", "usd": "$7.99", "eur": "€8.99", "try": "₺399,99"},
+    {"id": "diamonds_250", "product_id": "com.tahtkilic.kingsage2.diamonds_250", "name": "Kraliyet Kasası", "diamonds": 250, "badge": "+%30 Değer", "usd": "$17.99", "eur": "€19.99", "try": "₺999,99"},
+    {"id": "diamonds_1000", "product_id": "com.tahtkilic.kingsage2.diamonds_1000", "name": "İmparator Hazinesi", "diamonds": 1000, "badge": "👑 En İyi Değer", "usd": "$59.99", "eur": "€69.99", "try": "₺2.999,99"},
+]
+
+SPEEDUP_SCROLLS: List[Dict[str, Any]] = [
+    {"id": "build_10m", "category": "build", "seconds": 600, "cost_diamonds": 5, "name": "İnşaat 10 Dk"},
+    {"id": "build_30m", "category": "build", "seconds": 1800, "cost_diamonds": 12, "name": "İnşaat 30 Dk"},
+    {"id": "build_60m", "category": "build", "seconds": 3600, "cost_diamonds": 20, "name": "İnşaat 1 Saat"},
+    {"id": "train_10m", "category": "train", "seconds": 600, "cost_diamonds": 5, "name": "Asker Eğitimi 10 Dk"},
+    {"id": "train_30m", "category": "train", "seconds": 1800, "cost_diamonds": 12, "name": "Asker Eğitimi 30 Dk"},
+    {"id": "train_60m", "category": "train", "seconds": 3600, "cost_diamonds": 20, "name": "Asker Eğitimi 1 Saat"},
+    {"id": "research_10m", "category": "research", "seconds": 600, "cost_diamonds": 6, "name": "Araştırma 10 Dk"},
+    {"id": "research_30m", "category": "research", "seconds": 1800, "cost_diamonds": 15, "name": "Araştırma 30 Dk"},
+    {"id": "research_60m", "category": "research", "seconds": 3600, "cost_diamonds": 25, "name": "Araştırma 1 Saat"},
+    {"id": "march_10m", "category": "march", "seconds": 600, "cost_diamonds": 8, "name": "Sefer Hızlandırma 10 Dk"},
+    {"id": "march_30m", "category": "march", "seconds": 1800, "cost_diamonds": 18, "name": "Sefer Hızlandırma 30 Dk"},
+    {"id": "march_60m", "category": "march", "seconds": 3600, "cost_diamonds": 30, "name": "Sefer Hızlandırma 1 Saat"},
+]
+
+
+def _ensure_users_store_columns(cursor, is_pg: bool) -> None:
+    if is_pg:
+        cursor.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS diamonds INTEGER DEFAULT 35")
+        cursor.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS scrolls_json TEXT DEFAULT '{}'")
+        return
+    cursor.execute("PRAGMA table_info(users)")
+    cols = set()
+    for r in cursor.fetchall():
+        col_name = r["name"] if isinstance(r, dict) else r[1]
+        cols.add(str(col_name).lower())
+    if "diamonds" not in cols:
+        cursor.execute("ALTER TABLE users ADD COLUMN diamonds INTEGER DEFAULT 35")
+    if "scrolls_json" not in cols:
+        cursor.execute("ALTER TABLE users ADD COLUMN scrolls_json TEXT DEFAULT '{}'")
+
+
+def _parse_user_wallet(user_row: Optional[Dict[str, Any]]) -> tuple:
+    if not user_row:
+        return STARTER_DIAMONDS, {}
+    raw_d = user_row.get("diamonds")
+    diamonds = STARTER_DIAMONDS if raw_d is None else max(0, int(raw_d))
+    raw_s = user_row.get("scrolls_json")
+    scrolls: Dict[str, int] = {}
+    if isinstance(raw_s, dict):
+        parsed_s = raw_s
+    elif isinstance(raw_s, str) and raw_s.strip():
+        try:
+            parsed_s = json.loads(raw_s)
+        except Exception:
+            parsed_s = {}
+    else:
+        parsed_s = {}
+    if isinstance(parsed_s, dict):
+        for k, v in parsed_s.items():
+            cnt = max(0, int(v or 0))
+            if cnt > 0:
+                scrolls[str(k)] = cnt
+    return diamonds, scrolls
+
+
+def _sync_wallet_to_world_profiles(cursor, display_name: str, diamonds: int, scrolls: Dict[str, int], now: int) -> None:
+    norm_p = _norm_p_name(display_name)
+    if not norm_p:
+        return
+    cursor.execute("SELECT world_id, state_json FROM world_states ORDER BY world_id ASC")
+    for ws in cursor.fetchall():
+        wid = int(ws["world_id"])
+        try:
+            w_data = json.loads(ws["state_json"])
+        except Exception:
+            continue
+        state = w_data.get("state")
+        if not isinstance(state, dict):
+            continue
+        w_dict = state.setdefault("world", {})
+        profs = w_dict.get("player_profiles")
+        if not isinstance(profs, dict):
+            continue
+        updated = False
+        for pk, pv in profs.items():
+            if _matches_player(pk, norm_p) and isinstance(pv, dict):
+                pv["diamonds"] = max(0, int(diamonds))
+                pv["scrolls"] = copy.deepcopy(scrolls)
+                updated = True
+        if isinstance(state.get("player"), dict) and _matches_player(str(state["player"].get("name", "")), norm_p):
+            state["player"]["diamonds"] = max(0, int(diamonds))
+            state["player"]["scrolls"] = copy.deepcopy(scrolls)
+            updated = True
+        if updated:
+            cursor.execute(
+                "UPDATE world_states SET state_json = ?, updated_unix = ? WHERE world_id = ?",
+                (json.dumps(w_data, ensure_ascii=False), now, wid),
+            )
 
 WORLD1_BOT_NAMES = [
     "Lord Edward", "Baron Roland", "Kont Vlad", "Dük William", "Prens Arthur",
@@ -1007,7 +1134,11 @@ def _player_has_village_in_world(w_data: Optional[Dict[str, Any]], player_name: 
     return False
 
 
-def _prepare_world_for_player(world_w: Optional[Dict[str, Any]], player_name: str) -> Optional[Dict[str, Any]]:
+def _prepare_world_for_player(
+    world_w: Optional[Dict[str, Any]],
+    player_name: str,
+    user_wallet: Optional[Dict[str, Any]] = None,
+) -> Optional[Dict[str, Any]]:
     if not isinstance(world_w, dict):
         return None
     w = copy.deepcopy(world_w)
@@ -1071,6 +1202,18 @@ def _prepare_world_for_player(world_w: Optional[Dict[str, Any]], player_name: st
     if created_u > 0:
         w_dict["player_joined_unix"] = created_u
 
+    p_diamonds = STARTER_DIAMONDS
+    if user_wallet is not None and user_wallet.get("diamonds") is not None:
+        p_diamonds = max(0, int(user_wallet["diamonds"]))
+    elif found_prof.get("diamonds") is not None:
+        p_diamonds = max(0, int(found_prof["diamonds"]))
+
+    p_scrolls: Dict[str, int] = {}
+    if isinstance(found_prof.get("scrolls"), dict):
+        p_scrolls = copy.deepcopy(found_prof["scrolls"])
+    elif user_wallet is not None and isinstance(user_wallet.get("scrolls"), dict):
+        p_scrolls = copy.deepcopy(user_wallet["scrolls"])
+
     state["active_village_id"] = active_vid
     state["player"] = {
         "id": 1,
@@ -1088,6 +1231,8 @@ def _prepare_world_for_player(world_w: Optional[Dict[str, Any]], player_name: st
         "tutorial_reward_claimed": bool(found_prof.get("tutorial_reward_claimed", False)),
         "quests": copy.deepcopy(q_dict),
         "gold_armour": int(found_prof.get("gold_armour", 0) or 0),
+        "diamonds": p_diamonds,
+        "scrolls": p_scrolls,
         "premium": False,
     }
     w["registered_real_players"] = _collect_real_players(w)
@@ -1248,6 +1393,12 @@ def merge_world_state(server_w: Optional[Dict[str, Any]], client_raw: Dict[str, 
     c_player = c_state.get("player")
     if isinstance(c_player, dict) and act_name:
         c_profs = c_w_dict.setdefault("player_profiles", {})
+        s_existing_prof = ((server_w or {}).get("state", {}).get("world", {}).get("player_profiles", {}) or {}).get(act_name, {})
+        if not isinstance(s_existing_prof, dict):
+            s_existing_prof = {}
+        raw_cd = c_player.get("diamonds")
+        c_diamonds = max(0, int(raw_cd)) if raw_cd is not None else max(0, int(s_existing_prof.get("diamonds", STARTER_DIAMONDS)))
+        c_scrolls = copy.deepcopy(c_player["scrolls"]) if isinstance(c_player.get("scrolls"), dict) else copy.deepcopy(s_existing_prof.get("scrolls") if isinstance(s_existing_prof.get("scrolls"), dict) else {})
         c_profs[act_name] = {
             "name": act_name,
             "provider": str(c_player.get("provider", "")),
@@ -1263,6 +1414,8 @@ def merge_world_state(server_w: Optional[Dict[str, Any]], client_raw: Dict[str, 
             "tutorial_reward_claimed": bool(c_player.get("tutorial_reward_claimed", False)),
             "quests": copy.deepcopy(c_player.get("quests") if isinstance(c_player.get("quests"), dict) else {"claimed": [], "stats": {}}),
             "gold_armour": int(c_player.get("gold_armour", 0) or 0),
+            "diamonds": c_diamonds,
+            "scrolls": c_scrolls,
             "active_village_id": int(c_state.get("active_village_id", -1) or -1),
         }
 
@@ -1728,6 +1881,17 @@ def ensure_cloud_saves_table(cursor, is_pg: bool) -> None:
         payload_json TEXT NOT NULL,
         updated_unix {0} NOT NULL
     )""".format(bigint_t))
+    cursor.execute("""CREATE TABLE IF NOT EXISTS iap_transactions (
+        transaction_id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        product_id TEXT NOT NULL,
+        pack_id TEXT NOT NULL,
+        diamonds_added INTEGER NOT NULL,
+        platform TEXT NOT NULL DEFAULT 'ios',
+        receipt_data TEXT DEFAULT '',
+        created_unix {0} NOT NULL
+    )""".format(bigint_t))
+    _ensure_users_store_columns(cursor, is_pg)
 
 
 def _ensure_world_reset_epoch(cursor, now: int) -> None:
@@ -1908,7 +2072,12 @@ def _fetch_cloud_and_village(cursor, user_id: str, display_name: str):
         except Exception:
             pass
 
-    cloud_state = _prepare_world_for_player(chosen_w, display_name) if chosen_w is not None else None
+    cursor.execute("SELECT diamonds, scrolls_json FROM users WHERE id = ?", (user_id,))
+    u_wallet_row = cursor.fetchone()
+    u_diamonds, u_scrolls = _parse_user_wallet(u_wallet_row)
+    user_wallet = {"diamonds": u_diamonds, "scrolls": u_scrolls}
+
+    cloud_state = _prepare_world_for_player(chosen_w, display_name, user_wallet) if chosen_w is not None else None
     if cloud_state is None:
         cursor.execute("SELECT state_json, updated_unix FROM cloud_saves WHERE user_id = ?", (user_id,))
         c_row = cursor.fetchone()
@@ -2024,6 +2193,12 @@ def auth_check_account(req: CheckAccountRequest):
     cloud_state, cloud_updated_unix, server_village = _fetch_cloud_and_village(cursor, user_id, display_name)
     worlds_meta = _sync_worlds_table_from_states(cursor, now)
     has_village = bool(server_village is not None or _player_has_village_in_world(cloud_state, display_name))
+    u_diamonds, u_scrolls = _parse_user_wallet(dict(existing))
+    if isinstance(cloud_state, dict) and isinstance(cloud_state.get("state", {}).get("player"), dict):
+        p_obj = cloud_state["state"]["player"]
+        u_diamonds = max(0, int(p_obj.get("diamonds", u_diamonds)))
+        if isinstance(p_obj.get("scrolls"), dict):
+            u_scrolls = p_obj["scrolls"]
     conn.commit()
     conn.close()
 
@@ -2038,6 +2213,8 @@ def auth_check_account(req: CheckAccountRequest):
         "created_unix": created_unix,
         "starter_boost_until_unix": created_unix + STARTER_BOOST_SECONDS,
         "has_village": has_village,
+        "diamonds": u_diamonds,
+        "scrolls": u_scrolls,
         "cloud_state": cloud_state,
         "worlds_meta": worlds_meta,
         "updated_unix": cloud_updated_unix,
@@ -2128,13 +2305,22 @@ def auth_login(req: AuthLoginRequest):
         cursor.execute("UPDATE users SET token = ?, last_login_unix = ?, provider = ? WHERE id = ?", (token, now, provider, user_id))
     else:
         cursor.execute("""
-            INSERT INTO users (id, provider, email, display_name, token, created_unix, last_login_unix)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-        """, (user_id, provider, email, display_name, token, now, now))
+            INSERT INTO users (id, provider, email, display_name, token, created_unix, last_login_unix, diamonds, scrolls_json)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (user_id, provider, email, display_name, token, now, now, STARTER_DIAMONDS, "{}"))
+
+    cursor.execute("SELECT diamonds, scrolls_json FROM users WHERE id = ?", (user_id,))
+    u_wallet_row = cursor.fetchone()
+    u_diamonds, u_scrolls = _parse_user_wallet(u_wallet_row)
 
     cloud_state, cloud_updated_unix, server_village = _fetch_cloud_and_village(cursor, user_id, display_name)
     worlds_meta = _sync_worlds_table_from_states(cursor, now)
     has_village = bool(server_village is not None or _player_has_village_in_world(cloud_state, display_name))
+    if isinstance(cloud_state, dict) and isinstance(cloud_state.get("state", {}).get("player"), dict):
+        p_obj = cloud_state["state"]["player"]
+        u_diamonds = max(0, int(p_obj.get("diamonds", u_diamonds)))
+        if isinstance(p_obj.get("scrolls"), dict):
+            u_scrolls = p_obj["scrolls"]
 
     conn.commit()
     conn.close()
@@ -2149,6 +2335,8 @@ def auth_login(req: AuthLoginRequest):
         "created_unix": created_unix,
         "starter_boost_until_unix": created_unix + STARTER_BOOST_SECONDS,
         "has_village": has_village,
+        "diamonds": u_diamonds,
+        "scrolls": u_scrolls,
         "cloud_state": cloud_state,
         "worlds_meta": worlds_meta,
         "updated_unix": cloud_updated_unix,
@@ -2518,12 +2706,20 @@ def get_cloud_state(user: Dict[str, Any] = Depends(get_current_user)):
         cursor, user["id"], user["display_name"]
     )
     worlds_meta = _sync_worlds_table_from_states(cursor, now)
+    u_diamonds, u_scrolls = _parse_user_wallet(user)
+    if isinstance(cloud_state, dict) and isinstance(cloud_state.get("state", {}).get("player"), dict):
+        p_obj = cloud_state["state"]["player"]
+        u_diamonds = max(0, int(p_obj.get("diamonds", u_diamonds)))
+        if isinstance(p_obj.get("scrolls"), dict):
+            u_scrolls = p_obj["scrolls"]
     conn.commit()
     conn.close()
     if cloud_state is not None:
         return {
             "ok": True,
             "has_save": True,
+            "diamonds": u_diamonds,
+            "scrolls": u_scrolls,
             "state": cloud_state,
             "cloud_state": cloud_state,
             "worlds_meta": worlds_meta,
@@ -2534,13 +2730,15 @@ def get_cloud_state(user: Dict[str, Any] = Depends(get_current_user)):
         return {
             "ok": True,
             "has_save": True,
+            "diamonds": u_diamonds,
+            "scrolls": u_scrolls,
             "state": None,
             "cloud_state": None,
             "worlds_meta": worlds_meta,
             "server_village": server_village,
             "updated_unix": int(server_village.get("last_calc_unix", 0))
         }
-    return {"ok": True, "has_save": False, "state": None, "cloud_state": None, "worlds_meta": worlds_meta, "server_village": None, "updated_unix": 0}
+    return {"ok": True, "has_save": False, "diamonds": u_diamonds, "scrolls": u_scrolls, "state": None, "cloud_state": None, "worlds_meta": worlds_meta, "server_village": None, "updated_unix": 0}
 
 
 @app.post("/api/game/save")
@@ -2592,6 +2790,10 @@ def post_cloud_save(payload: Dict[str, Any], user: Dict[str, Any] = Depends(get_
             )
 
         merged_for_player = _prepare_world_for_player(merged_w, user["display_name"])
+        c_player_save = (merged_for_player or {}).get("state", {}).get("player", {})
+        if isinstance(c_player_save, dict) and isinstance(c_player_save.get("scrolls"), dict):
+            clean_scrolls = {str(k): max(0, int(v or 0)) for k, v in c_player_save["scrolls"].items() if int(v or 0) > 0}
+            cursor.execute("UPDATE users SET scrolls_json = ? WHERE id = ?", (json.dumps(clean_scrolls, ensure_ascii=False), user["id"]))
         player_save_json = json.dumps(merged_for_player, ensure_ascii=False)
         cursor.execute("SELECT user_id FROM cloud_saves WHERE user_id = ?", (user["id"],))
         if cursor.fetchone():
@@ -2682,6 +2884,137 @@ def cron_tick():
     conn.close()
 
     return {"ok": True, "resolved_movements": resolved_count, "tick_unix": now}
+
+
+# -----------------------------------------------------------------------------
+# Kraliyet Pazarı: Elmas Paketleri, Hızlandırma Parşömenleri ve StoreKit IAP
+# -----------------------------------------------------------------------------
+def _find_scroll_def(scroll_id: str) -> Optional[Dict[str, Any]]:
+    for s in SPEEDUP_SCROLLS:
+        if s["id"] == scroll_id:
+            return s
+    return None
+
+
+def _find_pack_def(product_id: str, pack_id: Optional[str] = None) -> Optional[Dict[str, Any]]:
+    for p in DIAMOND_PACKS:
+        if p["product_id"] == product_id or p["id"] == product_id or (pack_id and p["id"] == pack_id):
+            return p
+    return None
+
+
+@app.get("/api/store/catalog")
+def store_catalog(authorization: Optional[str] = Header(None)):
+    res: Dict[str, Any] = {
+        "ok": True,
+        "starter_diamonds": STARTER_DIAMONDS,
+        "diamond_packs": DIAMOND_PACKS,
+        "speedup_scrolls": SPEEDUP_SCROLLS,
+    }
+    if authorization and authorization.startswith("Bearer "):
+        token = authorization.replace("Bearer ", "").strip()
+        if token:
+            conn = get_db()
+            cursor = conn.cursor()
+            ensure_cloud_saves_table(cursor, conn.is_pg)
+            cursor.execute("SELECT diamonds, scrolls_json FROM users WHERE token = ?", (token,))
+            u_row = cursor.fetchone()
+            conn.close()
+            if u_row:
+                d, s = _parse_user_wallet(dict(u_row))
+                res["diamonds"] = d
+                res["scrolls"] = s
+    return res
+
+
+@app.post("/api/store/buy_scroll")
+def store_buy_scroll(req: BuyScrollRequest, user: Dict[str, Any] = Depends(get_current_user)):
+    scroll_def = _find_scroll_def(req.scroll_id)
+    if not scroll_def:
+        raise HTTPException(status_code=400, detail="Geçersiz parşömen kimliği.")
+
+    now = int(time.time())
+    cost = int(scroll_def["cost_diamonds"]) * int(req.qty)
+    conn = get_db()
+    with conn:
+        cursor = conn.cursor()
+        ensure_cloud_saves_table(cursor, conn.is_pg)
+        cursor.execute("SELECT diamonds, scrolls_json FROM users WHERE id = ?", (user["id"],))
+        u_row = cursor.fetchone()
+        cur_diamonds, scrolls = _parse_user_wallet(dict(u_row) if u_row else user)
+        if cur_diamonds < cost:
+            raise HTTPException(status_code=400, detail=f"Yetersiz elmas (Gereken: {cost}, Mevcut: {cur_diamonds}).")
+
+        new_diamonds = cur_diamonds - cost
+        new_count = int(scrolls.get(req.scroll_id, 0)) + int(req.qty)
+        scrolls[req.scroll_id] = new_count
+        cursor.execute(
+            "UPDATE users SET diamonds = ?, scrolls_json = ? WHERE id = ?",
+            (new_diamonds, json.dumps(scrolls, ensure_ascii=False), user["id"]),
+        )
+        _sync_wallet_to_world_profiles(cursor, user["display_name"], new_diamonds, scrolls, now)
+
+    return {
+        "ok": True,
+        "diamonds": new_diamonds,
+        "scrolls": scrolls,
+        "scroll_id": req.scroll_id,
+        "qty": req.qty,
+        "count": new_count,
+        "added": 0,
+    }
+
+
+@app.post("/api/store/verify_iap")
+def store_verify_iap(req: VerifyIapRequest, user: Dict[str, Any] = Depends(get_current_user)):
+    pack = _find_pack_def(req.product_id, req.pack_id)
+    if not pack:
+        raise HTTPException(status_code=400, detail="Bilinmeyen elmas paketi.")
+
+    tx_id = req.transaction_id.strip()
+    if not tx_id:
+        raise HTTPException(status_code=400, detail="Geçersiz işlem kimliği.")
+
+    now = int(time.time())
+    add_amt = int(pack["diamonds"])
+    conn = get_db()
+    with conn:
+        cursor = conn.cursor()
+        ensure_cloud_saves_table(cursor, conn.is_pg)
+        cursor.execute("SELECT transaction_id FROM iap_transactions WHERE transaction_id = ?", (tx_id,))
+        existing_tx = cursor.fetchone()
+        cursor.execute("SELECT diamonds, scrolls_json FROM users WHERE id = ?", (user["id"],))
+        u_row = cursor.fetchone()
+        cur_diamonds, scrolls = _parse_user_wallet(dict(u_row) if u_row else user)
+
+        if existing_tx:
+            return {
+                "ok": True,
+                "diamonds": cur_diamonds,
+                "scrolls": scrolls,
+                "added": 0,
+                "duplicate": True,
+                "transaction_id": tx_id,
+            }
+
+        cursor.execute(
+            """INSERT INTO iap_transactions
+               (transaction_id, user_id, product_id, pack_id, diamonds_added, platform, receipt_data, created_unix)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+            (tx_id, user["id"], pack["product_id"], pack["id"], add_amt, req.platform[:40], (req.receipt_data or "")[:32768], now),
+        )
+        new_diamonds = cur_diamonds + add_amt
+        cursor.execute("UPDATE users SET diamonds = ? WHERE id = ?", (new_diamonds, user["id"]))
+        _sync_wallet_to_world_profiles(cursor, user["display_name"], new_diamonds, scrolls, now)
+
+    return {
+        "ok": True,
+        "diamonds": new_diamonds,
+        "scrolls": scrolls,
+        "added": add_amt,
+        "duplicate": False,
+        "transaction_id": tx_id,
+    }
 
 
 # -----------------------------------------------------------------------------

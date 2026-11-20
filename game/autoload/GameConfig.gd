@@ -197,6 +197,12 @@ func get_ios_safe_bottom() -> float:
 	return _safe_bottom_px
 
 
+func get_ios_dynamic_island_width() -> float:
+	if OS.get_name() == "iOS" and _safe_top_px >= 90.0:
+		return 390.0
+	return 0.0
+
+
 func _refresh_mobile_safe_area() -> void:
 	var insets := get_ios_safe_insets()
 	_safe_top_px = float(insets.get("top", 0.0))
@@ -207,8 +213,13 @@ func _refresh_mobile_safe_area() -> void:
 	var cur := tree.current_scene
 	if cur is Control and (_safe_top_px > 0.0 or _safe_bottom_px > 0.0):
 		var c := cur as Control
-		c.offset_top = _safe_top_px
+		var has_rbar := cur.has_node("ResourceBar")
+		c.offset_top = 0.0 if has_rbar else _safe_top_px
 		c.offset_bottom = -_safe_bottom_px
+		if has_rbar:
+			var rbar := cur.get_node_or_null("ResourceBar")
+			if rbar != null and rbar.has_method("refresh"):
+				rbar.call_deferred("refresh")
 		if _safe_bg_layer == null:
 			_safe_bg_layer = CanvasLayer.new()
 			_safe_bg_layer.layer = -1
@@ -219,6 +230,10 @@ func _refresh_mobile_safe_area() -> void:
 			rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
 			_safe_bg_layer.add_child(rect)
 			add_child(_safe_bg_layer)
+	elif cur is Control:
+		var c := cur as Control
+		c.offset_top = 0.0
+		c.offset_bottom = 0.0
 
 
 # --- Dünya profilleri -------------------------------------------------------

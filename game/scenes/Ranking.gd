@@ -24,6 +24,12 @@ var _summary_label: Label = null
 
 
 func _ready() -> void:
+	_sync_top_bar_layout()
+	if not resized.is_connected(_sync_top_bar_layout):
+		resized.connect(_sync_top_bar_layout)
+	var rbar := get_node_or_null("ResourceBar") as Control
+	if rbar != null and not rbar.resized.is_connected(_sync_top_bar_layout):
+		rbar.resized.connect(_sync_top_bar_layout)
 	_setup_summary_banner()
 	_style_header_alliance_btn()
 
@@ -38,6 +44,30 @@ func _ready() -> void:
 
 	_update_tab_styles()
 	_populate_rankings()
+
+
+func _sync_top_bar_layout() -> void:
+	var rbar := get_node_or_null("ResourceBar") as Control
+	var bar_h := 116.0
+	if rbar != null:
+		if rbar.has_method("get_bar_height"):
+			bar_h = float(rbar.call("get_bar_height"))
+		elif rbar.size.y > 0.0:
+			bar_h = rbar.size.y
+	var header := get_node_or_null("Header") as Control
+	if header != null:
+		header.offset_top = bar_h + 8.0
+		header.offset_bottom = bar_h + 102.0
+	var tabs := get_node_or_null("Tabs") as Control
+	if tabs != null:
+		tabs.offset_top = bar_h + 114.0
+		tabs.offset_bottom = bar_h + 180.0
+	if summary_banner != null:
+		summary_banner.offset_top = bar_h + 192.0
+		summary_banner.offset_bottom = bar_h + 262.0
+	var cont := get_node_or_null("Container") as Control
+	if cont != null:
+		cont.offset_top = bar_h + 274.0
 
 
 func _style_header_alliance_btn() -> void:

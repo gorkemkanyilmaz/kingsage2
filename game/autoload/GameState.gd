@@ -81,6 +81,8 @@ func reset() -> void:
 		"points": 0,
 		"protection_until_unix": 0,
 		"conquest_protection_until_unix": 0,
+		"diamonds": 35,
+		"scrolls": {},
 		"premium": false,
 	}
 	villages = []
@@ -270,6 +272,12 @@ func from_dict(data: Dictionary) -> bool:
 	if typeof(data) != TYPE_DICTIONARY:
 		return false
 	player = _as_dict(data.get("player", {}))
+	if not player.has("diamonds") or player.get("diamonds") == null:
+		player["diamonds"] = 35
+	else:
+		player["diamonds"] = maxi(0, int(player.get("diamonds", 35)))
+	if not player.has("scrolls") or typeof(player.get("scrolls")) != TYPE_DICTIONARY:
+		player["scrolls"] = {}
 	villages = _as_array(data.get("villages", []))
 	if data.has("active_village_id"):
 		active_village_id = int(data.get("active_village_id", -1))
