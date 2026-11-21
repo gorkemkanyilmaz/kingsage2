@@ -31,6 +31,16 @@ game/assets/sprites/ui/nano_banana/*
 !game/assets/sprites/ui/nano_banana/sharp_icon_storage.tres
 !game/assets/sprites/ui/nano_banana/sharp_icon_tab_village.tres
 !game/assets/sprites/ui/nano_banana/sharp_icon_diamond.tres
+!game/assets/sprites/ui/nano_banana/sharp_icon_castle_crest.tres
+!game/assets/sprites/ui/nano_banana/sharp_icon_alliance_shield.tres
+!game/assets/sprites/ui/nano_banana/sharp_ui_royal_btn_bg.tres
+!game/assets/sprites/ui/nano_banana/sharp_scroll_build.tres
+!game/assets/sprites/ui/nano_banana/sharp_scroll_train.tres
+!game/assets/sprites/ui/nano_banana/sharp_scroll_research.tres
+!game/assets/sprites/ui/nano_banana/sharp_scroll_march.tres
+!game/assets/sprites/ui/nano_banana/sharp_pack_diamond_chest.tres
+!game/assets/sprites/ui/nano_banana/sharp_pack_resource_caravan.tres
+!game/assets/sprites/ui/nano_banana/sharp_icon_report_seal.tres
 
 # ---------- Isletim sistemi ----------
 Thumbs.db

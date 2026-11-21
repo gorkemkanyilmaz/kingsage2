@@ -12,6 +12,7 @@ extends CanvasLayer
 
 const RulesEngineScript := preload("res://scripts/rules/RulesEngine.gd")
 const GameDataScript := preload("res://autoload/GameData.gd")
+const AllianceModelScript := preload("res://scripts/model/AllianceModel.gd")
 
 const FontNunitoBold := preload("res://assets/fonts/Nunito-Bold.ttf")
 const FontNunitoSemiBold := preload("res://assets/fonts/Nunito-SemiBold.ttf")
@@ -219,6 +220,19 @@ const QUEST_DEFS: Array[Dictionary] = [
 		"vizier_desc": "[b][color=#FFD86B]Lordum,[/color][/b] saldırılara direnmek ve yağma seferlerine çıkmak için güçlü bir piyade birliği şart. Kışla'da [b]Silahtar[/b] veya [b]Muhafız[/b] araştırıp köyünüzdeki toplam piyade gücünü [b]25 askere[/b] çıkarın."
 	},
 	{
+		"id": "q_storage_5",
+		"icon": "🏛️",
+		"category": "LOJİSTİK • ÖNKOŞUL",
+		"title": "Büyük Ambar Hazırlığı (Depo Sv.5)",
+		"target": 5,
+		"check_type": "building_level",
+		"building_key": "storage",
+		"goto_type": "building",
+		"goto_target": "storage",
+		"reward": {"wood": 1100, "stone": 1100, "iron": 900},
+		"vizier_desc": "[b][color=#FFD86B]Lordum,[/color][/b] tüccarların ve ticaret kervanlarının şehrimize girebilmesi için [b]Market[/b] inşa etmemiz şarttır. Market binasının önkoşulu [b]Depo Seviye 5[/b]'tir; ambarınızı büyütün!"
+	},
+	{
 		"id": "q_unlock_market",
 		"icon": "⚖️",
 		"category": "BİNA AÇMA • TİCARET",
@@ -337,16 +351,81 @@ const QUEST_DEFS: Array[Dictionary] = [
 		"vizier_desc": "[b][color=#FFD86B]Lordum,[/color][/b] [b]Saldırı[/b] komutu ordunuzun tamamının (%100 güçle) savunan birlikleri yok edene dek çarpışmasıdır. Minimum asker kuralı olan [b]3 × Kışla Seviyesi[/b] şartını sağlayarak bir köye Saldırı gönderin!"
 	},
 	{
+		"id": "q_eco_mid_6",
+		"icon": "⛏️",
+		"category": "EKONOMİ & GÜÇLENME",
+		"title": "Üretim Gücünü Katla (Ocaklar Sv.6)",
+		"target": 3,
+		"check_type": "res_all_level",
+		"req_level": 6,
+		"goto_type": "building",
+		"goto_target": "wood",
+		"reward": {"wood": 4000, "stone": 4000, "iron": 3500},
+		"vizier_desc": "[b][color=#FFD86B]Lordum,[/color][/b] büyük süvari ve kuşatma ordularını beslemek için Oduncu Kampı, Taş Ocağı ve Maden Ocağı binalarının üçünü de [b]Seviye 6[/b]'ya çıkararak saatlik gelirinizi güvence altına alın."
+	},
+	{
+		"id": "q_barracks_5_bow",
+		"icon": "🏹",
+		"category": "BİRLİK ÖNKOŞULU",
+		"title": "Kışla Sv.5 & Okçu Araştır",
+		"target": 2,
+		"check_type": "unit_prereq",
+		"req_barracks": 5,
+		"unit_key": "bow",
+		"goto_type": "barracks_research",
+		"goto_target": "bow",
+		"reward": {"wood": 4200, "stone": 4200, "iron": 3800},
+		"vizier_desc": "[b][color=#FFD86B]Lordum,[/color][/b] surların ardını delecek ve kalemizi koruyacak [b]Okçu[/b] birliği için [b]Kışla Seviye 5[/b] şarttır. Kışla'yı yükseltip Okçu birimini araştırın."
+	},
+	{
 		"id": "q_train_axe_bow",
 		"icon": "🏹",
 		"category": "ORDU ÇEŞİTLİLİĞİ",
 		"title": "Baltacı & Okçu Birliği (30 Asker)",
 		"target": 30,
 		"check_type": "axe_bow_count",
-		"goto_type": "barracks_research",
-		"goto_target": "axe",
+		"goto_type": "barracks_train",
+		"goto_target": "bow",
 		"reward": {"wood": 4500, "stone": 4500, "iron": 4000},
 		"vizier_desc": "[b][color=#FFD86B]Lordum,[/color][/b] [b]Baltacı[/b] (Kışla Sv.2) saldırı ordularının ağır yumruğudur; [b]Okçu[/b] (Kışla Sv.5) ise sur ardındaki savunmayı ateş yağmuruna tutar. Baltacı ve Okçu toplamınızı [b]30[/b]'a çıkarın!"
+	},
+	{
+		"id": "q_join_or_create_alliance",
+		"icon": "🤝",
+		"category": "DİPLOMASİ • İTTİFAK",
+		"title": "İttifak Kur veya Katıl",
+		"target": 1,
+		"check_type": "in_alliance",
+		"goto_type": "alliance",
+		"goto_target": "",
+		"reward": {"wood": 5000, "stone": 5000, "iron": 4500},
+		"vizier_desc": "[b][color=#FFD86B]Lordum,[/color][/b] tek bir kılıç krallık kurabilir ama ancak birlikten doğan güç imparatorluk yaşatır! Sağ üstteki [b]İTTİFAK[/b] ekranından yeni bir İttifak kurun veya mevcut bir ittifaka katılın."
+	},
+	{
+		"id": "q_wall_5_farm_8",
+		"icon": "🏰",
+		"category": "TAHKİMAT & NÜFUS",
+		"title": "Sur Sv.5 & Değirmen Sv.8",
+		"target": 2,
+		"check_type": "wall_farm_mid",
+		"goto_type": "building",
+		"goto_target": "wall",
+		"reward": {"wood": 5500, "stone": 6000, "iron": 5000},
+		"vizier_desc": "[b][color=#FFD86B]Lordum,[/color][/b] büyüyen ordular daha geniş tarlalar ve daha yüksek duvarlar ister. [b]Sur[/b] binasını [b]Seviye 5[/b]'e, [b]Değirmen[/b]'i ise [b]Seviye 8[/b]'e yükselterek savunma çarpanınızı ve nüfus kapasitenizi artırın."
+	},
+	{
+		"id": "q_barracks_7_light",
+		"icon": "🐎",
+		"category": "SÜVARİ ÖNKOŞULU",
+		"title": "Kışla Sv.7 & Akıncı Araştır",
+		"target": 2,
+		"check_type": "unit_prereq",
+		"req_barracks": 7,
+		"unit_key": "light",
+		"goto_type": "barracks_research",
+		"goto_target": "light",
+		"reward": {"wood": 6500, "stone": 6000, "iron": 6000},
+		"vizier_desc": "[b][color=#FFD86B]Lordum,[/color][/b] hızlı ganimet akınlarının belkemiği olan [b]Akıncı[/b] süvarisini açmak için [b]Kışla Seviye 7[/b] gereklidir. Kışla'yı yükseltin ve Akıncı birimini araştırın."
 	},
 	{
 		"id": "q_train_cavalry",
@@ -355,7 +434,7 @@ const QUEST_DEFS: Array[Dictionary] = [
 		"title": "Süvari Hücumu (20 Akıncı / Şövalye)",
 		"target": 20,
 		"check_type": "cavalry_count",
-		"goto_type": "barracks_research",
+		"goto_type": "barracks_train",
 		"goto_target": "light",
 		"reward": {"wood": 7000, "stone": 6500, "iron": 6500},
 		"vizier_desc": "[b][color=#FFD86B]Lordum,[/color][/b] [b]Akıncı[/b] (Kışla Sv.7) saat gibi hızlı akınlar yapıp bol ganimet taşır; [b]Kara Şövalye[/b] (Kışla Sv.16) ise en zırhlı elit süvaridir. Toplam [b]20 Süvari[/b] yetiştirin!"
@@ -385,7 +464,60 @@ const QUEST_DEFS: Array[Dictionary] = [
 		"goto_type": "building",
 		"goto_target": "garage",
 		"reward": {"wood": 14000, "stone": 14000, "iron": 12000},
-		"vizier_desc": "[b][color=#FFD86B]Lordum,[/color][/b] [b]Simyager[/b] (Kışla Sv.5 gerektirir) krallığınızın yüksek bilimler merkezidir. Fetih makamı [b]Köşk[/b]'ü inşa etmek için Simyager'i mutlaka [b]Seviye 5[/b]'e kadar geliştirmeniz gerekecek!"
+		"vizier_desc": "[b][color=#FFD86B]Lordum,[/color][/b] [b]Simyager[/b] (Kışla Sv.5 gerektirir) krallığınızın yüksek bilimler merkezidir. Fetih makamı [b]Köşk[/b]'ü inşa etmek için Simyager'i [b]Seviye 5[/b]'e kadar geliştirmeniz gerekecek!"
+	},
+	{
+		"id": "q_storage_farm_12",
+		"icon": "🌾",
+		"category": "LOJİSTİK HAZIRLIĞI",
+		"title": "İmparatorluk Ambarı (Depo & Değirmen Sv.12)",
+		"target": 2,
+		"check_type": "storage_farm_12",
+		"goto_type": "building",
+		"goto_target": "storage",
+		"reward": {"wood": 15000, "stone": 15000, "iron": 13000},
+		"vizier_desc": "[b][color=#FFD86B]Lordum,[/color][/b] kuşatma silahları, Köşk ve Altın Zırh yüksek kaynak rezervleri gerektirir. Hem [b]Depo[/b] hem de [b]Değirmen[/b] binalarını [b]Seviye 12[/b]'ye çıkararak ambarları genişletin."
+	},
+	{
+		"id": "q_garage_5",
+		"icon": "⚗️",
+		"category": "TEKNOLOJİ • ÖNKOŞUL",
+		"title": "Simyager Ustalaşması (Sv.5)",
+		"target": 5,
+		"check_type": "building_level",
+		"building_key": "garage",
+		"goto_type": "building",
+		"goto_target": "garage",
+		"reward": {"wood": 16000, "stone": 16000, "iron": 14000},
+		"vizier_desc": "[b][color=#FFD86B]Lordum,[/color][/b] asilzadelerin makamı [b]Köşk[/b]'ü kurabilmenin son önkoşulu [b]Simyager Seviye 5[/b]'tir. Simyager laboratuvarını azami seviyeye ulaştırın."
+	},
+	{
+		"id": "q_barracks_16_heavy",
+		"icon": "🛡️",
+		"category": "ELİT BİRLİK ÖNKOŞULU",
+		"title": "Kışla Sv.16 & Kara Şövalye Araştır",
+		"target": 2,
+		"check_type": "unit_prereq",
+		"req_barracks": 16,
+		"unit_key": "heavy",
+		"goto_type": "barracks_research",
+		"goto_target": "heavy",
+		"reward": {"wood": 17000, "stone": 17000, "iron": 15000},
+		"vizier_desc": "[b][color=#FFD86B]Lordum,[/color][/b] ağır zırhlı elit süvari [b]Kara Şövalye[/b]'yi saflarınıza katmak ve kuşatma kışlasına yaklaşmak için [b]Kışla Seviye 16[/b]'ya çıkıp Kara Şövalye'yi araştırın."
+	},
+	{
+		"id": "q_barracks_20_ram",
+		"icon": "🐏",
+		"category": "KUŞATMA ÖNKOŞULU",
+		"title": "Kışla Sv.20 & Şahmerdan Araştır",
+		"target": 2,
+		"check_type": "unit_prereq",
+		"req_barracks": 20,
+		"unit_key": "ram",
+		"goto_type": "barracks_research",
+		"goto_target": "ram",
+		"reward": {"wood": 18000, "stone": 18000, "iron": 16000},
+		"vizier_desc": "[b][color=#FFD86B]Lordum,[/color][/b] yüksek surları yıkacak [b]Şahmerdan[/b] kuşatma koçbaşlarını üretebilmek için önce [b]Kışla Seviye 20[/b]'ye ulaşmalı ve Şahmerdan teknolojisini araştırmalısınız."
 	},
 	{
 		"id": "q_siege_weapons",
@@ -394,7 +526,7 @@ const QUEST_DEFS: Array[Dictionary] = [
 		"title": "Kuşatma Mühendisliği (5 Kuşatma)",
 		"target": 5,
 		"check_type": "siege_count",
-		"goto_type": "barracks_research",
+		"goto_type": "barracks_train",
 		"goto_target": "ram",
 		"reward": {"wood": 18000, "stone": 18000, "iron": 16000},
 		"vizier_desc": "[b][color=#FFD86B]Lordum,[/color][/b] [b]Şahmerdan[/b] (Kışla Sv.20) düşmanın koruyucu Surunu savaş sırasında yerle bir eder; [b]Mancınık[/b] (Kışla Sv.25) ise Kale veya Köşk gibi seçilen binaları yıkar. Toplam [b]5 adet Şahmerdan veya Mancınık[/b] üretin!"
@@ -839,6 +971,30 @@ func get_quest_progress(quest_id: String, gs_override: Node = null) -> Dictionar
 			var st_ok := 1 if _max_building_level(p_vills, "storage") >= 4 else 0
 			var fm_ok := 1 if _max_building_level(p_vills, "farm") >= 4 else 0
 			current = st_ok + fm_ok
+		"res_all_level":
+			var rl := int(q.get("req_level", 6))
+			var rw_ok := 1 if _max_building_level(p_vills, "wood") >= rl else 0
+			var rs_ok := 1 if _max_building_level(p_vills, "stone") >= rl else 0
+			var ri_ok := 1 if _max_building_level(p_vills, "iron") >= rl else 0
+			current = rw_ok + rs_ok + ri_ok
+		"unit_prereq":
+			var req_b := maxi(1, int(q.get("req_barracks", 1)))
+			var uk_p := str(q.get("unit_key", ""))
+			var b_ok := 1 if _max_building_level(p_vills, "barracks") >= req_b else 0
+			var r_ok := 1 if _any_village_researched(p_vills, uk_p) else 0
+			current = b_ok + r_ok
+		"in_alliance":
+			var pname_a := str(gs.player.get("name", ""))
+			var al := AllianceModelScript.get_player_alliance(gs.to_dict(), pname_a)
+			current = 0 if al.is_empty() else 1
+		"wall_farm_mid":
+			var w_ok := 1 if _max_building_level(p_vills, "wall") >= 5 else 0
+			var f_ok := 1 if _max_building_level(p_vills, "farm") >= 8 else 0
+			current = w_ok + f_ok
+		"storage_farm_12":
+			var st12 := 1 if _max_building_level(p_vills, "storage") >= 12 else 0
+			var fm12 := 1 if _max_building_level(p_vills, "farm") >= 12 else 0
+			current = st12 + fm12
 		"unit_researched":
 			var uk_res := str(q.get("unit_key", ""))
 			current = 1 if _any_village_researched(p_vills, uk_res) else 0
@@ -1876,6 +2032,42 @@ func get_pending_navigation_actions(quest_or_id, gs_override: Node = null) -> Ar
 					"type": "barracks_research",
 					"target": "spy",
 				})
+		"res_all_level":
+			var rl := int(q.get("req_level", 6))
+			if _max_building_level(p_vills, "wood") < rl:
+				out.append({"label": "🪓 Oduncu Kampı (Sv.%d/%d) ➔" % [int(bld.get("wood", 0)), rl], "type": "building", "target": "wood"})
+			if _max_building_level(p_vills, "stone") < rl:
+				out.append({"label": "🪨 Taş Ocağı (Sv.%d/%d) ➔" % [int(bld.get("stone", 0)), rl], "type": "building", "target": "stone"})
+			if _max_building_level(p_vills, "iron") < rl:
+				out.append({"label": "⛏️ Maden Ocağı (Sv.%d/%d) ➔" % [int(bld.get("iron", 0)), rl], "type": "building", "target": "iron"})
+		"unit_prereq":
+			var req_b := maxi(1, int(q.get("req_barracks", 1)))
+			var uk_p := str(q.get("unit_key", "spear"))
+			if int(bld.get("barracks", 0)) < req_b:
+				_append_building_or_prereq_actions(out, bld, "barracks", req_b)
+			if not _any_village_researched(p_vills, uk_p):
+				var uname_p := str(RulesEngineScript.unit_data(uk_p).get("name", uk_p))
+				out.append({
+					"label": "🔍 Kışla (%s Araştır) ➔" % uname_p,
+					"type": "barracks_research",
+					"target": uk_p,
+				})
+		"in_alliance":
+			out.append({
+				"label": "🛡️ İttifak Ekranına Git ➔",
+				"type": "alliance",
+				"target": "",
+			})
+		"wall_farm_mid":
+			if _max_building_level(p_vills, "wall") < 5:
+				_append_building_or_prereq_actions(out, bld, "wall", 5)
+			if _max_building_level(p_vills, "farm") < 8:
+				_append_building_or_prereq_actions(out, bld, "farm", 8)
+		"storage_farm_12":
+			if _max_building_level(p_vills, "storage") < 12:
+				_append_building_or_prereq_actions(out, bld, "storage", 12)
+			if _max_building_level(p_vills, "farm") < 12:
+				_append_building_or_prereq_actions(out, bld, "farm", 12)
 		"building_level":
 			var bk := str(q.get("building_key", q.get("goto_target", "")))
 			var req_lvl := int(q.get("target", 1))
@@ -1925,10 +2117,12 @@ func get_pending_navigation_actions(quest_or_id, gs_override: Node = null) -> Ar
 						"target": uk,
 					})
 		"infantry_count", "axe_bow_count", "cavalry_count", "siege_count":
-			if int(bld.get("barracks", 0)) < 1:
-				_append_building_or_prereq_actions(out, bld, "barracks", 1)
+			var gt := str(q.get("goto_target", "spear"))
+			var gt_req: Dictionary = RulesEngineScript.unit_data(gt).get("requires", {}) if typeof(RulesEngineScript.unit_data(gt).get("requires")) == TYPE_DICTIONARY else {}
+			var req_b_cnt := maxi(1, int(gt_req.get("barracks", 1)))
+			if int(bld.get("barracks", 0)) < req_b_cnt:
+				_append_building_or_prereq_actions(out, bld, "barracks", req_b_cnt)
 			else:
-				var gt := str(q.get("goto_target", "spear"))
 				var uname := str(RulesEngineScript.unit_data(gt).get("name", "Kışla"))
 				if not gt.is_empty() and not bool(researched.get(gt, false)):
 					out.append({
@@ -2000,6 +2194,8 @@ func _execute_navigation_action(action: Dictionary) -> void:
 						bp.scroll_to_unit_card(g_target)
 		"map":
 			st.change_scene_to_file("res://scenes/WorldMap.tscn")
+		"alliance":
+			st.change_scene_to_file("res://scenes/Alliance.tscn")
 
 
 func _on_modal_goto_pressed() -> void:

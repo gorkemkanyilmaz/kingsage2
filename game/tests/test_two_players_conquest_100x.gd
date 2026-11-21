@@ -549,7 +549,7 @@ func _play_quests_through_snob_prep(p_name: String, gs: Node, wm: Node, qm: Node
 		if qid == "q_unlock_snob" and int(gs.get_village(cap_vid).get("buildings", {}).get("snob", 0)) < 1:
 			var has_prereq_act := false
 			for a in pending_acts:
-				if str(a.get("target", "")) in ["garage", "barracks", "storage", "farm"]:
+				if str(a.get("target", "")) in ["snob", "garage", "barracks", "storage", "farm"]:
 					has_prereq_act = true
 			_check(has_prereq_act, "%s q_unlock_snob önkoşul binasına yönlendirdi (%s)" % [p_name, str(pending_acts)])
 
@@ -570,6 +570,27 @@ func _play_quests_through_snob_prep(p_name: String, gs: Node, wm: Node, qm: Node
 			"spy_prereq":
 				_ensure_building_level(gs, wm, cap_vid, "barracks", 4)
 				_ensure_research(gs, wm, cap_vid, "spy")
+			"res_all_level":
+				var rl := int(q.get("req_level", 6))
+				_ensure_building_level(gs, wm, cap_vid, "wood", rl)
+				_ensure_building_level(gs, wm, cap_vid, "stone", rl)
+				_ensure_building_level(gs, wm, cap_vid, "iron", rl)
+			"unit_prereq":
+				var req_b := maxi(1, int(q.get("req_barracks", 1)))
+				_ensure_building_level(gs, wm, cap_vid, "barracks", req_b)
+				_ensure_research(gs, wm, cap_vid, str(q.get("unit_key", "")))
+			"in_alliance":
+				var st_tmp: Dictionary = gs.to_dict()
+				var AllianceMod := preload("res://scripts/model/AllianceModel.gd")
+				var c_tmp: Dictionary = AllianceMod.create_alliance(st_tmp, p_name, "Tmp_" + p_name, p_name.left(3).to_upper(), "Test")
+				_check(bool(c_tmp.get("ok", false)), "%s geçici ittifak görevi tamamlandı" % p_name)
+				gs.from_dict(st_tmp)
+			"wall_farm_mid":
+				_ensure_building_level(gs, wm, cap_vid, "wall", 5)
+				_ensure_building_level(gs, wm, cap_vid, "farm", 8)
+			"storage_farm_12":
+				_ensure_building_level(gs, wm, cap_vid, "storage", 12)
+				_ensure_building_level(gs, wm, cap_vid, "farm", 12)
 			"unit_researched":
 				_ensure_research(gs, wm, cap_vid, str(q.get("unit_key", "")))
 			"unit_count_peak":
@@ -627,6 +648,11 @@ func _play_quests_through_snob_prep(p_name: String, gs: Node, wm: Node, qm: Node
 		_advance_sim(gs, wm, 2, false)
 		var wood_post_tick := int(gs.get_village(cap_vid).get("resources", {}).get("wood", 0))
 		_check(wood_post_tick >= wood_pre_claim + reward_w, "%s görev ödülü (%s +%d) üretim tickinde korunuyor (Depo silmedi: %d)" % [p_name, qid, reward_w, wood_post_tick])
+		if c_type == "in_alliance":
+			var st_lv: Dictionary = gs.to_dict()
+			var AllianceMod2 := preload("res://scripts/model/AllianceModel.gd")
+			AllianceMod2.leave_alliance(st_lv, p_name)
+			gs.from_dict(st_lv)
 
 	wm.call("save_active_world")
 
@@ -773,6 +799,12 @@ func _run_test() -> void:
 	_check(stp.btn_attack.visible and not stp.btn_attack.disabled and stp.btn_attack.text.contains("Saldır"), "UI: Tek 'Saldır' butonu aktif (%s)" % w1_diag)
 	stp.btn_attack.emit_signal("pressed")
 	await _tick(2)
+	var prot_modal := root.find_child("VizierProtectionWarningModal", true, false)
+	if prot_modal != null and is_instance_valid(prot_modal):
+		var confirm_btn := prot_modal.find_child("BtnConfirmProtectionWarning", true, false) as BaseButton
+		if confirm_btn != null:
+			confirm_btn.emit_signal("pressed")
+			await _tick(2)
 	stp.queue_free()
 	await _tick(2)
 

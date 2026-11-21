@@ -1,4 +1,4 @@
-[gd_scene load_steps=21 format=3]
+[gd_scene load_steps=23 format=3]
 
 [ext_resource type="Script" path="res://ui/ResourceBar.gd" id="1_rbar"]
 [ext_resource type="Theme" path="res://themes/TahtVeKilic.tres" id="2_theme"]
@@ -9,6 +9,8 @@
 [ext_resource type="FontFile" path="res://assets/fonts/Nunito-Bold.ttf" id="7_nunito_bold"]
 [ext_resource type="FontFile" path="res://assets/fonts/Nunito-SemiBold.ttf" id="8_nunito_semibold"]
 [ext_resource type="Texture2D" path="res://assets/sprites/ui/nano_banana/sharp_icon_diamond.tres" id="9_diamond_tex"]
+[ext_resource type="Texture2D" path="res://assets/sprites/ui/nano_banana/sharp_icon_storage.tres" id="10_storage_tex"]
+[ext_resource type="Texture2D" path="res://assets/sprites/ui/nano_banana/sharp_icon_castle_crest.tres" id="11_castle_crest"]
 
 [sub_resource type="StyleBoxFlat" id="sb_bar"]
 bg_color = Color(0.08, 0.07, 0.11, 0.98)
@@ -154,7 +156,16 @@ theme_override_constants/separation = 8
 [node name="VillageInfo" type="HBoxContainer" parent="VBox/TopRow"]
 layout_mode = 2
 size_flags_horizontal = 3
-theme_override_constants/separation = 6
+theme_override_constants/separation = 5
+
+[node name="CrestIcon" type="TextureRect" parent="VBox/TopRow/VillageInfo"]
+custom_minimum_size = Vector2(26, 26)
+layout_mode = 2
+size_flags_vertical = 4
+mouse_filter = 2
+texture = ExtResource("11_castle_crest")
+expand_mode = 1
+stretch_mode = 5
 
 [node name="BtnPrevVillage" type="Button" parent="VBox/TopRow/VillageInfo"]
 custom_minimum_size = Vector2(36, 36)
@@ -400,18 +411,73 @@ max_value = 1000.0
 value = 500.0
 show_percentage = false
 
+[node name="StorageBox" type="PanelContainer" parent="VBox/ResourcesRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+mouse_filter = 0
+theme_override_styles/panel = SubResource("sb_res_card")
+
+[node name="VBox" type="VBoxContainer" parent="VBox/ResourcesRow/StorageBox"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 3
+
+[node name="Row" type="HBoxContainer" parent="VBox/ResourcesRow/StorageBox/VBox"]
+layout_mode = 2
+size_flags_vertical = 3
+mouse_filter = 2
+theme_override_constants/separation = 6
+
+[node name="Icon" type="TextureRect" parent="VBox/ResourcesRow/StorageBox/VBox/Row"]
+custom_minimum_size = Vector2(24, 24)
+layout_mode = 2
+size_flags_vertical = 4
+mouse_filter = 2
+texture = ExtResource("10_storage_tex")
+expand_mode = 1
+stretch_mode = 5
+
+[node name="StorageLabel" type="Label" parent="VBox/ResourcesRow/StorageBox/VBox/Row"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 4
+mouse_filter = 2
+theme_override_colors/font_color = Color(0.98, 0.86, 0.56, 1)
+theme_override_fonts/font = ExtResource("7_nunito_bold")
+theme_override_font_sizes/font_size = 19
+text = "1000"
+horizontal_alignment = 2
+vertical_alignment = 1
+clip_text = true
+
+[node name="StorageBar" type="ProgressBar" parent="VBox/ResourcesRow/StorageBox/VBox"]
+custom_minimum_size = Vector2(0, 3)
+layout_mode = 2
+mouse_filter = 2
+theme_override_styles/background = SubResource("sb_res_pb_bg")
+theme_override_styles/fill = SubResource("sb_res_pb_fill")
+max_value = 1000.0
+value = 500.0
+show_percentage = false
+
 [node name="CitizensBox" type="PanelContainer" parent="VBox/ResourcesRow"]
 layout_mode = 2
 size_flags_horizontal = 3
 mouse_filter = 0
 theme_override_styles/panel = SubResource("sb_res_card")
 
-[node name="Row" type="HBoxContainer" parent="VBox/ResourcesRow/CitizensBox"]
+[node name="VBox" type="VBoxContainer" parent="VBox/ResourcesRow/CitizensBox"]
 layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 3
+
+[node name="Row" type="HBoxContainer" parent="VBox/ResourcesRow/CitizensBox/VBox"]
+layout_mode = 2
+size_flags_vertical = 3
 mouse_filter = 2
 theme_override_constants/separation = 6
 
-[node name="Icon" type="TextureRect" parent="VBox/ResourcesRow/CitizensBox/Row"]
+[node name="Icon" type="TextureRect" parent="VBox/ResourcesRow/CitizensBox/VBox/Row"]
 custom_minimum_size = Vector2(24, 24)
 layout_mode = 2
 size_flags_vertical = 4
@@ -420,7 +486,7 @@ texture = ExtResource("6_citizens_tex")
 expand_mode = 1
 stretch_mode = 5
 
-[node name="CitizensLabel" type="Label" parent="VBox/ResourcesRow/CitizensBox/Row"]
+[node name="CitizensLabel" type="Label" parent="VBox/ResourcesRow/CitizensBox/VBox/Row"]
 layout_mode = 2
 size_flags_horizontal = 3
 size_flags_vertical = 4
@@ -433,19 +499,20 @@ horizontal_alignment = 2
 vertical_alignment = 1
 clip_text = true
 
+[node name="CitizensBar" type="ProgressBar" parent="VBox/ResourcesRow/CitizensBox/VBox"]
+custom_minimum_size = Vector2(0, 3)
+layout_mode = 2
+mouse_filter = 2
+theme_override_styles/background = SubResource("sb_res_pb_bg")
+theme_override_styles/fill = SubResource("sb_res_pb_fill")
+max_value = 240.0
+value = 10.0
+show_percentage = false
+
 [node name="CompatHidden" type="Control" parent="VBox"]
 visible = false
 layout_mode = 2
 mouse_filter = 2
-
-[node name="StorageBar" type="ProgressBar" parent="VBox/CompatHidden"]
-layout_mode = 0
-max_value = 1000.0
-show_percentage = false
-
-[node name="StorageLabel" type="Label" parent="VBox/CompatHidden"]
-layout_mode = 0
-text = "0 / 1000"
 
 [node name="RealmLabel" type="Label" parent="VBox/CompatHidden"]
 layout_mode = 0

@@ -9,6 +9,8 @@ const ICON_IRON: Texture2D = preload("res://assets/sprites/ui/nano_banana/sharp_
 const ICON_CITIZENS: Texture2D = preload("res://assets/sprites/ui/nano_banana/sharp_icon_citizens.tres")
 const ICON_STORAGE: Texture2D = preload("res://assets/sprites/ui/nano_banana/sharp_icon_storage.tres")
 const ICON_DIAMOND: Texture2D = preload("res://assets/sprites/ui/nano_banana/sharp_icon_diamond.tres")
+const ICON_CASTLE_CREST: Texture2D = preload("res://assets/sprites/ui/nano_banana/sharp_icon_castle_crest.tres")
+const TEX_ROYAL_BTN_BG: Texture2D = preload("res://assets/sprites/ui/nano_banana/sharp_ui_royal_btn_bg.tres")
 const FONT_BOLD: Font = preload("res://assets/fonts/Nunito-Bold.ttf")
 const FONT_SEMIBOLD: Font = preload("res://assets/fonts/Nunito-SemiBold.ttf")
 
@@ -19,6 +21,7 @@ var village_info_box: HBoxContainer
 var island_spacer: Control
 var right_wing: HBoxContainer
 
+var crest_icon: TextureRect
 var village_name_label: Label
 var btn_rename_village: Button
 var points_box: Control
@@ -35,6 +38,8 @@ var iron_box: Control
 var iron_title_label: Label
 var iron_label: Label
 var iron_bar: ProgressBar
+var storage_box: Control
+var storage_title_label: Label
 var citizens_box: Control
 var citizens_title_label: Label
 var citizens_label: Label
@@ -50,6 +55,7 @@ var btn_market: Button
 var _pb_fill_ok: StyleBoxFlat
 var _pb_fill_warn: StyleBoxFlat
 var _pb_fill_full: StyleBoxFlat
+var _village_info_sb: StyleBoxTexture = null
 var _last_bar_height: float = DESKTOP_BAR_HEIGHT
 var _switcher_modal: CanvasLayer = null
 var _economy_modal: CanvasLayer = null
@@ -106,11 +112,17 @@ func _ensure_nodes() -> void:
 		citizens_box = find_child("CitizensBox", true, false) as Control
 	if citizens_label == null:
 		citizens_label = find_child("CitizensLabel", true, false) as Label
+	if citizens_bar == null:
+		citizens_bar = find_child("CitizensBar", true, false) as ProgressBar
 
+	if storage_box == null:
+		storage_box = find_child("StorageBox", true, false) as Control
 	if storage_bar == null:
 		storage_bar = find_child("StorageBar", true, false) as ProgressBar
 	if storage_label == null:
 		storage_label = find_child("StorageLabel", true, false) as Label
+	if crest_icon == null:
+		crest_icon = find_child("CrestIcon", true, false) as TextureRect
 	if realm_label == null:
 		realm_label = find_child("RealmLabel", true, false) as Label
 	if btn_prev == null:
@@ -120,6 +132,7 @@ func _ensure_nodes() -> void:
 	if btn_market == null:
 		btn_market = find_child("BtnMarket", true, false) as Button
 
+	_ensure_royal_wing_frames()
 	_ensure_resource_box_titles()
 
 	if _pb_fill_ok == null:
@@ -190,12 +203,12 @@ func _ready() -> void:
 		if not village_name_label.gui_input.is_connected(_on_village_name_gui_input):
 			village_name_label.gui_input.connect(_on_village_name_gui_input)
 
-	for box in [points_box, wood_box, stone_box, iron_box, citizens_box]:
+	for box in [points_box, wood_box, stone_box, iron_box, storage_box, citizens_box]:
 		if box != null:
 			box.mouse_filter = Control.MOUSE_FILTER_STOP
 			if not box.gui_input.is_connected(_on_economy_box_gui_input):
 				box.gui_input.connect(_on_economy_box_gui_input)
-	for pair in [["points", points_box], ["wood", wood_box], ["stone", stone_box], ["iron", iron_box], ["citizens", citizens_box]]:
+	for pair in [["points", points_box], ["wood", wood_box], ["stone", stone_box], ["iron", iron_box], ["storage", storage_box], ["citizens", citizens_box]]:
 		var bx := pair[1] as Control
 		if bx != null:
 			bx.mouse_entered.connect(_on_box_mouse_entered.bind(str(pair[0]), bx))
@@ -230,11 +243,12 @@ func _apply_responsive_layout() -> void:
 			island_w = float(gc.call("get_ios_dynamic_island_width"))
 
 	var has_island := island_w > 0.0
+	var effective_island_w := minf(island_w, 350.0) if has_island else 0.0
 	var top_pad := 9.0
 	var bottom_pad := 9.0
 	var sep := 6
-	var top_row_h := 46.0
-	var res_row_h := 46.0
+	var top_row_h := 48.0
+	var res_row_h := 48.0
 
 	if has_island:
 		top_pad = 4.0
@@ -265,25 +279,37 @@ func _apply_responsive_layout() -> void:
 		top_row.custom_minimum_size.y = top_row_h
 	if resources_row != null:
 		resources_row.custom_minimum_size.y = res_row_h
+		resources_row.add_theme_constant_override("separation", 6)
+
+	if village_info_box != null:
+		village_info_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 
 	if island_spacer != null:
 		island_spacer.visible = has_island
-		island_spacer.custom_minimum_size = Vector2(island_w if has_island else 0.0, 0.0)
+		island_spacer.custom_minimum_size = Vector2(effective_island_w, 0.0)
 
 	if right_wing != null:
 		right_wing.size_flags_horizontal = Control.SIZE_EXPAND_FILL if has_island else Control.SIZE_SHRINK_END
 
+	if crest_icon != null:
+		crest_icon.texture = ICON_CASTLE_CREST
+		crest_icon.custom_minimum_size = Vector2(22, 22) if has_island else Vector2(28, 28)
+
 	if points_box != null:
-		points_box.visible = not has_island
+		points_box.visible = true
+	if points_label != null:
+		points_label.add_theme_font_size_override("font_size", 15 if has_island else 18)
 	if btn_prev != null:
-		btn_prev.custom_minimum_size = Vector2(32, 34) if has_island else Vector2(36, 36)
+		btn_prev.custom_minimum_size = Vector2(28, 32) if has_island else Vector2(36, 36)
 	if btn_next != null:
-		btn_next.custom_minimum_size = Vector2(32, 34) if has_island else Vector2(36, 36)
+		btn_next.custom_minimum_size = Vector2(28, 32) if has_island else Vector2(36, 36)
+	if btn_rename_village != null:
+		btn_rename_village.custom_minimum_size = Vector2(32, 32) if has_island else Vector2(38, 36)
 	if btn_market != null:
-		btn_market.custom_minimum_size = Vector2(118, 36) if has_island else Vector2(132, 38)
+		btn_market.custom_minimum_size = Vector2(150, 40) if has_island else Vector2(180, 42)
 		btn_market.add_theme_font_size_override("font_size", 17 if has_island else 19)
 	if village_name_label != null:
-		village_name_label.add_theme_font_size_override("font_size", 18 if has_island else 21)
+		village_name_label.add_theme_font_size_override("font_size", 16 if has_island else 21)
 
 	custom_minimum_size.y = total_h
 	offset_top = 0.0
@@ -306,12 +332,51 @@ func _on_village_name_gui_input(event: InputEvent) -> void:
 		_show_village_switcher_modal()
 
 
+func _ensure_royal_wing_frames() -> void:
+	if _village_info_sb == null and TEX_ROYAL_BTN_BG != null:
+		_village_info_sb = StyleBoxTexture.new()
+		_village_info_sb.texture = TEX_ROYAL_BTN_BG
+		_village_info_sb.texture_margin_left = 18.0
+		_village_info_sb.texture_margin_right = 18.0
+		_village_info_sb.texture_margin_top = 8.0
+		_village_info_sb.texture_margin_bottom = 8.0
+		_village_info_sb.expand_margin_left = 4.0
+		_village_info_sb.expand_margin_right = 4.0
+		_village_info_sb.expand_margin_top = 2.0
+		_village_info_sb.expand_margin_bottom = 2.0
+		_village_info_sb.modulate_color = Color(0.95, 0.90, 0.80, 0.94)
+	if village_info_box != null and not village_info_box.draw.is_connected(_on_village_info_draw):
+		village_info_box.draw.connect(_on_village_info_draw)
+	if btn_market != null and TEX_ROYAL_BTN_BG != null:
+		var msb := StyleBoxTexture.new()
+		msb.texture = TEX_ROYAL_BTN_BG
+		msb.texture_margin_left = 18.0
+		msb.texture_margin_right = 18.0
+		msb.texture_margin_top = 8.0
+		msb.texture_margin_bottom = 8.0
+		msb.content_margin_left = 12.0
+		msb.content_margin_right = 12.0
+		msb.content_margin_top = 4.0
+		msb.content_margin_bottom = 4.0
+		msb.modulate_color = Color(0.92, 0.96, 1.0, 1.0)
+		var m_hov := msb.duplicate() as StyleBoxTexture
+		m_hov.modulate_color = Color(1.08, 1.08, 1.08, 1.0)
+		btn_market.add_theme_stylebox_override("normal", msb)
+		btn_market.add_theme_stylebox_override("hover", m_hov)
+		btn_market.add_theme_stylebox_override("pressed", m_hov)
+
+
+func _on_village_info_draw() -> void:
+	if village_info_box != null and _village_info_sb != null:
+		village_info_box.draw_style_box(_village_info_sb, Rect2(Vector2.ZERO, village_info_box.size))
+
+
 func _on_economy_box_gui_input(event: InputEvent) -> void:
 	if _is_tap_event(event):
 		accept_event()
 		var key := "points"
 		var src: Control = null
-		for pair in [["wood", wood_box], ["stone", stone_box], ["iron", iron_box], ["citizens", citizens_box], ["points", points_box]]:
+		for pair in [["wood", wood_box], ["stone", stone_box], ["iron", iron_box], ["storage", storage_box], ["citizens", citizens_box], ["points", points_box]]:
 			var ctrl := pair[1] as Control
 			if ctrl != null and ctrl.get_global_rect().has_point(get_global_mouse_position()):
 				key = str(pair[0])
@@ -325,6 +390,8 @@ func _on_box_mouse_entered(key: String, ctrl: Control) -> void:
 
 
 func _fmt_num(val: int) -> String:
+	if absi(val) < 10000:
+		return str(val)
 	var s := str(absi(val))
 	var out := ""
 	var c := 0
@@ -341,6 +408,7 @@ func _ensure_resource_box_titles() -> void:
 		[wood_box, "WoodTitle", "ODUN", Color(0.62, 0.90, 0.50)],
 		[stone_box, "StoneTitle", "TAŞ", Color(0.82, 0.84, 0.90)],
 		[iron_box, "IronTitle", "DEMİR", Color(0.66, 0.82, 0.98)],
+		[storage_box, "StorageTitle", "DEPO", Color(0.96, 0.80, 0.44)],
 		[citizens_box, "CitizensTitle", "NÜFUS", Color(0.84, 0.96, 0.86)],
 	]
 	for d in defs:
@@ -356,7 +424,7 @@ func _ensure_resource_box_titles() -> void:
 		t.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		t.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		t.add_theme_font_override("font", FONT_BOLD)
-		t.add_theme_font_size_override("font_size", 13)
+		t.add_theme_font_size_override("font_size", 12)
 		t.add_theme_color_override("font_color", d[3] as Color)
 		row.add_child(t)
 		row.move_child(t, 1)
@@ -364,6 +432,7 @@ func _ensure_resource_box_titles() -> void:
 			"WoodTitle": wood_title_label = t
 			"StoneTitle": stone_title_label = t
 			"IronTitle": iron_title_label = t
+			"StorageTitle": storage_title_label = t
 			"CitizensTitle": citizens_title_label = t
 
 
@@ -384,11 +453,15 @@ func _tooltip_text_for(key: String) -> Dictionary:
 		"iron":
 			var hr3 := int(round(RulesEngine.production_per_hour("iron", int(b.get("iron", 0)))))
 			return {"title": "⛏️ DEMİR", "body": "Mevcut: %s / %s (Depo Sv.%d)\nÜretim: +%s /saat (Maden Ocağı Sv.%d)\nKullanım: zırhlı birlikler, Baltacı, Süvari ve silahlar." % [_fmt_num(int(res.get("iron", 0))), _fmt_num(cap), st_lvl, _fmt_num(hr3), int(b.get("iron", 0))]}
+		"storage":
+			var max_cur := maxi(int(res.get("wood", 0)), maxi(int(res.get("stone", 0)), int(res.get("iron", 0))))
+			var pct := int(round(clampf(float(max_cur) / float(cap), 0.0, 1.0) * 100.0))
+			return {"title": "🏛️ DEPO DURUMU", "body": "Depo Seviyesi: Sv.%d • Azami Kapasite: %s\nEn Dolu Kaynak: %s / %s (%%%d dolu)\nKapasiteyi artırmak için köyde Depo binasını yükseltin." % [st_lvl, _fmt_num(cap), _fmt_num(max_cur), _fmt_num(cap), pct]}
 		"citizens":
 			var pop: Dictionary = EconomyAPI.population_summary(v)
 			return {"title": "👥 NÜFUS (BOŞ İŞÇİ)", "body": "Boş: %d  •  Kullanılan: %d  •  Toplam kapasite: %d (Değirmen Sv.%d)\nYeni bina inşası ve asker eğitimi için boş vatandaş gerekir." % [int(pop.get("free", 0)), int(pop.get("used", 0)), int(pop.get("max", 0)), int(b.get("farm", 0))]}
 		_:
-			return {"title": "👑 PUAN", "body": "Köyünüzün toplam puanı (parantez içi tüm köylerinizin toplamı).\nPuan; bina seviyeleri arttıkça yükselir ve sıralamayı belirler."}
+			return {"title": "👑 LORD PUANI", "body": "Köyünüzün toplam puanı (parantez içi tüm köylerinizin toplamı).\nPuan; bina seviyeleri arttıkça yükselir ve sıralamayı belirler."}
 
 
 func _show_resource_tooltip(key: String, anchor: Control, auto_hide_sec: float = 4.5) -> void:
@@ -586,7 +659,7 @@ func refresh() -> void:
 
 	if village_name_label != null:
 		if island_w > 0.0:
-			village_name_label.text = "🏰 %s (%d|%d)" % [v_name, vx, vy]
+			village_name_label.text = "%s (%d|%d)" % [v_name, vx, vy]
 		else:
 			village_name_label.text = "%s | 🏰 %s (%d|%d)" % [p_name, v_name, vx, vy]
 		village_name_label.tooltip_text = "%s | 🏰 %s (%d|%d)\nKöyleri görmek ve seçmek için dokun" % [p_name, v_name, vx, vy]
@@ -604,7 +677,7 @@ func refresh() -> void:
 			var total_pts := 0
 			for item in villages_list:
 				total_pts += int((item as Dictionary).get("points", 0))
-			points_label.text = "👑 %d P (%d)" % [v_pts, total_pts]
+			points_label.text = ("👑 %d(%d)" % [v_pts, total_pts]) if island_w > 0.0 else ("👑 %d P (%d)" % [v_pts, total_pts])
 		else:
 			points_label.text = "👑 %d P" % v_pts
 
@@ -632,16 +705,17 @@ func refresh() -> void:
 
 	var pop: Dictionary = EconomyAPI.population_summary(v)
 	var free_pop := int(pop.get("free", 0))
+	var used_pop := int(pop.get("used", 0))
+	var max_pop := maxi(1, int(pop.get("max", 1)))
 	if citizens_label != null:
 		citizens_label.text = "%d Boş" % free_pop
+	_apply_gauge(citizens_bar, float(used_pop), max_pop)
 
 	var rlm: Dictionary = EconomyAPI.realm_summary(v)
 	var max_res := maxf(w, maxf(s, i))
-	if storage_bar != null:
-		storage_bar.max_value = float(cap)
-		storage_bar.value = clampf(max_res, 0.0, float(cap))
+	_apply_gauge(storage_bar, max_res, cap)
 	if storage_label != null:
-		storage_label.text = "%d / %d" % [int(max_res), cap]
+		storage_label.text = _fmt_num(cap)
 	if realm_label != null:
 		realm_label.text = "%d / %d" % [int(rlm.get("value", 0)), int(rlm.get("cap", 0))]
 

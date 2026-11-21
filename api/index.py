@@ -1443,6 +1443,8 @@ def merge_world_state(server_w: Optional[Dict[str, Any]], client_raw: Dict[str, 
             "gold_armour": int(c_player.get("gold_armour", 0) or 0),
             "diamonds": c_diamonds,
             "scrolls": c_scrolls,
+            "read_report_sigs": list(dict.fromkeys([str(x) for x in (c_player.get("read_report_sigs") if isinstance(c_player.get("read_report_sigs"), list) else (s_existing_prof.get("read_report_sigs") or []))]))[-400:],
+            "deleted_report_sigs": list(dict.fromkeys([str(x) for x in (c_player.get("deleted_report_sigs") if isinstance(c_player.get("deleted_report_sigs"), list) else (s_existing_prof.get("deleted_report_sigs") or []))]))[-400:],
             "active_village_id": int(c_state.get("active_village_id", -1) or -1),
         }
 

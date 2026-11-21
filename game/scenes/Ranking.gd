@@ -5,6 +5,8 @@ const AllianceModelScript := preload("res://scripts/model/AllianceModel.gd")
 
 const FontCinzelBold = preload("res://assets/fonts/Cinzel-Bold.ttf")
 const FontNunitoBold = preload("res://assets/fonts/Nunito-Bold.ttf")
+const IconAllianceShield = preload("res://assets/sprites/ui/nano_banana/sharp_icon_alliance_shield.tres")
+const TexRoyalBtnBg = preload("res://assets/sprites/ui/nano_banana/sharp_ui_royal_btn_bg.tres")
 
 const ROW_H := 92.0
 const MEDAL_COLORS := [
@@ -13,6 +15,7 @@ const MEDAL_COLORS := [
 	Color(0.80, 0.50, 0.25), # 3. Bronz
 ]
 
+@onready var ranking_scroll: ScrollContainer = $Container/Scroll
 @onready var ranking_list: VBoxContainer = $Container/Scroll/List
 @onready var btn_alliance: Button = $Header/HBox/BtnAlliance if has_node("Header/HBox/BtnAlliance") else null
 @onready var btn_tab_players: Button = $Tabs/BtnTabPlayers if has_node("Tabs/BtnTabPlayers") else null
@@ -21,9 +24,17 @@ const MEDAL_COLORS := [
 
 var _current_tab: String = "players" # "players" | "alliances"
 var _summary_label: Label = null
+var _last_rank_sig: String = ""
 
 
 func _ready() -> void:
+	if ranking_scroll != null:
+		ranking_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+		ranking_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
+		ranking_scroll.scroll_deadzone = 12
+		ranking_scroll.follow_focus = false
+	if ranking_list != null:
+		ranking_list.mouse_filter = Control.MOUSE_FILTER_PASS
 	_sync_top_bar_layout()
 	if not resized.is_connected(_sync_top_bar_layout):
 		resized.connect(_sync_top_bar_layout)
@@ -43,7 +54,7 @@ func _ready() -> void:
 		bus.state_changed.connect(_populate_rankings)
 
 	_update_tab_styles()
-	_populate_rankings()
+	_populate_rankings(true)
 
 
 func _sync_top_bar_layout() -> void:
@@ -73,23 +84,34 @@ func _sync_top_bar_layout() -> void:
 func _style_header_alliance_btn() -> void:
 	if btn_alliance == null:
 		return
-	var sb := StyleBoxFlat.new()
-	sb.bg_color = Color(0.14, 0.18, 0.26, 0.96)
-	sb.border_color = Color(0.85, 0.72, 0.42, 0.95)
-	sb.set_border_width_all(2)
-	sb.set_corner_radius_all(12)
-	sb.content_margin_left = 14
-	sb.content_margin_right = 14
-	btn_alliance.add_theme_stylebox_override("normal", sb)
-	var h_sb := sb.duplicate() as StyleBoxFlat
-	h_sb.bg_color = Color(0.22, 0.28, 0.40, 1.0)
-	btn_alliance.add_theme_stylebox_override("hover", h_sb)
-	btn_alliance.add_theme_stylebox_override("pressed", h_sb)
-	btn_alliance.add_theme_font_override("font", FontNunitoBold)
-	btn_alliance.add_theme_color_override("font_color", Color(1.0, 0.92, 0.70))
-	btn_alliance.pressed.connect(func():
-		get_tree().change_scene_to_file("res://scenes/Alliance.tscn")
-	)
+	var st := StyleBoxTexture.new()
+	st.texture = TexRoyalBtnBg
+	st.texture_margin_left = 36
+	st.texture_margin_top = 18
+	st.texture_margin_right = 36
+	st.texture_margin_bottom = 18
+	st.content_margin_left = 14
+	st.content_margin_right = 14
+	st.content_margin_top = 6
+	st.content_margin_bottom = 6
+	st.modulate_color = Color(0.86, 0.94, 1.08, 1.0)
+	btn_alliance.add_theme_stylebox_override("normal", st)
+	var h_st := st.duplicate() as StyleBoxTexture
+	h_st.modulate_color = Color(1.06, 1.12, 1.24, 1.0)
+	btn_alliance.add_theme_stylebox_override("hover", h_st)
+	btn_alliance.add_theme_stylebox_override("pressed", h_st)
+	btn_alliance.icon = IconAllianceShield
+	btn_alliance.expand_icon = true
+	btn_alliance.add_theme_constant_override("icon_max_width", 28)
+	btn_alliance.add_theme_font_override("font", FontCinzelBold)
+	btn_alliance.add_theme_font_size_override("font_size", 19)
+	btn_alliance.add_theme_color_override("font_color", Color(1.0, 0.93, 0.70))
+	if not btn_alliance.pressed.is_connected(_on_header_alliance_pressed):
+		btn_alliance.pressed.connect(_on_header_alliance_pressed)
+
+
+func _on_header_alliance_pressed() -> void:
+	get_tree().change_scene_to_file("res://scenes/Alliance.tscn")
 
 
 func _setup_summary_banner() -> void:
@@ -119,7 +141,9 @@ func _setup_summary_banner() -> void:
 func _switch_tab(tab_name: String) -> void:
 	_current_tab = tab_name
 	_update_tab_styles()
-	_populate_rankings()
+	_populate_rankings(true)
+	if ranking_scroll != null:
+		ranking_scroll.scroll_vertical = 0
 
 
 func _update_tab_styles() -> void:
@@ -246,23 +270,49 @@ static func compute_alliance_rankings(state: Dictionary) -> Array[Dictionary]:
 	return rows
 
 
-func _populate_rankings() -> void:
+func _compute_rank_sig(state: Dictionary, player_name: String) -> String:
+	var parts: Array[String] = [_current_tab, player_name]
+	if _current_tab == "alliances":
+		var rows := compute_alliance_rankings(state)
+		parts.append(str(rows.size()))
+		for i in range(mini(rows.size(), 200)):
+			var a := rows[i]
+			parts.append("%d:%d:%d" % [int(a.get("id", 0)), int(a.get("total_power", 0)), int(a.get("member_count", 0))])
+	else:
+		var entries := compute_player_rankings(state)
+		parts.append(str(entries.size()))
+		for i in range(mini(entries.size(), 200)):
+			var e := entries[i]
+			parts.append("%s:%d:%d" % [str(e.get("owner", "")), int(e.get("points", 0)), int(e.get("village_count", 0))])
+	return "|".join(parts)
+
+
+func _populate_rankings(force: bool = false) -> void:
 	if ranking_list == null:
 		return
 	var gs = Engine.get_main_loop().root.get_node_or_null("GameState") if Engine.get_main_loop() is SceneTree else null
 	if gs == null:
 		return
 
-	for child in ranking_list.get_children():
-		child.queue_free()
-
 	var state: Dictionary = gs.to_dict()
 	var player_name := str(gs.player.get("name", "")).strip_edges()
+	var sig := _compute_rank_sig(state, player_name)
+	if not force and sig == _last_rank_sig and ranking_list.get_child_count() > 0:
+		return
+	_last_rank_sig = sig
+
+	var prev_scroll := ranking_scroll.scroll_vertical if ranking_scroll != null else 0
+	for child in ranking_list.get_children():
+		ranking_list.remove_child(child)
+		child.queue_free()
 
 	if _current_tab == "alliances":
 		_populate_alliance_tab(state, player_name)
 	else:
 		_populate_player_tab(state, player_name)
+
+	if ranking_scroll != null and not force and prev_scroll > 0:
+		ranking_scroll.set_deferred("scroll_vertical", prev_scroll)
 
 
 func _populate_player_tab(state: Dictionary, player_name: String) -> void:
@@ -279,7 +329,7 @@ func _populate_player_tab(state: Dictionary, player_name: String) -> void:
 			my_rank = i + 1
 			my_pts = int(entry.get("points", 0))
 			my_vills = int(entry.get("village_count", 0))
-		if i < 60:
+		if i < 200:
 			ranking_list.add_child(_make_player_row(i + 1, entry, is_me))
 
 	if _summary_label != null:
@@ -304,7 +354,7 @@ func _populate_alliance_tab(state: Dictionary, player_name: String) -> void:
 		if is_mine:
 			my_rank = i + 1
 			my_power = int(a_row.get("total_power", 0))
-		if i < 60:
+		if i < 200:
 			ranking_list.add_child(_make_alliance_row(i + 1, a_row, is_mine))
 
 	if rows.is_empty():
@@ -324,6 +374,7 @@ func _populate_alliance_tab(state: Dictionary, player_name: String) -> void:
 func _build_row_card(rank: int, highlight: bool) -> Dictionary:
 	var card := PanelContainer.new()
 	card.custom_minimum_size = Vector2(0, ROW_H)
+	card.mouse_filter = Control.MOUSE_FILTER_PASS
 	var sb := StyleBoxFlat.new()
 	if highlight:
 		sb.bg_color = Color(0.24, 0.19, 0.10, 0.98)
@@ -342,12 +393,14 @@ func _build_row_card(rank: int, highlight: bool) -> Dictionary:
 	card.add_theme_stylebox_override("panel", sb)
 
 	var row := HBoxContainer.new()
+	row.mouse_filter = Control.MOUSE_FILTER_PASS
 	row.add_theme_constant_override("separation", 16)
 	card.add_child(row)
 
 	var badge := PanelContainer.new()
 	badge.custom_minimum_size = Vector2(64, 64)
 	badge.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	badge.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var bsb := StyleBoxFlat.new()
 	if rank <= 3:
 		var m_col: Color = MEDAL_COLORS[rank - 1]
@@ -362,6 +415,7 @@ func _build_row_card(rank: int, highlight: bool) -> Dictionary:
 
 	var badge_lbl := Label.new()
 	badge_lbl.text = "%d" % rank
+	badge_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	badge_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	badge_lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	badge_lbl.add_theme_font_override("font", FontCinzelBold)
@@ -381,6 +435,7 @@ func _make_player_row(rank: int, entry: Dictionary, is_player: bool) -> PanelCon
 	var info := VBoxContainer.new()
 	info.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	info.alignment = BoxContainer.ALIGNMENT_CENTER
+	info.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	info.add_theme_constant_override("separation", 2)
 
 	var owner := str(entry.get("owner", "Hükümdar"))
@@ -390,6 +445,7 @@ func _make_player_row(rank: int, entry: Dictionary, is_player: bool) -> PanelCon
 	var pts := int(entry.get("points", 0))
 
 	var title_lbl := Label.new()
+	title_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	title_lbl.text = ("%s  [%s]" % [owner, tag]) if not tag.is_empty() else owner
 	if is_player:
 		title_lbl.text += "  ★"
@@ -399,6 +455,7 @@ func _make_player_row(rank: int, entry: Dictionary, is_player: bool) -> PanelCon
 	info.add_child(title_lbl)
 
 	var sub_lbl := Label.new()
+	sub_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	sub_lbl.text = "🏰 %s (%d|%d)  •  %d Köy" % [
 		str(v_top.get("name", "Köy")),
 		int(v_top.get("x", 0)),
@@ -413,7 +470,9 @@ func _make_player_row(rank: int, entry: Dictionary, is_player: bool) -> PanelCon
 
 	var pts_box := VBoxContainer.new()
 	pts_box.alignment = BoxContainer.ALIGNMENT_CENTER
+	pts_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var pts_lbl := Label.new()
+	pts_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	pts_lbl.text = "%d P" % pts
 	pts_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	pts_lbl.add_theme_font_override("font", FontCinzelBold)
@@ -422,6 +481,7 @@ func _make_player_row(rank: int, entry: Dictionary, is_player: bool) -> PanelCon
 	pts_box.add_child(pts_lbl)
 	if is_player:
 		var you := Label.new()
+		you.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		you.text = "SENİN KRALLIĞIN"
 		you.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 		you.add_theme_font_override("font", FontNunitoBold)
@@ -441,9 +501,11 @@ func _make_alliance_row(rank: int, a_row: Dictionary, is_mine: bool) -> PanelCon
 	var info := VBoxContainer.new()
 	info.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	info.alignment = BoxContainer.ALIGNMENT_CENTER
+	info.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	info.add_theme_constant_override("separation", 2)
 
 	var title_lbl := Label.new()
+	title_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	title_lbl.text = "[%s] %s" % [str(a_row.get("tag", "")), str(a_row.get("name", "İttifak"))]
 	if is_mine:
 		title_lbl.text += "  ★"
@@ -453,6 +515,7 @@ func _make_alliance_row(rank: int, a_row: Dictionary, is_mine: bool) -> PanelCon
 	info.add_child(title_lbl)
 
 	var sub_lbl := Label.new()
+	sub_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	sub_lbl.text = "👥 %d Üye  •  🏰 %d Köy  •  Lider: %s" % [
 		int(a_row.get("member_count", 0)),
 		int(a_row.get("village_count", 0)),
@@ -466,7 +529,9 @@ func _make_alliance_row(rank: int, a_row: Dictionary, is_mine: bool) -> PanelCon
 
 	var pts_box := VBoxContainer.new()
 	pts_box.alignment = BoxContainer.ALIGNMENT_CENTER
+	pts_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var pts_lbl := Label.new()
+	pts_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	pts_lbl.text = "%d P" % int(a_row.get("total_power", 0))
 	pts_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	pts_lbl.add_theme_font_override("font", FontCinzelBold)
@@ -475,6 +540,7 @@ func _make_alliance_row(rank: int, a_row: Dictionary, is_mine: bool) -> PanelCon
 	pts_box.add_child(pts_lbl)
 
 	var sub_pow := Label.new()
+	sub_pow.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	sub_pow.text = "TOPLAM GÜÇ"
 	sub_pow.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	sub_pow.add_theme_font_override("font", FontNunitoBold)
@@ -488,6 +554,7 @@ func _make_alliance_row(rank: int, a_row: Dictionary, is_mine: bool) -> PanelCon
 
 func _make_empty_alliance_card() -> PanelContainer:
 	var card := PanelContainer.new()
+	card.mouse_filter = Control.MOUSE_FILTER_PASS
 	var sb := StyleBoxFlat.new()
 	sb.bg_color = Color(0.11, 0.10, 0.15, 0.95)
 	sb.border_color = Color(0.75, 0.62, 0.32, 0.80)

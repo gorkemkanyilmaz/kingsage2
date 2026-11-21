@@ -7,7 +7,11 @@ signal closed()
 const MovementScript := preload("res://scripts/sim/actions/Movement.gd")
 const RulesEngineScript := preload("res://scripts/rules/RulesEngine.gd")
 const TravelScript := preload("res://scripts/world/Travel.gd")
+const ProtectionScript := preload("res://scripts/sim/actions/Protection.gd")
 const FontNunitoBold := preload("res://assets/fonts/Nunito-Bold.ttf")
+const FontCinzelBold := preload("res://assets/fonts/Cinzel-Bold.ttf")
+const TexVizier := preload("res://assets/sprites/ui/tutorial/vizier_portrait.png")
+const TexRoyalSeal := preload("res://assets/sprites/ui/tutorial/royal_decree_seal.png")
 
 var _from_village: Dictionary = {}
 var _to_village: Dictionary = {}
@@ -16,6 +20,7 @@ var _resource_inputs: Dictionary = {}
 var _current_tab: String = "troops" # "troops" | "trade"
 var _btn_switch_to_village: Button = null
 var btn_support: Button = null
+var _protection_modal: CanvasLayer = null
 
 @onready var title_label: Label = $VBox/Header/TitleLabel
 @onready var close_btn: Button = $VBox/Header/CloseButton
@@ -619,7 +624,208 @@ func _refresh_trade_mode(state: Dictionary, from_x: int, from_y: int, to_x: int,
 		btn_trade.disabled = false
 
 
-func _dispatch(type: String) -> void:
+func _collect_selected_units() -> Dictionary:
+	var selected_units: Dictionary = {}
+	for u_key in _unit_inputs.keys():
+		var count: int = int(_unit_inputs[u_key].value)
+		if count > 0:
+			selected_units[u_key] = count
+	return selected_units
+
+
+func _sum_units_dict(u_dict: Dictionary) -> int:
+	var tot := 0
+	for k in u_dict.keys():
+		tot += int(u_dict[k])
+	return tot
+
+
+func _attacker_protection_until() -> int:
+	return maxi(int(_from_village.get("protection_until", 0)), int(_from_village.get("protection_until_unix", 0)))
+
+
+func will_drop_attacker_protection(type: String, selected_units: Dictionary, now: int) -> bool:
+	if type != MovementScript.TYPE_ATTACK and type != MovementScript.TYPE_RAID:
+		return false
+	var tot := _sum_units_dict(selected_units)
+	if tot <= 0 or int(selected_units.get("spy", 0)) == tot:
+		return false
+	if ProtectionScript.is_unprotected_kind(_from_village):
+		return false
+	if _attacker_protection_until() <= now:
+		return false
+	if ProtectionScript.is_unprotected_kind(_to_village):
+		return false
+	return true
+
+
+func _fmt_shield_duration(secs: int) -> String:
+	var s := maxi(0, secs)
+	var days := s / 86400
+	var hrs := (s % 86400) / 3600
+	var mins := (s % 3600) / 60
+	if days > 0:
+		return "%d gün %d sa" % [days, hrs]
+	if hrs > 0:
+		return "%d sa %d dk" % [hrs, mins]
+	return "%d dk" % maxi(1, mins)
+
+
+func _show_vizier_protection_warning(attack_type: String, remaining_secs: int) -> void:
+	if is_instance_valid(_protection_modal):
+		_protection_modal.queue_free()
+	var loop := Engine.get_main_loop()
+	var host: Node = null
+	if loop is SceneTree:
+		host = (loop as SceneTree).current_scene if (loop as SceneTree).current_scene != null else (loop as SceneTree).root
+	if host == null:
+		host = self
+
+	var layer := CanvasLayer.new()
+	layer.name = "VizierProtectionWarningModal"
+	layer.layer = 170
+	_protection_modal = layer
+	host.add_child(layer)
+
+	var root_ctrl := Control.new()
+	root_ctrl.set_anchors_preset(Control.PRESET_FULL_RECT)
+	root_ctrl.mouse_filter = Control.MOUSE_FILTER_STOP
+	layer.add_child(root_ctrl)
+
+	var dim := ColorRect.new()
+	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
+	dim.color = Color(0.03, 0.02, 0.05, 0.84)
+	dim.mouse_filter = Control.MOUSE_FILTER_STOP
+	root_ctrl.add_child(dim)
+
+	var center := CenterContainer.new()
+	center.set_anchors_preset(Control.PRESET_FULL_RECT)
+	root_ctrl.add_child(center)
+
+	var card := PanelContainer.new()
+	card.name = "VizierProtectionCard"
+	card.custom_minimum_size = Vector2(780, 0)
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color(0.11, 0.08, 0.12, 0.99)
+	sb.border_color = Color(0.95, 0.68, 0.24, 1.0)
+	sb.set_border_width_all(3)
+	sb.border_width_top = 6
+	sb.set_corner_radius_all(20)
+	sb.set_content_margin_all(24)
+	sb.shadow_color = Color(0, 0, 0, 0.80)
+	sb.shadow_size = 20
+	card.add_theme_stylebox_override("panel", sb)
+	center.add_child(card)
+
+	var vb := VBoxContainer.new()
+	vb.add_theme_constant_override("separation", 16)
+	card.add_child(vb)
+
+	var hdr := HBoxContainer.new()
+	hdr.add_theme_constant_override("separation", 12)
+	vb.add_child(hdr)
+
+	var seal := TextureRect.new()
+	seal.texture = TexRoyalSeal
+	seal.custom_minimum_size = Vector2(46, 46)
+	seal.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	seal.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	hdr.add_child(seal)
+
+	var title := Label.new()
+	title.text = "BAŞ VEZİR UYARISI • KORUMA KALKANI"
+	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	title.add_theme_font_override("font", FontCinzelBold)
+	title.add_theme_font_size_override("font_size", 26)
+	title.add_theme_color_override("font_color", Color(1.0, 0.84, 0.36))
+	hdr.add_child(title)
+
+	var body_hb := HBoxContainer.new()
+	body_hb.add_theme_constant_override("separation", 18)
+	vb.add_child(body_hb)
+
+	var portrait_frame := PanelContainer.new()
+	portrait_frame.custom_minimum_size = Vector2(132, 132)
+	portrait_frame.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	var pf_sb := StyleBoxFlat.new()
+	pf_sb.bg_color = Color(0.08, 0.06, 0.10, 1.0)
+	pf_sb.border_color = Color(0.92, 0.74, 0.32, 0.98)
+	pf_sb.set_border_width_all(3)
+	pf_sb.set_corner_radius_all(16)
+	pf_sb.set_content_margin_all(4)
+	portrait_frame.add_theme_stylebox_override("panel", pf_sb)
+	body_hb.add_child(portrait_frame)
+
+	var portrait := TextureRect.new()
+	portrait.texture = TexVizier
+	portrait.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	portrait.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+	portrait_frame.add_child(portrait)
+
+	var msg_lbl := RichTextLabel.new()
+	msg_lbl.bbcode_enabled = true
+	msg_lbl.fit_content = true
+	msg_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	msg_lbl.custom_minimum_size = Vector2(540, 120)
+	msg_lbl.add_theme_font_override("normal_font", FontNunitoBold)
+	msg_lbl.add_theme_font_override("bold_font", FontNunitoBold)
+	msg_lbl.add_theme_font_size_override("normal_font_size", 21)
+	msg_lbl.add_theme_font_size_override("bold_font_size", 21)
+	msg_lbl.add_theme_color_override("default_color", Color(0.96, 0.93, 0.86))
+	msg_lbl.text = "[b][color=#FFD86B]Lordum,[/color][/b] köyünüz şu anda [color=#66EE88]Yeni Oyuncu Koruma Kalkanı[/color] altındadır (Kalan: [b]%s[/b]).\n\n[color=#FF8877]Bu saldırıyı gerçekleştirirseniz üzerindeki koruma kalkanı kaldırılacaktır[/color] ve diğer oyuncular köyünüze saldırabilecektir!\n\nYine de seferi başlatmak istiyor musunuz?" % _fmt_shield_duration(remaining_secs)
+	body_hb.add_child(msg_lbl)
+
+	var btn_hb := HBoxContainer.new()
+	btn_hb.add_theme_constant_override("separation", 14)
+	vb.add_child(btn_hb)
+
+	var btn_cancel := Button.new()
+	btn_cancel.name = "BtnCancelProtectionWarning"
+	btn_cancel.text = "🛡️ Vazgeç (Kalkanı Koru)"
+	btn_cancel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	btn_cancel.custom_minimum_size = Vector2(0, 60)
+	btn_cancel.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	btn_cancel.add_theme_font_override("font", FontNunitoBold)
+	btn_cancel.add_theme_font_size_override("font_size", 21)
+	var bc_sb := StyleBoxFlat.new()
+	bc_sb.bg_color = Color(0.16, 0.34, 0.24, 0.98)
+	bc_sb.border_color = Color(0.50, 0.90, 0.60, 1.0)
+	bc_sb.set_border_width_all(2)
+	bc_sb.set_corner_radius_all(12)
+	btn_cancel.add_theme_stylebox_override("normal", bc_sb)
+	btn_cancel.add_theme_stylebox_override("hover", bc_sb)
+	btn_cancel.add_theme_color_override("font_color", Color(0.96, 1.0, 0.96))
+	btn_cancel.pressed.connect(func():
+		if is_instance_valid(layer):
+			layer.queue_free()
+	)
+	btn_hb.add_child(btn_cancel)
+
+	var btn_confirm := Button.new()
+	btn_confirm.name = "BtnConfirmProtectionWarning"
+	btn_confirm.text = "⚔️ Kalkanı Kaldır ve Saldır"
+	btn_confirm.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	btn_confirm.custom_minimum_size = Vector2(0, 60)
+	btn_confirm.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	btn_confirm.add_theme_font_override("font", FontNunitoBold)
+	btn_confirm.add_theme_font_size_override("font_size", 21)
+	var ba_sb := StyleBoxFlat.new()
+	ba_sb.bg_color = Color(0.58, 0.16, 0.16, 0.98)
+	ba_sb.border_color = Color(0.98, 0.72, 0.36, 1.0)
+	ba_sb.set_border_width_all(2)
+	ba_sb.set_corner_radius_all(12)
+	btn_confirm.add_theme_stylebox_override("normal", ba_sb)
+	btn_confirm.add_theme_stylebox_override("hover", ba_sb)
+	btn_confirm.add_theme_color_override("font_color", Color(1.0, 0.95, 0.90))
+	btn_confirm.pressed.connect(func():
+		if is_instance_valid(layer):
+			layer.queue_free()
+		_dispatch(attack_type, true)
+	)
+	btn_hb.add_child(btn_confirm)
+
+
+func _dispatch(type: String, protection_confirmed: bool = false) -> void:
 	var gs = Engine.get_main_loop().root.get_node_or_null("GameState") if Engine.get_main_loop() is SceneTree else null
 	var state: Dictionary = gs.to_dict() if gs != null else {}
 	var now := _effective_now(state)
@@ -633,32 +839,24 @@ func _dispatch(type: String) -> void:
 				carry[r_key] = val
 		res = MovementScript.send_trade(state, int(_from_village["id"]), int(_to_village["id"]), carry, now)
 	elif type == MovementScript.TYPE_RAID:
-		var selected_units: Dictionary = {}
-		for u_key in _unit_inputs.keys():
-			var count: int = int(_unit_inputs[u_key].value)
-			if count > 0:
-				selected_units[u_key] = count
+		var selected_units := _collect_selected_units()
+		if not protection_confirmed and will_drop_attacker_protection(type, selected_units, now):
+			_show_vizier_protection_warning(type, _attacker_protection_until() - now)
+			return
 		res = MovementScript.send_raid(state, int(_from_village["id"]), int(_to_village["id"]), selected_units, now)
 	elif type == MovementScript.TYPE_SUPPORT:
-		var selected_units: Dictionary = {}
-		for u_key in _unit_inputs.keys():
-			var count: int = int(_unit_inputs[u_key].value)
-			if count > 0:
-				selected_units[u_key] = count
+		var selected_units := _collect_selected_units()
 		res = MovementScript.send_support(state, int(_from_village["id"]), int(_to_village["id"]), selected_units, now)
 	else:
-		var selected_units: Dictionary = {}
-		var total_selected := 0
-		for u_key in _unit_inputs.keys():
-			var count: int = int(_unit_inputs[u_key].value)
-			if count > 0:
-				selected_units[u_key] = count
-				total_selected += count
-
+		var selected_units := _collect_selected_units()
+		var total_selected := _sum_units_dict(selected_units)
 		var is_only_spies: bool = total_selected > 0 and int(selected_units.get("spy", 0)) == total_selected
 		if is_only_spies:
 			res = MovementScript.send_spy(state, int(_from_village["id"]), int(_to_village["id"]), selected_units, now)
 		else:
+			if not protection_confirmed and will_drop_attacker_protection(MovementScript.TYPE_ATTACK, selected_units, now):
+				_show_vizier_protection_warning(MovementScript.TYPE_ATTACK, _attacker_protection_until() - now)
+				return
 			res = MovementScript.send_attack(state, int(_from_village["id"]), int(_to_village["id"]), selected_units, now)
 
 	if bool(res.get("ok", false)) and gs != null:

@@ -94,24 +94,49 @@ func _update_report_badge() -> void:
 			if typeof(v) == TYPE_DICTIONARY and str((v as Dictionary).get("owner", "")) == player_name:
 				player_vids.append(int((v as Dictionary).get("id", -1)))
 
+	var del_sigs := {}
+	var read_sigs := {}
+	if typeof(gs.player) == TYPE_DICTIONARY:
+		var p_dict: Dictionary = gs.player
+		if typeof(p_dict.get("deleted_report_sigs")) == TYPE_ARRAY:
+			for s in (p_dict["deleted_report_sigs"] as Array):
+				del_sigs[str(s)] = true
+		if typeof(p_dict.get("read_report_sigs")) == TYPE_ARRAY:
+			for s in (p_dict["read_report_sigs"] as Array):
+				read_sigs[str(s)] = true
+
+	var seen_sigs := {}
+	var pname_l := player_name.strip_edges().to_lower()
 	var unread := 0
 	if "reports" in gs and gs.reports is Array:
 		for rep in gs.reports:
-			if typeof(rep) == TYPE_DICTIONARY and bool((rep as Dictionary).get("unread", false)):
-				var r := rep as Dictionary
-				var vid := int(r.get("village_id", -1))
-				var rdata = r.get("data", {})
-				var a_owner := ""
-				var d_owner := ""
-				var f_vid := -1
-				var t_vid := -1
-				if typeof(rdata) == TYPE_DICTIONARY:
-					a_owner = str(rdata.get("attacker_name", rdata.get("attacker_owner", "")))
-					d_owner = str(rdata.get("defender_name", ""))
-					f_vid = int(rdata.get("from_village_id", -1))
-					t_vid = int(rdata.get("target_village_id", -1))
-				if vid in player_vids or f_vid in player_vids or t_vid in player_vids or a_owner == player_name or d_owner == player_name:
-					unread += 1
+			if typeof(rep) != TYPE_DICTIONARY:
+				continue
+			var r := rep as Dictionary
+			if not bool(r.get("unread", false)):
+				continue
+			var rtype := str(r.get("type", "battle"))
+			var vid := int(r.get("village_id", -1))
+			var rdata: Dictionary = r.get("data", {}) if typeof(r.get("data")) == TYPE_DICTIONARY else {}
+			var a_owner := str(rdata.get("attacker_name", rdata.get("attacker_owner", ""))).strip_edges()
+			var d_owner := str(rdata.get("defender_name", "")).strip_edges()
+			var f_vid := int(rdata.get("from_village_id", -1))
+			var t_vid := int(rdata.get("target_village_id", -1))
+			var sig := "%s:%d:%d:%d:%d" % [rtype, vid, int(r.get("unix", r.get("created_unix", 0))), t_vid, f_vid]
+			if del_sigs.has(sig) or read_sigs.has(sig) or seen_sigs.has(sig):
+				continue
+			var is_att := (f_vid in player_vids) or (not pname_l.is_empty() and a_owner.to_lower() == pname_l)
+			var is_def := (t_vid in player_vids) or (not pname_l.is_empty() and d_owner.to_lower() == pname_l)
+			var belongs := false
+			if rtype == "spy_incoming":
+				belongs = (not is_att) and ((vid in player_vids) or is_def)
+			elif rtype == "spy":
+				belongs = (vid in player_vids) or is_att
+			else:
+				belongs = (vid in player_vids) or is_att or is_def
+			if belongs:
+				seen_sigs[sig] = true
+				unread += 1
 
 	if report_badge != null:
 		report_badge.visible = (unread > 0)

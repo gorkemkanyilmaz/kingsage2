@@ -38,7 +38,7 @@ func _initialize() -> void:
 	var sm = root.get_node_or_null("SaveManager")
 	if sm != null and sm.has_method("delete_save"):
 		sm.delete_save()
-	quit()
+	quit(1 if _fail_count > 0 else 0)
 
 
 func _assert_true(cond: bool, msg: String) -> void:
@@ -165,9 +165,19 @@ func _run_all_tests() -> void:
 	var wood_lbl: Label = rbar.wood_label if rbar.wood_label != null else rbar.get_node_or_null("VBox/BottomRow/WoodPill/WoodLabel")
 	var stone_lbl: Label = rbar.stone_label if rbar.stone_label != null else rbar.get_node_or_null("VBox/BottomRow/StonePill/StoneLabel")
 	var iron_lbl: Label = rbar.iron_label if rbar.iron_label != null else rbar.get_node_or_null("VBox/BottomRow/IronPill/IronLabel")
+	var storage_lbl: Label = rbar.find_child("StorageLabel", true, false) as Label
+	var res_row := rbar.find_child("ResourcesRow", true, false) as HBoxContainer
+	var points_box := rbar.find_child("PointsBox", true, false) as Control
 	_assert_true(wood_lbl != null and wood_lbl.text == "1000", "ResourceBar odun başlangıç değeri 1000")
 	_assert_true(stone_lbl != null and stone_lbl.text == "1000", "ResourceBar taş başlangıç değeri 1000")
 	_assert_true(iron_lbl != null and iron_lbl.text == "1000", "ResourceBar demir başlangıç değeri 1000")
+	_assert_true(storage_lbl != null and storage_lbl.text == "1000", "ResourceBar depo başlangıç değeri 1000")
+	_assert_true(points_box != null and points_box.visible, "ResourceBar Lord puanı görünür")
+	if res_row != null and res_row.get_child_count() >= 5:
+		_assert_true(
+			res_row.get_child(0).name == "WoodBox" and res_row.get_child(1).name == "StoneBox" and res_row.get_child(2).name == "IronBox" and res_row.get_child(3).name == "StorageBox" and res_row.get_child(4).name == "CitizensBox",
+			"ResourcesRow sırası Odun->Taş->Demir->Depo->Nüfus"
+		)
 
 	print("\n--- Test 2: Bina Seçimi ve BuildingPanel Açılışı (Oduncu Kampı) ---")
 	village_inst._on_building_selected("wood")

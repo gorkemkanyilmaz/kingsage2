@@ -534,6 +534,26 @@ func _run_all_quests_for_player(p_name: String, gs: Node, wm: Node, qm: Node) ->
 			"spy_prereq":
 				_ensure_building_level(gs, wm, cap_vid, "barracks", 4)
 				_ensure_research(gs, wm, cap_vid, "spy")
+			"res_all_level":
+				var rl := int(q.get("req_level", 6))
+				_ensure_building_level(gs, wm, cap_vid, "wood", rl)
+				_ensure_building_level(gs, wm, cap_vid, "stone", rl)
+				_ensure_building_level(gs, wm, cap_vid, "iron", rl)
+			"unit_prereq":
+				var req_b := maxi(1, int(q.get("req_barracks", 1)))
+				_ensure_building_level(gs, wm, cap_vid, "barracks", req_b)
+				_ensure_research(gs, wm, cap_vid, str(q.get("unit_key", "")))
+			"in_alliance":
+				var st_tmp: Dictionary = gs.to_dict()
+				var c_tmp := AllianceModel.create_alliance(st_tmp, p_name, "Tmp_" + p_name, p_name.left(3).to_upper(), "Test")
+				_check(bool(c_tmp.get("ok", false)), "%s geçici ittifak görevi tamamlandı" % p_name)
+				gs.from_dict(st_tmp)
+			"wall_farm_mid":
+				_ensure_building_level(gs, wm, cap_vid, "wall", 5)
+				_ensure_building_level(gs, wm, cap_vid, "farm", 8)
+			"storage_farm_12":
+				_ensure_building_level(gs, wm, cap_vid, "storage", 12)
+				_ensure_building_level(gs, wm, cap_vid, "farm", 12)
 			"unit_researched":
 				_ensure_research(gs, wm, cap_vid, str(q.get("unit_key", "")))
 			"unit_count_peak":
@@ -618,6 +638,10 @@ func _run_all_quests_for_player(p_name: String, gs: Node, wm: Node, qm: Node) ->
 		_check(bool(prog.get("completed", false)), "%s görev tamamlandı: %s (%d/%d)" % [p_name, qid, int(prog.get("current", 0)), int(prog.get("target", 1))])
 		_check(qm.claim_quest(qid, gs), "%s görev ödülü alındı: %s" % [p_name, qid])
 		qm.close_quest_modal()
+		if c_type == "in_alliance":
+			var st_lv: Dictionary = gs.to_dict()
+			AllianceModel.leave_alliance(st_lv, p_name)
+			gs.from_dict(st_lv)
 
 	var claimed_final: Array = gs.player.get("quests", {}).get("claimed", [])
 	_check(claimed_final.size() == q_list.size(), "%s TÜM %d GÖREV TAMAMLANDI (%d/%d)" % [p_name, q_list.size(), claimed_final.size(), q_list.size()])
@@ -807,6 +831,12 @@ func _run_full_playthrough() -> void:
 	var mv_before_raid: int = gs.movements.size()
 	stp.btn_attack.emit_signal("pressed")
 	await _tick(2)
+	var prot_modal := root.find_child("VizierProtectionWarningModal", true, false)
+	if prot_modal != null and is_instance_valid(prot_modal):
+		var confirm_btn := prot_modal.find_child("BtnConfirmProtectionWarning", true, false) as BaseButton
+		if confirm_btn != null:
+			confirm_btn.emit_signal("pressed")
+			await _tick(2)
 	_check(gs.movements.size() == mv_before_raid + 1, "UI: Saldır butonu seferi gerçekten başlattı")
 
 	stp.queue_free()

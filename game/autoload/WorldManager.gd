@@ -1285,18 +1285,27 @@ func _merge_shared_world_data(local_w: Dictionary, cloud_w: Dictionary, p_name: 
 	var l_movements: Array = l_state.get("movements", []) if typeof(l_state.get("movements")) == TYPE_ARRAY else []
 	m_state["movements"] = _merge_player_and_remote_movements(l_movements, c_movements, p_name, local_vids)
 
-	# Yerel yeni raporları koru
+	# Yerel yeni raporları koru ve okunma durumlarını senkronize et
+	var local_read_sigs: Dictionary = {}
+	if typeof(l_state.get("player")) == TYPE_DICTIONARY and typeof((l_state["player"] as Dictionary).get("read_report_sigs")) == TYPE_ARRAY:
+		for s in ((l_state["player"] as Dictionary)["read_report_sigs"] as Array):
+			local_read_sigs[str(s)] = true
 	if typeof(l_state.get("reports")) == TYPE_ARRAY and typeof(m_state.get("reports")) == TYPE_ARRAY:
 		var seen_r_ids: Dictionary = {}
 		var comb_reps: Array = []
 		for r in (m_state["reports"] as Array):
 			if typeof(r) == TYPE_DICTIONARY:
-				var r_key := "%s_%d_%d" % [str((r as Dictionary).get("type", "")), int((r as Dictionary).get("village_id", 0)), int((r as Dictionary).get("unix", (r as Dictionary).get("created_unix", 0)))]
-				seen_r_ids[r_key] = true
-				comb_reps.append(r)
+				var rd: Dictionary = (r as Dictionary).get("data", {}) if typeof((r as Dictionary).get("data")) == TYPE_DICTIONARY else {}
+				var r_key := "%s:%d:%d:%d:%d" % [str((r as Dictionary).get("type", "")), int((r as Dictionary).get("village_id", 0)), int((r as Dictionary).get("unix", (r as Dictionary).get("created_unix", 0))), int(rd.get("target_village_id", 0)), int(rd.get("from_village_id", 0))]
+				if not seen_r_ids.has(r_key):
+					seen_r_ids[r_key] = true
+					if local_read_sigs.has(r_key):
+						(r as Dictionary)["unread"] = false
+					comb_reps.append(r)
 		for lr in (l_state["reports"] as Array):
 			if typeof(lr) == TYPE_DICTIONARY:
-				var lr_key := "%s_%d_%d" % [str((lr as Dictionary).get("type", "")), int((lr as Dictionary).get("village_id", 0)), int((lr as Dictionary).get("unix", (lr as Dictionary).get("created_unix", 0)))]
+				var lrd: Dictionary = (lr as Dictionary).get("data", {}) if typeof((lr as Dictionary).get("data")) == TYPE_DICTIONARY else {}
+				var lr_key := "%s:%d:%d:%d:%d" % [str((lr as Dictionary).get("type", "")), int((lr as Dictionary).get("village_id", 0)), int((lr as Dictionary).get("unix", (lr as Dictionary).get("created_unix", 0))), int(lrd.get("target_village_id", 0)), int(lrd.get("from_village_id", 0))]
 				if not seen_r_ids.has(lr_key):
 					seen_r_ids[lr_key] = true
 					comb_reps.append((lr as Dictionary).duplicate(true))

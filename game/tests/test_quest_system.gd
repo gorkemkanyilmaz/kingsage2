@@ -227,14 +227,48 @@ func _run_tests() -> void:
 	var idx_axe_r := -1
 	var idx_axe_t := -1
 	var idx_raid := -1
+	var idx_stor5 := -1
+	var idx_mkt := -1
+	var idx_b5_bow := -1
+	var idx_axebow := -1
+	var idx_b7_light := -1
+	var idx_cav := -1
+	var idx_b20_ram := -1
+	var idx_siege := -1
+	var idx_gar5 := -1
+	var idx_snob := -1
+	var idx_ally := -1
 	for qi in range(qdefs.size()):
 		match str(qdefs[qi].get("id", "")):
 			"q_spy_mission": idx_spy = qi
 			"q_research_axe": idx_axe_r = qi
 			"q_train_axe_100": idx_axe_t = qi
 			"q_raid_mission": idx_raid = qi
+			"q_storage_5": idx_stor5 = qi
+			"q_unlock_market": idx_mkt = qi
+			"q_barracks_5_bow": idx_b5_bow = qi
+			"q_train_axe_bow": idx_axebow = qi
+			"q_barracks_7_light": idx_b7_light = qi
+			"q_train_cavalry": idx_cav = qi
+			"q_barracks_20_ram": idx_b20_ram = qi
+			"q_siege_weapons": idx_siege = qi
+			"q_garage_5": idx_gar5 = qi
+			"q_unlock_snob": idx_snob = qi
+			"q_join_or_create_alliance": idx_ally = qi
 	_check(idx_axe_r > idx_spy and idx_axe_t > idx_axe_r and idx_raid > idx_axe_t, "Baltacı Araştır + 100 Baltacı Üret görevleri 'İlk Ganimet Seferi'nden ÖNCE geliyor")
+	_check(idx_stor5 >= 0 and idx_stor5 < idx_mkt, "Depo Sv.5 görevi Market açma görevinden ÖNCE geliyor")
+	_check(idx_b5_bow >= 0 and idx_b5_bow < idx_axebow, "Kışla Sv.5 & Okçu Araştır görevi Baltacı & Okçu eğitiminden ÖNCE geliyor")
+	_check(idx_b7_light >= 0 and idx_b7_light < idx_cav, "Kışla Sv.7 & Akıncı Araştır görevi Süvari eğitiminden ÖNCE geliyor")
+	_check(idx_b20_ram >= 0 and idx_b20_ram < idx_siege, "Kışla Sv.20 & Şahmerdan Araştır görevi Kuşatma üretiminden ÖNCE geliyor")
+	_check(idx_gar5 >= 0 and idx_gar5 < idx_snob, "Simyager Sv.5 görevi Köşk açma görevinden ÖNCE geliyor")
+	_check(idx_ally >= 0, "İttifak kur/katıl görevi kampanyada tanımlı")
 	_check(int(qm.call("get_quest_progress", "q_train_axe_100")["target"]) == 100, "100 Baltacı görevi hedefi 100")
+
+	var AllianceMod := preload("res://scripts/model/AllianceModel.gd")
+	var st_al: Dictionary = gs.call("to_dict")
+	AllianceMod.create_alliance(st_al, str(gs.player.get("name", "TestLord")), "Test Birligi", "TST", "Aciklama")
+	gs.call("from_dict", st_al)
+	_check(bool(qm.call("get_quest_progress", "q_join_or_create_alliance")["completed"]), "İttifak kurulunca q_join_or_create_alliance tamamlanıyor")
 
 	active_v = gs.call("get_active_village")
 	active_v["buildings"]["wood"] = 1

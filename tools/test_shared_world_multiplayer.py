@@ -632,6 +632,20 @@ def test_scroll_wallet_persistence_and_resource_packs(client, tok):
     assert r_bad.status_code == 400, r_bad.text
     print("[PASS] Parsomen cuzdani kalici, use_scroll ve elmasla kaynak alma (buy_resources) dogrulandi!")
 
+    # Rapor okundu / silindi imzaları server merge_world_state ile korunmalı
+    st_rep = client.get("/api/game/state", headers=hdr).json()
+    cloud_w = copy.deepcopy(st_rep["cloud_state"])
+    cloud_w.setdefault("state", {}).setdefault("player", {})["read_report_sigs"] = ["spy:1:100:2:1"]
+    cloud_w["state"]["player"]["deleted_report_sigs"] = ["battle:1:200:3:1"]
+    r_rep_save = client.post("/api/game/save", headers=hdr, json=cloud_w)
+    assert r_rep_save.status_code == 200, r_rep_save.text
+    st_rep2 = client.get("/api/game/state", headers=hdr).json()["cloud_state"]
+    profs = st_rep2.get("state", {}).get("world", {}).get("player_profiles", {})
+    matched_prof = next((pv for pv in profs.values() if isinstance(pv, dict) and pv.get("read_report_sigs")), {})
+    assert "spy:1:100:2:1" in (matched_prof.get("read_report_sigs") or []), matched_prof
+    assert "battle:1:200:3:1" in (matched_prof.get("deleted_report_sigs") or []), matched_prof
+    print("[PASS] Rapor read_report_sigs ve deleted_report_sigs sunucu merge ile korundu!")
+
 
 if __name__ == "__main__":
     main()

@@ -5,6 +5,19 @@ const FontCinzelBold := preload("res://assets/fonts/Cinzel-Bold.ttf")
 const FontNunitoBold := preload("res://assets/fonts/Nunito-Bold.ttf")
 const FontNunitoSemiBold := preload("res://assets/fonts/Nunito-SemiBold.ttf")
 const GameLoopScript := preload("res://scripts/core/GameLoop.gd")
+const IconDiamond := preload("res://assets/sprites/ui/nano_banana/sharp_icon_diamond.tres")
+const IconScrollBuild := preload("res://assets/sprites/ui/nano_banana/sharp_scroll_build.tres")
+const IconScrollTrain := preload("res://assets/sprites/ui/nano_banana/sharp_scroll_train.tres")
+const IconScrollResearch := preload("res://assets/sprites/ui/nano_banana/sharp_scroll_research.tres")
+const IconScrollMarch := preload("res://assets/sprites/ui/nano_banana/sharp_scroll_march.tres")
+
+
+func _scroll_tex_for_cat(cat: String) -> Texture2D:
+	match cat:
+		"train": return IconScrollTrain
+		"research": return IconScrollResearch
+		"march": return IconScrollMarch
+	return IconScrollBuild
 
 const FALLBACK_SCROLLS: Array[Dictionary] = [
 	{"id": "build_10m", "category": "build", "seconds": 600, "cost_diamonds": 5, "name": "İnşaat 10 Dk"},
@@ -201,14 +214,22 @@ func _ensure_ui() -> void:
 
 	# Header
 	var hdr := HBoxContainer.new()
-	hdr.add_theme_constant_override("separation", 12)
+	hdr.add_theme_constant_override("separation", 10)
 	vb.add_child(hdr)
 
+	var hdr_icon := TextureRect.new()
+	hdr_icon.custom_minimum_size = Vector2(36, 36)
+	hdr_icon.texture = _scroll_tex_for_cat(_category)
+	hdr_icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	hdr_icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	hdr_icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	hdr.add_child(hdr_icon)
+
 	var title_lbl := Label.new()
-	title_lbl.text = "⚡ SÜRE HIZLANDIR"
+	title_lbl.text = "SÜRE HIZLANDIR"
 	title_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	title_lbl.add_theme_font_override("font", FontCinzelBold)
-	title_lbl.add_theme_font_size_override("font_size", 28)
+	title_lbl.add_theme_font_size_override("font_size", 26)
 	title_lbl.add_theme_color_override("font_color", Color(1.0, 0.92, 0.56))
 	title_lbl.add_theme_constant_override("outline_size", 0)
 	title_lbl.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0))
@@ -216,25 +237,36 @@ func _ensure_ui() -> void:
 
 	var dia_pill := PanelContainer.new()
 	var dp_sb := StyleBoxFlat.new()
-	dp_sb.bg_color = Color(0.12, 0.22, 0.42, 0.98)
+	dp_sb.bg_color = Color(0.10, 0.18, 0.34, 0.98)
 	dp_sb.border_color = Color(0.55, 0.85, 1.0, 0.95)
 	dp_sb.set_border_width_all(2)
 	dp_sb.set_corner_radius_all(12)
-	dp_sb.content_margin_left = 12
+	dp_sb.content_margin_left = 10
 	dp_sb.content_margin_right = 12
 	dp_sb.content_margin_top = 4
 	dp_sb.content_margin_bottom = 4
 	dia_pill.add_theme_stylebox_override("panel", dp_sb)
 	hdr.add_child(dia_pill)
 
+	var dp_hb := HBoxContainer.new()
+	dp_hb.add_theme_constant_override("separation", 6)
+	dia_pill.add_child(dp_hb)
+
+	var dp_ic := TextureRect.new()
+	dp_ic.custom_minimum_size = Vector2(22, 22)
+	dp_ic.texture = IconDiamond
+	dp_ic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	dp_ic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	dp_hb.add_child(dp_ic)
+
 	_diamond_lbl = Label.new()
-	_diamond_lbl.text = "💎 %d" % _get_diamonds()
+	_diamond_lbl.text = "%d" % _get_diamonds()
 	_diamond_lbl.add_theme_font_override("font", FontNunitoBold)
 	_diamond_lbl.add_theme_font_size_override("font_size", 21)
 	_diamond_lbl.add_theme_color_override("font_color", Color(0.92, 0.98, 1.0))
 	_diamond_lbl.add_theme_constant_override("outline_size", 0)
 	_diamond_lbl.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0))
-	dia_pill.add_child(_diamond_lbl)
+	dp_hb.add_child(_diamond_lbl)
 
 	# Target Info + Timer
 	var timer_card := PanelContainer.new()
@@ -343,7 +375,7 @@ func _refresh_all() -> void:
 	if not _ui_built:
 		return
 	if _diamond_lbl != null:
-		_diamond_lbl.text = "💎 %d" % _get_diamonds()
+		_diamond_lbl.text = "%d" % _get_diamonds()
 	if _task_title_lbl != null:
 		var def_title := "Aktif İşlem"
 		match _category:
@@ -449,13 +481,51 @@ func _populate_rows() -> void:
 		hb.add_theme_constant_override("separation", 12)
 		row_card.add_child(hb)
 
+		var tier_txt := "1 SA" if secs >= 3600 else ("%d DK" % (secs / 60))
+		var tier_col := Color(1.0, 0.86, 0.34) if secs >= 3600 else (Color(0.54, 0.88, 1.0) if secs >= 1800 else Color(0.68, 0.94, 0.64))
+		var ic_box := PanelContainer.new()
+		ic_box.custom_minimum_size = Vector2(64, 64)
+		ic_box.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		var ic_sb := StyleBoxFlat.new()
+		ic_sb.bg_color = Color(0.11, 0.09, 0.16, 0.98)
+		ic_sb.border_color = tier_col
+		ic_sb.set_border_width_all(2)
+		ic_sb.set_corner_radius_all(12)
+		ic_sb.set_content_margin_all(4)
+		ic_box.add_theme_stylebox_override("panel", ic_sb)
+		var ic_tr := TextureRect.new()
+		ic_tr.texture = _scroll_tex_for_cat(_category)
+		ic_tr.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		ic_tr.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		ic_tr.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		ic_tr.size_flags_vertical = Control.SIZE_EXPAND_FILL
+		ic_box.add_child(ic_tr)
+		var ic_ov := Control.new()
+		ic_ov.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		ic_ov.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		ic_box.add_child(ic_ov)
+		var ic_pill := Label.new()
+		ic_pill.text = tier_txt
+		ic_pill.anchor_left = 0.0
+		ic_pill.anchor_right = 1.0
+		ic_pill.anchor_top = 1.0
+		ic_pill.anchor_bottom = 1.0
+		ic_pill.offset_top = -18.0
+		ic_pill.offset_bottom = 2.0
+		ic_pill.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		ic_pill.add_theme_font_override("font", FontNunitoBold)
+		ic_pill.add_theme_font_size_override("font_size", 11)
+		ic_pill.add_theme_color_override("font_color", tier_col)
+		ic_ov.add_child(ic_pill)
+		hb.add_child(ic_box)
+
 		var info_vb := VBoxContainer.new()
 		info_vb.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		info_vb.add_theme_constant_override("separation", 2)
 		hb.add_child(info_vb)
 
 		var n_lbl := Label.new()
-		n_lbl.text = "📜 %s (-%s)" % [s_name, short_dur]
+		n_lbl.text = "%s (-%s)" % [s_name, short_dur]
 		n_lbl.add_theme_font_override("font", FontNunitoBold)
 		n_lbl.add_theme_font_size_override("font_size", 22)
 		n_lbl.add_theme_color_override("font_color", Color(1.0, 0.95, 0.82))

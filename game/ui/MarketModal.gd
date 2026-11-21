@@ -10,6 +10,13 @@ const IconStone := preload("res://assets/sprites/ui/nano_banana/sharp_icon_stone
 const IconIron := preload("res://assets/sprites/ui/nano_banana/sharp_icon_iron.tres")
 const IconStorage := preload("res://assets/sprites/ui/nano_banana/sharp_icon_storage.tres")
 const IconDiamond := preload("res://assets/sprites/ui/nano_banana/sharp_icon_diamond.tres")
+const IconScrollBuild := preload("res://assets/sprites/ui/nano_banana/sharp_scroll_build.tres")
+const IconScrollTrain := preload("res://assets/sprites/ui/nano_banana/sharp_scroll_train.tres")
+const IconScrollResearch := preload("res://assets/sprites/ui/nano_banana/sharp_scroll_research.tres")
+const IconScrollMarch := preload("res://assets/sprites/ui/nano_banana/sharp_scroll_march.tres")
+const IconDiamondChest := preload("res://assets/sprites/ui/nano_banana/sharp_pack_diamond_chest.tres")
+const IconResourceCaravan := preload("res://assets/sprites/ui/nano_banana/sharp_pack_resource_caravan.tres")
+const TexRoyalBtnBg := preload("res://assets/sprites/ui/nano_banana/sharp_ui_royal_btn_bg.tres")
 
 const FALLBACK_PACKS: Array[Dictionary] = [
 	{"id": "diamonds_10", "product_id": "com.tahtkilic.kingsage2.diamonds_10", "name": "Avuç Dolusu Elmas", "diamonds": 10, "badge": "Başlangıç", "usd": "$0.99", "eur": "€0.99", "try": "₺49,99"},
@@ -44,13 +51,91 @@ const FALLBACK_RESOURCE_PACKS: Array[Dictionary] = [
 ]
 
 const TABS := [
-	{"key": "build", "label": "🔨 İnşaat"},
-	{"key": "train", "label": "⚔️ Eğitim"},
-	{"key": "research", "label": "🔬 Araştırma"},
-	{"key": "march", "label": "🐴 Sefer"},
-	{"key": "resources", "label": "📦 Kaynak Al"},
-	{"key": "diamonds", "label": "💎 Elmas Al"},
+	{"key": "build", "label": "İnşaat"},
+	{"key": "train", "label": "Askeri"},
+	{"key": "research", "label": "Araştırma"},
+	{"key": "march", "label": "Sefer"},
+	{"key": "resources", "label": "Kaynak Al"},
+	{"key": "diamonds", "label": "Elmas Al"},
 ]
+
+
+func _scroll_tex_for_cat(cat: String) -> Texture2D:
+	match cat:
+		"build": return IconScrollBuild
+		"train": return IconScrollTrain
+		"research": return IconScrollResearch
+		"march": return IconScrollMarch
+		"resources": return IconResourceCaravan
+		"diamonds": return IconDiamondChest
+	return IconScrollBuild
+
+
+func _scroll_accent_for_cat(cat: String) -> Color:
+	match cat:
+		"build": return Color(0.95, 0.72, 0.30)
+		"train": return Color(0.92, 0.38, 0.36)
+		"research": return Color(0.45, 0.80, 1.0)
+		"march": return Color(0.44, 0.88, 0.56)
+		"resources": return Color(0.96, 0.78, 0.36)
+		"diamonds": return Color(0.55, 0.86, 1.0)
+	return Color(0.95, 0.78, 0.36)
+
+
+func _make_medallion(tex: Texture2D, accent: Color, badge_txt: String = "", badge_col: Color = Color(0.95, 0.78, 0.36)) -> PanelContainer:
+	var box := PanelContainer.new()
+	box.custom_minimum_size = Vector2(78, 78)
+	box.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color(0.11, 0.09, 0.16, 0.98)
+	sb.border_color = accent
+	sb.set_border_width_all(2)
+	sb.set_corner_radius_all(14)
+	sb.set_content_margin_all(4)
+	box.add_theme_stylebox_override("panel", sb)
+
+	var tr := TextureRect.new()
+	tr.texture = tex
+	tr.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	tr.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	tr.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	tr.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	tr.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	box.add_child(tr)
+
+	if not badge_txt.is_empty():
+		var overlay := Control.new()
+		overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		box.add_child(overlay)
+
+		var pill := PanelContainer.new()
+		pill.anchor_left = 0.0
+		pill.anchor_right = 1.0
+		pill.anchor_top = 1.0
+		pill.anchor_bottom = 1.0
+		pill.offset_top = -22.0
+		pill.offset_bottom = 2.0
+		pill.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		var psb := StyleBoxFlat.new()
+		psb.bg_color = Color(0.06, 0.05, 0.09, 0.92)
+		psb.border_color = badge_col
+		psb.set_border_width_all(1)
+		psb.set_corner_radius_all(6)
+		pill.add_theme_stylebox_override("panel", psb)
+		var bl := Label.new()
+		bl.text = badge_txt
+		bl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		bl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		bl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		bl.add_theme_font_override("font", FontNunitoBold)
+		bl.add_theme_font_size_override("font_size", 12)
+		bl.add_theme_color_override("font_color", badge_col)
+		pill.add_child(bl)
+		overlay.add_child(pill)
+
+	return box
 
 var _ui_built: bool = false
 var _current_tab: String = "build"
@@ -258,14 +343,22 @@ func _ensure_ui() -> void:
 	hdr.alignment = BoxContainer.ALIGNMENT_CENTER
 	main_vb.add_child(hdr)
 
+	var crest := TextureRect.new()
+	crest.custom_minimum_size = Vector2(40, 40)
+	crest.texture = IconDiamondChest
+	crest.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	crest.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	crest.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	hdr.add_child(crest)
+
 	var title_lbl := Label.new()
 	title_lbl.name = "MarketTitleLabel"
-	title_lbl.text = "👑 KRALİYET PAZARI"
+	title_lbl.text = "KRALİYET PAZARI"
 	title_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	title_lbl.clip_text = true
 	title_lbl.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	title_lbl.add_theme_font_override("font", FontCinzelBold)
-	title_lbl.add_theme_font_size_override("font_size", 28)
+	title_lbl.add_theme_font_size_override("font_size", 26)
 	title_lbl.add_theme_color_override("font_color", Color(1.0, 0.92, 0.56))
 	title_lbl.add_theme_constant_override("outline_size", 0)
 	title_lbl.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0))
@@ -274,25 +367,37 @@ func _ensure_ui() -> void:
 	var dia_pill := PanelContainer.new()
 	dia_pill.name = "DiamondBalancePill"
 	var dp_sb := StyleBoxFlat.new()
-	dp_sb.bg_color = Color(0.12, 0.22, 0.42, 0.98)
+	dp_sb.bg_color = Color(0.10, 0.18, 0.34, 0.98)
 	dp_sb.border_color = Color(0.55, 0.85, 1.0, 0.95)
 	dp_sb.set_border_width_all(2)
 	dp_sb.set_corner_radius_all(12)
-	dp_sb.content_margin_left = 12
+	dp_sb.content_margin_left = 10
 	dp_sb.content_margin_right = 12
-	dp_sb.content_margin_top = 6
-	dp_sb.content_margin_bottom = 6
+	dp_sb.content_margin_top = 5
+	dp_sb.content_margin_bottom = 5
 	dia_pill.add_theme_stylebox_override("panel", dp_sb)
 	hdr.add_child(dia_pill)
 
+	var dp_hb := HBoxContainer.new()
+	dp_hb.add_theme_constant_override("separation", 6)
+	dia_pill.add_child(dp_hb)
+
+	var dp_icon := TextureRect.new()
+	dp_icon.custom_minimum_size = Vector2(26, 26)
+	dp_icon.texture = IconDiamond
+	dp_icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	dp_icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	dp_icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	dp_hb.add_child(dp_icon)
+
 	_diamond_label = Label.new()
-	_diamond_label.text = "💎 %d" % _get_diamonds()
+	_diamond_label.text = "%d" % _get_diamonds()
 	_diamond_label.add_theme_font_override("font", FontNunitoBold)
 	_diamond_label.add_theme_font_size_override("font_size", 22)
 	_diamond_label.add_theme_color_override("font_color", Color(0.90, 0.97, 1.0))
 	_diamond_label.add_theme_constant_override("outline_size", 0)
 	_diamond_label.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0))
-	dia_pill.add_child(_diamond_label)
+	dp_hb.add_child(_diamond_label)
 
 	_currency_option = OptionButton.new()
 	_currency_option.name = "CurrencySelector"
@@ -341,10 +446,12 @@ func _ensure_ui() -> void:
 	_close_btn.pressed.connect(func(): queue_free())
 	hdr.add_child(_close_btn)
 
-	# --- 5 Category Tabs ---
-	var tab_bar := HBoxContainer.new()
+	# --- 6 Category Tabs (2 rows x 3 cols) ---
+	var tab_bar := GridContainer.new()
 	tab_bar.name = "MarketTabBar"
-	tab_bar.add_theme_constant_override("separation", 8)
+	tab_bar.columns = 3
+	tab_bar.add_theme_constant_override("h_separation", 8)
+	tab_bar.add_theme_constant_override("v_separation", 8)
 	main_vb.add_child(tab_bar)
 
 	for t in TABS:
@@ -352,11 +459,14 @@ func _ensure_ui() -> void:
 		var btn := Button.new()
 		btn.name = "TabMarket_" + t_key
 		btn.text = str(t["label"])
+		btn.icon = _scroll_tex_for_cat(t_key)
+		btn.expand_icon = true
+		btn.add_theme_constant_override("icon_max_width", 26)
 		btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		btn.custom_minimum_size = Vector2(0, 50)
+		btn.custom_minimum_size = Vector2(0, 48)
 		btn.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 		btn.add_theme_font_override("font", FontNunitoBold)
-		btn.add_theme_font_size_override("font_size", 19)
+		btn.add_theme_font_size_override("font_size", 18)
 		btn.add_theme_constant_override("outline_size", 0)
 		btn.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0))
 		btn.pressed.connect(func():
@@ -445,7 +555,7 @@ func _refresh_all() -> void:
 
 func _refresh_diamond_pill() -> void:
 	if _diamond_label != null:
-		_diamond_label.text = "💎 %d" % _get_diamonds()
+		_diamond_label.text = "%d" % _get_diamonds()
 
 
 func _refresh_tabs() -> void:
@@ -454,21 +564,34 @@ func _refresh_tabs() -> void:
 		if btn == null:
 			continue
 		var active := (str(k) == _current_tab)
-		var sb := StyleBoxFlat.new()
-		sb.bg_color = Color(0.32, 0.22, 0.10, 0.98) if active else Color(0.14, 0.12, 0.18, 0.95)
-		sb.border_color = Color(1.0, 0.84, 0.36, 1.0) if active else Color(0.42, 0.38, 0.48, 0.75)
-		sb.set_border_width_all(2)
-		if active:
-			sb.border_width_bottom = 4
-		sb.set_corner_radius_all(12)
-		sb.content_margin_left = 6
-		sb.content_margin_right = 6
-		btn.add_theme_stylebox_override("normal", sb)
-		var hov := sb.duplicate() as StyleBoxFlat
-		hov.bg_color = sb.bg_color.lightened(0.10)
-		btn.add_theme_stylebox_override("hover", hov)
-		btn.add_theme_stylebox_override("pressed", hov)
-		btn.add_theme_color_override("font_color", Color(1.0, 0.95, 0.72) if active else Color(0.80, 0.78, 0.74))
+		var accent := _scroll_accent_for_cat(str(k))
+		if active and TexRoyalBtnBg != null:
+			var tsb := StyleBoxTexture.new()
+			tsb.texture = TexRoyalBtnBg
+			tsb.texture_margin_left = 18
+			tsb.texture_margin_right = 18
+			tsb.texture_margin_top = 8
+			tsb.texture_margin_bottom = 8
+			tsb.content_margin_left = 8
+			tsb.content_margin_right = 8
+			tsb.modulate_color = Color(1.08, 1.02, 0.88, 1.0)
+			btn.add_theme_stylebox_override("normal", tsb)
+			btn.add_theme_stylebox_override("hover", tsb)
+			btn.add_theme_stylebox_override("pressed", tsb)
+		else:
+			var sb := StyleBoxFlat.new()
+			sb.bg_color = Color(0.12, 0.10, 0.17, 0.96)
+			sb.border_color = Color(accent.r * 0.65, accent.g * 0.65, accent.b * 0.65, 0.72)
+			sb.set_border_width_all(2)
+			sb.set_corner_radius_all(12)
+			sb.content_margin_left = 8
+			sb.content_margin_right = 8
+			btn.add_theme_stylebox_override("normal", sb)
+			var hov := sb.duplicate() as StyleBoxFlat
+			hov.bg_color = sb.bg_color.lightened(0.12)
+			btn.add_theme_stylebox_override("hover", hov)
+			btn.add_theme_stylebox_override("pressed", hov)
+		btn.add_theme_color_override("font_color", Color(1.0, 0.95, 0.72) if active else Color(0.84, 0.82, 0.78))
 		btn.add_theme_color_override("font_hover_color", Color(1.0, 1.0, 1.0))
 
 
@@ -552,23 +675,11 @@ func _populate_scrolls_tab(cat: String) -> void:
 		row.add_theme_constant_override("separation", 14)
 		card.add_child(row)
 
-		var icon_box := PanelContainer.new()
-		icon_box.custom_minimum_size = Vector2(68, 68)
-		icon_box.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-		icon_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		var ic_sb := StyleBoxFlat.new()
-		ic_sb.bg_color = Color(0.22, 0.17, 0.10, 0.98)
-		ic_sb.border_color = Color(0.95, 0.78, 0.34, 0.95)
-		ic_sb.set_border_width_all(2)
-		ic_sb.set_corner_radius_all(12)
-		icon_box.add_theme_stylebox_override("panel", ic_sb)
-		var ic_lbl := Label.new()
-		ic_lbl.text = "📜"
-		ic_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		ic_lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-		ic_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		ic_lbl.add_theme_font_size_override("font_size", 32)
-		icon_box.add_child(ic_lbl)
+		var tier_txt := "1 SAAT" if secs >= 3600 else ("%d DK" % (secs / 60))
+		var tier_col := Color(1.0, 0.86, 0.34) if secs >= 3600 else (Color(0.54, 0.88, 1.0) if secs >= 1800 else Color(0.68, 0.94, 0.64))
+		var cat_accent := _scroll_accent_for_cat(cat)
+
+		var icon_box := _make_medallion(_scroll_tex_for_cat(cat), cat_accent, tier_txt, tier_col)
 		row.add_child(icon_box)
 
 		var info_vb := VBoxContainer.new()
@@ -766,30 +877,26 @@ func _populate_resources_tab() -> void:
 		row.add_theme_constant_override("separation", 14)
 		card.add_child(row)
 
-		var icon_box := PanelContainer.new()
-		icon_box.custom_minimum_size = Vector2(68, 68)
-		icon_box.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-		icon_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		var ic_sb := StyleBoxFlat.new()
-		ic_sb.bg_color = Color(0.20, 0.16, 0.10, 0.98)
-		ic_sb.border_color = Color(0.95, 0.78, 0.34, 0.95)
-		ic_sb.set_border_width_all(2)
-		ic_sb.set_corner_radius_all(12)
-		icon_box.add_theme_stylebox_override("panel", ic_sb)
-		var tex_rect := TextureRect.new()
-		tex_rect.custom_minimum_size = Vector2(44, 44)
-		tex_rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-		tex_rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-		tex_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		var res_tex: Texture2D = IconResourceCaravan
+		var res_badge := "KERVAN"
+		var res_accent := Color(0.95, 0.78, 0.36)
 		if rp_id.contains("wood"):
-			tex_rect.texture = IconWood
+			res_tex = IconWood
+			res_badge = "ODUN"
+			res_accent = Color(0.56, 0.88, 0.44)
 		elif rp_id.contains("stone"):
-			tex_rect.texture = IconStone
+			res_tex = IconStone
+			res_badge = "TAŞ"
+			res_accent = Color(0.76, 0.80, 0.88)
 		elif rp_id.contains("iron"):
-			tex_rect.texture = IconIron
-		else:
-			tex_rect.texture = IconStorage
-		icon_box.add_child(tex_rect)
+			res_tex = IconIron
+			res_badge = "DEMİR"
+			res_accent = Color(0.54, 0.78, 0.98)
+		elif is_fill:
+			res_tex = IconStorage
+			res_badge = "%100"
+			res_accent = Color(1.0, 0.84, 0.34)
+		var icon_box := _make_medallion(res_tex, res_accent, res_badge, res_accent)
 		row.add_child(icon_box)
 
 		var info_vb := VBoxContainer.new()
@@ -926,27 +1033,9 @@ func _populate_diamonds_tab() -> void:
 		row.add_theme_constant_override("separation", 14)
 		card.add_child(row)
 
-		var gem_box := PanelContainer.new()
-		gem_box.custom_minimum_size = Vector2(74, 68)
-		gem_box.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-		gem_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		var gb_sb := StyleBoxFlat.new()
-		gb_sb.bg_color = Color(0.10, 0.22, 0.42, 0.98)
-		gb_sb.border_color = Color(0.55, 0.86, 1.0, 0.95)
-		gb_sb.set_border_width_all(2)
-		gb_sb.set_corner_radius_all(12)
-		gem_box.add_theme_stylebox_override("panel", gb_sb)
-		var g_lbl := Label.new()
-		g_lbl.text = "💎\n%d" % d_amt
-		g_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		g_lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-		g_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		g_lbl.add_theme_font_override("font", FontNunitoBold)
-		g_lbl.add_theme_font_size_override("font_size", 18)
-		g_lbl.add_theme_color_override("font_color", Color(0.92, 0.98, 1.0))
-		g_lbl.add_theme_constant_override("outline_size", 0)
-		g_lbl.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0))
-		gem_box.add_child(g_lbl)
+		var dia_tex: Texture2D = IconDiamondChest if d_amt >= 100 else IconDiamond
+		var dia_col := Color(1.0, 0.86, 0.36) if is_featured else Color(0.55, 0.88, 1.0)
+		var gem_box := _make_medallion(dia_tex, dia_col, "💎 %d" % d_amt, dia_col)
 		row.add_child(gem_box)
 
 		var info_vb := VBoxContainer.new()

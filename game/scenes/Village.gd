@@ -10,6 +10,14 @@ const EconomyAPIScript := preload("res://scripts/sim/economy/EconomyAPI.gd")
 const ArmyAPIScript := preload("res://scripts/sim/army/ArmyAPI.gd")
 const MovementScript := preload("res://scripts/sim/actions/Movement.gd")
 const GameDataScript := preload("res://autoload/GameData.gd")
+const FontCinzelBold := preload("res://assets/fonts/Cinzel-Bold.ttf")
+const IconAllianceShield := preload("res://assets/sprites/ui/nano_banana/sharp_icon_alliance_shield.tres")
+const TexRoyalBtnBg := preload("res://assets/sprites/ui/nano_banana/sharp_ui_royal_btn_bg.tres")
+const IconScrollBuild := preload("res://assets/sprites/ui/nano_banana/sharp_scroll_build.tres")
+const IconScrollTrain := preload("res://assets/sprites/ui/nano_banana/sharp_scroll_train.tres")
+const IconScrollResearch := preload("res://assets/sprites/ui/nano_banana/sharp_scroll_research.tres")
+const IconScrollMarch := preload("res://assets/sprites/ui/nano_banana/sharp_scroll_march.tres")
+const IconReportSeal := preload("res://assets/sprites/ui/nano_banana/sharp_icon_report_seal.tres")
 
 @onready var resource_bar: PanelContainer = $ResourceBar
 @onready var bottom_nav: PanelContainer = $BottomNav
@@ -179,20 +187,40 @@ func _ensure_nodes() -> void:
 func _style_alliance_btn() -> void:
 	if btn_alliance == null:
 		return
-	var sb := StyleBoxFlat.new()
-	sb.bg_color = Color(0.12, 0.18, 0.28, 0.95)
-	sb.border_color = Color(0.45, 0.75, 1.0, 0.95)
-	sb.set_border_width_all(2)
-	sb.set_corner_radius_all(14)
-	sb.shadow_color = Color(0, 0, 0, 0.6)
-	sb.shadow_size = 6
-	btn_alliance.add_theme_stylebox_override("normal", sb)
-	var h_sb = sb.duplicate() as StyleBoxFlat
-	h_sb.bg_color = Color(0.18, 0.28, 0.44, 1.0)
-	h_sb.border_color = Color(0.70, 0.90, 1.0, 1.0)
-	btn_alliance.add_theme_stylebox_override("hover", h_sb)
-	btn_alliance.add_theme_stylebox_override("pressed", h_sb)
-	btn_alliance.add_theme_color_override("font_color", Color(0.85, 0.95, 1.0))
+	btn_alliance.text = "İTTİFAK"
+	btn_alliance.icon = IconAllianceShield
+	btn_alliance.expand_icon = true
+	btn_alliance.add_theme_constant_override("icon_max_width", 34)
+	btn_alliance.add_theme_font_override("font", FontCinzelBold)
+	btn_alliance.add_theme_font_size_override("font_size", 20)
+	if TexRoyalBtnBg != null:
+		var tsb := StyleBoxTexture.new()
+		tsb.texture = TexRoyalBtnBg
+		tsb.texture_margin_left = 18
+		tsb.texture_margin_right = 18
+		tsb.texture_margin_top = 8
+		tsb.texture_margin_bottom = 8
+		tsb.content_margin_left = 12
+		tsb.content_margin_right = 14
+		tsb.content_margin_top = 6
+		tsb.content_margin_bottom = 6
+		tsb.modulate_color = Color(0.95, 0.96, 1.0, 1.0)
+		var thov := tsb.duplicate() as StyleBoxTexture
+		thov.modulate_color = Color(1.08, 1.08, 1.08, 1.0)
+		btn_alliance.add_theme_stylebox_override("normal", tsb)
+		btn_alliance.add_theme_stylebox_override("hover", thov)
+		btn_alliance.add_theme_stylebox_override("pressed", thov)
+	else:
+		var sb := StyleBoxFlat.new()
+		sb.bg_color = Color(0.12, 0.18, 0.28, 0.95)
+		sb.border_color = Color(0.92, 0.76, 0.34, 0.95)
+		sb.set_border_width_all(2)
+		sb.set_corner_radius_all(14)
+		btn_alliance.add_theme_stylebox_override("normal", sb)
+		btn_alliance.add_theme_stylebox_override("hover", sb)
+		btn_alliance.add_theme_stylebox_override("pressed", sb)
+	btn_alliance.add_theme_color_override("font_color", Color(1.0, 0.94, 0.72))
+	btn_alliance.add_theme_color_override("font_hover_color", Color(1.0, 0.98, 0.88))
 	btn_alliance.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.95))
 	btn_alliance.add_theme_constant_override("shadow_offset_y", 2)
 
@@ -735,34 +763,63 @@ func _setup_queue_hud_styling() -> void:
 	_ensure_queue_styles()
 	if queue_hud != null:
 		var q_sb := StyleBoxFlat.new()
-		q_sb.bg_color = Color(0.12, 0.10, 0.14, 0.98)
-		q_sb.border_color = Color(0.92, 0.76, 0.36, 1.0)
+		q_sb.bg_color = Color(0.08, 0.07, 0.11, 0.97)
+		q_sb.border_color = Color(0.90, 0.74, 0.34, 0.96)
 		q_sb.set_border_width_all(2)
-		q_sb.set_corner_radius_all(16)
-		q_sb.content_margin_left = 20
-		q_sb.content_margin_top = 16
-		q_sb.content_margin_right = 20
-		q_sb.content_margin_bottom = 16
-		q_sb.shadow_color = Color(0, 0, 0, 0.6)
-		q_sb.shadow_size = 10
+		q_sb.border_width_top = 4
+		q_sb.set_corner_radius_all(18)
+		q_sb.content_margin_left = 18
+		q_sb.content_margin_top = 14
+		q_sb.content_margin_right = 18
+		q_sb.content_margin_bottom = 14
+		q_sb.shadow_color = Color(0, 0, 0, 0.72)
+		q_sb.shadow_size = 14
 		queue_hud.add_theme_stylebox_override("panel", q_sb)
 		if queue_title != null:
-			queue_title.add_theme_color_override("font_color", Color(1.0, 0.92, 0.45))
-			queue_title.add_theme_font_size_override("font_size", 24)
+			queue_title.text = "⚔️ AKTİVİTELER VE ASKERİ DURUM"
+			queue_title.add_theme_font_override("font", FontCinzelBold)
+			queue_title.add_theme_color_override("font_color", Color(1.0, 0.91, 0.56))
+			queue_title.add_theme_font_size_override("font_size", 21)
 			queue_title.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.98))
 			queue_title.add_theme_constant_override("shadow_offset_y", 2)
+
+
+func _draw_queue_row(row: HBoxContainer) -> void:
+	if row == null:
+		return
+	var accent: Color = row.get_meta("accent_color", Color(0.90, 0.74, 0.34))
+	var card_sb := StyleBoxFlat.new()
+	card_sb.bg_color = Color(0.13, 0.11, 0.17, 0.95)
+	card_sb.border_color = Color(accent.r * 0.75, accent.g * 0.75, accent.b * 0.75, 0.65)
+	card_sb.set_border_width_all(1)
+	card_sb.set_corner_radius_all(10)
+	row.draw_style_box(card_sb, Rect2(Vector2(-6.0, -4.0), row.size + Vector2(12.0, 8.0)))
+	row.draw_rect(Rect2(Vector2(-6.0, -2.0), Vector2(5.0, row.size.y + 4.0)), accent)
 
 
 func _create_queue_row() -> HBoxContainer:
 	_ensure_queue_styles()
 	var row := HBoxContainer.new()
+	row.custom_minimum_size = Vector2(0, 52)
 	row.add_theme_constant_override("separation", 10)
+	row.set_meta("accent_color", Color(0.90, 0.74, 0.34))
+	row.draw.connect(_draw_queue_row.bind(row))
+
+	var cat_icon := TextureRect.new()
+	cat_icon.name = "CategoryIcon"
+	cat_icon.custom_minimum_size = Vector2(30, 30)
+	cat_icon.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	cat_icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	cat_icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	cat_icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	cat_icon.texture = IconScrollBuild
+	row.add_child(cat_icon)
 
 	var icon_name_lbl := Label.new()
 	icon_name_lbl.name = "IconNameLabel"
 	icon_name_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	icon_name_lbl.clip_text = true
-	icon_name_lbl.add_theme_font_size_override("font_size", 22)
+	icon_name_lbl.add_theme_font_size_override("font_size", 21)
 	icon_name_lbl.add_theme_color_override("font_color", Color(1.0, 0.95, 0.88))
 	icon_name_lbl.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.98))
 	icon_name_lbl.add_theme_constant_override("shadow_offset_y", 2)
@@ -770,9 +827,9 @@ func _create_queue_row() -> HBoxContainer:
 
 	var time_lbl := Label.new()
 	time_lbl.name = "TimeLabel"
-	time_lbl.custom_minimum_size = Vector2(98, 0)
+	time_lbl.custom_minimum_size = Vector2(96, 0)
 	time_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	time_lbl.add_theme_font_size_override("font_size", 22)
+	time_lbl.add_theme_font_size_override("font_size", 21)
 	time_lbl.add_theme_color_override("font_color", Color(0.42, 0.90, 1.0))
 	time_lbl.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.98))
 	time_lbl.add_theme_constant_override("shadow_offset_y", 2)
@@ -780,7 +837,7 @@ func _create_queue_row() -> HBoxContainer:
 
 	var progress := ProgressBar.new()
 	progress.name = "ProgressBar"
-	progress.custom_minimum_size = Vector2(96, 24)
+	progress.custom_minimum_size = Vector2(92, 22)
 	progress.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	progress.show_percentage = false
 	progress.add_theme_stylebox_override("background", _q_pb_bg)
@@ -790,7 +847,7 @@ func _create_queue_row() -> HBoxContainer:
 	var speedup_btn := Button.new()
 	speedup_btn.name = "SpeedupButton"
 	speedup_btn.text = "⚡ Hızlandır"
-	speedup_btn.custom_minimum_size = Vector2(158, 44)
+	speedup_btn.custom_minimum_size = Vector2(154, 42)
 	speedup_btn.add_theme_font_size_override("font_size", 18)
 	speedup_btn.add_theme_stylebox_override("normal", _q_speedup_have_sb)
 	speedup_btn.add_theme_stylebox_override("hover", _q_speedup_have_hover)
@@ -805,8 +862,8 @@ func _create_queue_row() -> HBoxContainer:
 	var cancel_btn := Button.new()
 	cancel_btn.name = "CancelButton"
 	cancel_btn.text = "X İptal"
-	cancel_btn.custom_minimum_size = Vector2(94, 44)
-	cancel_btn.add_theme_font_size_override("font_size", 19)
+	cancel_btn.custom_minimum_size = Vector2(90, 42)
+	cancel_btn.add_theme_font_size_override("font_size", 18)
 	cancel_btn.add_theme_stylebox_override("normal", _q_cancel_norm)
 	cancel_btn.add_theme_stylebox_override("hover", _q_cancel_hover)
 	cancel_btn.add_theme_stylebox_override("pressed", _q_cancel_pressed)
@@ -825,11 +882,31 @@ func _create_queue_row() -> HBoxContainer:
 func _bind_queue_row(row: HBoxContainer, activity: Dictionary, now: int) -> void:
 	var category: String = str(activity.get("category", ""))
 	var data: Dictionary = activity.get("data", {})
+	var cat_icon: TextureRect = row.get_node_or_null("CategoryIcon") as TextureRect
 	var icon_name_lbl: Label = row.get_node("IconNameLabel")
 	var time_lbl: Label = row.get_node("TimeLabel")
 	var progress: ProgressBar = row.get_node("ProgressBar")
 	var speedup_btn: Button = row.get_node_or_null("SpeedupButton") as Button
 	var cancel_btn: Button = row.get_node("CancelButton")
+	var accent_col := Color(0.90, 0.74, 0.34)
+	match category:
+		"incoming_attack":
+			accent_col = Color(0.95, 0.34, 0.32)
+			if cat_icon != null: cat_icon.texture = IconReportSeal
+		"outgoing_attack":
+			accent_col = Color(0.96, 0.68, 0.28)
+			if cat_icon != null: cat_icon.texture = IconScrollMarch
+		"research":
+			accent_col = Color(0.42, 0.80, 1.0)
+			if cat_icon != null: cat_icon.texture = IconScrollResearch
+		"train":
+			accent_col = Color(0.40, 0.90, 0.56)
+			if cat_icon != null: cat_icon.texture = IconScrollTrain
+		_:
+			accent_col = Color(0.94, 0.76, 0.34)
+			if cat_icon != null: cat_icon.texture = IconScrollBuild
+	row.set_meta("accent_color", accent_col)
+	row.queue_redraw()
 
 	var item_id: int = int(data.get("id", -1))
 	var meta_key := "%s_%d" % [category, item_id]
@@ -1195,7 +1272,7 @@ func _sync_top_bar_layout() -> void:
 	var top_h := _get_top_bar_height()
 	if btn_alliance != null:
 		btn_alliance.offset_top = top_h + 14.0
-		btn_alliance.offset_bottom = top_h + 64.0
+		btn_alliance.offset_bottom = top_h + 70.0
 
 
 func _on_layout_resized() -> void:
