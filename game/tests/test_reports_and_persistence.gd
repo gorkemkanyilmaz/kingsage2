@@ -148,7 +148,15 @@ func _run() -> void:
 			_fail("Silinen rapor cloud sync / tekrar giriş sonrası geri geldi!")
 	_assert(not badge_panel.visible, "Okunmuş/silinmiş raporlardan sonra BottomNav rozeti 0 kalmalıydı")
 
-	# 5. BuildingPanel Train SpinBox Canlı Miktar Göstergesi testi
+	# 5. BuildingPanel Train SpinBox Canlı Miktar Göstergesi ve Tamam / Submit Kalıcılığı Testi
+	var v_tr: Dictionary = gs.get_active_village()
+	v_tr["resources"]["wood"] = 50000
+	v_tr["resources"]["stone"] = 50000
+	v_tr["resources"]["iron"] = 50000
+	v_tr["buildings"]["barracks"] = 3
+	v_tr["buildings"]["farm"] = 10
+	v_tr["researched"]["spear"] = true
+
 	var bp: Control = bpanel_scene_res.instantiate()
 	root.add_child(bp)
 	await process_frame
@@ -157,20 +165,74 @@ func _run() -> void:
 	await process_frame
 	var spin: SpinBox = bp.find_child("Spin_spear", true, false) as SpinBox
 	_assert(spin != null, "Spin_spear bulunamadı")
-	var le := spin.get_line_edit()
-	_assert(le != null, "SpinBox LineEdit bulunamadı")
+	var le: LineEdit = bp.find_child("QtyEdit_spear", true, false) as LineEdit
+	_assert(le != null, "QtyEdit_spear LineEdit bulunamadı")
+	var train_btn: Button = bp.find_child("TrainBtn_spear", true, false) as Button
+	_assert(train_btn != null, "TrainBtn_spear bulunamadı")
+
+	# 5a. Odaklanınca baştaki '0' temizlenmeli ve "100" yazınca state_changed veya process frame silmemeli
 	le.grab_focus()
-	le.focus_entered.emit()
+	await process_frame
+	_assert(le.text == "", "Odaklanınca ilk '0' temizlenmeliydi, yoksa 0100 yazılır: '%s'" % le.text)
+
 	var kb_bar: Control = bp.find_child("TrainKeyboardPreviewBar", true, false) as Control
 	var kb_lbl: Label = bp.find_child("PreviewText", true, false) as Label
+	var kb_val: Label = bp.find_child("PreviewValue", true, false) as Label
+	var kb_done: Button = bp.find_child("BtnTrainKbDone", true, false) as Button
+	_assert(kb_done != null, "Klavye barı içinde BtnTrainKbDone ('Tamam') butonu bulunamadı")
+
 	le.text = "100"
 	le.text_changed.emit("100")
 	await process_frame
 	_assert(kb_bar != null and kb_bar.visible, "Klavye önizleme çubuğu odakta görünür olmalıydı")
 	_assert(kb_lbl != null and kb_lbl.text.contains("100"), "Klavye önizleme çubuğu 100 değerini anlık göstermeliydi: %s" % [kb_lbl.text if kb_lbl != null else ""])
+	_assert(kb_val != null and kb_val.text == "100", "Klavye değer kutusu 100 göstermeliydi: %s" % [kb_val.text if kb_val != null else ""])
+	_assert(not train_btn.disabled and train_btn.text.contains("100"), "Yazarken Eğit butonu canlı 100 Adet güncellenmeliydi: %s" % train_btn.text)
+
+	var eb = root.get_node_or_null("EventBus")
+	if eb != null:
+		eb.state_changed.emit()
+	await process_frame
+	_assert(le.text == "100", "Odaktayken EventBus.state_changed 100 yazısını silmemeliydi: '%s'" % le.text)
+
+	# 5b. Klavye üstü ✓ Tamam butonuna basınca spin.value == 100 olarak kalıcı işlenmeli
+	kb_done.pressed.emit()
+	await process_frame
+	_assert(not kb_bar.visible, "Tamam'a basılınca klavye önizleme çubuğu gizlenmeliydi")
+	_assert(int(spin.value) == 100, "Tamam sonrası spin.value 100 olmalıydı, şu an: %d" % int(spin.value))
+	_assert(le.text == "100", "Tamam sonrası LineEdit text 100 olmalıydı: '%s'" % le.text)
+	_assert(not train_btn.disabled and train_btn.text.contains("100"), "Tamam sonrası Eğit butonu 100 Adet için aktif kalmalıydı: %s" % train_btn.text)
+
+	# 5c. Sanal klavyeden Enter/Tamam (text_submitted) sonrası spin.value == 50 olmalı
+	le.grab_focus()
+	le.focus_entered.emit()
+	le.text = "50"
+	le.text_changed.emit("50")
+	le.text_submitted.emit("50")
+	await process_frame
+	_assert(int(spin.value) == 50, "text_submitted sonrası spin.value 50 olmalıydı, şu an: %d" % int(spin.value))
+
+	# 5d. Dışarı dokunma (focus_exited) sonrası bile girilen değer 25 korunmalı
+	le.grab_focus()
+	le.focus_entered.emit()
+	le.text = "25"
+	le.text_changed.emit("25")
 	le.focus_exited.emit()
 	await process_frame
-	_assert(not kb_bar.visible, "Odak çıkınca klavye önizleme çubuğu gizlenmeliydi")
+	_assert(int(spin.value) == 25, "focus_exited sonrası spin.value 25 olmalıydı, şu an: %d" % int(spin.value))
 
-	print("[PASS] test_reports_and_persistence: tüm kalıcılık, rapor ve eğitim klavyesi kontrolleri geçti!")
+	# 6. ResourceBar Elmas & Pazar sağ kanat kontrolü
+	var rbar_scene: PackedScene = load("res://ui/ResourceBar.tscn")
+	var rbar: Control = rbar_scene.instantiate()
+	root.add_child(rbar)
+	await process_frame
+	var btn_d: Button = rbar.find_child("BtnDiamonds", true, false) as Button
+	var btn_m: Button = rbar.find_child("BtnMarket", true, false) as Button
+	var d_cnt: Label = rbar.find_child("DiamondsCountLabel", true, false) as Label
+	var m_tit: Label = rbar.find_child("MarketTitleLabel", true, false) as Label
+	_assert(btn_d != null and btn_m != null, "ResourceBar sağ kanadında BtnDiamonds ve BtnMarket bulunmalı")
+	_assert(d_cnt != null and int(d_cnt.text) >= 0, "BtnDiamonds içinde Elmas sayısı görünmeli")
+	_assert(m_tit != null and m_tit.text == "PAZAR", "BtnMarket içinde PAZAR başlığı görünmeli")
+
+	print("[PASS] test_reports_and_persistence: tüm kalıcılık, rapor, eğitim klavyesi ve sağ header kontrolleri geçti!")
 	quit(0)

@@ -43,15 +43,20 @@ for t in tests:
             pass
 
     cmd = [godot, "--headless", "--path", "./game", "-s", f"tests/{t}"]
-    p = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    try:
+        p = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=300)
+    except subprocess.TimeoutExpired:
+        print(f"  [TIMEOUT] {t} (>300s)", flush=True)
+        failed.append(t)
+        continue
     if p.returncode == 0:
-        print(f"  [PASS] {t}")
+        print(f"  [PASS] {t}", flush=True)
     else:
         out = p.stdout.decode("utf-8", errors="replace")
         err = p.stderr.decode("utf-8", errors="replace")
-        print(f"  [FAIL] {t} (exit code: {p.returncode})")
-        print(out[-400:])
-        print(err[-400:])
+        print(f"  [FAIL] {t} (exit code: {p.returncode})", flush=True)
+        print(out[-400:], flush=True)
+        print(err[-400:], flush=True)
         failed.append(t)
 
 print("\n" + "=" * 50)

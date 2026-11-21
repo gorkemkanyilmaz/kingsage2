@@ -141,6 +141,8 @@ var _cached_train_cancel_sb: StyleBoxFlat = null
 var _cached_train_cancel_hover: StyleBoxFlat = null
 var _kb_preview_bar: PanelContainer = null
 var _kb_preview_label: Label = null
+var _kb_preview_value_lbl: Label = null
+var _kb_preview_done_btn: Button = null
 var _focused_train_unit: String = ""
 var _focused_train_line: LineEdit = null
 var _focused_train_spin: SpinBox = null
@@ -203,44 +205,148 @@ func _ensure_nodes() -> void:
 	_ensure_kb_preview_bar()
 
 
+static func _extract_train_digits(raw: String) -> String:
+	var out: String = ""
+	for i in range(raw.length()):
+		var ch := raw.substr(i, 1)
+		if ch >= "0" and ch <= "9":
+			out += ch
+	return out
+
+
 func _ensure_kb_preview_bar() -> void:
 	if _kb_preview_bar != null or train_section == null:
 		return
 	_kb_preview_bar = PanelContainer.new()
 	_kb_preview_bar.name = "TrainKeyboardPreviewBar"
 	_kb_preview_bar.visible = false
-	_kb_preview_bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_kb_preview_bar.custom_minimum_size = Vector2(0, 60)
+	_kb_preview_bar.mouse_filter = Control.MOUSE_FILTER_STOP
+	_kb_preview_bar.custom_minimum_size = Vector2(0, 78)
 	var ksb := StyleBoxFlat.new()
-	ksb.bg_color = Color(0.16, 0.13, 0.06, 0.98)
+	ksb.bg_color = Color(0.11, 0.10, 0.16, 0.99)
 	ksb.border_color = Color(1.0, 0.84, 0.34, 1.0)
 	ksb.set_border_width_all(2)
-	ksb.set_corner_radius_all(12)
-	ksb.content_margin_left = 18
-	ksb.content_margin_right = 18
+	ksb.border_width_bottom = 3
+	ksb.set_corner_radius_all(14)
+	ksb.content_margin_left = 14
+	ksb.content_margin_right = 14
 	ksb.content_margin_top = 10
 	ksb.content_margin_bottom = 10
-	ksb.shadow_color = Color(0, 0, 0, 0.55)
-	ksb.shadow_size = 8
+	ksb.shadow_color = Color(0, 0, 0, 0.65)
+	ksb.shadow_size = 10
 	_kb_preview_bar.add_theme_stylebox_override("panel", ksb)
+
+	var hbox := HBoxContainer.new()
+	hbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	hbox.add_theme_constant_override("separation", 12)
+	_kb_preview_bar.add_child(hbox)
 
 	_kb_preview_label = Label.new()
 	_kb_preview_label.name = "PreviewText"
-	_kb_preview_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_kb_preview_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_kb_preview_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	_kb_preview_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_kb_preview_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_kb_preview_label.add_theme_font_override("font", FontNunitoBold)
-	_kb_preview_label.add_theme_font_size_override("font_size", 25)
-	_kb_preview_label.add_theme_color_override("font_color", Color(1.0, 0.95, 0.72))
-	_kb_preview_bar.add_child(_kb_preview_label)
+	_kb_preview_label.add_theme_font_size_override("font_size", 22)
+	_kb_preview_label.add_theme_color_override("font_color", Color(1.0, 0.95, 0.78))
+	hbox.add_child(_kb_preview_label)
+
+	var val_pill := PanelContainer.new()
+	val_pill.name = "PreviewValuePill"
+	val_pill.custom_minimum_size = Vector2(124, 52)
+	val_pill.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	val_pill.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var vsb := StyleBoxFlat.new()
+	vsb.bg_color = Color(0.05, 0.06, 0.11, 1.0)
+	vsb.border_color = Color(1.0, 0.86, 0.36, 0.95)
+	vsb.set_border_width_all(2)
+	vsb.set_corner_radius_all(10)
+	vsb.content_margin_left = 10
+	vsb.content_margin_right = 10
+	val_pill.add_theme_stylebox_override("panel", vsb)
+	hbox.add_child(val_pill)
+
+	_kb_preview_value_lbl = Label.new()
+	_kb_preview_value_lbl.name = "PreviewValue"
+	_kb_preview_value_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_kb_preview_value_lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	_kb_preview_value_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_kb_preview_value_lbl.add_theme_font_override("font", FontNunitoBold)
+	_kb_preview_value_lbl.add_theme_font_size_override("font_size", 28)
+	_kb_preview_value_lbl.add_theme_color_override("font_color", Color(0.55, 0.98, 0.68))
+	val_pill.add_child(_kb_preview_value_lbl)
+
+	_kb_preview_done_btn = Button.new()
+	_kb_preview_done_btn.name = "BtnTrainKbDone"
+	_kb_preview_done_btn.text = "✓ Tamam"
+	_kb_preview_done_btn.custom_minimum_size = Vector2(142, 54)
+	_kb_preview_done_btn.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	_kb_preview_done_btn.add_theme_font_override("font", FontNunitoBold)
+	_kb_preview_done_btn.add_theme_font_size_override("font_size", 23)
+	_kb_preview_done_btn.add_theme_color_override("font_color", Color(1, 1, 1))
+	_kb_preview_done_btn.add_theme_constant_override("outline_size", 2)
+	_kb_preview_done_btn.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.95))
+	var dsb := StyleBoxFlat.new()
+	dsb.bg_color = Color(0.16, 0.60, 0.31, 1.0)
+	dsb.border_color = Color(0.64, 0.96, 0.72, 1.0)
+	dsb.set_border_width_all(2)
+	dsb.set_corner_radius_all(11)
+	var dsb_hov := dsb.duplicate() as StyleBoxFlat
+	dsb_hov.bg_color = Color(0.22, 0.70, 0.38, 1.0)
+	_kb_preview_done_btn.add_theme_stylebox_override("normal", dsb)
+	_kb_preview_done_btn.add_theme_stylebox_override("hover", dsb_hov)
+	_kb_preview_done_btn.add_theme_stylebox_override("pressed", dsb_hov)
+	_kb_preview_done_btn.pressed.connect(func():
+		_commit_focused_train_input("__FROM_LINE__", true)
+	)
+	hbox.add_child(_kb_preview_done_btn)
 
 	train_section.add_child(_kb_preview_bar)
 	var scroll_idx := train_section.get_node_or_null("TrainScroll").get_index() if train_section.has_node("TrainScroll") else train_section.get_child_count() - 1
 	train_section.move_child(_kb_preview_bar, clampi(scroll_idx, 0, train_section.get_child_count() - 1))
 
 
-func _update_kb_preview(override_txt: String = "") -> void:
+func _commit_focused_train_input(override_txt: String = "__FROM_LINE__", release_kb: bool = true) -> int:
+	if _focused_train_unit.is_empty():
+		return 0
+	var u_key := _focused_train_unit
+	var target_spin := _focused_train_spin
+	var target_line := _focused_train_line
+	var src := override_txt
+	if src == "__FROM_LINE__":
+		src = target_line.text if (target_line != null and is_instance_valid(target_line)) else str(int(target_spin.value) if target_spin != null and is_instance_valid(target_spin) else 0)
+	var digits := _extract_train_digits(src.strip_edges())
+	var new_val := clampi(digits.to_int(), 0, 99999) if not digits.is_empty() else 0
+	_train_counts[u_key] = new_val
+	if target_spin != null and is_instance_valid(target_spin):
+		target_spin.value = float(new_val)
+	if target_line != null and is_instance_valid(target_line):
+		target_line.text = str(new_val)
+	if train_list != null:
+		var card := train_list.get_node_or_null("TrainCard_" + u_key)
+		if card != null and card.has_meta("update_calc"):
+			var cb = card.get_meta("update_calc")
+			if cb is Callable:
+				(cb as Callable).call()
+	if release_kb:
+		_focused_train_unit = ""
+		_focused_train_line = null
+		_focused_train_spin = null
+		_kb_scroll_done_for = ""
+		if target_line != null and is_instance_valid(target_line) and target_line.has_focus():
+			target_line.release_focus()
+		_restore_keyboard_lift()
+		if _current_tab == Tab.TRAIN:
+			offset_top = -1150.0
+			_update_active_train_info()
+		var gc: Node = Engine.get_main_loop().root.get_node_or_null("GameConfig") if Engine.get_main_loop() is SceneTree else null
+		if gc != null and gc.has_method("dismiss_virtual_keyboard"):
+			gc.call("dismiss_virtual_keyboard")
+	return new_val
+
+
+func _update_kb_preview(override_txt: String = "__FROM_LINE__") -> void:
 	_ensure_kb_preview_bar()
 	if _kb_preview_bar == null or _kb_preview_label == null:
 		return
@@ -249,15 +355,17 @@ func _update_kb_preview(override_txt: String = "") -> void:
 		return
 	var u_name: String = GameDataScript.get_singleton().get_unit_name(_focused_train_unit)
 	var u_icon: String = str(UNIT_ICONS.get(_focused_train_unit, "⚔️"))
-	var raw_txt := override_txt.strip_edges() if not override_txt.is_empty() else _focused_train_line.text.strip_edges()
-	var cnt := int(raw_txt) if raw_txt.is_valid_int() else (int(_focused_train_spin.value) if _focused_train_spin != null and is_instance_valid(_focused_train_spin) else 0)
-	cnt = clampi(cnt, 0, 99999)
+	var raw_in := _focused_train_line.text if override_txt == "__FROM_LINE__" else override_txt
+	var digits := _extract_train_digits(raw_in.strip_edges())
+	var cnt := clampi(digits.to_int(), 0, 99999) if not digits.is_empty() else 0
+	if _kb_preview_value_lbl != null:
+		_kb_preview_value_lbl.text = _format_number(cnt) if cnt > 0 else "0"
 	if cnt > 0:
 		var barracks_lvl := int(_village.get("buildings", {}).get("barracks", 1))
 		var tot_sec := int(ceil(RulesEngineScript.training_seconds(_focused_train_unit, cnt, barracks_lvl)))
-		_kb_preview_label.text = "⌨️ Girilen Adet: %s %s — %s Adet   •   ⏱️ %s" % [u_icon, u_name, _format_number(cnt), _fmt_duration(tot_sec)]
+		_kb_preview_label.text = "%s %s — %s Adet\n⏱️ Süre: %s" % [u_icon, u_name, _format_number(cnt), _fmt_duration(tot_sec)]
 	else:
-		_kb_preview_label.text = "⌨️ Girilen Adet: %s %s — %s" % [u_icon, u_name, raw_txt if not raw_txt.is_empty() else "0"]
+		_kb_preview_label.text = "%s %s — Miktar Yazın\nKlavyeden sayı girip ✓ Tamam'a basın" % [u_icon, u_name]
 	_kb_preview_bar.show()
 
 
@@ -267,6 +375,8 @@ func _update_keyboard_lift() -> void:
 		return
 	if _focused_train_line == null or not is_instance_valid(_focused_train_line) or not _focused_train_line.has_focus():
 		return
+	if active_train_box != null:
+		active_train_box.hide()
 	var vp := get_viewport()
 	var vp_h: float = vp.get_visible_rect().size.y if vp != null else 1920.0
 	if vp_h <= 10.0:
@@ -274,13 +384,13 @@ func _update_keyboard_lift() -> void:
 	var kb_px: int = DisplayServer.virtual_keyboard_get_height() if DisplayServer.get_name() != "headless" else 0
 	var win_h: float = float(DisplayServer.window_get_size().y) if DisplayServer.get_name() != "headless" else vp_h
 	var kb_vp_h: float = (float(kb_px) * vp_h / maxf(1.0, win_h)) if kb_px > 0 else 0.0
-	if kb_vp_h <= 10.0 and (OS.has_feature("ios") or OS.has_feature("android") or DisplayServer.is_touchscreen_available()):
-		kb_vp_h = vp_h * 0.45
+	if OS.has_feature("ios") or OS.has_feature("android") or DisplayServer.is_touchscreen_available():
+		kb_vp_h = maxf(kb_vp_h, vp_h * 0.48)
 	if kb_vp_h <= 10.0:
 		kb_vp_h = 256.0
-	var top_limit: float = 150.0
-	var bottom_off: float = minf(-256.0, -kb_vp_h - 14.0)
-	var desired_h: float = minf(840.0, maxf(460.0, vp_h + bottom_off - top_limit))
+	var top_limit: float = 152.0
+	var bottom_off: float = minf(-256.0, -kb_vp_h - 18.0)
+	var desired_h: float = minf(920.0, maxf(460.0, vp_h + bottom_off - top_limit))
 	offset_bottom = bottom_off
 	offset_top = bottom_off - desired_h
 	if _kb_scroll_done_for != _focused_train_unit and train_list != null:
@@ -295,7 +405,11 @@ func _deferred_scroll_to_train_card(u_key: String) -> void:
 	var scroll := get_node_or_null("VBox/TrainSection/TrainScroll") as ScrollContainer
 	var card := train_list.get_node_or_null("TrainCard_" + u_key) as Control
 	if scroll != null and card != null:
-		scroll.scroll_vertical = int(maxf(0.0, card.position.y - 8.0))
+		var row_node := card.find_child("TrainInputRow_" + u_key, true, false) as Control
+		var row_bottom := card.position.y + (row_node.position.y + row_node.size.y if row_node != null else card.size.y)
+		var visible_h := maxf(200.0, scroll.size.y)
+		var desired := maxf(card.position.y - 8.0, row_bottom - visible_h + 26.0)
+		scroll.scroll_vertical = int(maxf(0.0, desired))
 
 
 func _restore_keyboard_lift() -> void:
@@ -1962,7 +2076,8 @@ func _populate_train_list() -> void:
 			1 if RulesEngineScript.is_researched(_village, u_key) else 0
 		])
 	var train_sig := "|".join(sig_parts)
-	if train_sig == _last_train_sig and train_list.get_child_count() == BARRACKS_UNITS.size():
+	var has_focused_train := (_focused_train_line != null and is_instance_valid(_focused_train_line) and _focused_train_line.has_focus())
+	if (train_sig == _last_train_sig or has_focused_train) and train_list.get_child_count() == BARRACKS_UNITS.size():
 		for child in train_list.get_children():
 			if child.has_meta("update_calc"):
 				var cb = child.get_meta("update_calc")
@@ -2166,6 +2281,7 @@ func _populate_train_list() -> void:
 
 			# Training input controls
 			var input_row := HBoxContainer.new()
+			input_row.name = "TrainInputRow_" + u_key
 			input_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 			input_row.mouse_filter = Control.MOUSE_FILTER_PASS
 			input_row.add_theme_constant_override("separation", 8)
@@ -2185,60 +2301,53 @@ func _populate_train_list() -> void:
 			input_row.add_child(btn_p10)
 			input_row.add_child(btn_max)
 
-			# SpinBox for quantity
+			# Visible pure LineEdit for mobile-safe numeric entry (avoids Godot SpinBox resetting typed text on iOS)
+			var qty_edit := LineEdit.new()
+			qty_edit.name = "QtyEdit_" + u_key
+			qty_edit.text = str(int(_train_counts.get(u_key, 0)))
+			qty_edit.placeholder_text = "0"
+			qty_edit.alignment = HORIZONTAL_ALIGNMENT_CENTER
+			qty_edit.select_all_on_focus = true
+			qty_edit.virtual_keyboard_type = LineEdit.KEYBOARD_TYPE_NUMBER
+			qty_edit.custom_minimum_size = Vector2(126, 54)
+			qty_edit.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+			qty_edit.mouse_filter = Control.MOUSE_FILTER_PASS
+			qty_edit.add_theme_font_override("font", FontNunitoBold)
+			qty_edit.add_theme_font_size_override("font_size", 26)
+			qty_edit.add_theme_constant_override("outline_size", 2)
+			qty_edit.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.95))
+			qty_edit.add_theme_color_override("font_color", Color(1.0, 0.97, 0.88))
+			qty_edit.add_theme_color_override("font_placeholder_color", Color(0.65, 0.62, 0.56, 0.85))
+			var qe_sb := StyleBoxFlat.new()
+			qe_sb.bg_color = Color(0.06, 0.07, 0.12, 0.98)
+			qe_sb.border_color = Color(0.78, 0.65, 0.32, 0.92)
+			qe_sb.set_border_width_all(2)
+			qe_sb.set_corner_radius_all(10)
+			qe_sb.content_margin_left = 8
+			qe_sb.content_margin_right = 8
+			var qe_foc := qe_sb.duplicate() as StyleBoxFlat
+			qe_foc.bg_color = Color(0.08, 0.10, 0.18, 1.0)
+			qe_foc.border_color = Color(1.0, 0.86, 0.36, 1.0)
+			qe_foc.set_border_width_all(3)
+			qty_edit.add_theme_stylebox_override("normal", qe_sb)
+			qty_edit.add_theme_stylebox_override("focus", qe_foc)
+			input_row.add_child(qty_edit)
+
+			# Hidden backing SpinBox kept in sync for quick +/- buttons and automated tests
 			var spin := SpinBox.new()
 			spin.name = "Spin_" + u_key
+			spin.visible = false
 			spin.min_value = 0
 			spin.max_value = 99999
 			spin.step = 1
 			spin.value = int(_train_counts.get(u_key, 0))
-			spin.update_on_text_changed = true
-			spin.custom_minimum_size = Vector2(120, 54)
-			spin.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-			spin.mouse_filter = Control.MOUSE_FILTER_PASS
-			var s_line := spin.get_line_edit()
-			if s_line != null:
-				s_line.mouse_filter = Control.MOUSE_FILTER_PASS
-				s_line.alignment = HORIZONTAL_ALIGNMENT_CENTER
-				s_line.select_all_on_focus = true
-				s_line.add_theme_font_override("font", FontNunitoBold)
-				s_line.add_theme_font_size_override("font_size", 26)
-				s_line.add_theme_constant_override("outline_size", 2)
-				s_line.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.95))
-				s_line.focus_entered.connect(func():
-					_focused_train_unit = u_key
-					_focused_train_spin = spin
-					_focused_train_line = s_line
-					_kb_scroll_done_for = ""
-					_update_kb_preview()
-					_update_keyboard_lift()
-				)
-				s_line.text_changed.connect(func(new_txt: String):
-					if _focused_train_unit == u_key:
-						_update_kb_preview(new_txt)
-				)
-				s_line.focus_exited.connect(func():
-					if _focused_train_line == s_line:
-						_focused_train_unit = ""
-						_focused_train_line = null
-						_focused_train_spin = null
-						_kb_scroll_done_for = ""
-						_restore_keyboard_lift()
-						if _current_tab == Tab.TRAIN:
-							offset_top = -1150.0
-				)
+			spin.custom_minimum_size = Vector2(0, 0)
+			input_row.add_child(spin)
+
+			var s_line := qty_edit
 			var gc_sp: Node = Engine.get_main_loop().root.get_node_or_null("GameConfig") if Engine.get_main_loop() is SceneTree else null
 			if gc_sp != null and gc_sp.has_method("bind_keyboard_dismiss"):
-				gc_sp.call("bind_keyboard_dismiss", spin, Callable(), true)
-			spin.value_changed.connect(func(v: float):
-				if _focused_train_unit == u_key:
-					if _focused_train_line != null and is_instance_valid(_focused_train_line) and _focused_train_line.has_focus():
-						var cur_t := _focused_train_line.text.strip_edges()
-						if cur_t.is_valid_int() and int(cur_t) != int(v):
-							return
-					_update_kb_preview(str(int(v)))
-			)
-			input_row.add_child(spin)
+				gc_sp.call("bind_keyboard_dismiss", qty_edit, Callable(), true)
 
 			var train_btn := Button.new()
 			train_btn.name = "TrainBtn_" + u_key
@@ -2298,6 +2407,9 @@ func _populate_train_list() -> void:
 			var update_calc = func():
 				have_lbl.text = "Mevcut: %d Adet" % int(_village.get("units", {}).get(u_key, 0))
 				var c := int(spin.value)
+				if s_line != null and is_instance_valid(s_line) and s_line.has_focus():
+					var fdigits := _extract_train_digits(s_line.text.strip_edges())
+					c = clampi(fdigits.to_int(), 0, 99999) if not fdigits.is_empty() else 0
 				_train_counts[u_key] = c
 				var max_train := _calculate_max_trainable(u_key)
 				var tot_cost := RulesEngineScript.unit_cost(u_key, c)
@@ -2327,17 +2439,80 @@ func _populate_train_list() -> void:
 			update_calc.call()
 			card.set_meta("update_calc", update_calc)
 
-			spin.value_changed.connect(func(_val): update_calc.call())
+			if s_line != null:
+				s_line.focus_entered.connect(func():
+					if s_line.text.strip_edges() == "0":
+						s_line.text = ""
+					else:
+						s_line.call_deferred("select_all")
+					_focused_train_unit = u_key
+					_focused_train_spin = spin
+					_focused_train_line = s_line
+					_kb_scroll_done_for = ""
+					if active_train_box != null:
+						active_train_box.hide()
+					_update_kb_preview(s_line.text)
+					_update_keyboard_lift()
+				)
+				s_line.text_changed.connect(func(new_txt: String):
+					var digits := _extract_train_digits(new_txt.strip_edges())
+					var parsed := clampi(digits.to_int(), 0, 99999) if not digits.is_empty() else 0
+					_train_counts[u_key] = parsed
+					spin.set_value_no_signal(float(parsed))
+					update_calc.call()
+					if _focused_train_unit == u_key:
+						_update_kb_preview(digits)
+				)
+				s_line.text_submitted.connect(func(sub_txt: String):
+					if _focused_train_unit == u_key:
+						_commit_focused_train_input(sub_txt, true)
+					else:
+						var digits := _extract_train_digits(sub_txt.strip_edges())
+						var parsed := clampi(digits.to_int(), 0, 99999) if not digits.is_empty() else 0
+						_train_counts[u_key] = parsed
+						spin.value = float(parsed)
+						s_line.text = str(parsed)
+						update_calc.call()
+				)
+				s_line.focus_exited.connect(func():
+					if _focused_train_line == s_line:
+						_commit_focused_train_input(s_line.text, true)
+					else:
+						var digits := _extract_train_digits(s_line.text.strip_edges())
+						var parsed := clampi(digits.to_int(), 0, 99999) if not digits.is_empty() else 0
+						_train_counts[u_key] = parsed
+						spin.value = float(parsed)
+						s_line.text = str(parsed)
+						update_calc.call()
+				)
+
+			spin.value_changed.connect(func(v: float):
+				if s_line != null and is_instance_valid(s_line) and not s_line.has_focus():
+					s_line.text = str(int(v))
+				update_calc.call()
+				if _focused_train_unit == u_key:
+					if _focused_train_line != null and is_instance_valid(_focused_train_line) and _focused_train_line.has_focus():
+						var fd := _extract_train_digits(_focused_train_line.text.strip_edges())
+						var cur_i := fd.to_int() if not fd.is_empty() else 0
+						if cur_i != int(v):
+							return
+					_update_kb_preview(str(int(v)))
+			)
 			btn_p1.pressed.connect(func(): spin.value += 1)
 			btn_p5.pressed.connect(func(): spin.value += 5)
 			btn_p10.pressed.connect(func(): spin.value += 10)
 			btn_max.pressed.connect(func(): spin.value = _calculate_max_trainable(u_key))
 
 			train_btn.pressed.connect(func():
-				spin.apply()
+				if _focused_train_unit == u_key and _focused_train_line != null and is_instance_valid(_focused_train_line):
+					_commit_focused_train_input(_focused_train_line.text, true)
+				elif s_line != null and is_instance_valid(s_line):
+					var fd := _extract_train_digits(s_line.text.strip_edges())
+					if not fd.is_empty():
+						spin.value = clampf(float(fd.to_int()), spin.min_value, spin.max_value)
 				var gc_tr: Node = Engine.get_main_loop().root.get_node_or_null("GameConfig") if Engine.get_main_loop() is SceneTree else null
 				if gc_tr != null and gc_tr.has_method("dismiss_keyboard_for"):
-					gc_tr.call("dismiss_keyboard_for", spin)
+					gc_tr.call("dismiss_keyboard_for", s_line if s_line != null else train_btn)
 				var c := int(spin.value)
 				if c > 0:
 					_on_start_train_pressed(u_key, c)
@@ -2419,6 +2594,10 @@ func _update_active_train_info() -> void:
 	for item in gs.queues:
 		if typeof(item) == TYPE_DICTIONARY and int(item.get("village_id", -1)) == vid and str(item.get("type", "")) == "train":
 			train_items.append(item)
+
+	if _current_tab == Tab.TRAIN and _focused_train_line != null and is_instance_valid(_focused_train_line) and _focused_train_line.has_focus():
+		active_train_box.hide()
+		return
 
 	if train_items.is_empty():
 		active_train_box.hide()

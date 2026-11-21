@@ -92,6 +92,18 @@ func _init() -> void:
 			for i in range(8):
 				await process_frame
 			_save_now("03d_building_panel_barracks.png")
+
+			bp.call("switch_tab", 2)
+			for i in range(6):
+				await process_frame
+			var le_s: LineEdit = bp.find_child("QtyEdit_spear", true, false) as LineEdit
+			if le_s != null:
+				le_s.grab_focus()
+				le_s.text = "100"
+				le_s.text_changed.emit("100")
+			for i in range(8):
+				await process_frame
+			_save_now("03e_barracks_train_keyboard.png")
 			bp.hide()
 
 	# Canlı birlik ve katır hareketlerini haritada görselleştirmek için hareketler ekleyelim

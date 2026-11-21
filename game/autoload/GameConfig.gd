@@ -521,24 +521,51 @@ static func dismiss_virtual_keyboard(target: Control = null) -> void:
 		DisplayServer.virtual_keyboard_hide()
 
 
+static func _extract_spin_digits(raw: String) -> String:
+	var out: String = ""
+	for i in range(raw.length()):
+		var ch := raw.substr(i, 1)
+		if ch >= "0" and ch <= "9":
+			out += ch
+	return out
+
+static func _apply_spinbox_digits(sp: SpinBox, override_txt: String = "") -> void:
+	if sp == null or not is_instance_valid(sp):
+		return
+	var le: LineEdit = sp.get_line_edit()
+	var raw_txt: String = override_txt
+	if raw_txt == "" and le != null and is_instance_valid(le):
+		raw_txt = le.text
+	var digits: String = _extract_spin_digits(raw_txt.strip_edges())
+	var val: float = clampf(0.0, sp.min_value, sp.max_value)
+	if digits != "":
+		val = clampf(float(digits.to_int()), sp.min_value, sp.max_value)
+	sp.value = val
+	sp.apply()
+	if le != null and is_instance_valid(le):
+		var target_txt: String = str(int(sp.value))
+		if le.text != target_txt:
+			le.text = target_txt
+
 static func attach_mobile_keyboard_dismiss(ctrl: Control, on_submit: Callable = Callable(), numeric: bool = false) -> void:
 	if ctrl == null:
 		return
 	if ctrl is SpinBox:
 		var sp := ctrl as SpinBox
-		sp.update_on_text_changed = true
+		if not sp.has_meta("skip_live_update_on_text_changed"):
+			sp.update_on_text_changed = true
 		var le: LineEdit = sp.get_line_edit()
 		if le != null:
 			le.virtual_keyboard_type = LineEdit.KEYBOARD_TYPE_NUMBER
-			le.text_submitted.connect(func(_txt: String):
-				sp.apply()
+			le.text_submitted.connect(func(txt: String):
+				_apply_spinbox_digits(sp, txt)
 				le.release_focus()
 				dismiss_virtual_keyboard()
 				if on_submit.is_valid():
 					on_submit.call()
 			)
 			le.focus_exited.connect(func():
-				sp.apply()
+				_apply_spinbox_digits(sp, "")
 				dismiss_virtual_keyboard()
 			)
 	elif ctrl is LineEdit:
@@ -593,6 +620,6 @@ func _input(event: InputEvent) -> void:
 		var sp := par as SpinBox
 		if sp.get_global_rect().has_point(tap_pos):
 			return
-		sp.apply()
+		_apply_spinbox_digits(sp, "")
 	focus_owner.release_focus()
 	call_deferred("_deferred_hide_virtual_keyboard")

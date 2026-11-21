@@ -1,4 +1,4 @@
-[gd_scene load_steps=23 format=3]
+[gd_scene load_steps=24 format=3]
 
 [ext_resource type="Script" path="res://ui/ResourceBar.gd" id="1_rbar"]
 [ext_resource type="Theme" path="res://themes/TahtVeKilic.tres" id="2_theme"]
@@ -11,6 +11,7 @@
 [ext_resource type="Texture2D" path="res://assets/sprites/ui/nano_banana/sharp_icon_diamond.tres" id="9_diamond_tex"]
 [ext_resource type="Texture2D" path="res://assets/sprites/ui/nano_banana/sharp_icon_storage.tres" id="10_storage_tex"]
 [ext_resource type="Texture2D" path="res://assets/sprites/ui/nano_banana/sharp_icon_castle_crest.tres" id="11_castle_crest"]
+[ext_resource type="Texture2D" path="res://assets/sprites/ui/nano_banana/sharp_icon_market.png" id="12_market_tex"]
 
 [sub_resource type="StyleBoxFlat" id="sb_bar"]
 bg_color = Color(0.08, 0.07, 0.11, 0.98)
@@ -243,23 +244,29 @@ mouse_filter = 2
 layout_mode = 2
 size_flags_horizontal = 8
 alignment = 2
-theme_override_constants/separation = 8
+theme_override_constants/separation = 10
+
+[node name="BtnDiamonds" type="Button" parent="VBox/TopRow/RightWing"]
+custom_minimum_size = Vector2(210, 56)
+layout_mode = 2
+size_flags_vertical = 4
+theme_override_colors/font_color = Color(0.98, 0.97, 0.92, 1)
+theme_override_styles/normal = SubResource("sb_market_btn")
+theme_override_styles/hover = SubResource("sb_market_btn_hover")
+theme_override_styles/pressed = SubResource("sb_market_btn_hover")
 
 [node name="BtnMarket" type="Button" parent="VBox/TopRow/RightWing"]
-custom_minimum_size = Vector2(158, 40)
+custom_minimum_size = Vector2(218, 56)
 layout_mode = 2
 size_flags_vertical = 4
 theme_override_colors/font_color = Color(0.98, 0.95, 0.86, 1)
 theme_override_colors/font_hover_color = Color(1, 0.98, 0.92, 1)
 theme_override_colors/font_pressed_color = Color(1, 0.95, 0.8, 1)
 theme_override_fonts/font = ExtResource("7_nunito_bold")
-theme_override_font_sizes/font_size = 18
+theme_override_font_sizes/font_size = 22
 theme_override_styles/normal = SubResource("sb_market_btn")
 theme_override_styles/hover = SubResource("sb_market_btn_hover")
 theme_override_styles/pressed = SubResource("sb_market_btn_hover")
-icon = ExtResource("9_diamond_tex")
-expand_icon = true
-text = "35 | PAZAR"
 
 [node name="ResourcesRow" type="HBoxContainer" parent="VBox"]
 custom_minimum_size = Vector2(0, 46)

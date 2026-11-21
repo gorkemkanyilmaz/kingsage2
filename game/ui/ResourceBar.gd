@@ -9,6 +9,7 @@ const ICON_IRON: Texture2D = preload("res://assets/sprites/ui/nano_banana/sharp_
 const ICON_CITIZENS: Texture2D = preload("res://assets/sprites/ui/nano_banana/sharp_icon_citizens.tres")
 const ICON_STORAGE: Texture2D = preload("res://assets/sprites/ui/nano_banana/sharp_icon_storage.tres")
 const ICON_DIAMOND: Texture2D = preload("res://assets/sprites/ui/nano_banana/sharp_icon_diamond.tres")
+const ICON_MARKET: Texture2D = preload("res://assets/sprites/ui/nano_banana/sharp_icon_market.png")
 const ICON_CASTLE_CREST: Texture2D = preload("res://assets/sprites/ui/nano_banana/sharp_icon_castle_crest.tres")
 const TEX_ROYAL_BTN_BG: Texture2D = preload("res://assets/sprites/ui/nano_banana/sharp_ui_royal_btn_bg.tres")
 const FONT_BOLD: Font = preload("res://assets/fonts/Nunito-Bold.ttf")
@@ -51,7 +52,15 @@ var storage_label: Label
 var realm_label: Label
 var btn_prev: Button
 var btn_next: Button
+var btn_diamonds: Button
 var btn_market: Button
+var _diamonds_count_lbl: Label = null
+var _diamonds_sub_lbl: Label = null
+var _diamonds_icon_rect: TextureRect = null
+var _diamonds_plus_badge: PanelContainer = null
+var _market_title_lbl: Label = null
+var _market_sub_lbl: Label = null
+var _market_icon_rect: TextureRect = null
 
 var _pb_fill_ok: StyleBoxFlat
 var _pb_fill_warn: StyleBoxFlat
@@ -135,9 +144,18 @@ func _ensure_nodes() -> void:
 		btn_prev = find_child("BtnPrevVillage", true, false) as Button
 	if btn_next == null:
 		btn_next = find_child("BtnNextVillage", true, false) as Button
+	if btn_diamonds == null:
+		btn_diamonds = find_child("BtnDiamonds", true, false) as Button
 	if btn_market == null:
 		btn_market = find_child("BtnMarket", true, false) as Button
+	if btn_diamonds == null and right_wing != null:
+		btn_diamonds = Button.new()
+		btn_diamonds.name = "BtnDiamonds"
+		right_wing.add_child(btn_diamonds)
+		if btn_market != null:
+			right_wing.move_child(btn_diamonds, btn_market.get_index())
 
+	_ensure_right_wing_contents()
 	_ensure_royal_wing_frames()
 	_ensure_resource_box_titles()
 
@@ -199,6 +217,8 @@ func _ready() -> void:
 		btn_prev.pressed.connect(_on_prev_village_pressed)
 	if btn_next != null and not btn_next.pressed.is_connected(_on_next_village_pressed):
 		btn_next.pressed.connect(_on_next_village_pressed)
+	if btn_diamonds != null and not btn_diamonds.pressed.is_connected(_on_diamonds_pressed):
+		btn_diamonds.pressed.connect(_on_diamonds_pressed)
 	if btn_market != null and not btn_market.pressed.is_connected(_on_market_pressed):
 		btn_market.pressed.connect(_on_market_pressed)
 
@@ -257,14 +277,14 @@ func _apply_responsive_layout() -> void:
 	var top_pad := 10.0
 	var bottom_pad := 10.0
 	var sep := 8
-	var top_row_h := 56.0
+	var top_row_h := 60.0
 	var res_row_h := 62.0
 
 	if has_island:
 		top_pad = 6.0
 		bottom_pad = 9.0
 		sep = 6
-		top_row_h = maxf(54.0, safe_top)
+		top_row_h = maxf(56.0, safe_top)
 	elif safe_top > 0.0:
 		top_pad = maxf(10.0, safe_top + 2.0)
 
@@ -307,6 +327,7 @@ func _apply_responsive_layout() -> void:
 
 	if right_wing != null:
 		right_wing.size_flags_horizontal = Control.SIZE_EXPAND_FILL if has_island else Control.SIZE_SHRINK_END
+		right_wing.add_theme_constant_override("separation", 6 if has_island else 10)
 
 	if crest_icon != null:
 		crest_icon.texture = ICON_CASTLE_CREST
@@ -327,13 +348,32 @@ func _apply_responsive_layout() -> void:
 	if btn_rename_village != null:
 		btn_rename_village.custom_minimum_size = Vector2(34, 34) if has_island else Vector2(38, 38)
 		btn_rename_village.add_theme_font_size_override("font_size", 19 if has_island else 21)
+	if btn_diamonds != null:
+		btn_diamonds.custom_minimum_size = Vector2(166, 52) if has_island else Vector2(210, 56)
+		btn_diamonds.text = ""
+		btn_diamonds.icon = null
+	if _diamonds_icon_rect != null:
+		var d_sz := 34 if has_island else 40
+		_diamonds_icon_rect.custom_minimum_size = Vector2(d_sz, d_sz)
+	if _diamonds_count_lbl != null:
+		_diamonds_count_lbl.add_theme_font_size_override("font_size", 21 if has_island else 23)
+	if _diamonds_sub_lbl != null:
+		_diamonds_sub_lbl.add_theme_font_size_override("font_size", 12 if has_island else 14)
+	if _diamonds_plus_badge != null:
+		var pb_sz := 26 if has_island else 30
+		_diamonds_plus_badge.custom_minimum_size = Vector2(pb_sz, pb_sz)
 	if btn_market != null:
-		btn_market.custom_minimum_size = Vector2(180, 44) if has_island else Vector2(222, 48)
-		btn_market.add_theme_font_override("font", FONT_BOLD)
-		btn_market.add_theme_font_size_override("font_size", 21 if has_island else 23)
-		btn_market.add_theme_color_override("font_color", Color(1.0, 0.96, 0.84))
-		btn_market.add_theme_constant_override("outline_size", 3)
-		btn_market.add_theme_color_override("font_outline_color", Color(0.04, 0.08, 0.16, 0.96))
+		btn_market.custom_minimum_size = Vector2(174, 52) if has_island else Vector2(218, 56)
+		btn_market.text = ""
+		btn_market.icon = null
+	if _market_icon_rect != null:
+		var m_sz := 34 if has_island else 42
+		_market_icon_rect.custom_minimum_size = Vector2(m_sz, m_sz)
+	if _market_title_lbl != null:
+		_market_title_lbl.add_theme_font_size_override("font_size", 20 if has_island else 22)
+	if _market_sub_lbl != null:
+		_market_sub_lbl.text = "Dükkan" if has_island else "Parşömen & Paket"
+		_market_sub_lbl.add_theme_font_size_override("font_size", 12 if has_island else 14)
 	if village_name_label != null:
 		village_name_label.clip_text = has_island
 		village_name_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS if has_island else TextServer.OVERRUN_NO_TRIMMING
@@ -382,6 +422,144 @@ func _on_village_name_gui_input(event: InputEvent) -> void:
 		_show_village_switcher_modal()
 
 
+func _ensure_right_wing_contents() -> void:
+	if btn_diamonds != null and _diamonds_count_lbl == null:
+		btn_diamonds.text = ""
+		btn_diamonds.icon = null
+		var d_margin := MarginContainer.new()
+		d_margin.name = "DiamondsContent"
+		d_margin.set_anchors_preset(Control.PRESET_FULL_RECT)
+		d_margin.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		d_margin.add_theme_constant_override("margin_left", 10)
+		d_margin.add_theme_constant_override("margin_right", 10)
+		d_margin.add_theme_constant_override("margin_top", 4)
+		d_margin.add_theme_constant_override("margin_bottom", 4)
+		btn_diamonds.add_child(d_margin)
+
+		var d_row := HBoxContainer.new()
+		d_row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		d_row.add_theme_constant_override("separation", 8)
+		d_margin.add_child(d_row)
+
+		_diamonds_icon_rect = TextureRect.new()
+		_diamonds_icon_rect.name = "DiamondsIcon"
+		_diamonds_icon_rect.texture = ICON_DIAMOND
+		_diamonds_icon_rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		_diamonds_icon_rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		_diamonds_icon_rect.custom_minimum_size = Vector2(38, 38)
+		_diamonds_icon_rect.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		_diamonds_icon_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		d_row.add_child(_diamonds_icon_rect)
+
+		var d_col := VBoxContainer.new()
+		d_col.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		d_col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		d_col.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		d_col.add_theme_constant_override("separation", 0)
+		d_row.add_child(d_col)
+
+		_diamonds_count_lbl = Label.new()
+		_diamonds_count_lbl.name = "DiamondsCountLabel"
+		_diamonds_count_lbl.text = "0"
+		_diamonds_count_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_diamonds_count_lbl.add_theme_font_override("font", FONT_BOLD)
+		_diamonds_count_lbl.add_theme_font_size_override("font_size", 24)
+		_diamonds_count_lbl.add_theme_color_override("font_color", Color(1.0, 0.98, 0.88))
+		_diamonds_count_lbl.add_theme_constant_override("outline_size", 2)
+		_diamonds_count_lbl.add_theme_color_override("font_outline_color", Color(0.02, 0.06, 0.14, 0.96))
+		d_col.add_child(_diamonds_count_lbl)
+
+		_diamonds_sub_lbl = Label.new()
+		_diamonds_sub_lbl.name = "DiamondsSubLabel"
+		_diamonds_sub_lbl.text = "ELMAS"
+		_diamonds_sub_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_diamonds_sub_lbl.add_theme_font_override("font", FONT_SEMIBOLD)
+		_diamonds_sub_lbl.add_theme_font_size_override("font_size", 13)
+		_diamonds_sub_lbl.add_theme_color_override("font_color", Color(0.56, 0.88, 1.0))
+		_diamonds_sub_lbl.add_theme_constant_override("outline_size", 1)
+		_diamonds_sub_lbl.add_theme_color_override("font_outline_color", Color(0.02, 0.06, 0.14, 0.95))
+		d_col.add_child(_diamonds_sub_lbl)
+
+		_diamonds_plus_badge = PanelContainer.new()
+		_diamonds_plus_badge.name = "DiamondsPlusBadge"
+		_diamonds_plus_badge.custom_minimum_size = Vector2(30, 30)
+		_diamonds_plus_badge.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		_diamonds_plus_badge.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		var psb := StyleBoxFlat.new()
+		psb.bg_color = Color(0.15, 0.58, 0.30, 1.0)
+		psb.border_color = Color(0.62, 0.98, 0.72, 1.0)
+		psb.set_border_width_all(2)
+		psb.set_corner_radius_all(9)
+		_diamonds_plus_badge.add_theme_stylebox_override("panel", psb)
+		var plus_lbl := Label.new()
+		plus_lbl.text = "+"
+		plus_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		plus_lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		plus_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		plus_lbl.add_theme_font_override("font", FONT_BOLD)
+		plus_lbl.add_theme_font_size_override("font_size", 21)
+		plus_lbl.add_theme_color_override("font_color", Color(1, 1, 1))
+		_diamonds_plus_badge.add_child(plus_lbl)
+		d_row.add_child(_diamonds_plus_badge)
+
+	if btn_market != null and _market_title_lbl == null:
+		btn_market.text = ""
+		btn_market.icon = null
+		var m_margin := MarginContainer.new()
+		m_margin.name = "MarketContent"
+		m_margin.set_anchors_preset(Control.PRESET_FULL_RECT)
+		m_margin.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		m_margin.add_theme_constant_override("margin_left", 10)
+		m_margin.add_theme_constant_override("margin_right", 12)
+		m_margin.add_theme_constant_override("margin_top", 4)
+		m_margin.add_theme_constant_override("margin_bottom", 4)
+		btn_market.add_child(m_margin)
+
+		var m_row := HBoxContainer.new()
+		m_row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		m_row.add_theme_constant_override("separation", 9)
+		m_margin.add_child(m_row)
+
+		_market_icon_rect = TextureRect.new()
+		_market_icon_rect.name = "MarketIcon"
+		_market_icon_rect.texture = ICON_MARKET
+		_market_icon_rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		_market_icon_rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		_market_icon_rect.custom_minimum_size = Vector2(42, 42)
+		_market_icon_rect.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		_market_icon_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		m_row.add_child(_market_icon_rect)
+
+		var m_col := VBoxContainer.new()
+		m_col.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		m_col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		m_col.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		m_col.add_theme_constant_override("separation", 0)
+		m_row.add_child(m_col)
+
+		_market_title_lbl = Label.new()
+		_market_title_lbl.name = "MarketTitleLabel"
+		_market_title_lbl.text = "PAZAR"
+		_market_title_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_market_title_lbl.add_theme_font_override("font", FONT_BOLD)
+		_market_title_lbl.add_theme_font_size_override("font_size", 22)
+		_market_title_lbl.add_theme_color_override("font_color", Color(1.0, 0.92, 0.64))
+		_market_title_lbl.add_theme_constant_override("outline_size", 3)
+		_market_title_lbl.add_theme_color_override("font_outline_color", Color(0.14, 0.04, 0.03, 0.96))
+		m_col.add_child(_market_title_lbl)
+
+		_market_sub_lbl = Label.new()
+		_market_sub_lbl.name = "MarketSubLabel"
+		_market_sub_lbl.text = "Parşömen & Paket"
+		_market_sub_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_market_sub_lbl.add_theme_font_override("font", FONT_SEMIBOLD)
+		_market_sub_lbl.add_theme_font_size_override("font_size", 13)
+		_market_sub_lbl.add_theme_color_override("font_color", Color(0.95, 0.87, 0.72))
+		_market_sub_lbl.add_theme_constant_override("outline_size", 1)
+		_market_sub_lbl.add_theme_color_override("font_outline_color", Color(0.10, 0.03, 0.03, 0.95))
+		m_col.add_child(_market_sub_lbl)
+
+
 func _ensure_royal_wing_frames() -> void:
 	_village_info_sb = null
 	if _wing_styles_done:
@@ -415,22 +593,35 @@ func _ensure_royal_wing_frames() -> void:
 		btn_rename_village.add_theme_stylebox_override("hover", rhov)
 		btn_rename_village.add_theme_stylebox_override("pressed", rhov)
 
+	if btn_diamonds != null:
+		var dsb := StyleBoxFlat.new()
+		dsb.bg_color = Color(0.06, 0.14, 0.30, 0.98)
+		dsb.border_color = Color(0.42, 0.78, 1.0, 0.95)
+		dsb.set_border_width_all(2)
+		dsb.border_width_bottom = 3
+		dsb.set_corner_radius_all(14)
+		dsb.shadow_color = Color(0.0, 0.0, 0.0, 0.55)
+		dsb.shadow_size = 6
+		dsb.shadow_offset = Vector2(0, 2)
+		var d_hov := dsb.duplicate() as StyleBoxFlat
+		d_hov.bg_color = Color(0.10, 0.22, 0.44, 1.0)
+		d_hov.border_color = Color(0.75, 0.92, 1.0, 1.0)
+		btn_diamonds.add_theme_stylebox_override("normal", dsb)
+		btn_diamonds.add_theme_stylebox_override("hover", d_hov)
+		btn_diamonds.add_theme_stylebox_override("pressed", d_hov)
+
 	if btn_market != null:
 		var msb := StyleBoxFlat.new()
-		msb.bg_color = Color(0.08, 0.19, 0.38, 0.98)
-		msb.border_color = Color(0.96, 0.79, 0.34, 0.98)
+		msb.bg_color = Color(0.25, 0.10, 0.11, 0.98)
+		msb.border_color = Color(0.97, 0.79, 0.34, 0.98)
 		msb.set_border_width_all(2)
 		msb.border_width_bottom = 3
 		msb.set_corner_radius_all(14)
-		msb.content_margin_left = 14.0
-		msb.content_margin_right = 16.0
-		msb.content_margin_top = 5.0
-		msb.content_margin_bottom = 5.0
 		msb.shadow_color = Color(0.0, 0.0, 0.0, 0.55)
 		msb.shadow_size = 6
 		msb.shadow_offset = Vector2(0, 2)
 		var m_hov := msb.duplicate() as StyleBoxFlat
-		m_hov.bg_color = Color(0.13, 0.28, 0.54, 1.0)
+		m_hov.bg_color = Color(0.36, 0.15, 0.16, 1.0)
 		m_hov.border_color = Color(1.0, 0.90, 0.52, 1.0)
 		btn_market.add_theme_stylebox_override("normal", msb)
 		btn_market.add_theme_stylebox_override("hover", m_hov)
@@ -683,6 +874,12 @@ func _on_next_village_pressed() -> void:
 		refresh()
 
 
+func _on_diamonds_pressed() -> void:
+	var sm := _autoload("StoreManager")
+	if sm != null and sm.has_method("open_market"):
+		sm.call("open_market", self, "diamonds")
+
+
 func _on_market_pressed() -> void:
 	var sm := _autoload("StoreManager")
 	if sm != null and sm.has_method("open_market"):
@@ -721,8 +918,6 @@ func _get_game_state() -> Node:
 
 func _update_market_button() -> void:
 	_ensure_nodes()
-	if btn_market == null:
-		return
 	var diamonds := 0
 	var sm := _autoload("StoreManager")
 	if sm != null and sm.has_method("get_diamonds"):
@@ -733,12 +928,16 @@ func _update_market_button() -> void:
 			var p = gs.get("player")
 			if p is Dictionary:
 				diamonds = int((p as Dictionary).get("diamonds", 0))
-	btn_market.text = "%d  •  PAZAR" % diamonds
-	btn_market.icon = ICON_DIAMOND
-	btn_market.expand_icon = true
-	btn_market.add_theme_constant_override("icon_max_width", 30)
-	btn_market.add_theme_constant_override("h_separation", 8)
-	btn_market.tooltip_text = "Kraliyet Pazarı: Elmas, hızlandırma parşömenleri ve kaynak paketleri\nElmas bakiyeniz: %d" % diamonds
+	if _diamonds_count_lbl != null:
+		_diamonds_count_lbl.text = "%d" % diamonds
+	if btn_diamonds != null:
+		btn_diamonds.text = ""
+		btn_diamonds.icon = null
+		btn_diamonds.tooltip_text = "Elmas Bakiyeniz: %d\nElmas satın almak için dokunun." % diamonds
+	if btn_market != null:
+		btn_market.text = ""
+		btn_market.icon = null
+		btn_market.tooltip_text = "Kraliyet Pazarı: Hızlandırma parşömenleri ve kaynak paketleri\nElmas bakiyeniz: %d" % diamonds
 
 
 func _apply_gauge(bar: ProgressBar, amount: float, cap: int) -> void:
