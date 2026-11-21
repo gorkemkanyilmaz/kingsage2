@@ -277,14 +277,14 @@ func _apply_responsive_layout() -> void:
 	var top_pad := 10.0
 	var bottom_pad := 10.0
 	var sep := 8
-	var top_row_h := 60.0
-	var res_row_h := 62.0
+	var top_row_h := 64.0
+	var res_row_h := 68.0
 
 	if has_island:
 		top_pad = 6.0
 		bottom_pad = 9.0
 		sep = 6
-		top_row_h = maxf(64.0, safe_top)
+		top_row_h = maxf(68.0, safe_top)
 	elif safe_top > 0.0:
 		top_pad = maxf(10.0, safe_top + 2.0)
 
@@ -341,7 +341,7 @@ func _apply_responsive_layout() -> void:
 		points_box.visible = true
 	if points_label != null:
 		points_label.add_theme_font_override("font", FONT_BOLD)
-		points_label.add_theme_font_size_override("font_size", 19 if has_island else 22)
+		points_label.add_theme_font_size_override("font_size", 21 if has_island else 24)
 		points_label.add_theme_color_override("font_color", Color(1.0, 0.89, 0.44))
 		points_label.add_theme_constant_override("outline_size", 2)
 		points_label.add_theme_color_override("font_outline_color", Color(0.05, 0.04, 0.02, 0.95))
@@ -351,39 +351,39 @@ func _apply_responsive_layout() -> void:
 		btn_next.custom_minimum_size = Vector2(30, 34) if has_island else Vector2(36, 38)
 	if btn_rename_village != null:
 		btn_rename_village.custom_minimum_size = Vector2(34, 34) if has_island else Vector2(38, 38)
-		btn_rename_village.add_theme_font_size_override("font_size", 19 if has_island else 21)
+		btn_rename_village.add_theme_font_size_override("font_size", 21 if has_island else 23)
 	if btn_diamonds != null:
-		btn_diamonds.custom_minimum_size = Vector2(150, 50) if has_island else Vector2(210, 56)
+		btn_diamonds.custom_minimum_size = Vector2(150, 54) if has_island else Vector2(210, 60)
 		btn_diamonds.text = ""
 		btn_diamonds.icon = null
 	if _diamonds_icon_rect != null:
 		var d_sz := 30 if has_island else 40
 		_diamonds_icon_rect.custom_minimum_size = Vector2(d_sz, d_sz)
 	if _diamonds_count_lbl != null:
-		_diamonds_count_lbl.add_theme_font_size_override("font_size", 20 if has_island else 23)
+		_diamonds_count_lbl.add_theme_font_size_override("font_size", 22 if has_island else 25)
 	if _diamonds_sub_lbl != null:
-		_diamonds_sub_lbl.add_theme_font_size_override("font_size", 11 if has_island else 14)
+		_diamonds_sub_lbl.add_theme_font_size_override("font_size", 13 if has_island else 16)
 	if _diamonds_plus_badge != null:
 		var pb_sz := 24 if has_island else 30
 		_diamonds_plus_badge.custom_minimum_size = Vector2(pb_sz, pb_sz)
 	if btn_market != null:
-		btn_market.custom_minimum_size = Vector2(154, 50) if has_island else Vector2(218, 56)
+		btn_market.custom_minimum_size = Vector2(154, 54) if has_island else Vector2(218, 60)
 		btn_market.text = ""
 		btn_market.icon = null
 	if _market_icon_rect != null:
 		var m_sz := 32 if has_island else 42
 		_market_icon_rect.custom_minimum_size = Vector2(m_sz, m_sz)
 	if _market_title_lbl != null:
-		_market_title_lbl.add_theme_font_size_override("font_size", 19 if has_island else 22)
+		_market_title_lbl.add_theme_font_size_override("font_size", 21 if has_island else 24)
 	if _market_sub_lbl != null:
 		_market_sub_lbl.text = "Dükkan" if has_island else "Parşömen & Paket"
-		_market_sub_lbl.add_theme_font_size_override("font_size", 11 if has_island else 14)
+		_market_sub_lbl.add_theme_font_size_override("font_size", 13 if has_island else 16)
 	if village_name_label != null:
 		village_name_label.clip_text = has_island
 		village_name_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS if has_island else TextServer.OVERRUN_NO_TRIMMING
 		village_name_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL if has_island else Control.SIZE_SHRINK_BEGIN
 		village_name_label.add_theme_font_override("font", FONT_BOLD)
-		village_name_label.add_theme_font_size_override("font_size", 21 if has_island else 24)
+		village_name_label.add_theme_font_size_override("font_size", 23 if has_island else 26)
 		village_name_label.add_theme_color_override("font_color", Color(1.0, 0.95, 0.82))
 		village_name_label.add_theme_constant_override("outline_size", 3)
 		village_name_label.add_theme_color_override("font_outline_color", Color(0.04, 0.04, 0.07, 0.95))
@@ -398,9 +398,9 @@ func _apply_responsive_layout() -> void:
 		var tl := pair_sz[0] as Label
 		var vl := pair_sz[1] as Label
 		if tl != null:
-			tl.add_theme_font_size_override("font_size", 16 if has_island else 17)
+			tl.add_theme_font_size_override("font_size", 18 if has_island else 19)
 		if vl != null:
-			vl.add_theme_font_size_override("font_size", 21 if has_island else 23)
+			vl.add_theme_font_size_override("font_size", 23 if has_island else 25)
 
 	if absf(custom_minimum_size.y - total_h) > 0.5:
 		custom_minimum_size.y = total_h
@@ -467,7 +467,7 @@ func _ensure_right_wing_contents() -> void:
 		_diamonds_count_lbl.text = "0"
 		_diamonds_count_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		_diamonds_count_lbl.add_theme_font_override("font", FONT_BOLD)
-		_diamonds_count_lbl.add_theme_font_size_override("font_size", 24)
+		_diamonds_count_lbl.add_theme_font_size_override("font_size", 26)
 		_diamonds_count_lbl.add_theme_color_override("font_color", Color(1.0, 0.98, 0.88))
 		_diamonds_count_lbl.add_theme_constant_override("outline_size", 2)
 		_diamonds_count_lbl.add_theme_color_override("font_outline_color", Color(0.02, 0.06, 0.14, 0.96))
@@ -478,7 +478,7 @@ func _ensure_right_wing_contents() -> void:
 		_diamonds_sub_lbl.text = "ELMAS"
 		_diamonds_sub_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		_diamonds_sub_lbl.add_theme_font_override("font", FONT_SEMIBOLD)
-		_diamonds_sub_lbl.add_theme_font_size_override("font_size", 13)
+		_diamonds_sub_lbl.add_theme_font_size_override("font_size", 15)
 		_diamonds_sub_lbl.add_theme_color_override("font_color", Color(0.56, 0.88, 1.0))
 		_diamonds_sub_lbl.add_theme_constant_override("outline_size", 1)
 		_diamonds_sub_lbl.add_theme_color_override("font_outline_color", Color(0.02, 0.06, 0.14, 0.95))
@@ -501,7 +501,7 @@ func _ensure_right_wing_contents() -> void:
 		plus_lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 		plus_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		plus_lbl.add_theme_font_override("font", FONT_BOLD)
-		plus_lbl.add_theme_font_size_override("font_size", 21)
+		plus_lbl.add_theme_font_size_override("font_size", 23)
 		plus_lbl.add_theme_color_override("font_color", Color(1, 1, 1))
 		_diamonds_plus_badge.add_child(plus_lbl)
 		d_row.add_child(_diamonds_plus_badge)
@@ -546,7 +546,7 @@ func _ensure_right_wing_contents() -> void:
 		_market_title_lbl.text = "PAZAR"
 		_market_title_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		_market_title_lbl.add_theme_font_override("font", FONT_BOLD)
-		_market_title_lbl.add_theme_font_size_override("font_size", 22)
+		_market_title_lbl.add_theme_font_size_override("font_size", 24)
 		_market_title_lbl.add_theme_color_override("font_color", Color(1.0, 0.92, 0.64))
 		_market_title_lbl.add_theme_constant_override("outline_size", 3)
 		_market_title_lbl.add_theme_color_override("font_outline_color", Color(0.14, 0.04, 0.03, 0.96))
@@ -557,7 +557,7 @@ func _ensure_right_wing_contents() -> void:
 		_market_sub_lbl.text = "Parşömen & Paket"
 		_market_sub_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		_market_sub_lbl.add_theme_font_override("font", FONT_SEMIBOLD)
-		_market_sub_lbl.add_theme_font_size_override("font_size", 13)
+		_market_sub_lbl.add_theme_font_size_override("font_size", 15)
 		_market_sub_lbl.add_theme_color_override("font_color", Color(0.95, 0.87, 0.72))
 		_market_sub_lbl.add_theme_constant_override("outline_size", 1)
 		_market_sub_lbl.add_theme_color_override("font_outline_color", Color(0.10, 0.03, 0.03, 0.95))
@@ -724,7 +724,7 @@ func _ensure_resource_box_titles() -> void:
 			t.mouse_filter = Control.MOUSE_FILTER_IGNORE
 			t.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 			t.add_theme_font_override("font", FONT_BOLD)
-			t.add_theme_font_size_override("font_size", 17)
+			t.add_theme_font_size_override("font_size", 19)
 			t.add_theme_color_override("font_color", d[5] as Color)
 			t.add_theme_constant_override("outline_size", 2)
 			t.add_theme_color_override("font_outline_color", Color(0.03, 0.03, 0.06, 0.96))
@@ -738,7 +738,7 @@ func _ensure_resource_box_titles() -> void:
 			val_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 			val_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 			val_lbl.add_theme_font_override("font", FONT_BOLD)
-			val_lbl.add_theme_font_size_override("font_size", 22)
+			val_lbl.add_theme_font_size_override("font_size", 24)
 			val_lbl.add_theme_color_override("font_color", Color(0.99, 0.97, 0.91))
 			val_lbl.add_theme_constant_override("outline_size", 3)
 			val_lbl.add_theme_color_override("font_outline_color", Color(0.03, 0.03, 0.06, 0.98))
@@ -819,7 +819,7 @@ func _show_resource_tooltip(key: String, anchor: Control, auto_hide_sec: float =
 	var t := Label.new()
 	t.text = str(info.get("title", ""))
 	t.add_theme_font_override("font", FONT_BOLD)
-	t.add_theme_font_size_override("font_size", 22)
+	t.add_theme_font_size_override("font_size", 24)
 	t.add_theme_color_override("font_color", Color(1.0, 0.88, 0.48))
 	vb.add_child(t)
 	var body := Label.new()
@@ -827,7 +827,7 @@ func _show_resource_tooltip(key: String, anchor: Control, auto_hide_sec: float =
 	body.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	body.custom_minimum_size = Vector2(488, 0)
 	body.add_theme_font_override("font", FONT_SEMIBOLD)
-	body.add_theme_font_size_override("font_size", 18)
+	body.add_theme_font_size_override("font_size", 20)
 	body.add_theme_color_override("font_color", Color(0.94, 0.92, 0.86))
 	vb.add_child(body)
 	var more := Button.new()
@@ -1152,7 +1152,7 @@ func _show_economy_modal() -> void:
 	title.text = "🏰 Köy Ekonomisi & Depo Özeti"
 	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	title.add_theme_font_override("font", FONT_BOLD)
-	title.add_theme_font_size_override("font_size", 28)
+	title.add_theme_font_size_override("font_size", 30)
 	title.add_theme_color_override("font_color", Color(0.98, 0.85, 0.45))
 	head.add_child(title)
 
@@ -1168,7 +1168,7 @@ func _show_economy_modal() -> void:
 		str(v.get("name", "Köy")), int(v.get("x", 0)), int(v.get("y", 0)), int(v.get("points", 0)), wh_lvl, cap
 	]
 	sub.add_theme_font_override("font", FONT_SEMIBOLD)
-	sub.add_theme_font_size_override("font_size", 19)
+	sub.add_theme_font_size_override("font_size", 21)
 	sub.add_theme_color_override("font_color", Color(0.86, 0.82, 0.72))
 	vb.add_child(sub)
 
@@ -1214,14 +1214,14 @@ func _show_economy_modal() -> void:
 		nm.text = str(entry["name"])
 		nm.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		nm.add_theme_font_override("font", FONT_BOLD)
-		nm.add_theme_font_size_override("font_size", 20)
+		nm.add_theme_font_size_override("font_size", 22)
 		nm.add_theme_color_override("font_color", Color(0.96, 0.93, 0.85))
 		top_line.add_child(nm)
 
 		var val_lbl := Label.new()
 		val_lbl.text = "%d / %d   (+%d/saat)" % [int(entry["cur"]), cap, int(entry["rate"])]
 		val_lbl.add_theme_font_override("font", FONT_BOLD)
-		val_lbl.add_theme_font_size_override("font_size", 20)
+		val_lbl.add_theme_font_size_override("font_size", 22)
 		val_lbl.add_theme_color_override("font_color", entry["tint"])
 		top_line.add_child(val_lbl)
 
@@ -1256,7 +1256,7 @@ func _show_economy_modal() -> void:
 		int(pop.get("free", 0)), int(pop.get("max", 0)), int(pop.get("used", 0))
 	]
 	pop_lbl.add_theme_font_override("font", FONT_SEMIBOLD)
-	pop_lbl.add_theme_font_size_override("font_size", 20)
+	pop_lbl.add_theme_font_size_override("font_size", 22)
 	pop_lbl.add_theme_color_override("font_color", Color(0.84, 0.96, 0.86))
 	stats_vb.add_child(pop_lbl)
 
@@ -1265,7 +1265,7 @@ func _show_economy_modal() -> void:
 		int(rlm.get("value", 0)), int(rlm.get("cap", 0)), int(round(float(rlm.get("hourly_gain", 0))))
 	]
 	rlm_lbl.add_theme_font_override("font", FONT_SEMIBOLD)
-	rlm_lbl.add_theme_font_size_override("font_size", 20)
+	rlm_lbl.add_theme_font_size_override("font_size", 22)
 	rlm_lbl.add_theme_color_override("font_color", Color(0.76, 0.88, 0.98))
 	stats_vb.add_child(rlm_lbl)
 
@@ -1279,7 +1279,7 @@ func _show_economy_modal() -> void:
 	var prot_lbl := Label.new()
 	prot_lbl.text = prot_txt
 	prot_lbl.add_theme_font_override("font", FONT_SEMIBOLD)
-	prot_lbl.add_theme_font_size_override("font_size", 19)
+	prot_lbl.add_theme_font_size_override("font_size", 21)
 	prot_lbl.add_theme_color_override("font_color", Color(0.96, 0.86, 0.52) if (prot_rem > 0 or conq_rem > 0) else Color(0.72, 0.70, 0.68))
 	stats_vb.add_child(prot_lbl)
 
@@ -1346,7 +1346,7 @@ func _style_modal_btn(b: Button, bg: Color, border: Color) -> void:
 	b.add_theme_stylebox_override("hover", sb_h)
 	b.add_theme_stylebox_override("pressed", sb_h)
 	b.add_theme_font_override("font", FONT_BOLD)
-	b.add_theme_font_size_override("font_size", 19)
+	b.add_theme_font_size_override("font_size", 21)
 	b.add_theme_color_override("font_color", Color(0.98, 0.95, 0.86))
 
 
@@ -1412,7 +1412,7 @@ func _show_village_switcher_modal() -> void:
 	title.text = "🏰 Köylerim"
 	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	title.add_theme_font_override("font", FONT_BOLD)
-	title.add_theme_font_size_override("font_size", 28)
+	title.add_theme_font_size_override("font_size", 30)
 	title.add_theme_color_override("font_color", Color(0.98, 0.85, 0.45))
 	header.add_child(title)
 
@@ -1474,7 +1474,7 @@ func _show_village_switcher_modal() -> void:
 			]
 			nm.mouse_filter = Control.MOUSE_FILTER_IGNORE
 			nm.add_theme_font_override("font", FONT_BOLD)
-			nm.add_theme_font_size_override("font_size", 21)
+			nm.add_theme_font_size_override("font_size", 23)
 			nm.add_theme_color_override("font_color", Color(0.98, 0.88, 0.56) if is_cur else Color(0.96, 0.93, 0.85))
 			info_vb.add_child(nm)
 
@@ -1486,7 +1486,7 @@ func _show_village_switcher_modal() -> void:
 			]
 			sub.mouse_filter = Control.MOUSE_FILTER_IGNORE
 			sub.add_theme_font_override("font", FONT_SEMIBOLD)
-			sub.add_theme_font_size_override("font_size", 18)
+			sub.add_theme_font_size_override("font_size", 20)
 			sub.add_theme_color_override("font_color", Color(0.80, 0.78, 0.72))
 			info_vb.add_child(sub)
 
@@ -1595,7 +1595,7 @@ func _show_rename_modal(target_vid: int = -1) -> void:
 	var title := Label.new()
 	title.text = "✏️ Köy Adını Değiştir"
 	title.add_theme_font_override("font", FONT_BOLD)
-	title.add_theme_font_size_override("font_size", 26)
+	title.add_theme_font_size_override("font_size", 28)
 	title.add_theme_color_override("font_color", Color(0.98, 0.85, 0.45))
 	vb.add_child(title)
 
@@ -1605,7 +1605,7 @@ func _show_rename_modal(target_vid: int = -1) -> void:
 	line.placeholder_text = "Yeni köy adını girin..."
 	line.custom_minimum_size = Vector2(0, 52)
 	line.add_theme_font_override("font", FONT_BOLD)
-	line.add_theme_font_size_override("font_size", 22)
+	line.add_theme_font_size_override("font_size", 24)
 	vb.add_child(line)
 
 	var hb := HBoxContainer.new()

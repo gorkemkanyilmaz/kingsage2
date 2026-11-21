@@ -125,14 +125,14 @@ func _build_create_alliance_form(parent: Control, gs: Node, player_name: String)
 	var title := Label.new()
 	title.text = "Yeni Bir İttifak Kur"
 	title.add_theme_font_override("font", FontCinzelBold)
-	title.add_theme_font_size_override("font_size", 26)
+	title.add_theme_font_size_override("font_size", 28)
 	title.add_theme_color_override("font_color", Color(1.0, 0.90, 0.45))
 	card_vbox.add_child(title)
 
 	var desc_label := Label.new()
 	desc_label.text = "Kendi sancağınızı dikin! İttifak kurarak diğer lordları bir araya getirin, ortak sohbet kanalında strateji belirleyin."
 	desc_label.add_theme_font_override("font", FontNunitoBold)
-	desc_label.add_theme_font_size_override("font_size", 20)
+	desc_label.add_theme_font_size_override("font_size", 22)
 	desc_label.add_theme_color_override("font_color", Color(0.85, 0.82, 0.75))
 	desc_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	card_vbox.add_child(desc_label)
@@ -140,14 +140,14 @@ func _build_create_alliance_form(parent: Control, gs: Node, player_name: String)
 	# İsim
 	var name_lbl := Label.new()
 	name_lbl.text = "İttifak İsmi:"
-	name_lbl.add_theme_font_size_override("font_size", 22)
+	name_lbl.add_theme_font_size_override("font_size", 24)
 	name_lbl.add_theme_color_override("font_color", Color(1.0, 0.95, 0.85))
 	card_vbox.add_child(name_lbl)
 
 	var name_input := LineEdit.new()
 	name_input.placeholder_text = "Örn: Aslanlar Birliği"
 	name_input.custom_minimum_size = Vector2(0, 52)
-	name_input.add_theme_font_size_override("font_size", 22)
+	name_input.add_theme_font_size_override("font_size", 24)
 	_style_input(name_input)
 	var gc_a: Node = Engine.get_main_loop().root.get_node_or_null("GameConfig") if Engine.get_main_loop() is SceneTree else null
 	if gc_a != null and gc_a.has_method("bind_keyboard_dismiss"):
@@ -157,7 +157,7 @@ func _build_create_alliance_form(parent: Control, gs: Node, player_name: String)
 	# Etiket (Tag - max 6 char)
 	var tag_lbl := Label.new()
 	tag_lbl.text = "İttifak Etiketi (En fazla 6 karakter, örn: ASLAN):"
-	tag_lbl.add_theme_font_size_override("font_size", 22)
+	tag_lbl.add_theme_font_size_override("font_size", 24)
 	tag_lbl.add_theme_color_override("font_color", Color(1.0, 0.95, 0.85))
 	card_vbox.add_child(tag_lbl)
 
@@ -165,7 +165,7 @@ func _build_create_alliance_form(parent: Control, gs: Node, player_name: String)
 	tag_input.placeholder_text = "ASLAN"
 	tag_input.max_length = 6
 	tag_input.custom_minimum_size = Vector2(0, 52)
-	tag_input.add_theme_font_size_override("font_size", 22)
+	tag_input.add_theme_font_size_override("font_size", 24)
 	_style_input(tag_input)
 	if gc_a != null and gc_a.has_method("bind_keyboard_dismiss"):
 		gc_a.call("bind_keyboard_dismiss", tag_input)
@@ -174,21 +174,21 @@ func _build_create_alliance_form(parent: Control, gs: Node, player_name: String)
 	# Açıklama
 	var desc_field_lbl := Label.new()
 	desc_field_lbl.text = "İttifak Tanımı / Slogan:"
-	desc_field_lbl.add_theme_font_size_override("font_size", 22)
+	desc_field_lbl.add_theme_font_size_override("font_size", 24)
 	desc_field_lbl.add_theme_color_override("font_color", Color(1.0, 0.95, 0.85))
 	card_vbox.add_child(desc_field_lbl)
 
 	var desc_input := TextEdit.new()
 	desc_input.custom_minimum_size = Vector2(0, 100)
 	desc_input.placeholder_text = "Krallığımızın onurlu kılıçları..."
-	desc_input.add_theme_font_size_override("font_size", 20)
+	desc_input.add_theme_font_size_override("font_size", 22)
 	_style_input(desc_input)
 	if gc_a != null and gc_a.has_method("bind_keyboard_dismiss"):
 		gc_a.call("bind_keyboard_dismiss", desc_input)
 	card_vbox.add_child(desc_input)
 
 	var err_label := Label.new()
-	err_label.add_theme_font_size_override("font_size", 20)
+	err_label.add_theme_font_size_override("font_size", 22)
 	err_label.add_theme_color_override("font_color", Color(1.0, 0.35, 0.35))
 	card_vbox.add_child(err_label)
 
@@ -196,7 +196,7 @@ func _build_create_alliance_form(parent: Control, gs: Node, player_name: String)
 	create_btn.text = " İttifakı Kur"
 	create_btn.custom_minimum_size = Vector2(0, 60)
 	create_btn.add_theme_font_override("font", FontCinzelBold)
-	create_btn.add_theme_font_size_override("font_size", 24)
+	create_btn.add_theme_font_size_override("font_size", 26)
 	_style_gold_btn(create_btn)
 	create_btn.pressed.connect(func():
 		var state: Dictionary = gs.to_dict()
@@ -249,7 +249,7 @@ func _build_browse_alliances_view(parent: Control, gs: Node, player_name: String
 		var inv_title := Label.new()
 		inv_title.text = " Size Gelen İttifak Davetleri (%d)" % pending_allies.size()
 		inv_title.add_theme_font_override("font", FontCinzelBold)
-		inv_title.add_theme_font_size_override("font_size", 24)
+		inv_title.add_theme_font_size_override("font_size", 26)
 		inv_title.add_theme_color_override("font_color", Color(0.45, 0.90, 1.0))
 		ic_vbox.add_child(inv_title)
 
@@ -260,7 +260,7 @@ func _build_browse_alliances_view(parent: Control, gs: Node, player_name: String
 
 			var info_lbl := Label.new()
 			info_lbl.size_flags_horizontal = SIZE_EXPAND_FILL
-			info_lbl.add_theme_font_size_override("font_size", 22)
+			info_lbl.add_theme_font_size_override("font_size", 24)
 			info_lbl.text = " [%s] %s (Lider: %s)" % [str(ally.get("tag", "")), str(ally.get("name", "")), str(ally.get("leader", ""))]
 			row.add_child(info_lbl)
 
@@ -284,7 +284,7 @@ func _build_browse_alliances_view(parent: Control, gs: Node, player_name: String
 	var list_title := Label.new()
 	list_title.text = "Mevcut Dünya İttifakları"
 	list_title.add_theme_font_override("font", FontCinzelBold)
-	list_title.add_theme_font_size_override("font_size", 24)
+	list_title.add_theme_font_size_override("font_size", 26)
 	list_title.add_theme_color_override("font_color", Color(1.0, 0.90, 0.45))
 	vbox.add_child(list_title)
 
@@ -292,7 +292,7 @@ func _build_browse_alliances_view(parent: Control, gs: Node, player_name: String
 	if allies.is_empty():
 		var empty_lbl := Label.new()
 		empty_lbl.text = "Dünyada henüz kurulmuş bir ittifak bulunmuyor. İlk ittifakı siz kurun!"
-		empty_lbl.add_theme_font_size_override("font_size", 20)
+		empty_lbl.add_theme_font_size_override("font_size", 22)
 		empty_lbl.add_theme_color_override("font_color", Color(0.65, 0.60, 0.55))
 		vbox.add_child(empty_lbl)
 		return
@@ -315,7 +315,7 @@ func _build_browse_alliances_view(parent: Control, gs: Node, player_name: String
 		var tag_name_lbl := Label.new()
 		tag_name_lbl.text = "[%s] %s" % [str(a_dict.get("tag", "")), str(a_dict.get("name", ""))]
 		tag_name_lbl.add_theme_font_override("font", FontCinzelBold)
-		tag_name_lbl.add_theme_font_size_override("font_size", 22)
+		tag_name_lbl.add_theme_font_size_override("font_size", 24)
 		tag_name_lbl.add_theme_color_override("font_color", Color(1.0, 0.92, 0.60))
 		info_box.add_child(tag_name_lbl)
 
@@ -324,7 +324,7 @@ func _build_browse_alliances_view(parent: Control, gs: Node, player_name: String
 		var desc: String = str(a_dict.get("description", ""))
 		var sub_lbl := Label.new()
 		sub_lbl.text = " Lider: %s |  %d Üye | %s" % [leader_name, members_count, desc]
-		sub_lbl.add_theme_font_size_override("font_size", 18)
+		sub_lbl.add_theme_font_size_override("font_size", 20)
 		sub_lbl.add_theme_color_override("font_color", Color(0.75, 0.72, 0.65))
 		info_box.add_child(sub_lbl)
 
@@ -359,7 +359,7 @@ func _build_member_view(gs: Node, alliance: Dictionary, player_name: String) -> 
 		total_pts
 	]
 	stat_lbl.add_theme_font_override("font", FontNunitoBold)
-	stat_lbl.add_theme_font_size_override("font_size", 22)
+	stat_lbl.add_theme_font_size_override("font_size", 24)
 	stat_lbl.add_theme_color_override("font_color", Color(1.0, 0.92, 0.70))
 	ib_hbox.add_child(stat_lbl)
 
@@ -395,7 +395,7 @@ func _build_member_view(gs: Node, alliance: Dictionary, player_name: String) -> 
 		var ann_lbl := Label.new()
 		ann_lbl.text = " İç Duyuru: " + ann_text
 		ann_lbl.add_theme_font_override("font", FontNunitoBold)
-		ann_lbl.add_theme_font_size_override("font_size", 20)
+		ann_lbl.add_theme_font_size_override("font_size", 22)
 		ann_lbl.add_theme_color_override("font_color", Color(1.0, 0.92, 0.60))
 		ann_box.add_child(ann_lbl)
 
@@ -497,13 +497,13 @@ func _build_chat_tab(parent: Control, gs: Node, alliance: Dictionary, player_nam
 		var s_lbl := Label.new()
 		s_lbl.text = "%s  —  %s" % [sender, time_str]
 		s_lbl.add_theme_font_override("font", FontNunitoBold)
-		s_lbl.add_theme_font_size_override("font_size", 18)
+		s_lbl.add_theme_font_size_override("font_size", 20)
 		s_lbl.add_theme_color_override("font_color", Color(1.0, 0.88, 0.40) if is_me else (Color(0.50, 0.85, 1.0) if not is_sys else Color(0.85, 0.70, 0.40)))
 		b_vbox.add_child(s_lbl)
 
 		var t_lbl := Label.new()
 		t_lbl.text = text
-		t_lbl.add_theme_font_size_override("font_size", 22)
+		t_lbl.add_theme_font_size_override("font_size", 24)
 		t_lbl.add_theme_color_override("font_color", Color(0.96, 0.94, 0.90))
 		t_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		b_vbox.add_child(t_lbl)
@@ -523,7 +523,7 @@ func _build_chat_tab(parent: Control, gs: Node, alliance: Dictionary, player_nam
 	var chat_input := LineEdit.new()
 	chat_input.size_flags_horizontal = SIZE_EXPAND_FILL
 	chat_input.placeholder_text = "İttifak arkadaşlarına mesaj yaz..."
-	chat_input.add_theme_font_size_override("font_size", 22)
+	chat_input.add_theme_font_size_override("font_size", 24)
 	_style_input(chat_input)
 	var gc_c: Node = Engine.get_main_loop().root.get_node_or_null("GameConfig") if Engine.get_main_loop() is SceneTree else null
 	if gc_c != null and gc_c.has_method("bind_keyboard_dismiss"):
@@ -534,7 +534,7 @@ func _build_chat_tab(parent: Control, gs: Node, alliance: Dictionary, player_nam
 	send_btn.text = "Gönder "
 	send_btn.custom_minimum_size = Vector2(130, 56)
 	send_btn.add_theme_font_override("font", FontNunitoBold)
-	send_btn.add_theme_font_size_override("font_size", 22)
+	send_btn.add_theme_font_size_override("font_size", 24)
 	_style_gold_btn(send_btn)
 
 	var on_send := func():
@@ -588,7 +588,7 @@ func _build_members_tab(parent: Control, gs: Node, alliance: Dictionary, player_
 
 		var icon_lbl := Label.new()
 		icon_lbl.text = "" if m_is_lead else ""
-		icon_lbl.add_theme_font_size_override("font_size", 28)
+		icon_lbl.add_theme_font_size_override("font_size", 30)
 		hbox.add_child(icon_lbl)
 
 		var info_vbox := VBoxContainer.new()
@@ -598,13 +598,13 @@ func _build_members_tab(parent: Control, gs: Node, alliance: Dictionary, player_
 		var name_lbl := Label.new()
 		name_lbl.text = "%s (%s)" % [m_name, m_rank]
 		name_lbl.add_theme_font_override("font", FontNunitoBold)
-		name_lbl.add_theme_font_size_override("font_size", 22)
+		name_lbl.add_theme_font_size_override("font_size", 24)
 		name_lbl.add_theme_color_override("font_color", Color(1.0, 0.95, 0.85))
 		info_vbox.add_child(name_lbl)
 
 		var pts_lbl := Label.new()
 		pts_lbl.text = " Puan: %d" % m_pts
-		pts_lbl.add_theme_font_size_override("font_size", 18)
+		pts_lbl.add_theme_font_size_override("font_size", 20)
 		pts_lbl.add_theme_color_override("font_color", Color(0.75, 0.72, 0.65))
 		info_vbox.add_child(pts_lbl)
 
@@ -641,14 +641,14 @@ func _build_invite_tab(parent: Control, gs: Node, alliance: Dictionary, player_n
 	var title := Label.new()
 	title.text = "Yeni Oyuncu Davet Et"
 	title.add_theme_font_override("font", FontCinzelBold)
-	title.add_theme_font_size_override("font_size", 22)
+	title.add_theme_font_size_override("font_size", 24)
 	title.add_theme_color_override("font_color", Color(1.0, 0.90, 0.45))
 	c_vbox.add_child(title)
 
 	var input := LineEdit.new()
 	input.placeholder_text = "Davet edilecek lordun adı (örn: Lord Edward)..."
 	input.custom_minimum_size = Vector2(0, 52)
-	input.add_theme_font_size_override("font_size", 22)
+	input.add_theme_font_size_override("font_size", 24)
 	_style_input(input)
 	var gc_i: Node = Engine.get_main_loop().root.get_node_or_null("GameConfig") if Engine.get_main_loop() is SceneTree else null
 	if gc_i != null and gc_i.has_method("bind_keyboard_dismiss"):
@@ -656,7 +656,7 @@ func _build_invite_tab(parent: Control, gs: Node, alliance: Dictionary, player_n
 	c_vbox.add_child(input)
 
 	var msg_lbl := Label.new()
-	msg_lbl.add_theme_font_size_override("font_size", 20)
+	msg_lbl.add_theme_font_size_override("font_size", 22)
 	c_vbox.add_child(msg_lbl)
 
 	var send_inv_btn := Button.new()
@@ -702,7 +702,7 @@ func _build_diplomacy_tab(parent: Control, gs: Node, alliance: Dictionary, playe
 	var t1 := Label.new()
 	t1.text = " Diplomasi İlişkileri"
 	t1.add_theme_font_override("font", FontCinzelBold)
-	t1.add_theme_font_size_override("font_size", 22)
+	t1.add_theme_font_size_override("font_size", 24)
 	t1.add_theme_color_override("font_color", Color(1.0, 0.90, 0.45))
 	c_vbox.add_child(t1)
 
@@ -712,7 +712,7 @@ func _build_diplomacy_tab(parent: Control, gs: Node, alliance: Dictionary, playe
 		str(nap) if not nap.is_empty() else "Yok",
 		str(enemies) if not enemies.is_empty() else "Yok"
 	]
-	d_lbl.add_theme_font_size_override("font_size", 20)
+	d_lbl.add_theme_font_size_override("font_size", 22)
 	d_lbl.add_theme_color_override("font_color", Color(0.85, 0.82, 0.75))
 	c_vbox.add_child(d_lbl)
 
@@ -743,7 +743,7 @@ func _make_tab_button(text: String, is_active: bool) -> Button:
 	btn.text = text
 	btn.size_flags_horizontal = SIZE_EXPAND_FILL
 	btn.add_theme_font_override("font", FontNunitoBold)
-	btn.add_theme_font_size_override("font_size", 20)
+	btn.add_theme_font_size_override("font_size", 22)
 
 	var sb := StyleBoxFlat.new()
 	sb.set_corner_radius_all(12)

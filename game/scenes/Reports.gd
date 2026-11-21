@@ -424,14 +424,14 @@ func _make_empty_messages_state() -> Control:
 	var lbl := Label.new()
 	lbl.text = " Henüz gelen veya giden bir mektup bulunmuyor."
 	lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	lbl.add_theme_font_size_override("font_size", 24)
+	lbl.add_theme_font_size_override("font_size", 26)
 	lbl.add_theme_color_override("font_color", Color(0.65, 0.60, 0.52))
 	box.add_child(lbl)
 
 	var sub := Label.new()
 	sub.text = "' Yeni Mesaj' sekmesinden diğer lordlara mektup gönderebilirsiniz."
 	sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	sub.add_theme_font_size_override("font_size", 20)
+	sub.add_theme_font_size_override("font_size", 22)
 	sub.add_theme_color_override("font_color", Color(0.50, 0.46, 0.40))
 	box.add_child(sub)
 	return box
@@ -468,7 +468,7 @@ func _show_message_detail(msg: Dictionary) -> void:
 	var subj_lbl := Label.new()
 	subj_lbl.text = " " + str(msg.get("subject", "Konusuz"))
 	subj_lbl.add_theme_font_override("font", FontCinzelBold)
-	subj_lbl.add_theme_font_size_override("font_size", 28)
+	subj_lbl.add_theme_font_size_override("font_size", 30)
 	subj_lbl.add_theme_color_override("font_color", Color(1.0, 0.90, 0.45))
 	mc_vbox.add_child(subj_lbl)
 
@@ -480,7 +480,7 @@ func _show_message_detail(msg: Dictionary) -> void:
 		dt
 	]
 	meta_lbl.add_theme_font_override("font", FontNunitoBold)
-	meta_lbl.add_theme_font_size_override("font_size", 20)
+	meta_lbl.add_theme_font_size_override("font_size", 22)
 	meta_lbl.add_theme_color_override("font_color", Color(0.70, 0.85, 1.0))
 	mc_vbox.add_child(meta_lbl)
 
@@ -489,7 +489,7 @@ func _show_message_detail(msg: Dictionary) -> void:
 
 	var body_lbl := Label.new()
 	body_lbl.text = str(msg.get("body", ""))
-	body_lbl.add_theme_font_size_override("font_size", 22)
+	body_lbl.add_theme_font_size_override("font_size", 24)
 	body_lbl.add_theme_color_override("font_color", Color(0.96, 0.94, 0.90))
 	body_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	mc_vbox.add_child(body_lbl)
@@ -501,7 +501,7 @@ func _show_message_detail(msg: Dictionary) -> void:
 	reply_btn.text = " Bu Mektubu Yanıtla"
 	reply_btn.custom_minimum_size = Vector2(0, 52)
 	reply_btn.add_theme_font_override("font", FontNunitoBold)
-	reply_btn.add_theme_font_size_override("font_size", 22)
+	reply_btn.add_theme_font_size_override("font_size", 24)
 	var r_sb := StyleBoxFlat.new()
 	r_sb.bg_color = Color(0.18, 0.28, 0.42, 0.95)
 	r_sb.border_color = Color(0.50, 0.80, 1.0, 0.95)
@@ -563,7 +563,7 @@ func _ensure_report_toolbar() -> void:
 		f_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		f_btn.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 		f_btn.add_theme_font_override("font", FontNunitoBold)
-		f_btn.add_theme_font_size_override("font_size", 21)
+		f_btn.add_theme_font_size_override("font_size", 23)
 		f_btn.pressed.connect(func():
 			_report_filter = f_key
 			_refresh_filter_styles()
@@ -583,7 +583,7 @@ func _ensure_report_toolbar() -> void:
 	mark_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	mark_btn.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 	mark_btn.add_theme_font_override("font", FontNunitoBold)
-	mark_btn.add_theme_font_size_override("font_size", 20)
+	mark_btn.add_theme_font_size_override("font_size", 22)
 	var m_sb := StyleBoxFlat.new()
 	m_sb.bg_color = Color(0.13, 0.25, 0.17, 0.96)
 	m_sb.border_color = Color(0.45, 0.85, 0.52, 0.85)
@@ -602,7 +602,7 @@ func _ensure_report_toolbar() -> void:
 	del_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	del_btn.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 	del_btn.add_theme_font_override("font", FontNunitoBold)
-	del_btn.add_theme_font_size_override("font_size", 20)
+	del_btn.add_theme_font_size_override("font_size", 22)
 	var d_sb := StyleBoxFlat.new()
 	d_sb.bg_color = Color(0.28, 0.12, 0.14, 0.96)
 	d_sb.border_color = Color(0.86, 0.40, 0.36, 0.85)
@@ -898,14 +898,14 @@ func _make_empty_state() -> Control:
 	lbl.text = "Bu kategoride görüntülenecek rapor bulunmuyor."
 	lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	lbl.add_theme_font_override("font", FontNunitoBold)
-	lbl.add_theme_font_size_override("font_size", 24)
+	lbl.add_theme_font_size_override("font_size", 26)
 	lbl.add_theme_color_override("font_color", Color(0.95, 0.90, 0.76))
 	box.add_child(lbl)
 
 	var hint := Label.new()
 	hint.text = "Savaş, casusluk ve ticaret olayları burada arşivlenir."
 	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	hint.add_theme_font_size_override("font_size", 20)
+	hint.add_theme_font_size_override("font_size", 22)
 	hint.add_theme_color_override("font_color", Color(0.68, 0.64, 0.56))
 	box.add_child(hint)
 	return box
@@ -987,14 +987,14 @@ func _make_card(icon_path: String, title: String, subtitle: String, accent: Colo
 	title_lbl.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	title_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	title_lbl.add_theme_font_override("font", FontNunitoBold)
-	title_lbl.add_theme_font_size_override("font_size", 23)
+	title_lbl.add_theme_font_size_override("font_size", 25)
 	title_lbl.add_theme_color_override("font_color", Color(1.0, 0.94, 0.78))
 	info.add_child(title_lbl)
 
 	var sub_lbl := Label.new()
 	sub_lbl.text = subtitle
 	sub_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	sub_lbl.add_theme_font_size_override("font_size", 21)
+	sub_lbl.add_theme_font_size_override("font_size", 23)
 	sub_lbl.add_theme_color_override("font_color", Color(0.76, 0.74, 0.68))
 	info.add_child(sub_lbl)
 	info_wrap.add_child(info)
@@ -1045,7 +1045,7 @@ func _make_report_card(rep: Dictionary, icon_path: String, title: String, subtit
 	read_btn.mouse_filter = Control.MOUSE_FILTER_STOP
 	read_btn.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 	read_btn.add_theme_font_override("font", FontNunitoBold)
-	read_btn.add_theme_font_size_override("font_size", 20)
+	read_btn.add_theme_font_size_override("font_size", 22)
 	var rsb := StyleBoxFlat.new()
 	rsb.bg_color = Color(0.14, 0.32, 0.20, 0.96) if is_unread else Color(0.18, 0.16, 0.24, 0.96)
 	rsb.border_color = Color(0.45, 0.88, 0.56, 0.90) if is_unread else Color(0.75, 0.62, 0.34, 0.80)
@@ -1067,7 +1067,7 @@ func _make_report_card(rep: Dictionary, icon_path: String, title: String, subtit
 	del_btn.custom_minimum_size = Vector2(46, 46)
 	del_btn.mouse_filter = Control.MOUSE_FILTER_STOP
 	del_btn.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
-	del_btn.add_theme_font_size_override("font_size", 19)
+	del_btn.add_theme_font_size_override("font_size", 21)
 	var dsb := StyleBoxFlat.new()
 	dsb.bg_color = Color(0.32, 0.12, 0.14, 0.96)
 	dsb.border_color = Color(0.86, 0.38, 0.36, 0.90)
@@ -1105,7 +1105,7 @@ func _show_detail(rep: Dictionary) -> void:
 	unread_btn.custom_minimum_size = Vector2(0, 44)
 	unread_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	unread_btn.add_theme_font_override("font", FontNunitoBold)
-	unread_btn.add_theme_font_size_override("font_size", 21)
+	unread_btn.add_theme_font_size_override("font_size", 23)
 	var u_sb := StyleBoxFlat.new()
 	u_sb.bg_color = Color(0.16, 0.14, 0.22, 0.96)
 	u_sb.border_color = Color(0.84, 0.68, 0.34, 0.90)
@@ -1125,7 +1125,7 @@ func _show_detail(rep: Dictionary) -> void:
 	del_detail_btn.text = "🗑️ Raporu Sil"
 	del_detail_btn.custom_minimum_size = Vector2(180, 44)
 	del_detail_btn.add_theme_font_override("font", FontNunitoBold)
-	del_detail_btn.add_theme_font_size_override("font_size", 21)
+	del_detail_btn.add_theme_font_size_override("font_size", 23)
 	var dd_sb := StyleBoxFlat.new()
 	dd_sb.bg_color = Color(0.36, 0.13, 0.14, 0.96)
 	dd_sb.border_color = Color(0.90, 0.42, 0.38, 0.95)
@@ -1190,7 +1190,7 @@ func _render_battle_report(parent: Control, rep: Dictionary) -> void:
 	title_lbl.text = (" ZAFER!" if attacker_won else " YENİLGİ") if not is_raid else (" YAĞMA AKINI TAMAMLANDI" if attacker_won else " YAĞMA PÜSKÜRTÜLDÜ")
 	title_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title_lbl.add_theme_font_override("font", FontNunitoBold)
-	title_lbl.add_theme_font_size_override("font_size", 38)
+	title_lbl.add_theme_font_size_override("font_size", 40)
 	title_lbl.add_theme_constant_override("outline_size", 4)
 	title_lbl.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.95))
 	title_lbl.add_theme_color_override("font_color", Color(1.0, 0.95, 0.70) if attacker_won else Color(1.0, 0.80, 0.80))
@@ -1204,7 +1204,7 @@ func _render_battle_report(parent: Control, rep: Dictionary) -> void:
 	else:
 		subtitle_lbl.text = "Savunan kuvvetler üstün geldi, taarruz başarısızlıkla sonuçlandı."
 	subtitle_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	subtitle_lbl.add_theme_font_size_override("font_size", 22)
+	subtitle_lbl.add_theme_font_size_override("font_size", 24)
 	subtitle_lbl.add_theme_color_override("font_color", Color(1.0, 1.0, 1.0, 0.95))
 	banner_vbox.add_child(subtitle_lbl)
 
@@ -1243,7 +1243,7 @@ func _render_battle_report(parent: Control, rep: Dictionary) -> void:
 	vs_lbl.text = " VS "
 	vs_lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	vs_lbl.add_theme_font_override("font", FontNunitoBold)
-	vs_lbl.add_theme_font_size_override("font_size", 28)
+	vs_lbl.add_theme_font_size_override("font_size", 30)
 	vs_lbl.add_theme_color_override("font_color", Color(1.0, 0.85, 0.40))
 	duel_box.add_child(vs_lbl)
 
@@ -1293,7 +1293,7 @@ func _render_battle_report(parent: Control, rep: Dictionary) -> void:
 		w_lbl.text = " SUR HASARI: Şahmerdanlar surlara vurdu! (Seviye %d  Seviye %d | Hasar: %%%d)" % [wall_before, wall_after, int(round(wall_pct))]
 		w_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		w_lbl.add_theme_font_override("font", FontNunitoBold)
-		w_lbl.add_theme_font_size_override("font_size", 24)
+		w_lbl.add_theme_font_size_override("font_size", 26)
 		w_lbl.add_theme_color_override("font_color", Color(1.0, 0.90, 0.65))
 		wall_box.add_child(w_lbl)
 		parent.add_child(wall_box)
@@ -1316,7 +1316,7 @@ func _make_side_card(title: String, name_str: String, border_color: Color) -> Pa
 	var t_lbl := Label.new()
 	t_lbl.text = title
 	t_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	t_lbl.add_theme_font_size_override("font_size", 20)
+	t_lbl.add_theme_font_size_override("font_size", 22)
 	t_lbl.add_theme_color_override("font_color", Color(0.75, 0.72, 0.65))
 	vb.add_child(t_lbl)
 
@@ -1324,7 +1324,7 @@ func _make_side_card(title: String, name_str: String, border_color: Color) -> Pa
 	n_lbl.text = name_str
 	n_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	n_lbl.add_theme_font_override("font", FontNunitoBold)
-	n_lbl.add_theme_font_size_override("font_size", 26)
+	n_lbl.add_theme_font_size_override("font_size", 28)
 	n_lbl.add_theme_constant_override("outline_size", 3)
 	n_lbl.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.95))
 	n_lbl.add_theme_color_override("font_color", Color(1.0, 0.95, 0.85))
@@ -1352,7 +1352,7 @@ func _make_army_table_card(header: String, units: Dictionary, losses: Dictionary
 	var h_lbl := Label.new()
 	h_lbl.text = header
 	h_lbl.add_theme_font_override("font", FontNunitoBold)
-	h_lbl.add_theme_font_size_override("font_size", 26)
+	h_lbl.add_theme_font_size_override("font_size", 28)
 	h_lbl.add_theme_color_override("font_color", Color(1.0, 0.92, 0.70))
 	vb.add_child(h_lbl)
 
@@ -1368,7 +1368,7 @@ func _make_army_table_card(header: String, units: Dictionary, losses: Dictionary
 	if all_keys.is_empty():
 		var empty_lbl := Label.new()
 		empty_lbl.text = "Bu muharebede birim konuşlandırılmadı veya garnizon boştu."
-		empty_lbl.add_theme_font_size_override("font_size", 22)
+		empty_lbl.add_theme_font_size_override("font_size", 24)
 		empty_lbl.add_theme_color_override("font_color", Color(0.65, 0.60, 0.55))
 		vb.add_child(empty_lbl)
 		pc.add_child(vb)
@@ -1403,13 +1403,13 @@ func _make_army_table_card(header: String, units: Dictionary, losses: Dictionary
 		var title_row := HBoxContainer.new()
 		var icon_lbl := Label.new()
 		icon_lbl.text = u_icon
-		icon_lbl.add_theme_font_size_override("font_size", 26)
+		icon_lbl.add_theme_font_size_override("font_size", 28)
 		title_row.add_child(icon_lbl)
 
 		var name_lbl := Label.new()
 		name_lbl.text = u_name
 		name_lbl.add_theme_font_override("font", FontNunitoBold)
-		name_lbl.add_theme_font_size_override("font_size", 22)
+		name_lbl.add_theme_font_size_override("font_size", 24)
 		name_lbl.add_theme_color_override("font_color", Color(1.0, 0.95, 0.85))
 		title_row.add_child(name_lbl)
 		u_vb.add_child(title_row)
@@ -1436,14 +1436,14 @@ func _make_stat_line(title: String, val_str: String, val_col: Color) -> HBoxCont
 	var t_lbl := Label.new()
 	t_lbl.text = title
 	t_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	t_lbl.add_theme_font_size_override("font_size", 20)
+	t_lbl.add_theme_font_size_override("font_size", 22)
 	t_lbl.add_theme_color_override("font_color", Color(0.75, 0.72, 0.68))
 	row.add_child(t_lbl)
 
 	var v_lbl := Label.new()
 	v_lbl.text = val_str
 	v_lbl.add_theme_font_override("font", FontNunitoBold)
-	v_lbl.add_theme_font_size_override("font_size", 22)
+	v_lbl.add_theme_font_size_override("font_size", 24)
 	v_lbl.add_theme_color_override("font_color", val_col)
 	row.add_child(v_lbl)
 	return row
@@ -1465,7 +1465,7 @@ func _make_loot_card(loot: Dictionary, carry_cap: int) -> PanelContainer:
 	var h_lbl := Label.new()
 	h_lbl.text = " ELE GEÇİRİLEN GANİMET & YAĞMA"
 	h_lbl.add_theme_font_override("font", FontNunitoBold)
-	h_lbl.add_theme_font_size_override("font_size", 26)
+	h_lbl.add_theme_font_size_override("font_size", 28)
 	h_lbl.add_theme_color_override("font_color", Color(1.0, 0.92, 0.70))
 	vb.add_child(h_lbl)
 
@@ -1487,7 +1487,7 @@ func _make_loot_card(loot: Dictionary, carry_cap: int) -> PanelContainer:
 		var cap_lbl := Label.new()
 		cap_lbl.text = "Taşıma Kapasitesi: %d / %d (%%%d Dolu)" % [total_loot, carry_cap, int(round(float(total_loot) / float(carry_cap) * 100.0))]
 		cap_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		cap_lbl.add_theme_font_size_override("font_size", 22)
+		cap_lbl.add_theme_font_size_override("font_size", 24)
 		cap_lbl.add_theme_color_override("font_color", Color(0.85, 0.80, 0.72))
 		vb.add_child(cap_lbl)
 
@@ -1534,7 +1534,7 @@ func _make_res_badge(tex: Texture2D, res_name: String, amount: int) -> PanelCont
 	var lbl := Label.new()
 	lbl.text = "%s: %s" % [res_name, _format_number(amount)]
 	lbl.add_theme_font_override("font", FontNunitoBold)
-	lbl.add_theme_font_size_override("font_size", 24)
+	lbl.add_theme_font_size_override("font_size", 26)
 	lbl.add_theme_color_override("font_color", Color(1.0, 0.95, 0.85))
 	hb.add_child(lbl)
 
@@ -1556,7 +1556,7 @@ func _make_pill(txt: String, bg_col: Color) -> PanelContainer:
 	var lbl := Label.new()
 	lbl.text = txt
 	lbl.add_theme_font_override("font", FontNunitoBold)
-	lbl.add_theme_font_size_override("font_size", 22)
+	lbl.add_theme_font_size_override("font_size", 24)
 	lbl.add_theme_color_override("font_color", Color(1.0, 1.0, 1.0))
 	pc.add_child(lbl)
 	return pc
@@ -1578,7 +1578,7 @@ func _render_spy_report(parent: Control, rep: Dictionary) -> void:
 	t_lbl.text = " CASUSLUK VE İSTİHBARAT RAPORU"
 	t_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	t_lbl.add_theme_font_override("font", FontNunitoBold)
-	t_lbl.add_theme_font_size_override("font_size", 32)
+	t_lbl.add_theme_font_size_override("font_size", 34)
 	t_lbl.add_theme_color_override("font_color", Color(0.85, 0.95, 1.0))
 	vb.add_child(t_lbl)
 
@@ -1594,7 +1594,7 @@ func _render_spy_report(parent: Control, rep: Dictionary) -> void:
 		" (Gizli Sızma)" if creeping else ""
 	]
 	sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	sub.add_theme_font_size_override("font_size", 22)
+	sub.add_theme_font_size_override("font_size", 24)
 	sub.add_theme_color_override("font_color", Color(1.0, 1.0, 1.0, 0.85))
 	vb.add_child(sub)
 
@@ -1626,7 +1626,7 @@ func _render_spy_report(parent: Control, rep: Dictionary) -> void:
 		var b_title := Label.new()
 		b_title.text = " KEŞFEDİLEN BİNALAR VE SEVİYELERİ"
 		b_title.add_theme_font_override("font", FontNunitoBold)
-		b_title.add_theme_font_size_override("font_size", 26)
+		b_title.add_theme_font_size_override("font_size", 28)
 		b_title.add_theme_color_override("font_color", Color(1.0, 0.92, 0.70))
 		b_vb.add_child(b_title)
 
@@ -1648,7 +1648,7 @@ func _render_spy_report(parent: Control, rep: Dictionary) -> void:
 				var tr_name: String = str(b_names.get(b_key, b_key.capitalize()))
 				var b_lbl := Label.new()
 				b_lbl.text = "• %s: Seviye %d" % [tr_name, lvl]
-				b_lbl.add_theme_font_size_override("font_size", 22)
+				b_lbl.add_theme_font_size_override("font_size", 24)
 				b_lbl.add_theme_color_override("font_color", Color(0.90, 0.88, 0.82))
 				b_grid.add_child(b_lbl)
 		b_vb.add_child(b_grid)
@@ -1677,7 +1677,7 @@ func _render_trade_report(parent: Control, rep: Dictionary) -> void:
 	t_lbl.text = " TİCARET TESLİMATI TAMAMLANDI"
 	t_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	t_lbl.add_theme_font_override("font", FontNunitoBold)
-	t_lbl.add_theme_font_size_override("font_size", 32)
+	t_lbl.add_theme_font_size_override("font_size", 34)
 	t_lbl.add_theme_color_override("font_color", Color(1.0, 0.95, 0.75))
 	vb.add_child(t_lbl)
 	banner.add_child(vb)
@@ -1694,7 +1694,7 @@ func _render_generic_report(parent: Control, rep: Dictionary) -> void:
 	var text_lbl := Label.new()
 	text_lbl.text = str(data.get("text", "Detay bulunamadı."))
 	text_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	text_lbl.add_theme_font_size_override("font_size", 24)
+	text_lbl.add_theme_font_size_override("font_size", 26)
 	text_lbl.add_theme_color_override("font_color", Color(0.95, 0.92, 0.85))
 	parent.add_child(text_lbl)
 

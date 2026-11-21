@@ -147,7 +147,7 @@ func _build_ui() -> void:
 		s_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		s_lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 		s_lbl.add_theme_font_override("font", FontNunitoBold)
-		s_lbl.add_theme_font_size_override("font_size", 21)
+		s_lbl.add_theme_font_size_override("font_size", 23)
 		s_lbl.add_theme_constant_override("outline_size", 0)
 		s_lbl.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0))
 		s_lbl.add_theme_color_override("font_color", Color(0.85, 0.96, 1.0))
@@ -231,7 +231,7 @@ func _build_ui() -> void:
 
 	_owner_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_owner_label.add_theme_font_override("font", FontNunitoBold)
-	_owner_label.add_theme_font_size_override("font_size", 22)
+	_owner_label.add_theme_font_size_override("font_size", 24)
 	_owner_label.add_theme_constant_override("outline_size", 1)
 	_owner_label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.85))
 	_owner_label.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0))
@@ -246,7 +246,7 @@ func _build_ui() -> void:
 	_name_coord_label.text = "%s (%d|%d)" % [v_name, vx, vy]
 	_name_coord_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_name_coord_label.add_theme_font_override("font", FontNunitoBold)
-	_name_coord_label.add_theme_font_size_override("font_size", 25)
+	_name_coord_label.add_theme_font_size_override("font_size", 27)
 	_name_coord_label.add_theme_constant_override("outline_size", 1)
 	_name_coord_label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.85))
 	_name_coord_label.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0))

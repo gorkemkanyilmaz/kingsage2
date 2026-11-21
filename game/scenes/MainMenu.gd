@@ -173,7 +173,7 @@ func _setup_profile_bar() -> void:
 	p_lbl.name = "ProfileLabel"
 	p_lbl.text = "Lord Edward (Google)"
 	p_lbl.add_theme_font_override("font", FontCinzelBold)
-	p_lbl.add_theme_font_size_override("font_size", 24)
+	p_lbl.add_theme_font_size_override("font_size", 26)
 	p_lbl.add_theme_color_override("font_color", Color(1.0, 0.92, 0.65))
 	p_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	hbox.add_child(p_lbl)
@@ -182,7 +182,7 @@ func _setup_profile_bar() -> void:
 	btn_logout.text = "Çıkış"
 	btn_logout.custom_minimum_size = Vector2(120, 44)
 	btn_logout.add_theme_font_override("font", FontNunitoBold)
-	btn_logout.add_theme_font_size_override("font_size", 20)
+	btn_logout.add_theme_font_size_override("font_size", 22)
 	btn_logout.add_theme_color_override("font_color", Color(1, 0.8, 0.8))
 
 	var l_sb := StyleBoxFlat.new()
@@ -265,7 +265,7 @@ func _setup_auth_overlay() -> void:
 	title.text = "KRALLIK KAPISI"
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title.add_theme_font_override("font", FontCinzelBold)
-	title.add_theme_font_size_override("font_size", 42)
+	title.add_theme_font_size_override("font_size", 44)
 	title.add_theme_color_override("font_color", Color(1.0, 0.92, 0.68))
 	vb.add_child(title)
 
@@ -274,7 +274,7 @@ func _setup_auth_overlay() -> void:
 	subtitle.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	subtitle.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	subtitle.add_theme_font_override("font", FontNunitoBold)
-	subtitle.add_theme_font_size_override("font_size", 24)
+	subtitle.add_theme_font_size_override("font_size", 26)
 	subtitle.add_theme_color_override("font_color", Color(0.85, 0.80, 0.72))
 	vb.add_child(subtitle)
 
@@ -292,7 +292,7 @@ func _setup_auth_overlay() -> void:
 	btn_google.text = "Google ile Giriş Yap"
 	btn_google.custom_minimum_size = Vector2(0, 68)
 	btn_google.add_theme_font_override("font", FontNunitoBold)
-	btn_google.add_theme_font_size_override("font_size", 26)
+	btn_google.add_theme_font_size_override("font_size", 28)
 	btn_google.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 	var g_sb := StyleBoxFlat.new()
 	g_sb.bg_color = Color(0.95, 0.95, 0.95, 1.0)
@@ -317,7 +317,7 @@ func _setup_auth_overlay() -> void:
 	btn_apple.text = "Apple ile Giriş Yap"
 	btn_apple.custom_minimum_size = Vector2(0, 68)
 	btn_apple.add_theme_font_override("font", FontNunitoBold)
-	btn_apple.add_theme_font_size_override("font_size", 26)
+	btn_apple.add_theme_font_size_override("font_size", 28)
 	btn_apple.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 	var a_sb := StyleBoxFlat.new()
 	a_sb.bg_color = Color(0.02, 0.02, 0.04, 1.0)
@@ -342,7 +342,7 @@ func _setup_auth_overlay() -> void:
 	_status_lbl.text = "Taht ve Kılıç sisteminde yalnızca Google ve Apple girişi geçerlidir."
 	_status_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_status_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_status_lbl.add_theme_font_size_override("font_size", 20)
+	_status_lbl.add_theme_font_size_override("font_size", 22)
 	_status_lbl.add_theme_color_override("font_color", Color(0.65, 0.62, 0.58))
 	vb.add_child(_status_lbl)
 

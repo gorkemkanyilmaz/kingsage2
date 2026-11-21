@@ -229,7 +229,7 @@ func _ensure_ui() -> void:
 	title_lbl.text = "SÜRE HIZLANDIR"
 	title_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	title_lbl.add_theme_font_override("font", FontCinzelBold)
-	title_lbl.add_theme_font_size_override("font_size", 26)
+	title_lbl.add_theme_font_size_override("font_size", 28)
 	title_lbl.add_theme_color_override("font_color", Color(1.0, 0.92, 0.56))
 	title_lbl.add_theme_constant_override("outline_size", 0)
 	title_lbl.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0))
@@ -262,7 +262,7 @@ func _ensure_ui() -> void:
 	_diamond_lbl = Label.new()
 	_diamond_lbl.text = "%d" % _get_diamonds()
 	_diamond_lbl.add_theme_font_override("font", FontNunitoBold)
-	_diamond_lbl.add_theme_font_size_override("font_size", 21)
+	_diamond_lbl.add_theme_font_size_override("font_size", 23)
 	_diamond_lbl.add_theme_color_override("font_color", Color(0.92, 0.98, 1.0))
 	_diamond_lbl.add_theme_constant_override("outline_size", 0)
 	_diamond_lbl.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0))
@@ -287,7 +287,7 @@ func _ensure_ui() -> void:
 	_task_title_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_task_title_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_task_title_lbl.add_theme_font_override("font", FontNunitoBold)
-	_task_title_lbl.add_theme_font_size_override("font_size", 22)
+	_task_title_lbl.add_theme_font_size_override("font_size", 24)
 	_task_title_lbl.add_theme_color_override("font_color", Color(1.0, 0.96, 0.86))
 	_task_title_lbl.add_theme_constant_override("outline_size", 0)
 	_task_title_lbl.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0))
@@ -296,7 +296,7 @@ func _ensure_ui() -> void:
 	_timer_lbl = Label.new()
 	_timer_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_timer_lbl.add_theme_font_override("font", FontNunitoBold)
-	_timer_lbl.add_theme_font_size_override("font_size", 32)
+	_timer_lbl.add_theme_font_size_override("font_size", 34)
 	_timer_lbl.add_theme_color_override("font_color", Color(0.42, 0.92, 1.0))
 	_timer_lbl.add_theme_constant_override("outline_size", 0)
 	_timer_lbl.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0))
@@ -311,7 +311,7 @@ func _ensure_ui() -> void:
 	_status_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_status_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_status_lbl.add_theme_font_override("font", FontNunitoBold)
-	_status_lbl.add_theme_font_size_override("font_size", 19)
+	_status_lbl.add_theme_font_size_override("font_size", 21)
 	_status_lbl.add_theme_constant_override("outline_size", 0)
 	_status_lbl.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0))
 	_status_panel.add_child(_status_lbl)
@@ -334,7 +334,7 @@ func _ensure_ui() -> void:
 	_market_btn.custom_minimum_size = Vector2(0, 54)
 	_market_btn.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 	_market_btn.add_theme_font_override("font", FontNunitoBold)
-	_market_btn.add_theme_font_size_override("font_size", 22)
+	_market_btn.add_theme_font_size_override("font_size", 24)
 	var m_sb := StyleBoxFlat.new()
 	m_sb.bg_color = Color(0.16, 0.24, 0.42, 0.98)
 	m_sb.border_color = Color(0.88, 0.74, 0.36, 1.0)
@@ -355,7 +355,7 @@ func _ensure_ui() -> void:
 	_close_btn.custom_minimum_size = Vector2(160, 54)
 	_close_btn.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 	_close_btn.add_theme_font_override("font", FontNunitoBold)
-	_close_btn.add_theme_font_size_override("font_size", 22)
+	_close_btn.add_theme_font_size_override("font_size", 24)
 	var c_sb := StyleBoxFlat.new()
 	c_sb.bg_color = Color(0.44, 0.16, 0.16, 0.96)
 	c_sb.border_color = Color(0.88, 0.40, 0.38, 1.0)
@@ -523,7 +523,7 @@ func _populate_rows() -> void:
 		ic_pill.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		ic_pill.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 		ic_pill.add_theme_font_override("font", FontNunitoBold)
-		ic_pill.add_theme_font_size_override("font_size", 14)
+		ic_pill.add_theme_font_size_override("font_size", 16)
 		ic_pill.add_theme_color_override("font_color", tier_col)
 		ic_pill_box.add_child(ic_pill)
 		ic_ov.add_child(ic_pill_box)
@@ -537,7 +537,7 @@ func _populate_rows() -> void:
 		var n_lbl := Label.new()
 		n_lbl.text = "%s (-%s)" % [s_name, short_dur]
 		n_lbl.add_theme_font_override("font", FontNunitoBold)
-		n_lbl.add_theme_font_size_override("font_size", 22)
+		n_lbl.add_theme_font_size_override("font_size", 24)
 		n_lbl.add_theme_color_override("font_color", Color(1.0, 0.95, 0.82))
 		n_lbl.add_theme_constant_override("outline_size", 0)
 		n_lbl.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0))
@@ -546,7 +546,7 @@ func _populate_rows() -> void:
 		var o_lbl := Label.new()
 		o_lbl.text = "Sahip: %d" % owned
 		o_lbl.add_theme_font_override("font", FontNunitoBold)
-		o_lbl.add_theme_font_size_override("font_size", 21)
+		o_lbl.add_theme_font_size_override("font_size", 23)
 		o_lbl.add_theme_color_override("font_color", Color(0.48, 0.95, 0.58) if owned > 0 else Color(0.75, 0.74, 0.82))
 		o_lbl.add_theme_constant_override("outline_size", 0)
 		o_lbl.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0))
@@ -557,7 +557,7 @@ func _populate_rows() -> void:
 		action_btn.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		action_btn.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 		action_btn.add_theme_font_override("font", FontNunitoBold)
-		action_btn.add_theme_font_size_override("font_size", 22)
+		action_btn.add_theme_font_size_override("font_size", 24)
 		action_btn.add_theme_constant_override("outline_size", 0)
 		action_btn.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0))
 
@@ -585,7 +585,7 @@ func _populate_rows() -> void:
 			buy_more_btn.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 			buy_more_btn.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 			buy_more_btn.add_theme_font_override("font", FontNunitoBold)
-			buy_more_btn.add_theme_font_size_override("font_size", 20)
+			buy_more_btn.add_theme_font_size_override("font_size", 22)
 			var bm_sb := StyleBoxFlat.new()
 			bm_sb.bg_color = Color(0.14, 0.32, 0.54, 0.98)
 			bm_sb.border_color = Color(0.58, 0.88, 1.0, 0.95)

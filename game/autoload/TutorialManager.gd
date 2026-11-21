@@ -237,7 +237,7 @@ func _build_ui() -> void:
 	_hand_hint_label.text = "Dokunun"
 	_hand_hint_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_hand_hint_label.add_theme_font_override("font", FontNunitoBold)
-	_hand_hint_label.add_theme_font_size_override("font_size", 21)
+	_hand_hint_label.add_theme_font_size_override("font_size", 23)
 	_hand_hint_label.add_theme_color_override("font_color", Color(1.0, 0.92, 0.56))
 	_hand_hint_label.add_theme_constant_override("outline_size", 0)
 	_hand_hint_label.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0))
@@ -329,7 +329,7 @@ func _build_vizier_card() -> void:
 	np_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	np_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	np_lbl.add_theme_font_override("font", FontCinzelBold)
-	np_lbl.add_theme_font_size_override("font_size", 20)
+	np_lbl.add_theme_font_size_override("font_size", 22)
 	np_lbl.add_theme_color_override("font_color", Color(1.0, 0.92, 0.62))
 	np_lbl.add_theme_constant_override("outline_size", 0)
 	np_lbl.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0))
@@ -366,7 +366,7 @@ func _build_vizier_card() -> void:
 	_chapter_label.text = "BÖLÜM 1/5 • KÖY DÜZENİ"
 	_chapter_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_chapter_label.add_theme_font_override("font", FontNunitoBold)
-	_chapter_label.add_theme_font_size_override("font_size", 20)
+	_chapter_label.add_theme_font_size_override("font_size", 22)
 	_chapter_label.add_theme_color_override("font_color", Color(1.0, 0.88, 0.48))
 	_chapter_label.add_theme_constant_override("outline_size", 0)
 	_chapter_label.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0))
@@ -378,7 +378,7 @@ func _build_vizier_card() -> void:
 	_step_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_step_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	_step_label.add_theme_font_override("font", FontNunitoBold)
-	_step_label.add_theme_font_size_override("font_size", 20)
+	_step_label.add_theme_font_size_override("font_size", 22)
 	_step_label.add_theme_color_override("font_color", Color(0.82, 0.80, 0.74))
 	_step_label.add_theme_constant_override("outline_size", 0)
 	_step_label.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0))
@@ -389,7 +389,7 @@ func _build_vizier_card() -> void:
 	_btn_skip.text = "Atla ✕"
 	_btn_skip.custom_minimum_size = Vector2(96, 36)
 	_btn_skip.add_theme_font_override("font", FontNunitoBold)
-	_btn_skip.add_theme_font_size_override("font_size", 20)
+	_btn_skip.add_theme_font_size_override("font_size", 22)
 	_btn_skip.add_theme_constant_override("outline_size", 0)
 	_btn_skip.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0))
 	_btn_skip.add_theme_color_override("font_color", Color(0.86, 0.78, 0.72))
@@ -429,7 +429,7 @@ func _build_vizier_card() -> void:
 	_title_label.text = "Taht ve Kılıç'a Hoş Geldiniz"
 	_title_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_title_label.add_theme_font_override("font", FontCinzelBold)
-	_title_label.add_theme_font_size_override("font_size", 24)
+	_title_label.add_theme_font_size_override("font_size", 26)
 	_title_label.add_theme_color_override("font_color", Color(1.0, 0.92, 0.58))
 	_title_label.add_theme_constant_override("outline_size", 0)
 	_title_label.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0))
@@ -445,8 +445,8 @@ func _build_vizier_card() -> void:
 	_dialogue_label.custom_minimum_size = Vector2(760, 0)
 	_dialogue_label.add_theme_font_override("normal_font", FontNunitoSemiBold)
 	_dialogue_label.add_theme_font_override("bold_font", FontNunitoBold)
-	_dialogue_label.add_theme_font_size_override("normal_font_size", 22)
-	_dialogue_label.add_theme_font_size_override("bold_font_size", 22)
+	_dialogue_label.add_theme_font_size_override("normal_font_size", 24)
+	_dialogue_label.add_theme_font_size_override("bold_font_size", 24)
 	_dialogue_label.add_theme_color_override("default_color", Color(0.96, 0.94, 0.88))
 	_dialogue_label.add_theme_constant_override("outline_size", 0)
 	right_col.add_child(_dialogue_label)
@@ -475,7 +475,7 @@ func _build_vizier_card() -> void:
 	_objective_label.custom_minimum_size = Vector2(740, 0)
 	_objective_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_objective_label.add_theme_font_override("font", FontNunitoBold)
-	_objective_label.add_theme_font_size_override("font_size", 21)
+	_objective_label.add_theme_font_size_override("font_size", 23)
 	_objective_label.add_theme_color_override("font_color", Color(1.0, 0.90, 0.50))
 	_objective_label.add_theme_constant_override("outline_size", 0)
 	_objective_label.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0))
@@ -512,7 +512,7 @@ func _build_vizier_card() -> void:
 
 func _style_action_button(btn: Button, bg: Color, border: Color, font_col: Color) -> void:
 	btn.add_theme_font_override("font", FontNunitoBold)
-	btn.add_theme_font_size_override("font_size", 22)
+	btn.add_theme_font_size_override("font_size", 24)
 	btn.add_theme_constant_override("outline_size", 1)
 	btn.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.85))
 	btn.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0))
@@ -598,7 +598,7 @@ func _build_victory_modal() -> void:
 	h_title.text = "TEBRİKLER LORDUM! HAZIRSINIZ!"
 	h_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	h_title.add_theme_font_override("font", FontCinzelBold)
-	h_title.add_theme_font_size_override("font_size", 32)
+	h_title.add_theme_font_size_override("font_size", 34)
 	h_title.add_theme_color_override("font_color", Color(1.0, 0.88, 0.42))
 	h_title.add_theme_constant_override("outline_size", 0)
 	h_title.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0))
@@ -611,8 +611,8 @@ func _build_victory_modal() -> void:
 	body.custom_minimum_size = Vector2(820, 0)
 	body.add_theme_font_override("normal_font", FontNunitoSemiBold)
 	body.add_theme_font_override("bold_font", FontNunitoBold)
-	body.add_theme_font_size_override("normal_font_size", 23)
-	body.add_theme_font_size_override("bold_font_size", 23)
+	body.add_theme_font_size_override("normal_font_size", 25)
+	body.add_theme_font_size_override("bold_font_size", 25)
 	body.add_theme_color_override("default_color", Color(0.95, 0.93, 0.88))
 	body.text = "[b][color=#FFD86B]Lordum,[/color][/b] ilk birlikleriniz olan [b][color=#78F096]10 Silahtar[/color][/b] kışla avlusunda saf tuttu! Artık krallığınızı yönetmek için gereken her temeli öğrendiniz:"
 	vbox.add_child(body)
@@ -635,7 +635,7 @@ func _build_victory_modal() -> void:
 	cl_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	cl_lbl.custom_minimum_size = Vector2(780, 0)
 	cl_lbl.add_theme_font_override("font", FontNunitoSemiBold)
-	cl_lbl.add_theme_font_size_override("font_size", 22)
+	cl_lbl.add_theme_font_size_override("font_size", 24)
 	cl_lbl.add_theme_color_override("font_color", Color(0.84, 0.96, 0.86))
 	cl_lbl.add_theme_constant_override("outline_size", 0)
 	cl_lbl.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0))
@@ -660,7 +660,7 @@ func _build_victory_modal() -> void:
 	rw_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	rw_lbl.custom_minimum_size = Vector2(780, 0)
 	rw_lbl.add_theme_font_override("font", FontNunitoBold)
-	rw_lbl.add_theme_font_size_override("font_size", 23)
+	rw_lbl.add_theme_font_size_override("font_size", 25)
 	rw_lbl.add_theme_color_override("font_color", Color(1.0, 0.90, 0.45))
 	rw_lbl.add_theme_constant_override("outline_size", 0)
 	rw_lbl.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0))
@@ -671,7 +671,7 @@ func _build_victory_modal() -> void:
 	_btn_finish.text = "⚔️ Hükmetmeye Başla!"
 	_btn_finish.custom_minimum_size = Vector2(0, 68)
 	_style_action_button(_btn_finish, Color(0.18, 0.56, 0.30, 1.0), Color(0.62, 0.95, 0.70, 1.0), Color(1, 1, 1))
-	_btn_finish.add_theme_font_size_override("font_size", 26)
+	_btn_finish.add_theme_font_size_override("font_size", 28)
 	_btn_finish.pressed.connect(_on_graduation_finish_pressed)
 	vbox.add_child(_btn_finish)
 

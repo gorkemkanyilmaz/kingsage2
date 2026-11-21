@@ -250,7 +250,7 @@ func _ensure_kb_preview_bar() -> void:
 	_kb_preview_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_kb_preview_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_kb_preview_label.add_theme_font_override("font", FontNunitoBold)
-	_kb_preview_label.add_theme_font_size_override("font_size", 22)
+	_kb_preview_label.add_theme_font_size_override("font_size", 24)
 	_kb_preview_label.add_theme_color_override("font_color", Color(1.0, 0.95, 0.78))
 	hbox.add_child(_kb_preview_label)
 
@@ -275,7 +275,7 @@ func _ensure_kb_preview_bar() -> void:
 	_kb_preview_value_lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	_kb_preview_value_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_kb_preview_value_lbl.add_theme_font_override("font", FontNunitoBold)
-	_kb_preview_value_lbl.add_theme_font_size_override("font_size", 28)
+	_kb_preview_value_lbl.add_theme_font_size_override("font_size", 30)
 	_kb_preview_value_lbl.add_theme_color_override("font_color", Color(0.55, 0.98, 0.68))
 	val_pill.add_child(_kb_preview_value_lbl)
 
@@ -285,7 +285,7 @@ func _ensure_kb_preview_bar() -> void:
 	_kb_preview_done_btn.custom_minimum_size = Vector2(142, 54)
 	_kb_preview_done_btn.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	_kb_preview_done_btn.add_theme_font_override("font", FontNunitoBold)
-	_kb_preview_done_btn.add_theme_font_size_override("font_size", 23)
+	_kb_preview_done_btn.add_theme_font_size_override("font_size", 25)
 	_kb_preview_done_btn.add_theme_color_override("font_color", Color(1, 1, 1))
 	_kb_preview_done_btn.add_theme_constant_override("outline_size", 2)
 	_kb_preview_done_btn.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.95))
@@ -480,7 +480,7 @@ func _ensure_description_and_production_nodes() -> void:
 		_desc_label.name = "DescriptionLabel"
 		_desc_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		_desc_label.add_theme_font_override("font", FontNunitoSemiBold)
-		_desc_label.add_theme_font_size_override("font_size", 24)
+		_desc_label.add_theme_font_size_override("font_size", 26)
 		_desc_label.add_theme_color_override("font_color", Color(0.95, 0.90, 0.78, 1.0))
 		_desc_label.add_theme_constant_override("outline_size", 0)
 		_desc_label.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0))
@@ -575,7 +575,7 @@ func _build_storage_table(cur_lvl: int) -> void:
 	col1_lbl.text = "Deponun alabileceği\nhammadde ayrı ayrı"
 	col1_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	col1_lbl.add_theme_font_override("font", FontNunitoBold)
-	col1_lbl.add_theme_font_size_override("font_size", 24)
+	col1_lbl.add_theme_font_size_override("font_size", 26)
 	col1_lbl.add_theme_color_override("font_color", Color(0.12, 0.08, 0.04))
 	h_row.add_child(col1_lbl)
 
@@ -629,7 +629,7 @@ func _make_storage_row(label_text: String, icon_tex: Texture2D, capacity: int, i
 	c1.text = label_text
 	c1.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	c1.add_theme_font_override("font", FontNunitoBold)
-	c1.add_theme_font_size_override("font_size", 24)
+	c1.add_theme_font_size_override("font_size", 26)
 	c1.add_theme_color_override("font_color", Color(0.12, 0.08, 0.04))
 	row.add_child(c1)
 
@@ -648,7 +648,7 @@ func _make_storage_row(label_text: String, icon_tex: Texture2D, capacity: int, i
 	var cap_lbl := Label.new()
 	cap_lbl.text = _format_number(capacity)
 	cap_lbl.add_theme_font_override("font", FontNunitoBold)
-	cap_lbl.add_theme_font_size_override("font_size", 24)
+	cap_lbl.add_theme_font_size_override("font_size", 26)
 	cap_lbl.add_theme_color_override("font_color", Color(0.12, 0.08, 0.04))
 	c2.add_child(cap_lbl)
 	row.add_child(c2)
@@ -681,7 +681,7 @@ func _build_mine_production_table(cur_lvl: int) -> void:
 	col1_lbl.text = "Üretim"
 	col1_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	col1_lbl.add_theme_font_override("font", FontNunitoBold)
-	col1_lbl.add_theme_font_size_override("font_size", 26)
+	col1_lbl.add_theme_font_size_override("font_size", 28)
 	col1_lbl.add_theme_color_override("font_color", Color(0.12, 0.08, 0.04))
 	h_row.add_child(col1_lbl)
 
@@ -690,7 +690,7 @@ func _build_mine_production_table(cur_lvl: int) -> void:
 	col2_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	col2_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	col2_lbl.add_theme_font_override("font", FontNunitoBold)
-	col2_lbl.add_theme_font_size_override("font_size", 26)
+	col2_lbl.add_theme_font_size_override("font_size", 28)
 	col2_lbl.add_theme_color_override("font_color", Color(0.12, 0.08, 0.04))
 	h_row.add_child(col2_lbl)
 
@@ -699,7 +699,7 @@ func _build_mine_production_table(cur_lvl: int) -> void:
 	col3_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	col3_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	col3_lbl.add_theme_font_override("font", FontNunitoBold)
-	col3_lbl.add_theme_font_size_override("font_size", 26)
+	col3_lbl.add_theme_font_size_override("font_size", 28)
 	col3_lbl.add_theme_color_override("font_color", Color(0.12, 0.08, 0.04))
 	h_row.add_child(col3_lbl)
 
@@ -755,7 +755,7 @@ func _make_prod_row(label_text: String, icon_tex: Texture2D, hourly: int, daily:
 	c1.text = label_text
 	c1.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	c1.add_theme_font_override("font", FontNunitoBold)
-	c1.add_theme_font_size_override("font_size", 24)
+	c1.add_theme_font_size_override("font_size", 26)
 	c1.add_theme_color_override("font_color", Color(0.12, 0.08, 0.04))
 	row.add_child(c1)
 
@@ -774,7 +774,7 @@ func _make_prod_row(label_text: String, icon_tex: Texture2D, hourly: int, daily:
 	var hr_lbl := Label.new()
 	hr_lbl.text = _format_number(hourly)
 	hr_lbl.add_theme_font_override("font", FontNunitoBold)
-	hr_lbl.add_theme_font_size_override("font_size", 24)
+	hr_lbl.add_theme_font_size_override("font_size", 26)
 	hr_lbl.add_theme_color_override("font_color", Color(0.12, 0.08, 0.04))
 	c2.add_child(hr_lbl)
 	row.add_child(c2)
@@ -794,7 +794,7 @@ func _make_prod_row(label_text: String, icon_tex: Texture2D, hourly: int, daily:
 	var dl_lbl := Label.new()
 	dl_lbl.text = _format_number(daily)
 	dl_lbl.add_theme_font_override("font", FontNunitoBold)
-	dl_lbl.add_theme_font_size_override("font_size", 24)
+	dl_lbl.add_theme_font_size_override("font_size", 26)
 	dl_lbl.add_theme_color_override("font_color", Color(0.12, 0.08, 0.04))
 	c3.add_child(dl_lbl)
 	row.add_child(c3)
@@ -1022,6 +1022,10 @@ func _on_tab_train_pressed() -> void:
 	refresh()
 
 
+func is_train_input_focused() -> bool:
+	return _focused_train_line != null and is_instance_valid(_focused_train_line) and _focused_train_line.has_focus()
+
+
 func switch_tab(tab_idx: int) -> void:
 	_switch_tab(tab_idx)
 
@@ -1087,7 +1091,7 @@ func _update_tab_buttons_styling(barracks_level: int) -> void:
 	for btn in [tab_upgrade_btn, tab_research_btn, tab_train_btn]:
 		if btn != null:
 			btn.add_theme_font_override("font", FontNunitoBold)
-			btn.add_theme_font_size_override("font_size", 28)
+			btn.add_theme_font_size_override("font_size", 30)
 			btn.add_theme_constant_override("outline_size", 3)
 			btn.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.95))
 			btn.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.95))
@@ -1356,7 +1360,7 @@ func _refresh_upgrade_view(state: Dictionary, cur_lvl: int, max_lvl: int) -> voi
 		upgrade_btn.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.95))
 		upgrade_btn.add_theme_color_override("font_shadow_color", Color(0.04, 0.20, 0.08, 0.9))
 		upgrade_btn.add_theme_constant_override("shadow_offset_y", 2)
-		upgrade_btn.add_theme_font_size_override("font_size", 30)
+		upgrade_btn.add_theme_font_size_override("font_size", 32)
 	else:
 		upgrade_btn.disabled = true
 		var dis_sb := StyleBoxFlat.new()
@@ -1376,7 +1380,7 @@ func _refresh_upgrade_view(state: Dictionary, cur_lvl: int, max_lvl: int) -> voi
 		upgrade_btn.add_theme_color_override("font_disabled_color", Color(0.85, 0.82, 0.78))
 		upgrade_btn.add_theme_color_override("font_shadow_color", Color(0.0, 0.0, 0.0, 0.6))
 		upgrade_btn.add_theme_constant_override("shadow_offset_y", 1)
-		upgrade_btn.add_theme_font_size_override("font_size", 30)
+		upgrade_btn.add_theme_font_size_override("font_size", 32)
 
 		var reason: String = str(details.get("reason", ""))
 		if reason == "max_level":
@@ -1442,7 +1446,7 @@ func _populate_chain_list(chain: Array) -> void:
 		lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		lbl.text = "• %s (Gereken: %d, Şu an: %d)" % [req_name, req_tgt, req_cur]
 		lbl.add_theme_font_override("font", FontNunitoSemiBold)
-		lbl.add_theme_font_size_override("font_size", 23)
+		lbl.add_theme_font_size_override("font_size", 25)
 		lbl.add_theme_constant_override("outline_size", 0)
 		lbl.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0))
 		lbl.add_theme_color_override("font_color", Color(0.50, 0.92, 0.55, 1) if req_cur >= req_tgt else Color(0.98, 0.72, 0.56, 1))
@@ -1453,7 +1457,7 @@ func _populate_chain_list(chain: Array) -> void:
 		goto_btn.text = "Binaya Git ➔"
 		goto_btn.custom_minimum_size = Vector2(175, 52)
 		goto_btn.add_theme_font_override("font", FontNunitoBold)
-		goto_btn.add_theme_font_size_override("font_size", 22)
+		goto_btn.add_theme_font_size_override("font_size", 24)
 		goto_btn.add_theme_constant_override("outline_size", 1)
 		goto_btn.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.85))
 		goto_btn.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0))
@@ -1726,7 +1730,7 @@ func _populate_research_list() -> void:
 			name_lbl.text = "%s %s" % [u_icon, u_name]
 			name_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
 			name_lbl.add_theme_font_override("font", FontNunitoBold)
-			name_lbl.add_theme_font_size_override("font_size", 26)
+			name_lbl.add_theme_font_size_override("font_size", 28)
 			name_lbl.add_theme_constant_override("outline_size", 0)
 			name_lbl.add_theme_color_override("font_color", Color(1.0, 0.95, 0.82))
 			name_lbl.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0))
@@ -1736,7 +1740,7 @@ func _populate_research_list() -> void:
 			class_badge.text = "[%s]" % u_class
 			class_badge.mouse_filter = Control.MOUSE_FILTER_IGNORE
 			class_badge.add_theme_font_override("font", FontNunitoSemiBold)
-			class_badge.add_theme_font_size_override("font_size", 20)
+			class_badge.add_theme_font_size_override("font_size", 22)
 			class_badge.add_theme_constant_override("outline_size", 0)
 			class_badge.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0))
 			class_badge.add_theme_color_override("font_color", Color(0.75, 0.88, 1.0))
@@ -1750,7 +1754,7 @@ func _populate_research_list() -> void:
 			var req_lbl := Label.new()
 			req_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
 			req_lbl.add_theme_font_override("font", FontNunitoBold)
-			req_lbl.add_theme_font_size_override("font_size", 22)
+			req_lbl.add_theme_font_size_override("font_size", 24)
 			req_lbl.add_theme_constant_override("outline_size", 0)
 			req_lbl.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0))
 			top_row.add_child(req_lbl)
@@ -1769,7 +1773,7 @@ func _populate_research_list() -> void:
 			stats_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 			stats_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
 			stats_lbl.add_theme_font_override("font", FontNunitoSemiBold)
-			stats_lbl.add_theme_font_size_override("font_size", 20)
+			stats_lbl.add_theme_font_size_override("font_size", 22)
 			stats_lbl.add_theme_constant_override("outline_size", 0)
 			stats_lbl.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0))
 			stats_lbl.add_theme_color_override("font_color", Color(0.90, 0.88, 0.82))
@@ -1798,7 +1802,7 @@ func _populate_research_list() -> void:
 			var time_info := Label.new()
 			time_info.mouse_filter = Control.MOUSE_FILTER_IGNORE
 			time_info.add_theme_font_override("font", FontNunitoBold)
-			time_info.add_theme_font_size_override("font_size", 21)
+			time_info.add_theme_font_size_override("font_size", 23)
 			time_info.add_theme_constant_override("outline_size", 2)
 			time_info.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.95))
 			time_info.add_theme_color_override("font_color", Color(0.95, 0.90, 0.80))
@@ -1812,7 +1816,7 @@ func _populate_research_list() -> void:
 			status_badge.custom_minimum_size = Vector2(185, 52)
 			status_badge.mouse_filter = Control.MOUSE_FILTER_IGNORE
 			status_badge.add_theme_font_override("font", FontNunitoBold)
-			status_badge.add_theme_font_size_override("font_size", 24)
+			status_badge.add_theme_font_size_override("font_size", 26)
 			status_badge.add_theme_constant_override("outline_size", 3)
 			status_badge.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.95))
 			bottom_row.add_child(status_badge)
@@ -1822,7 +1826,7 @@ func _populate_research_list() -> void:
 			res_btn.custom_minimum_size = Vector2(185, 52)
 			res_btn.mouse_filter = Control.MOUSE_FILTER_PASS
 			res_btn.add_theme_font_override("font", FontNunitoBold)
-			res_btn.add_theme_font_size_override("font_size", 24)
+			res_btn.add_theme_font_size_override("font_size", 26)
 			res_btn.add_theme_constant_override("outline_size", 3)
 			res_btn.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.95))
 			res_btn.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.95))
@@ -1926,7 +1930,7 @@ func _create_mini_resource_pill(icon_tex: Texture2D, req_amount: int, cur_amount
 	lbl.text = str(req_amount)
 	lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	lbl.add_theme_font_override("font", FontNunitoBold)
-	lbl.add_theme_font_size_override("font_size", 21)
+	lbl.add_theme_font_size_override("font_size", 23)
 	lbl.add_theme_constant_override("outline_size", 0)
 	lbl.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0))
 	if cur_amount >= 0 and cur_amount < req_amount:
@@ -2164,7 +2168,7 @@ func _populate_train_list() -> void:
 		name_lbl.text = "%s %s" % [u_icon, u_name]
 		name_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		name_lbl.add_theme_font_override("font", FontNunitoBold)
-		name_lbl.add_theme_font_size_override("font_size", 28)
+		name_lbl.add_theme_font_size_override("font_size", 30)
 		name_lbl.add_theme_constant_override("outline_size", 0)
 		name_lbl.add_theme_color_override("font_color", Color(1.0, 0.95, 0.82))
 		name_lbl.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0))
@@ -2174,7 +2178,7 @@ func _populate_train_list() -> void:
 		class_badge.text = "[%s]" % u_class
 		class_badge.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		class_badge.add_theme_font_override("font", FontNunitoSemiBold)
-		class_badge.add_theme_font_size_override("font_size", 22)
+		class_badge.add_theme_font_size_override("font_size", 24)
 		class_badge.add_theme_constant_override("outline_size", 0)
 		class_badge.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0))
 		class_badge.add_theme_color_override("font_color", Color(0.75, 0.88, 1.0))
@@ -2190,7 +2194,7 @@ func _populate_train_list() -> void:
 		have_lbl.text = "Mevcut: %d Adet" % have_units
 		have_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		have_lbl.add_theme_font_override("font", FontNunitoBold)
-		have_lbl.add_theme_font_size_override("font_size", 25)
+		have_lbl.add_theme_font_size_override("font_size", 27)
 		have_lbl.add_theme_constant_override("outline_size", 0)
 		have_lbl.add_theme_color_override("font_color", Color(1.0, 0.88, 0.45))
 		have_lbl.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0))
@@ -2211,7 +2215,7 @@ func _populate_train_list() -> void:
 			lock_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
 			lock_lbl.text = "🔒 Bu birim henüz araştırılmadı. (Gereken: Kışla Seviye %d)" % req_barracks
 			lock_lbl.add_theme_font_override("font", FontNunitoSemiBold)
-			lock_lbl.add_theme_font_size_override("font_size", 23)
+			lock_lbl.add_theme_font_size_override("font_size", 25)
 			lock_lbl.add_theme_constant_override("outline_size", 0)
 			lock_lbl.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0))
 			lock_lbl.add_theme_color_override("font_color", Color(0.95, 0.65, 0.50))
@@ -2223,7 +2227,7 @@ func _populate_train_list() -> void:
 			goto_res_btn.mouse_filter = Control.MOUSE_FILTER_PASS
 			goto_res_btn.custom_minimum_size = Vector2(185, 52)
 			goto_res_btn.add_theme_font_override("font", FontNunitoBold)
-			goto_res_btn.add_theme_font_size_override("font_size", 24)
+			goto_res_btn.add_theme_font_size_override("font_size", 26)
 			goto_res_btn.add_theme_constant_override("outline_size", 3)
 			goto_res_btn.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.95))
 			goto_res_btn.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.95))
@@ -2267,7 +2271,7 @@ func _populate_train_list() -> void:
 			stats_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 			stats_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
 			stats_lbl.add_theme_font_override("font", FontNunitoBold)
-			stats_lbl.add_theme_font_size_override("font_size", 21)
+			stats_lbl.add_theme_font_size_override("font_size", 23)
 			stats_lbl.add_theme_constant_override("outline_size", 2)
 			stats_lbl.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.95))
 			stats_lbl.add_theme_color_override("font_color", Color(0.90, 0.88, 0.82))
@@ -2287,7 +2291,7 @@ func _populate_train_list() -> void:
 			cost_title.text = "Birim Başı:"
 			cost_title.mouse_filter = Control.MOUSE_FILTER_IGNORE
 			cost_title.add_theme_font_override("font", FontNunitoBold)
-			cost_title.add_theme_font_size_override("font_size", 22)
+			cost_title.add_theme_font_size_override("font_size", 24)
 			cost_title.add_theme_constant_override("outline_size", 3)
 			cost_title.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.95))
 			cost_title.add_theme_color_override("font_color", Color(1.0, 0.92, 0.80))
@@ -2306,7 +2310,7 @@ func _populate_train_list() -> void:
 			time_info.text = "⏱️ %s" % _format_time_str(single_sec)
 			time_info.mouse_filter = Control.MOUSE_FILTER_IGNORE
 			time_info.add_theme_font_override("font", FontNunitoBold)
-			time_info.add_theme_font_size_override("font_size", 22)
+			time_info.add_theme_font_size_override("font_size", 24)
 			time_info.add_theme_constant_override("outline_size", 2)
 			time_info.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.95))
 			time_info.add_theme_color_override("font_color", Color(0.92, 0.88, 0.80))
@@ -2348,9 +2352,9 @@ func _populate_train_list() -> void:
 			qty_edit.virtual_keyboard_type = LineEdit.KEYBOARD_TYPE_NUMBER
 			qty_edit.custom_minimum_size = Vector2(126, 54)
 			qty_edit.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-			qty_edit.mouse_filter = Control.MOUSE_FILTER_PASS
+			qty_edit.mouse_filter = Control.MOUSE_FILTER_STOP
 			qty_edit.add_theme_font_override("font", FontNunitoBold)
-			qty_edit.add_theme_font_size_override("font_size", 26)
+			qty_edit.add_theme_font_size_override("font_size", 28)
 			qty_edit.add_theme_constant_override("outline_size", 2)
 			qty_edit.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.95))
 			qty_edit.add_theme_color_override("font_color", Color(1.0, 0.97, 0.88))
@@ -2396,7 +2400,7 @@ func _populate_train_list() -> void:
 			train_btn.custom_minimum_size = Vector2(150, 54)
 			train_btn.mouse_filter = Control.MOUSE_FILTER_PASS
 			train_btn.add_theme_font_override("font", FontNunitoBold)
-			train_btn.add_theme_font_size_override("font_size", 24)
+			train_btn.add_theme_font_size_override("font_size", 26)
 			train_btn.add_theme_constant_override("outline_size", 3)
 			train_btn.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.95))
 			train_btn.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.95))
@@ -2436,7 +2440,7 @@ func _populate_train_list() -> void:
 			calc_summary.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 			calc_summary.mouse_filter = Control.MOUSE_FILTER_IGNORE
 			calc_summary.add_theme_font_override("font", FontNunitoBold)
-			calc_summary.add_theme_font_size_override("font_size", 22)
+			calc_summary.add_theme_font_size_override("font_size", 24)
 			calc_summary.add_theme_constant_override("outline_size", 3)
 			calc_summary.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.95))
 			calc_summary.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.95))
@@ -2571,7 +2575,7 @@ func _create_quick_button(btn_text: String) -> Button:
 	btn.custom_minimum_size = Vector2(68, 54)
 	btn.mouse_filter = Control.MOUSE_FILTER_PASS
 	btn.add_theme_font_override("font", FontNunitoBold)
-	btn.add_theme_font_size_override("font_size", 24)
+	btn.add_theme_font_size_override("font_size", 26)
 	btn.add_theme_constant_override("outline_size", 3)
 	btn.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.95))
 	btn.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.95))
@@ -2660,7 +2664,7 @@ func _update_active_train_info() -> void:
 		name_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		name_lbl.clip_text = true
 		name_lbl.add_theme_font_override("font", FontNunitoBold)
-		name_lbl.add_theme_font_size_override("font_size", 22)
+		name_lbl.add_theme_font_size_override("font_size", 24)
 		name_lbl.add_theme_constant_override("outline_size", 2)
 		name_lbl.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.95))
 		name_lbl.add_theme_color_override("font_color", Color(1.0, 0.92, 0.50))
@@ -2669,7 +2673,7 @@ func _update_active_train_info() -> void:
 		var time_lbl := Label.new()
 		time_lbl.name = "TimeLabel"
 		time_lbl.add_theme_font_override("font", FontNunitoBold)
-		time_lbl.add_theme_font_size_override("font_size", 22)
+		time_lbl.add_theme_font_size_override("font_size", 24)
 		time_lbl.add_theme_constant_override("outline_size", 2)
 		time_lbl.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.95))
 		time_lbl.add_theme_color_override("font_color", Color(0.42, 0.90, 1.0))
@@ -2689,7 +2693,7 @@ func _update_active_train_info() -> void:
 		s_btn.text = "⚡ Hızlandır"
 		s_btn.custom_minimum_size = Vector2(165, 48)
 		s_btn.add_theme_font_override("font", FontNunitoBold)
-		s_btn.add_theme_font_size_override("font_size", 19)
+		s_btn.add_theme_font_size_override("font_size", 21)
 		s_btn.add_theme_constant_override("outline_size", 2)
 		s_btn.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.95))
 		row.add_child(s_btn)
@@ -2699,7 +2703,7 @@ func _update_active_train_info() -> void:
 		c_btn.text = "✕ İptal"
 		c_btn.custom_minimum_size = Vector2(96, 48)
 		c_btn.add_theme_font_override("font", FontNunitoBold)
-		c_btn.add_theme_font_size_override("font_size", 20)
+		c_btn.add_theme_font_size_override("font_size", 22)
 		c_btn.add_theme_constant_override("outline_size", 2)
 		c_btn.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.95))
 		c_btn.add_theme_stylebox_override("normal", _cached_train_cancel_sb)
@@ -2865,7 +2869,7 @@ func _update_special_building_actions(_cur_lvl: int) -> void:
 		var hdr := Label.new()
 		hdr.text = "🛡️ Altın Zırh Darphanesi   •   Mevcut Stok: %d Set" % avail_armour
 		hdr.add_theme_font_override("font", FontNunitoBold)
-		hdr.add_theme_font_size_override("font_size", 26)
+		hdr.add_theme_font_size_override("font_size", 28)
 		hdr.add_theme_color_override("font_color", Color(1.0, 0.88, 0.45))
 		_special_vbox.add_child(hdr)
 
@@ -2874,7 +2878,7 @@ func _update_special_building_actions(_cur_lvl: int) -> void:
 			_format_number(req_w), _format_number(req_s), _format_number(req_i)
 		]
 		cost_lbl.add_theme_font_override("font", FontNunitoSemiBold)
-		cost_lbl.add_theme_font_size_override("font_size", 22)
+		cost_lbl.add_theme_font_size_override("font_size", 24)
 		cost_lbl.add_theme_color_override("font_color", Color(0.92, 0.88, 0.80))
 		_special_vbox.add_child(cost_lbl)
 
@@ -2882,7 +2886,7 @@ func _update_special_building_actions(_cur_lvl: int) -> void:
 		mint_btn.name = "MintGoldArmourBtn"
 		mint_btn.custom_minimum_size = Vector2(0, 62)
 		mint_btn.add_theme_font_override("font", FontNunitoBold)
-		mint_btn.add_theme_font_size_override("font_size", 26)
+		mint_btn.add_theme_font_size_override("font_size", 28)
 		var can_mint := (cur_w >= req_w and cur_s >= req_s and cur_i >= req_i)
 		mint_btn.disabled = not can_mint
 		mint_btn.text = "🛡️ Altın Zırh Üret (+1 Set)" if can_mint else "Yetersiz Hammadde (Altın Zırh)"
@@ -2909,7 +2913,7 @@ func _update_special_building_actions(_cur_lvl: int) -> void:
 		var hdr := Label.new()
 		hdr.text = "👑 Köşk — Kont Eğitimi   •   Mevcut Kont: %d  |  Altın Zırh: %d" % [snob_count, avail_armour]
 		hdr.add_theme_font_override("font", FontNunitoBold)
-		hdr.add_theme_font_size_override("font_size", 26)
+		hdr.add_theme_font_size_override("font_size", 28)
 		hdr.add_theme_color_override("font_color", Color(1.0, 0.88, 0.45))
 		_special_vbox.add_child(hdr)
 
@@ -2919,7 +2923,7 @@ func _update_special_building_actions(_cur_lvl: int) -> void:
 		]
 		cost_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		cost_lbl.add_theme_font_override("font", FontNunitoSemiBold)
-		cost_lbl.add_theme_font_size_override("font_size", 22)
+		cost_lbl.add_theme_font_size_override("font_size", 24)
 		cost_lbl.add_theme_color_override("font_color", Color(0.92, 0.88, 0.80))
 		_special_vbox.add_child(cost_lbl)
 
@@ -2929,7 +2933,7 @@ func _update_special_building_actions(_cur_lvl: int) -> void:
 		snob_btn.name = "TrainSnobBtn"
 		snob_btn.custom_minimum_size = Vector2(0, 62)
 		snob_btn.add_theme_font_override("font", FontNunitoBold)
-		snob_btn.add_theme_font_size_override("font_size", 26)
+		snob_btn.add_theme_font_size_override("font_size", 28)
 		snob_btn.disabled = not can_snob
 		if can_snob:
 			snob_btn.text = "👑 Kont Eğit (1 Adet)"

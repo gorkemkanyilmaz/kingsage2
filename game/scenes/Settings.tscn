@@ -91,7 +91,7 @@ layout_mode = 2
 theme_override_colors/font_color = Color(0.239216, 0.152941, 0.058824, 1)
 theme_override_colors/font_outline_color = Color(0.980392, 0.921569, 0.733333, 0.9)
 theme_override_constants/outline_size = 8
-theme_override_font_sizes/font_size = 52
+theme_override_font_sizes/font_size = 54
 theme_override_fonts/font = ExtResource("4_cinzel")
 text = "Ayarlar"
 horizontal_alignment = 1
@@ -102,13 +102,13 @@ theme_override_constants/separation = 12
 
 [node name="Label" type="Label" parent="Center/VBox/ProfileRow"]
 layout_mode = 2
-theme_override_font_sizes/font_size = 26
+theme_override_font_sizes/font_size = 28
 text = "Dünya Profili:"
 
 [node name="Option" type="OptionButton" parent="Center/VBox/ProfileRow"]
 custom_minimum_size = Vector2(0, 76)
 layout_mode = 2
-theme_override_font_sizes/font_size = 24
+theme_override_font_sizes/font_size = 26
 
 [node name="Spacer" type="Control" parent="Center/VBox"]
 custom_minimum_size = Vector2(0, 24)
@@ -117,17 +117,17 @@ layout_mode = 2
 [node name="BtnTutorialReplay" type="Button" parent="Center/VBox"]
 custom_minimum_size = Vector2(0, 96)
 layout_mode = 2
-theme_override_font_sizes/font_size = 26
+theme_override_font_sizes/font_size = 28
 text = "🎓 Başlangıç Rehberini Tekrarla"
 
 [node name="BtnBack" type="Button" parent="Center/VBox"]
 custom_minimum_size = Vector2(0, 96)
 layout_mode = 2
-theme_override_font_sizes/font_size = 26
+theme_override_font_sizes/font_size = 28
 text = " Köye Dön"
 
 [node name="BtnMainMenu" type="Button" parent="Center/VBox"]
 custom_minimum_size = Vector2(0, 96)
 layout_mode = 2
-theme_override_font_sizes/font_size = 26
+theme_override_font_sizes/font_size = 28
 text = " Ana Menüye Dön"

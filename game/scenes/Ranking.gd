@@ -103,7 +103,7 @@ func _style_header_alliance_btn() -> void:
 	btn_alliance.expand_icon = true
 	btn_alliance.add_theme_constant_override("icon_max_width", 28)
 	btn_alliance.add_theme_font_override("font", FontCinzelBold)
-	btn_alliance.add_theme_font_size_override("font_size", 20)
+	btn_alliance.add_theme_font_size_override("font_size", 22)
 	btn_alliance.add_theme_color_override("font_color", Color(0.98, 0.93, 0.72))
 	if not btn_alliance.pressed.is_connected(_on_header_alliance_pressed):
 		btn_alliance.pressed.connect(_on_header_alliance_pressed)
@@ -132,7 +132,7 @@ func _setup_summary_banner() -> void:
 	_summary_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	_summary_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_summary_label.add_theme_font_override("font", FontNunitoBold)
-	_summary_label.add_theme_font_size_override("font_size", 21)
+	_summary_label.add_theme_font_size_override("font_size", 23)
 	_summary_label.add_theme_color_override("font_color", Color(1.0, 0.93, 0.74))
 	summary_banner.add_child(_summary_label)
 
@@ -418,7 +418,7 @@ func _build_row_card(rank: int, highlight: bool) -> Dictionary:
 	badge_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	badge_lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	badge_lbl.add_theme_font_override("font", FontCinzelBold)
-	badge_lbl.add_theme_font_size_override("font_size", 24)
+	badge_lbl.add_theme_font_size_override("font_size", 26)
 	badge_lbl.add_theme_color_override("font_color", Color(1.0, 0.95, 0.78) if rank <= 3 else Color(0.82, 0.78, 0.70))
 	badge.add_child(badge_lbl)
 	row.add_child(badge)
@@ -449,7 +449,7 @@ func _make_player_row(rank: int, entry: Dictionary, is_player: bool) -> PanelCon
 	if is_player:
 		title_lbl.text += "  ★"
 	title_lbl.add_theme_font_override("font", FontCinzelBold)
-	title_lbl.add_theme_font_size_override("font_size", 23)
+	title_lbl.add_theme_font_size_override("font_size", 25)
 	title_lbl.add_theme_color_override("font_color", Color(1.0, 0.92, 0.60) if is_player else Color(0.96, 0.93, 0.86))
 	info.add_child(title_lbl)
 
@@ -462,7 +462,7 @@ func _make_player_row(rank: int, entry: Dictionary, is_player: bool) -> PanelCon
 		v_count
 	]
 	sub_lbl.add_theme_font_override("font", FontNunitoBold)
-	sub_lbl.add_theme_font_size_override("font_size", 21)
+	sub_lbl.add_theme_font_size_override("font_size", 23)
 	sub_lbl.add_theme_color_override("font_color", Color(0.74, 0.70, 0.62))
 	info.add_child(sub_lbl)
 	row.add_child(info)
@@ -475,7 +475,7 @@ func _make_player_row(rank: int, entry: Dictionary, is_player: bool) -> PanelCon
 	pts_lbl.text = "%d P" % pts
 	pts_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	pts_lbl.add_theme_font_override("font", FontCinzelBold)
-	pts_lbl.add_theme_font_size_override("font_size", 25)
+	pts_lbl.add_theme_font_size_override("font_size", 27)
 	pts_lbl.add_theme_color_override("font_color", MEDAL_COLORS[rank - 1] if rank <= 3 else Color(0.92, 0.84, 0.62))
 	pts_box.add_child(pts_lbl)
 	if is_player:
@@ -484,7 +484,7 @@ func _make_player_row(rank: int, entry: Dictionary, is_player: bool) -> PanelCon
 		you.text = "SENİN KRALLIĞIN"
 		you.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 		you.add_theme_font_override("font", FontNunitoBold)
-		you.add_theme_font_size_override("font_size", 18)
+		you.add_theme_font_size_override("font_size", 20)
 		you.add_theme_color_override("font_color", Color(0.55, 0.95, 0.65))
 		pts_box.add_child(you)
 	row.add_child(pts_box)
@@ -509,7 +509,7 @@ func _make_alliance_row(rank: int, a_row: Dictionary, is_mine: bool) -> PanelCon
 	if is_mine:
 		title_lbl.text += "  ★"
 	title_lbl.add_theme_font_override("font", FontCinzelBold)
-	title_lbl.add_theme_font_size_override("font_size", 23)
+	title_lbl.add_theme_font_size_override("font_size", 25)
 	title_lbl.add_theme_color_override("font_color", Color(1.0, 0.92, 0.60) if is_mine else Color(0.96, 0.93, 0.86))
 	info.add_child(title_lbl)
 
@@ -521,7 +521,7 @@ func _make_alliance_row(rank: int, a_row: Dictionary, is_mine: bool) -> PanelCon
 		str(a_row.get("leader", "-"))
 	]
 	sub_lbl.add_theme_font_override("font", FontNunitoBold)
-	sub_lbl.add_theme_font_size_override("font_size", 21)
+	sub_lbl.add_theme_font_size_override("font_size", 23)
 	sub_lbl.add_theme_color_override("font_color", Color(0.74, 0.70, 0.62))
 	info.add_child(sub_lbl)
 	row.add_child(info)
@@ -534,7 +534,7 @@ func _make_alliance_row(rank: int, a_row: Dictionary, is_mine: bool) -> PanelCon
 	pts_lbl.text = "%d P" % int(a_row.get("total_power", 0))
 	pts_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	pts_lbl.add_theme_font_override("font", FontCinzelBold)
-	pts_lbl.add_theme_font_size_override("font_size", 26)
+	pts_lbl.add_theme_font_size_override("font_size", 28)
 	pts_lbl.add_theme_color_override("font_color", MEDAL_COLORS[rank - 1] if rank <= 3 else Color(0.92, 0.84, 0.62))
 	pts_box.add_child(pts_lbl)
 
@@ -543,7 +543,7 @@ func _make_alliance_row(rank: int, a_row: Dictionary, is_mine: bool) -> PanelCon
 	sub_pow.text = "TOPLAM GÜÇ"
 	sub_pow.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	sub_pow.add_theme_font_override("font", FontNunitoBold)
-	sub_pow.add_theme_font_size_override("font_size", 18)
+	sub_pow.add_theme_font_size_override("font_size", 20)
 	sub_pow.add_theme_color_override("font_color", Color(0.75, 0.68, 0.52))
 	pts_box.add_child(sub_pow)
 	row.add_child(pts_box)
@@ -571,7 +571,7 @@ func _make_empty_alliance_card() -> PanelContainer:
 	lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	lbl.add_theme_font_override("font", FontNunitoBold)
-	lbl.add_theme_font_size_override("font_size", 22)
+	lbl.add_theme_font_size_override("font_size", 24)
 	lbl.add_theme_color_override("font_color", Color(0.92, 0.88, 0.78))
 	vb.add_child(lbl)
 
@@ -580,7 +580,7 @@ func _make_empty_alliance_card() -> PanelContainer:
 	btn.custom_minimum_size = Vector2(300, 56)
 	btn.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	btn.add_theme_font_override("font", FontNunitoBold)
-	btn.add_theme_font_size_override("font_size", 21)
+	btn.add_theme_font_size_override("font_size", 23)
 	btn.pressed.connect(func():
 		get_tree().change_scene_to_file("res://scenes/Alliance.tscn")
 	)

@@ -280,7 +280,7 @@ func _show_waiting_sheet(parent_node: Node, title_text: String, status_text: Str
 	hdr.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	if FontCinzelBold != null:
 		hdr.add_theme_font_override("font", FontCinzelBold)
-	hdr.add_theme_font_size_override("font_size", 26)
+	hdr.add_theme_font_size_override("font_size", 28)
 	hdr.add_theme_color_override("font_color", Color(0.98, 0.98, 1.0) if is_apple else Color(0.75, 0.90, 1.0))
 	vb.add_child(hdr)
 
@@ -290,7 +290,7 @@ func _show_waiting_sheet(parent_node: Node, title_text: String, status_text: Str
 	status_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	if FontNunitoBold != null:
 		status_lbl.add_theme_font_override("font", FontNunitoBold)
-	status_lbl.add_theme_font_size_override("font_size", 20)
+	status_lbl.add_theme_font_size_override("font_size", 22)
 	status_lbl.add_theme_color_override("font_color", Color(0.86, 0.89, 0.94))
 	vb.add_child(status_lbl)
 
@@ -300,7 +300,7 @@ func _show_waiting_sheet(parent_node: Node, title_text: String, status_text: Str
 	btn_cancel.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	if FontNunitoBold != null:
 		btn_cancel.add_theme_font_override("font", FontNunitoBold)
-	btn_cancel.add_theme_font_size_override("font_size", 21)
+	btn_cancel.add_theme_font_size_override("font_size", 23)
 	btn_cancel.pressed.connect(func():
 		_dismiss_auth_sheet()
 		if on_cancel.is_valid():
@@ -651,7 +651,7 @@ func _show_account_check_retry_sheet(prov: String, clean_email: String, clean_ui
 			var FontNunitoBold = load("res://assets/fonts/Nunito-Bold.ttf")
 			if FontNunitoBold != null:
 				retry_btn.add_theme_font_override("font", FontNunitoBold)
-			retry_btn.add_theme_font_size_override("font_size", 21)
+			retry_btn.add_theme_font_size_override("font_size", 23)
 			retry_btn.pressed.connect(func():
 				_handle_verified_identity(prov, clean_email, clean_uid, parent_node, on_complete, raw_id_tok)
 			)
@@ -791,7 +791,7 @@ func _show_lord_name_prompt_modal(prov: String, clean_email: String, clean_uid: 
 	hdr.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	if FontCinzelBold != null:
 		hdr.add_theme_font_override("font", FontCinzelBold)
-	hdr.add_theme_font_size_override("font_size", 27)
+	hdr.add_theme_font_size_override("font_size", 29)
 	hdr.add_theme_color_override("font_color", Color(1.0, 0.90, 0.58))
 	vb.add_child(hdr)
 
@@ -803,7 +803,7 @@ func _show_lord_name_prompt_modal(prov: String, clean_email: String, clean_uid: 
 	sub.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	if FontNunitoBold != null:
 		sub.add_theme_font_override("font", FontNunitoBold)
-	sub.add_theme_font_size_override("font_size", 19)
+	sub.add_theme_font_size_override("font_size", 21)
 	sub.add_theme_color_override("font_color", Color(0.86, 0.82, 0.75))
 	vb.add_child(sub)
 
@@ -814,7 +814,7 @@ func _show_lord_name_prompt_modal(prov: String, clean_email: String, clean_uid: 
 	name_edit.custom_minimum_size = Vector2(0, 62)
 	if FontNunitoBold != null:
 		name_edit.add_theme_font_override("font", FontNunitoBold)
-	name_edit.add_theme_font_size_override("font_size", 24)
+	name_edit.add_theme_font_size_override("font_size", 26)
 	var inp_sb := StyleBoxFlat.new()
 	inp_sb.bg_color = Color(0.05, 0.05, 0.08, 1.0)
 	inp_sb.border_color = Color(0.68, 0.54, 0.24, 0.9)
@@ -833,7 +833,7 @@ func _show_lord_name_prompt_modal(prov: String, clean_email: String, clean_uid: 
 	err_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	if FontNunitoBold != null:
 		err_lbl.add_theme_font_override("font", FontNunitoBold)
-	err_lbl.add_theme_font_size_override("font_size", 19)
+	err_lbl.add_theme_font_size_override("font_size", 21)
 	err_lbl.add_theme_color_override("font_color", Color(1.0, 0.42, 0.36))
 	vb.add_child(err_lbl)
 
@@ -843,7 +843,7 @@ func _show_lord_name_prompt_modal(prov: String, clean_email: String, clean_uid: 
 	btn_confirm.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 	if FontCinzelBold != null:
 		btn_confirm.add_theme_font_override("font", FontCinzelBold)
-	btn_confirm.add_theme_font_size_override("font_size", 24)
+	btn_confirm.add_theme_font_size_override("font_size", 26)
 	var ok_sb := StyleBoxFlat.new()
 	ok_sb.bg_color = Color(0.64, 0.46, 0.14, 1.0)
 	ok_sb.border_color = Color(0.98, 0.84, 0.42, 1.0)
@@ -863,7 +863,7 @@ func _show_lord_name_prompt_modal(prov: String, clean_email: String, clean_uid: 
 	btn_cancel.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	if FontNunitoBold != null:
 		btn_cancel.add_theme_font_override("font", FontNunitoBold)
-	btn_cancel.add_theme_font_size_override("font_size", 19)
+	btn_cancel.add_theme_font_size_override("font_size", 21)
 	btn_cancel.pressed.connect(func():
 		_kb_dismiss(name_edit)
 		_dismiss_name_modal()

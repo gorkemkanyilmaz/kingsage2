@@ -318,7 +318,7 @@ func _style_header() -> void:
 
 	title.text = "Dünya Haritası" + ally_info
 	title.add_theme_font_override("font", FontNunitoBold)
-	title.add_theme_font_size_override("font_size", 24)
+	title.add_theme_font_size_override("font_size", 26)
 	title.add_theme_constant_override("outline_size", 1)
 	title.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.85))
 	title.add_theme_color_override("font_color", Color(1.0, 0.94, 0.82))
@@ -327,7 +327,7 @@ func _style_header() -> void:
 	for lbl in [$Header/HBox/LabelX, $Header/HBox/LabelY]:
 		if lbl != null:
 			lbl.add_theme_font_override("font", FontNunitoBold)
-			lbl.add_theme_font_size_override("font_size", 24)
+			lbl.add_theme_font_size_override("font_size", 26)
 			lbl.add_theme_constant_override("outline_size", 1)
 			lbl.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.85))
 			lbl.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0))
@@ -343,7 +343,7 @@ func _style_header() -> void:
 			if le != null:
 				le.alignment = HORIZONTAL_ALIGNMENT_CENTER
 				le.add_theme_font_override("font", FontNunitoBold)
-				le.add_theme_font_size_override("font_size", 24)
+				le.add_theme_font_size_override("font_size", 26)
 				le.add_theme_constant_override("outline_size", 2)
 				le.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.98))
 				le.add_theme_color_override("font_color", Color(1.0, 0.95, 0.85))
@@ -359,7 +359,7 @@ func _style_header() -> void:
 	btn_goto.text = " Git"
 	btn_goto.custom_minimum_size = Vector2(130, 52)
 	btn_goto.add_theme_font_override("font", FontNunitoBold)
-	btn_goto.add_theme_font_size_override("font_size", 24)
+	btn_goto.add_theme_font_size_override("font_size", 26)
 	btn_goto.add_theme_constant_override("outline_size", 3)
 	btn_goto.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.98))
 	btn_goto.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.95))
@@ -401,7 +401,7 @@ func _style_legend() -> void:
 		if own != null:
 			own.text = "• Kendi Köyün"
 			own.add_theme_font_override("font", FontNunitoBold)
-			own.add_theme_font_size_override("font_size", 22)
+			own.add_theme_font_size_override("font_size", 24)
 			own.add_theme_constant_override("outline_size", 3)
 			own.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.98))
 			own.add_theme_color_override("font_color", Color(0.40, 0.95, 0.55))
@@ -410,7 +410,7 @@ func _style_legend() -> void:
 		if ally != null:
 			ally.text = "• İttifak Üyelerin"
 			ally.add_theme_font_override("font", FontNunitoBold)
-			ally.add_theme_font_size_override("font_size", 22)
+			ally.add_theme_font_size_override("font_size", 24)
 			ally.add_theme_constant_override("outline_size", 3)
 			ally.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.98))
 			ally.add_theme_color_override("font_color", Color(0.35, 0.75, 1.0))
@@ -419,7 +419,7 @@ func _style_legend() -> void:
 		if enemy != null:
 			enemy.text = "• Düşman"
 			enemy.add_theme_font_override("font", FontNunitoBold)
-			enemy.add_theme_font_size_override("font_size", 22)
+			enemy.add_theme_font_size_override("font_size", 24)
 			enemy.add_theme_constant_override("outline_size", 3)
 			enemy.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.98))
 			enemy.add_theme_color_override("font_color", Color(1.0, 0.45, 0.40))
@@ -859,7 +859,7 @@ func _create_floating_controls() -> void:
 
 func _style_floating_btn(btn: Button, font_sz: int) -> void:
 	btn.add_theme_font_override("font", FontNunitoBold)
-	btn.add_theme_font_size_override("font_size", font_sz)
+	btn.add_theme_font_size_override("font_size", font_sz + 2)
 	btn.add_theme_constant_override("outline_size", 3)
 	btn.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.98))
 	btn.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.95))
@@ -1282,7 +1282,7 @@ func _setup_movement_status_bar() -> void:
 
 	movement_status_label = Label.new()
 	movement_status_label.add_theme_font_override("font", FontNunitoBold)
-	movement_status_label.add_theme_font_size_override("font_size", 20)
+	movement_status_label.add_theme_font_size_override("font_size", 22)
 	movement_status_label.add_theme_constant_override("outline_size", 3)
 	movement_status_label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.98))
 	movement_status_label.add_theme_color_override("font_color", Color(1.0, 0.9, 0.5))
@@ -1292,7 +1292,7 @@ func _setup_movement_status_bar() -> void:
 	btn_track.text = " Takip Et"
 	btn_track.custom_minimum_size = Vector2(120, 42)
 	btn_track.add_theme_font_override("font", FontNunitoBold)
-	btn_track.add_theme_font_size_override("font_size", 20)
+	btn_track.add_theme_font_size_override("font_size", 22)
 	btn_track.pressed.connect(_on_track_movement_pressed)
 	hbox.add_child(btn_track)
 
@@ -1301,7 +1301,7 @@ func _setup_movement_status_bar() -> void:
 	btn_speed.text = "⚡ Hızlandır"
 	btn_speed.custom_minimum_size = Vector2(142, 42)
 	btn_speed.add_theme_font_override("font", FontNunitoBold)
-	btn_speed.add_theme_font_size_override("font_size", 20)
+	btn_speed.add_theme_font_size_override("font_size", 22)
 	btn_speed.pressed.connect(_on_bottom_march_speedup_pressed)
 	hbox.add_child(btn_speed)
 
@@ -1309,7 +1309,7 @@ func _setup_movement_status_bar() -> void:
 	btn_detail.text = " Detay & İptal"
 	btn_detail.custom_minimum_size = Vector2(150, 42)
 	btn_detail.add_theme_font_override("font", FontNunitoBold)
-	btn_detail.add_theme_font_size_override("font_size", 20)
+	btn_detail.add_theme_font_size_override("font_size", 22)
 	btn_detail.pressed.connect(_on_details_status_bar_pressed)
 	hbox.add_child(btn_detail)
 
@@ -1362,14 +1362,14 @@ func _setup_bottom_march_bar() -> void:
 	bottom_march_title_label.clip_text = true
 	bottom_march_title_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	bottom_march_title_label.add_theme_font_override("font", FontNunitoBold)
-	bottom_march_title_label.add_theme_font_size_override("font_size", 21)
+	bottom_march_title_label.add_theme_font_size_override("font_size", 23)
 	bottom_march_title_label.add_theme_color_override("font_color", Color(1.0, 0.94, 0.76))
 	top_line.add_child(bottom_march_title_label)
 
 	bottom_march_timer_label = Label.new()
 	bottom_march_timer_label.name = "BottomMarchTimerLabel"
 	bottom_march_timer_label.add_theme_font_override("font", FontNunitoBold)
-	bottom_march_timer_label.add_theme_font_size_override("font_size", 24)
+	bottom_march_timer_label.add_theme_font_size_override("font_size", 26)
 	bottom_march_timer_label.add_theme_color_override("font_color", Color(0.42, 0.94, 1.0))
 	top_line.add_child(bottom_march_timer_label)
 
@@ -1400,7 +1400,7 @@ func _setup_bottom_march_bar() -> void:
 	bottom_march_speedup_btn.text = "⚡ Hızlandır"
 	bottom_march_speedup_btn.custom_minimum_size = Vector2(180, 54)
 	bottom_march_speedup_btn.add_theme_font_override("font", FontNunitoBold)
-	bottom_march_speedup_btn.add_theme_font_size_override("font_size", 20)
+	bottom_march_speedup_btn.add_theme_font_size_override("font_size", 22)
 	bottom_march_speedup_btn.add_theme_color_override("font_color", Color(1.0, 0.98, 0.90))
 	bottom_march_speedup_btn.pressed.connect(_on_bottom_march_speedup_pressed)
 	root_hb.add_child(bottom_march_speedup_btn)
@@ -1668,7 +1668,7 @@ func _create_movement_detail_panel() -> void:
 	_detail_title_lbl = Label.new()
 	_detail_title_lbl.text = "⚔️ Sefer Detayları"
 	_detail_title_lbl.add_theme_font_override("font", FontNunitoBold)
-	_detail_title_lbl.add_theme_font_size_override("font_size", 30)
+	_detail_title_lbl.add_theme_font_size_override("font_size", 32)
 	_detail_title_lbl.add_theme_constant_override("outline_size", 3)
 	_detail_title_lbl.add_theme_color_override("font_outline_color", Color(0, 0, 0, 1.0))
 	_detail_title_lbl.add_theme_color_override("font_color", Color(1.0, 0.92, 0.75))
@@ -1679,7 +1679,7 @@ func _create_movement_detail_panel() -> void:
 	btn_close.text = "✕"
 	btn_close.custom_minimum_size = Vector2(50, 50)
 	btn_close.add_theme_font_override("font", FontNunitoBold)
-	btn_close.add_theme_font_size_override("font_size", 28)
+	btn_close.add_theme_font_size_override("font_size", 30)
 	btn_close.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 	btn_close.pressed.connect(func(): movement_detail_panel.hide())
 	header_hbox.add_child(btn_close)
@@ -1703,7 +1703,7 @@ func _create_movement_detail_panel() -> void:
 
 	_detail_route_lbl = Label.new()
 	_detail_route_lbl.add_theme_font_override("font", FontNunitoBold)
-	_detail_route_lbl.add_theme_font_size_override("font_size", 24)
+	_detail_route_lbl.add_theme_font_size_override("font_size", 26)
 	_detail_route_lbl.add_theme_constant_override("outline_size", 3)
 	_detail_route_lbl.add_theme_color_override("font_outline_color", Color(0, 0, 0, 1.0))
 	_detail_route_lbl.add_theme_color_override("font_color", Color(1.0, 0.95, 0.85))
@@ -1711,7 +1711,7 @@ func _create_movement_detail_panel() -> void:
 
 	_detail_status_lbl = Label.new()
 	_detail_status_lbl.add_theme_font_override("font", FontNunitoBold)
-	_detail_status_lbl.add_theme_font_size_override("font_size", 22)
+	_detail_status_lbl.add_theme_font_size_override("font_size", 24)
 	_detail_status_lbl.add_theme_constant_override("outline_size", 3)
 	_detail_status_lbl.add_theme_color_override("font_outline_color", Color(0, 0, 0, 1.0))
 	route_vbox.add_child(_detail_status_lbl)
@@ -1738,7 +1738,7 @@ func _create_movement_detail_panel() -> void:
 	_detail_timer_lbl = Label.new()
 	_detail_timer_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_detail_timer_lbl.add_theme_font_override("font", FontNunitoBold)
-	_detail_timer_lbl.add_theme_font_size_override("font_size", 36)
+	_detail_timer_lbl.add_theme_font_size_override("font_size", 38)
 	_detail_timer_lbl.add_theme_constant_override("outline_size", 4)
 	_detail_timer_lbl.add_theme_color_override("font_outline_color", Color(0, 0, 0, 1.0))
 	_detail_timer_lbl.add_theme_color_override("font_color", Color(1.0, 0.88, 0.40))
@@ -1747,7 +1747,7 @@ func _create_movement_detail_panel() -> void:
 	_detail_sub_timer_lbl = Label.new()
 	_detail_sub_timer_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_detail_sub_timer_lbl.add_theme_font_override("font", FontNunitoBold)
-	_detail_sub_timer_lbl.add_theme_font_size_override("font_size", 22)
+	_detail_sub_timer_lbl.add_theme_font_size_override("font_size", 24)
 	_detail_sub_timer_lbl.add_theme_constant_override("outline_size", 3)
 	_detail_sub_timer_lbl.add_theme_color_override("font_outline_color", Color(0, 0, 0, 1.0))
 	_detail_sub_timer_lbl.add_theme_color_override("font_color", Color(0.85, 0.85, 0.85))
@@ -1760,7 +1760,7 @@ func _create_movement_detail_panel() -> void:
 	var units_title := Label.new()
 	units_title.text = " Seferdeki Birlikler / Sevkiyat:"
 	units_title.add_theme_font_override("font", FontNunitoBold)
-	units_title.add_theme_font_size_override("font_size", 24)
+	units_title.add_theme_font_size_override("font_size", 26)
 	units_title.add_theme_constant_override("outline_size", 3)
 	units_title.add_theme_color_override("font_outline_color", Color(0, 0, 0, 1.0))
 	units_title.add_theme_color_override("font_color", Color(1.0, 0.90, 0.65))
@@ -1781,7 +1781,7 @@ func _create_movement_detail_panel() -> void:
 	_detail_cancel_note = Label.new()
 	_detail_cancel_note.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_detail_cancel_note.add_theme_font_override("font", FontNunitoBold)
-	_detail_cancel_note.add_theme_font_size_override("font_size", 22)
+	_detail_cancel_note.add_theme_font_size_override("font_size", 24)
 	_detail_cancel_note.add_theme_constant_override("outline_size", 3)
 	_detail_cancel_note.add_theme_color_override("font_outline_color", Color(0, 0, 0, 1.0))
 	_detail_cancel_note.add_theme_color_override("font_color", Color(0.35, 0.95, 1.0))
@@ -1797,7 +1797,7 @@ func _create_movement_detail_panel() -> void:
 	_detail_btn_speedup.custom_minimum_size = Vector2(220, 56)
 	_detail_btn_speedup.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_detail_btn_speedup.add_theme_font_override("font", FontNunitoBold)
-	_detail_btn_speedup.add_theme_font_size_override("font_size", 22)
+	_detail_btn_speedup.add_theme_font_size_override("font_size", 24)
 	_detail_btn_speedup.add_theme_constant_override("outline_size", 3)
 	_detail_btn_speedup.add_theme_color_override("font_outline_color", Color(0, 0, 0, 1.0))
 	_detail_btn_speedup.add_theme_color_override("font_color", Color(1.0, 0.96, 0.86))
@@ -1811,7 +1811,7 @@ func _create_movement_detail_panel() -> void:
 	_detail_btn_cancel.custom_minimum_size = Vector2(0, 56)
 	_detail_btn_cancel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_detail_btn_cancel.add_theme_font_override("font", FontNunitoBold)
-	_detail_btn_cancel.add_theme_font_size_override("font_size", 22)
+	_detail_btn_cancel.add_theme_font_size_override("font_size", 24)
 	_detail_btn_cancel.add_theme_constant_override("outline_size", 3)
 	_detail_btn_cancel.add_theme_color_override("font_outline_color", Color(0, 0, 0, 1.0))
 	_detail_btn_cancel.add_theme_color_override("font_color", Color(1.0, 0.95, 0.90))
@@ -1841,7 +1841,7 @@ func _create_movement_detail_panel() -> void:
 	btn_dismiss.text = "Kapat"
 	btn_dismiss.custom_minimum_size = Vector2(150, 56)
 	btn_dismiss.add_theme_font_override("font", FontNunitoBold)
-	btn_dismiss.add_theme_font_size_override("font_size", 22)
+	btn_dismiss.add_theme_font_size_override("font_size", 24)
 	btn_dismiss.add_theme_constant_override("outline_size", 2)
 	btn_dismiss.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.95))
 	btn_dismiss.add_theme_color_override("font_color", Color(0.95, 0.90, 0.82))
@@ -1934,7 +1934,7 @@ func _refresh_movement_detail_content() -> void:
 			var u_tr: String = UNIT_NAMES_MAP.get(u_key, u_key)
 			plbl.text = " %s: %d" % [u_tr, count]
 			plbl.add_theme_font_override("font", FontNunitoBold)
-			plbl.add_theme_font_size_override("font_size", 22)
+			plbl.add_theme_font_size_override("font_size", 24)
 			plbl.add_theme_constant_override("outline_size", 3)
 			plbl.add_theme_color_override("font_outline_color", Color(0, 0, 0, 1.0))
 			plbl.add_theme_color_override("font_color", Color(1.0, 0.95, 0.85))
@@ -1963,7 +1963,7 @@ func _refresh_movement_detail_content() -> void:
 				var r_icon := "" if r_key == "wood" else ("" if r_key == "stone" else "")
 				plbl.text = "%s %s: %d" % [r_icon, r_tr, amt]
 				plbl.add_theme_font_override("font", FontNunitoBold)
-				plbl.add_theme_font_size_override("font_size", 22)
+				plbl.add_theme_font_size_override("font_size", 24)
 				plbl.add_theme_constant_override("outline_size", 3)
 				plbl.add_theme_color_override("font_outline_color", Color(0, 0, 0, 1.0))
 				plbl.add_theme_color_override("font_color", Color(1.0, 0.92, 0.50))
@@ -1974,7 +1974,7 @@ func _refresh_movement_detail_content() -> void:
 		var empty_lbl := Label.new()
 		empty_lbl.text = "Birlik veya hammadde bilgisi yok."
 		empty_lbl.add_theme_font_override("font", FontNunitoBold)
-		empty_lbl.add_theme_font_size_override("font_size", 22)
+		empty_lbl.add_theme_font_size_override("font_size", 24)
 		_detail_units_grid.add_child(empty_lbl)
 
 	if is_returning:

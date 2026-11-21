@@ -34,6 +34,7 @@ var _mouse_press_pos := Vector2.ZERO
 var _touch_press_pos := Vector2.ZERO
 var _is_dragging := false
 var _touch_active := false
+var _mouse_active := false
 var _last_click_frame: int = -1
 
 # Düğümler
@@ -109,7 +110,7 @@ func _build_ui() -> void:
 	# 4. İnşaat Çekici (🔨)
 	_hammer_icon = Label.new()
 	_hammer_icon.text = "🔨"
-	_hammer_icon.add_theme_font_size_override("font_size", 28)
+	_hammer_icon.add_theme_font_size_override("font_size", 30)
 	_hammer_icon.position = Vector2(size.x - 52, -26)
 	_hammer_icon.pivot_offset = Vector2(14, 26)
 	_hammer_icon.mouse_filter = MOUSE_FILTER_IGNORE
@@ -139,9 +140,9 @@ func _build_ui() -> void:
 	add_child(_progress_bar)
 
 	_countdown_pill = PanelContainer.new()
-	_countdown_pill.custom_minimum_size = Vector2(114, 24)
-	_countdown_pill.size = Vector2(114, 24)
-	_countdown_pill.position = Vector2((size.x - 114.0) * 0.5, size.y - 40.0)
+	_countdown_pill.custom_minimum_size = Vector2(120, 28)
+	_countdown_pill.size = Vector2(120, 28)
+	_countdown_pill.position = Vector2((size.x - 120.0) * 0.5, size.y - 44.0)
 	_countdown_pill.mouse_filter = MOUSE_FILTER_IGNORE
 	var pill_sb := StyleBoxFlat.new()
 	pill_sb.bg_color = Color(0.06, 0.05, 0.08, 0.94)
@@ -163,24 +164,24 @@ func _build_ui() -> void:
 	var nunito_bold: Font = ResourceLoader.load("res://assets/fonts/Nunito-Bold.ttf") as Font
 	if nunito_bold != null:
 		_countdown_label.add_theme_font_override("font", nunito_bold)
-	_countdown_label.add_theme_font_size_override("font_size", 19)
+	_countdown_label.add_theme_font_size_override("font_size", 21)
 	_countdown_label.add_theme_color_override("font_color", Color(1.0, 0.93, 0.56))
 	_countdown_label.add_theme_color_override("font_outline_color", Color(0.04, 0.03, 0.05, 0.98))
 	_countdown_label.add_theme_constant_override("outline_size", 2)
 	_countdown_label.mouse_filter = MOUSE_FILTER_IGNORE
 	_countdown_pill.add_child(_countdown_label)
 
-	# 6. King's Age Tarzı: BÜYÜK, NET, OKUNAKLI SEVİYE PLAKETİ (70x36 px)
+	# 6. King's Age Tarzı: BÜYÜK, NET, OKUNAKLI SEVİYE PLAKETİ (76x40 px)
 	_level_badge = PanelContainer.new()
-	_level_badge.custom_minimum_size = Vector2(70, 36)
-	_level_badge.size = Vector2(70, 36)
+	_level_badge.custom_minimum_size = Vector2(76, 40)
+	_level_badge.size = Vector2(76, 40)
 	_level_badge.mouse_filter = MOUSE_FILTER_IGNORE
 
 	_badge_label = Label.new()
 	_badge_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_badge_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	_badge_label.add_theme_font_override("font", preload("res://assets/fonts/Nunito-Bold.ttf"))
-	_badge_label.add_theme_font_size_override("font_size", 20)
+	_badge_label.add_theme_font_size_override("font_size", 22)
 	_badge_label.text = "Sv. 1"
 	_level_badge.add_child(_badge_label)
 	add_child(_level_badge)
@@ -193,7 +194,7 @@ func _build_ui() -> void:
 	_name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_name_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	_name_label.add_theme_font_override("font", preload("res://assets/fonts/Nunito-Bold.ttf"))
-	_name_label.add_theme_font_size_override("font_size", 22)
+	_name_label.add_theme_font_size_override("font_size", 24)
 	_name_label.mouse_filter = MOUSE_FILTER_IGNORE
 	_name_label.text = building_name
 	_name_plate.add_child(_name_label)
@@ -248,6 +249,8 @@ func _update_button_size() -> void:
 
 func cancel_press() -> void:
 	_is_dragging = true
+	_touch_active = false
+	_mouse_active = false
 
 
 func _trigger_click() -> void:
@@ -266,7 +269,7 @@ func _on_btn_gui_input(event: InputEvent) -> void:
 			_touch_press_pos = st.position
 			_is_dragging = false
 		else:
-			if not _is_dragging:
+			if _touch_active and not _is_dragging:
 				_trigger_click()
 			_is_dragging = false
 			_touch_active = false
@@ -280,12 +283,14 @@ func _on_btn_gui_input(event: InputEvent) -> void:
 		var mb := event as InputEventMouseButton
 		if mb.button_index == MOUSE_BUTTON_LEFT:
 			if mb.pressed:
+				_mouse_active = true
 				_mouse_press_pos = mb.global_position
 				_is_dragging = false
 			else:
-				if not _is_dragging:
+				if _mouse_active and not _is_dragging:
 					_trigger_click()
 				_is_dragging = false
+				_mouse_active = false
 	elif event is InputEventMouseMotion:
 		if _touch_active:
 			return
@@ -508,7 +513,7 @@ func trigger_level_up(new_level: int) -> void:
 	var lbl := Label.new()
 	lbl.text = "✨ SEVİYE %d! ✨" % new_level
 	lbl.add_theme_font_override("font", preload("res://assets/fonts/Nunito-Bold.ttf"))
-	lbl.add_theme_font_size_override("font_size", 24)
+	lbl.add_theme_font_size_override("font_size", 26)
 	lbl.add_theme_color_override("font_color", Color(1.0, 0.95, 0.40))
 	lbl.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.95))
 	lbl.add_theme_constant_override("shadow_offset_y", 2)

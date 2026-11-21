@@ -56,7 +56,7 @@ func _setup_badge_labels() -> void:
 	for lbl in [badge_label, message_badge_label]:
 		if lbl != null:
 			lbl.add_theme_font_override("font", FontNunitoBold)
-			lbl.add_theme_font_size_override("font_size", 22)
+			lbl.add_theme_font_size_override("font_size", 24)
 			lbl.add_theme_color_override("font_color", Color(1, 1, 1, 1))
 			lbl.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.8))
 			lbl.add_theme_constant_override("shadow_offset_y", 1)

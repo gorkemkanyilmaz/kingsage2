@@ -39,14 +39,14 @@ alignment = 1
 
 [node name="TitleLabel" type="Label" parent="Margin/VBox"]
 layout_mode = 2
-theme_override_font_sizes/font_size = 88
+theme_override_font_sizes/font_size = 90
 text = "Taht ve Kılıç"
 horizontal_alignment = 1
 autowrap_mode = 2
 
 [node name="SubtitleLabel" type="Label" parent="Margin/VBox"]
 layout_mode = 2
-theme_override_font_sizes/font_size = 36
+theme_override_font_sizes/font_size = 38
 text = "Kralın tahtı, kılıcı ve köyü"
 horizontal_alignment = 1
 autowrap_mode = 2
@@ -57,14 +57,14 @@ layout_mode = 2
 
 [node name="StatusLabel" type="Label" parent="Margin/VBox"]
 layout_mode = 2
-theme_override_font_sizes/font_size = 44
+theme_override_font_sizes/font_size = 46
 text = "Veri yükleniyor…"
 horizontal_alignment = 1
 autowrap_mode = 2
 
 [node name="DetailLabel" type="Label" parent="Margin/VBox"]
 layout_mode = 2
-theme_override_font_sizes/font_size = 30
+theme_override_font_sizes/font_size = 32
 text = ""
 horizontal_alignment = 1
 autowrap_mode = 2

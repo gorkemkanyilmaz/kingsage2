@@ -192,7 +192,7 @@ func _style_alliance_btn() -> void:
 	btn_alliance.expand_icon = true
 	btn_alliance.add_theme_constant_override("icon_max_width", 30)
 	btn_alliance.add_theme_font_override("font", FontCinzelBold)
-	btn_alliance.add_theme_font_size_override("font_size", 21)
+	btn_alliance.add_theme_font_size_override("font_size", 23)
 	var sb := StyleBoxFlat.new()
 	sb.bg_color = Color(0.10, 0.16, 0.27, 0.94)
 	sb.border_color = Color(0.86, 0.70, 0.34, 0.88)
@@ -429,6 +429,8 @@ func _get_game_state() -> Node:
 
 func _on_building_selected(key: String) -> void:
 	_ensure_nodes()
+	if building_panel != null and building_panel.visible and building_panel.has_method("is_train_input_focused") and bool(building_panel.call("is_train_input_focused")):
+		return
 	var gs = _get_game_state()
 	if gs == null or not gs.has_active_village():
 		return
@@ -770,7 +772,7 @@ func _setup_queue_hud_styling() -> void:
 			queue_title.text = "⚔️ AKTİVİTELER VE ASKERİ DURUM"
 			queue_title.add_theme_font_override("font", FontCinzelBold)
 			queue_title.add_theme_color_override("font_color", Color(1.0, 0.91, 0.56))
-			queue_title.add_theme_font_size_override("font_size", 21)
+			queue_title.add_theme_font_size_override("font_size", 23)
 			queue_title.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.98))
 			queue_title.add_theme_constant_override("shadow_offset_y", 2)
 
@@ -810,7 +812,7 @@ func _create_queue_row() -> HBoxContainer:
 	icon_name_lbl.name = "IconNameLabel"
 	icon_name_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	icon_name_lbl.clip_text = true
-	icon_name_lbl.add_theme_font_size_override("font_size", 21)
+	icon_name_lbl.add_theme_font_size_override("font_size", 23)
 	icon_name_lbl.add_theme_color_override("font_color", Color(1.0, 0.95, 0.88))
 	icon_name_lbl.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.98))
 	icon_name_lbl.add_theme_constant_override("shadow_offset_y", 2)
@@ -820,7 +822,7 @@ func _create_queue_row() -> HBoxContainer:
 	time_lbl.name = "TimeLabel"
 	time_lbl.custom_minimum_size = Vector2(96, 0)
 	time_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	time_lbl.add_theme_font_size_override("font_size", 21)
+	time_lbl.add_theme_font_size_override("font_size", 23)
 	time_lbl.add_theme_color_override("font_color", Color(0.42, 0.90, 1.0))
 	time_lbl.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.98))
 	time_lbl.add_theme_constant_override("shadow_offset_y", 2)
@@ -839,7 +841,7 @@ func _create_queue_row() -> HBoxContainer:
 	speedup_btn.name = "SpeedupButton"
 	speedup_btn.text = "⚡ Hızlandır"
 	speedup_btn.custom_minimum_size = Vector2(154, 42)
-	speedup_btn.add_theme_font_size_override("font_size", 20)
+	speedup_btn.add_theme_font_size_override("font_size", 22)
 	speedup_btn.add_theme_stylebox_override("normal", _q_speedup_have_sb)
 	speedup_btn.add_theme_stylebox_override("hover", _q_speedup_have_hover)
 	speedup_btn.add_theme_stylebox_override("pressed", _q_speedup_have_hover)
@@ -854,7 +856,7 @@ func _create_queue_row() -> HBoxContainer:
 	cancel_btn.name = "CancelButton"
 	cancel_btn.text = "X İptal"
 	cancel_btn.custom_minimum_size = Vector2(90, 42)
-	cancel_btn.add_theme_font_size_override("font_size", 20)
+	cancel_btn.add_theme_font_size_override("font_size", 22)
 	cancel_btn.add_theme_stylebox_override("normal", _q_cancel_norm)
 	cancel_btn.add_theme_stylebox_override("hover", _q_cancel_hover)
 	cancel_btn.add_theme_stylebox_override("pressed", _q_cancel_pressed)

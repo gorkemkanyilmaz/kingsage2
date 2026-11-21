@@ -86,39 +86,39 @@ size_flags_horizontal = 3
 theme_override_colors/font_color = Color(1, 0.917647, 0.647059, 1)
 theme_override_colors/font_shadow_color = Color(0, 0, 0, 0.75)
 theme_override_constants/shadow_offset_y = 2
-theme_override_font_sizes/font_size = 24
+theme_override_font_sizes/font_size = 26
 text = "Dünya Haritası"
 
 [node name="LabelX" type="Label" parent="Header/HBox"]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.9, 0.88, 0.82, 1)
-theme_override_font_sizes/font_size = 20
+theme_override_font_sizes/font_size = 22
 text = "X:"
 
 [node name="CoordX" type="SpinBox" parent="Header/HBox"]
 custom_minimum_size = Vector2(150, 54)
 layout_mode = 2
-theme_override_font_sizes/font_size = 20
+theme_override_font_sizes/font_size = 22
 max_value = 200.0
 value = 100.0
 
 [node name="LabelY" type="Label" parent="Header/HBox"]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.9, 0.88, 0.82, 1)
-theme_override_font_sizes/font_size = 20
+theme_override_font_sizes/font_size = 22
 text = "Y:"
 
 [node name="CoordY" type="SpinBox" parent="Header/HBox"]
 custom_minimum_size = Vector2(150, 54)
 layout_mode = 2
-theme_override_font_sizes/font_size = 20
+theme_override_font_sizes/font_size = 22
 max_value = 200.0
 value = 100.0
 
 [node name="BtnGoto" type="Button" parent="Header/HBox"]
 custom_minimum_size = Vector2(150, 56)
 layout_mode = 2
-theme_override_font_sizes/font_size = 20
+theme_override_font_sizes/font_size = 22
 text = " Git"
 
 [node name="Legend" type="PanelContainer" parent="."]
@@ -141,19 +141,19 @@ alignment = 1
 [node name="Own" type="Label" parent="Legend/HBox"]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.40, 0.95, 0.55, 1)
-theme_override_font_sizes/font_size = 20
+theme_override_font_sizes/font_size = 22
 text = "Kendi Köyün"
 
 [node name="Ally" type="Label" parent="Legend/HBox"]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.35, 0.75, 1.0, 1)
-theme_override_font_sizes/font_size = 20
+theme_override_font_sizes/font_size = 22
 text = "İttifak Üyelerin"
 
 [node name="Enemy" type="Label" parent="Legend/HBox"]
 layout_mode = 2
 theme_override_colors/font_color = Color(1.0, 0.45, 0.40, 1)
-theme_override_font_sizes/font_size = 20
+theme_override_font_sizes/font_size = 22
 text = "Düşman"
 
 [node name="ResourceBar" parent="." instance=ExtResource("2_rbar")]

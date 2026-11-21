@@ -76,14 +76,14 @@ size_flags_horizontal = 3
 theme_override_colors/font_color = Color(1, 0.917647, 0.647059, 1)
 theme_override_colors/font_shadow_color = Color(0, 0, 0, 0.85)
 theme_override_constants/shadow_offset_y = 2
-theme_override_font_sizes/font_size = 30
+theme_override_font_sizes/font_size = 32
 theme_override_fonts/font = ExtResource("6_cinzel")
 text = "Şan & Sıralama"
 
 [node name="BtnAlliance" type="Button" parent="Header/HBox"]
 custom_minimum_size = Vector2(170, 50)
 layout_mode = 2
-theme_override_font_sizes/font_size = 20
+theme_override_font_sizes/font_size = 22
 text = "İttifakım"
 
 [node name="Tabs" type="HBoxContainer" parent="."]
@@ -101,14 +101,14 @@ theme_override_constants/separation = 12
 custom_minimum_size = Vector2(0, 56)
 layout_mode = 2
 size_flags_horizontal = 3
-theme_override_font_sizes/font_size = 22
+theme_override_font_sizes/font_size = 24
 text = "👑 Oyuncu Sıralaması"
 
 [node name="BtnTabAlliances" type="Button" parent="Tabs"]
 custom_minimum_size = Vector2(0, 56)
 layout_mode = 2
 size_flags_horizontal = 3
-theme_override_font_sizes/font_size = 22
+theme_override_font_sizes/font_size = 24
 text = "🛡️ İttifak Sıralaması"
 
 [node name="SummaryBanner" type="PanelContainer" parent="."]

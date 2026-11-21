@@ -193,7 +193,7 @@ func _setup_profile_bar() -> void:
 	p_lbl.name = "ProfileLabel"
 	p_lbl.text = "Lord Gorkem (Google)"
 	p_lbl.add_theme_font_override("font", FontCinzelBold)
-	p_lbl.add_theme_font_size_override("font_size", 24)
+	p_lbl.add_theme_font_size_override("font_size", 26)
 	p_lbl.add_theme_color_override("font_color", Color(1.0, 0.92, 0.65))
 	p_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	hbox.add_child(p_lbl)
@@ -204,7 +204,7 @@ func _setup_profile_bar() -> void:
 	_btn_profile_continue.custom_minimum_size = Vector2(210, 44)
 	_btn_profile_continue.visible = false
 	_btn_profile_continue.add_theme_font_override("font", FontNunitoBold)
-	_btn_profile_continue.add_theme_font_size_override("font_size", 19)
+	_btn_profile_continue.add_theme_font_size_override("font_size", 21)
 	_btn_profile_continue.add_theme_color_override("font_color", Color(1.0, 0.95, 0.78))
 	_btn_profile_continue.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 	var c_sb := StyleBoxFlat.new()
@@ -225,7 +225,7 @@ func _setup_profile_bar() -> void:
 	btn_logout.text = "Çıkış"
 	btn_logout.custom_minimum_size = Vector2(120, 44)
 	btn_logout.add_theme_font_override("font", FontNunitoBold)
-	btn_logout.add_theme_font_size_override("font_size", 20)
+	btn_logout.add_theme_font_size_override("font_size", 22)
 	btn_logout.add_theme_color_override("font_color", Color(1, 0.8, 0.8))
 
 	var l_sb := StyleBoxFlat.new()
@@ -311,7 +311,7 @@ func _setup_auth_overlay() -> void:
 	title.text = "KRALLIK KAPISI"
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title.add_theme_font_override("font", FontCinzelBold)
-	title.add_theme_font_size_override("font_size", 42)
+	title.add_theme_font_size_override("font_size", 44)
 	title.add_theme_color_override("font_color", Color(1.0, 0.92, 0.68))
 	vb.add_child(title)
 
@@ -320,7 +320,7 @@ func _setup_auth_overlay() -> void:
 	subtitle.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	subtitle.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	subtitle.add_theme_font_override("font", FontNunitoBold)
-	subtitle.add_theme_font_size_override("font_size", 24)
+	subtitle.add_theme_font_size_override("font_size", 26)
 	subtitle.add_theme_color_override("font_color", Color(0.85, 0.80, 0.72))
 	vb.add_child(subtitle)
 
@@ -338,7 +338,7 @@ func _setup_auth_overlay() -> void:
 	btn_google.text = "Google ile Giriş Yap"
 	btn_google.custom_minimum_size = Vector2(0, 68)
 	btn_google.add_theme_font_override("font", FontNunitoBold)
-	btn_google.add_theme_font_size_override("font_size", 26)
+	btn_google.add_theme_font_size_override("font_size", 28)
 	btn_google.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 	var g_sb := StyleBoxFlat.new()
 	g_sb.bg_color = Color(0.95, 0.95, 0.95, 1.0)
@@ -363,7 +363,7 @@ func _setup_auth_overlay() -> void:
 	btn_apple.text = "Apple ile Giriş Yap"
 	btn_apple.custom_minimum_size = Vector2(0, 68)
 	btn_apple.add_theme_font_override("font", FontNunitoBold)
-	btn_apple.add_theme_font_size_override("font_size", 26)
+	btn_apple.add_theme_font_size_override("font_size", 28)
 	btn_apple.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 	var a_sb := StyleBoxFlat.new()
 	a_sb.bg_color = Color(0.02, 0.02, 0.04, 1.0)
@@ -388,7 +388,7 @@ func _setup_auth_overlay() -> void:
 	_status_lbl.text = "Taht ve Kılıç sisteminde yalnızca Google ve Apple girişi geçerlidir."
 	_status_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_status_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_status_lbl.add_theme_font_size_override("font_size", 20)
+	_status_lbl.add_theme_font_size_override("font_size", 22)
 	_status_lbl.add_theme_color_override("font_color", Color(0.65, 0.62, 0.58))
 	vb.add_child(_status_lbl)
 
@@ -637,14 +637,14 @@ func _setup_region_modal() -> void:
 
 	if region_title != null:
 		region_title.add_theme_font_override("font", FontCinzelBold)
-		region_title.add_theme_font_size_override("font_size", 42)
+		region_title.add_theme_font_size_override("font_size", 44)
 		region_title.add_theme_color_override("font_color", Color(1.0, 0.90, 0.50))
 		region_title.add_theme_color_override("font_outline_color", Color(0, 0, 0, 1.0))
 		region_title.add_theme_constant_override("outline_size", 4)
 
 	if region_desc != null:
 		region_desc.add_theme_font_override("font", FontNunitoBold)
-		region_desc.add_theme_font_size_override("font_size", 22)
+		region_desc.add_theme_font_size_override("font_size", 24)
 		region_desc.add_theme_color_override("font_color", Color(0.88, 0.84, 0.76))
 
 	var dir_buttons := [btn_nw, btn_ne, btn_sw, btn_se]
@@ -652,7 +652,7 @@ func _setup_region_modal() -> void:
 		if b == null:
 			continue
 		b.add_theme_font_override("font", FontNunitoBold)
-		b.add_theme_font_size_override("font_size", 26)
+		b.add_theme_font_size_override("font_size", 28)
 		b.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 		var b_sb := StyleBoxFlat.new()
 		b_sb.bg_color = Color(0.18, 0.15, 0.24, 0.95)
@@ -670,7 +670,7 @@ func _setup_region_modal() -> void:
 
 	if btn_random != null:
 		btn_random.add_theme_font_override("font", FontNunitoBold)
-		btn_random.add_theme_font_size_override("font_size", 28)
+		btn_random.add_theme_font_size_override("font_size", 30)
 		btn_random.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 		var r_sb := StyleBoxFlat.new()
 		r_sb.bg_color = Color(0.24, 0.18, 0.32, 0.95)
@@ -688,7 +688,7 @@ func _setup_region_modal() -> void:
 
 	if btn_cancel != null:
 		btn_cancel.add_theme_font_override("font", FontNunitoBold)
-		btn_cancel.add_theme_font_size_override("font_size", 22)
+		btn_cancel.add_theme_font_size_override("font_size", 24)
 		btn_cancel.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 		var c_btn_sb := StyleBoxFlat.new()
 		c_btn_sb.bg_color = Color(0.14, 0.12, 0.16, 0.9)

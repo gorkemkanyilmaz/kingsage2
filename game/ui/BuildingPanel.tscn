@@ -230,7 +230,7 @@ size_flags_horizontal = 3
 theme_override_colors/font_color = Color(1, 0.95, 0.82, 1)
 theme_override_colors/font_shadow_color = Color(0, 0, 0, 0.7)
 theme_override_constants/shadow_offset_y = 2
-theme_override_font_sizes/font_size = 32
+theme_override_font_sizes/font_size = 34
 text = "Bina Adı"
 vertical_alignment = 1
 
@@ -240,7 +240,7 @@ theme_override_colors/font_color = Color(1, 0.92, 0.65, 1)
 theme_override_colors/font_shadow_color = Color(0, 0, 0, 0.95)
 theme_override_constants/shadow_offset_y = 2
 theme_override_fonts/font = ExtResource("7_nunito_bold")
-theme_override_font_sizes/font_size = 28
+theme_override_font_sizes/font_size = 30
 text = "Seviye: 1 (Hedef: 2)"
 vertical_alignment = 1
 
@@ -252,7 +252,7 @@ theme_override_colors/font_hover_color = Color(1, 1, 1, 1)
 theme_override_colors/font_pressed_color = Color(1, 0.95, 0.70, 1)
 theme_override_colors/font_focus_color = Color(1, 0.98, 0.92, 1)
 theme_override_colors/font_shadow_color = Color(0, 0, 0, 0.6)
-theme_override_font_sizes/font_size = 24
+theme_override_font_sizes/font_size = 26
 theme_override_styles/normal = SubResource("StyleBoxFlat_close_normal")
 theme_override_styles/hover = SubResource("StyleBoxFlat_close_hover")
 theme_override_styles/pressed = SubResource("StyleBoxFlat_close_normal")
@@ -270,7 +270,7 @@ custom_minimum_size = Vector2(0, 60)
 layout_mode = 2
 size_flags_horizontal = 3
 theme_override_fonts/font = ExtResource("7_nunito_bold")
-theme_override_font_sizes/font_size = 28
+theme_override_font_sizes/font_size = 30
 theme_override_colors/font_color = Color(1, 0.95, 0.85, 1)
 theme_override_colors/font_outline_color = Color(0, 0, 0, 0.95)
 theme_override_constants/outline_size = 3
@@ -286,7 +286,7 @@ custom_minimum_size = Vector2(0, 60)
 layout_mode = 2
 size_flags_horizontal = 3
 theme_override_fonts/font = ExtResource("7_nunito_bold")
-theme_override_font_sizes/font_size = 28
+theme_override_font_sizes/font_size = 30
 theme_override_colors/font_color = Color(0.85, 0.82, 0.75, 1)
 theme_override_colors/font_outline_color = Color(0, 0, 0, 0.95)
 theme_override_constants/outline_size = 3
@@ -302,7 +302,7 @@ custom_minimum_size = Vector2(0, 60)
 layout_mode = 2
 size_flags_horizontal = 3
 theme_override_fonts/font = ExtResource("7_nunito_bold")
-theme_override_font_sizes/font_size = 28
+theme_override_font_sizes/font_size = 30
 theme_override_colors/font_color = Color(0.85, 0.82, 0.75, 1)
 theme_override_colors/font_outline_color = Color(0, 0, 0, 0.95)
 theme_override_constants/outline_size = 3
@@ -329,7 +329,7 @@ theme_override_colors/font_color = Color(1, 0.78, 0.45, 1)
 theme_override_colors/font_shadow_color = Color(0, 0, 0, 0.95)
 theme_override_constants/shadow_offset_y = 2
 theme_override_fonts/font = ExtResource("7_nunito_bold")
-theme_override_font_sizes/font_size = 26
+theme_override_font_sizes/font_size = 28
 text = "⚠️ Bu özelliği kullanabilmek için önce Kışla'yı inşa etmelisiniz!"
 horizontal_alignment = 1
 autowrap_mode = 2
@@ -339,7 +339,7 @@ custom_minimum_size = Vector2(280, 56)
 layout_mode = 2
 size_flags_horizontal = 4
 theme_override_fonts/font = ExtResource("7_nunito_bold")
-theme_override_font_sizes/font_size = 24
+theme_override_font_sizes/font_size = 26
 theme_override_colors/font_color = Color(1, 1, 1, 1)
 theme_override_colors/font_hover_color = Color(1, 1, 1, 1)
 theme_override_colors/font_pressed_color = Color(1, 0.95, 0.70, 1)
@@ -366,7 +366,7 @@ theme_override_constants/shadow_offset_x = 1
 theme_override_colors/font_outline_color = Color(0.12, 0.08, 0.02, 0.95)
 theme_override_constants/outline_size = 4
 theme_override_fonts/font = ExtResource("7_nunito_bold")
-theme_override_font_sizes/font_size = 24
+theme_override_font_sizes/font_size = 26
 text = "🔨 İnşaat Sürüyor: Seviye 2"
 
 [node name="TimeLabel" type="Label" parent="VBox/ActiveBuildBox/HBox"]
@@ -380,7 +380,7 @@ theme_override_constants/shadow_offset_x = 1
 theme_override_colors/font_outline_color = Color(0.02, 0.10, 0.18, 0.95)
 theme_override_constants/outline_size = 4
 theme_override_fonts/font = ExtResource("7_nunito_bold")
-theme_override_font_sizes/font_size = 22
+theme_override_font_sizes/font_size = 24
 text = "Kalan: 01:20"
 
 [node name="ProgressBar" type="ProgressBar" parent="VBox/ActiveBuildBox/HBox"]
@@ -398,7 +398,7 @@ theme_override_colors/font_color = Color(1, 1, 1, 1)
 theme_override_colors/font_shadow_color = Color(0, 0, 0, 0.95)
 theme_override_constants/shadow_offset_y = 2
 theme_override_fonts/font = ExtResource("7_nunito_bold")
-theme_override_font_sizes/font_size = 20
+theme_override_font_sizes/font_size = 22
 text = "⚡ Hızlandır"
 
 [node name="CancelButton" type="Button" parent="VBox/ActiveBuildBox/HBox"]
@@ -412,7 +412,7 @@ theme_override_colors/font_focus_color = Color(1, 1, 1, 1)
 theme_override_colors/font_shadow_color = Color(0, 0, 0, 0.95)
 theme_override_constants/shadow_offset_y = 2
 theme_override_fonts/font = ExtResource("7_nunito_bold")
-theme_override_font_sizes/font_size = 22
+theme_override_font_sizes/font_size = 24
 text = "✕ İptal"
 
 [node name="CostContainer" type="HBoxContainer" parent="VBox"]
@@ -446,7 +446,7 @@ theme_override_colors/font_color = Color(1, 1, 1, 1)
 theme_override_colors/font_shadow_color = Color(0, 0, 0, 0.9)
 theme_override_constants/shadow_offset_y = 2
 theme_override_fonts/font = ExtResource("7_nunito_bold")
-theme_override_font_sizes/font_size = 30
+theme_override_font_sizes/font_size = 32
 text = "0"
 vertical_alignment = 1
 
@@ -476,7 +476,7 @@ theme_override_colors/font_color = Color(1, 1, 1, 1)
 theme_override_colors/font_shadow_color = Color(0, 0, 0, 0.9)
 theme_override_constants/shadow_offset_y = 2
 theme_override_fonts/font = ExtResource("7_nunito_bold")
-theme_override_font_sizes/font_size = 30
+theme_override_font_sizes/font_size = 32
 text = "0"
 vertical_alignment = 1
 
@@ -506,7 +506,7 @@ theme_override_colors/font_color = Color(1, 1, 1, 1)
 theme_override_colors/font_shadow_color = Color(0, 0, 0, 0.9)
 theme_override_constants/shadow_offset_y = 2
 theme_override_fonts/font = ExtResource("7_nunito_bold")
-theme_override_font_sizes/font_size = 30
+theme_override_font_sizes/font_size = 32
 text = "0"
 vertical_alignment = 1
 
@@ -519,14 +519,14 @@ alignment = 1
 layout_mode = 2
 theme_override_colors/font_color = Color(0.92, 0.88, 0.82, 1)
 theme_override_fonts/font = ExtResource("7_nunito_bold")
-theme_override_font_sizes/font_size = 26
+theme_override_font_sizes/font_size = 28
 text = "İnşa Süresi: 0 sn"
 
 [node name="ExtraCostLabel" type="Label" parent="VBox/MetaContainer"]
 layout_mode = 2
 theme_override_colors/font_color = Color(1, 0.82, 0.35, 1)
 theme_override_fonts/font = ExtResource("7_nunito_bold")
-theme_override_font_sizes/font_size = 26
+theme_override_font_sizes/font_size = 28
 text = "⚠️ Kuyruk Ek Maliyeti: +%25"
 
 [node name="UpgradeButton" type="Button" parent="VBox"]
@@ -536,7 +536,7 @@ theme_override_colors/font_color = Color(1, 1, 1, 1)
 theme_override_colors/font_shadow_color = Color(0.04, 0.20, 0.08, 0.9)
 theme_override_constants/shadow_offset_y = 2
 theme_override_fonts/font = ExtResource("7_nunito_bold")
-theme_override_font_sizes/font_size = 30
+theme_override_font_sizes/font_size = 32
 theme_override_styles/normal = SubResource("StyleBoxFlat_upg_normal")
 text = "Yükselt"
 
@@ -552,7 +552,7 @@ theme_override_colors/font_color = Color(1, 0.78, 0.45, 1)
 theme_override_colors/font_outline_color = Color(0, 0, 0, 0.85)
 theme_override_constants/outline_size = 1
 theme_override_fonts/font = ExtResource("7_nunito_bold")
-theme_override_font_sizes/font_size = 26
+theme_override_font_sizes/font_size = 28
 text = "Önce şunlar gerekli (Gereksinim Zinciri):"
 
 [node name="ReqScroll" type="ScrollContainer" parent="VBox/RequirementSection"]
@@ -593,7 +593,7 @@ theme_override_constants/shadow_offset_x = 1
 theme_override_colors/font_outline_color = Color(0.12, 0.08, 0.02, 0.95)
 theme_override_constants/outline_size = 4
 theme_override_fonts/font = ExtResource("7_nunito_bold")
-theme_override_font_sizes/font_size = 23
+theme_override_font_sizes/font_size = 25
 text = "🔬 Araştırma Sürüyor"
 
 [node name="TimeLabel" type="Label" parent="VBox/ResearchSection/ActiveResearchBox/HBox"]
@@ -607,7 +607,7 @@ theme_override_constants/shadow_offset_x = 1
 theme_override_colors/font_outline_color = Color(0.02, 0.1, 0.18, 0.95)
 theme_override_constants/outline_size = 4
 theme_override_fonts/font = ExtResource("7_nunito_bold")
-theme_override_font_sizes/font_size = 21
+theme_override_font_sizes/font_size = 23
 text = "Kalan: 00:00"
 
 [node name="ProgressBar" type="ProgressBar" parent="VBox/ResearchSection/ActiveResearchBox/HBox"]
@@ -625,7 +625,7 @@ theme_override_colors/font_color = Color(1, 1, 1, 1)
 theme_override_colors/font_shadow_color = Color(0, 0, 0, 0.95)
 theme_override_constants/shadow_offset_y = 2
 theme_override_fonts/font = ExtResource("7_nunito_bold")
-theme_override_font_sizes/font_size = 20
+theme_override_font_sizes/font_size = 22
 text = "⚡ Hızlandır"
 
 [node name="CancelButton" type="Button" parent="VBox/ResearchSection/ActiveResearchBox/HBox"]
@@ -635,7 +635,7 @@ theme_override_colors/font_color = Color(1, 1, 1, 1)
 theme_override_colors/font_shadow_color = Color(0, 0, 0, 0.95)
 theme_override_constants/shadow_offset_y = 2
 theme_override_fonts/font = ExtResource("7_nunito_bold")
-theme_override_font_sizes/font_size = 22
+theme_override_font_sizes/font_size = 24
 theme_override_styles/normal = SubResource("StyleBoxFlat_cancel_btn")
 text = "✕ İptal"
 
@@ -673,7 +673,7 @@ theme_override_colors/font_color = Color(1, 0.88, 0.45, 1)
 theme_override_colors/font_shadow_color = Color(0, 0, 0, 0.98)
 theme_override_constants/shadow_offset_y = 2
 theme_override_fonts/font = ExtResource("7_nunito_bold")
-theme_override_font_sizes/font_size = 26
+theme_override_font_sizes/font_size = 28
 text = "⚔️ Devam Eden Eğitimler:"
 
 [node name="QueueList" type="VBoxContainer" parent="VBox/TrainSection/ActiveTrainBox/VBox"]
@@ -703,7 +703,7 @@ theme_override_constants/outline_size = 3
 theme_override_colors/font_shadow_color = Color(0, 0, 0, 0.95)
 theme_override_constants/shadow_offset_y = 2
 theme_override_fonts/font = ExtResource("7_nunito_bold")
-theme_override_font_sizes/font_size = 26
+theme_override_font_sizes/font_size = 28
 text = "Müsait Vatandaş: 0 / 0"
 
 [node name="TrainScroll" type="ScrollContainer" parent="VBox/TrainSection"]

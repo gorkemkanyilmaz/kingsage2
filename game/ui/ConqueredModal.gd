@@ -100,7 +100,7 @@ func _build_ui() -> void:
 	var emblem := Label.new()
 	emblem.text = "⚔️ 🏰 ⚔️"
 	emblem.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	emblem.add_theme_font_size_override("font_size", 48)
+	emblem.add_theme_font_size_override("font_size", 50)
 	vb.add_child(emblem)
 
 	var title := Label.new()
@@ -109,7 +109,7 @@ func _build_ui() -> void:
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	title.add_theme_font_override("font", FontCinzelBold)
-	title.add_theme_font_size_override("font_size", 38)
+	title.add_theme_font_size_override("font_size", 40)
 	title.add_theme_color_override("font_color", Color(1.0, 0.48, 0.38))
 	title.add_theme_color_override("font_outline_color", Color(0, 0, 0, 1.0))
 	title.add_theme_constant_override("outline_size", 4)
@@ -120,7 +120,7 @@ func _build_ui() -> void:
 	_desc_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_desc_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_desc_lbl.add_theme_font_override("font", FontNunitoBold)
-	_desc_lbl.add_theme_font_size_override("font_size", 24)
+	_desc_lbl.add_theme_font_size_override("font_size", 26)
 	_desc_lbl.add_theme_color_override("font_color", Color(0.93, 0.89, 0.82))
 	vb.add_child(_desc_lbl)
 
@@ -128,7 +128,7 @@ func _build_ui() -> void:
 	dir_hdr.text = "Yeni Başlangıç Lokasyonu Seçin:"
 	dir_hdr.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	dir_hdr.add_theme_font_override("font", FontNunitoBold)
-	dir_hdr.add_theme_font_size_override("font_size", 22)
+	dir_hdr.add_theme_font_size_override("font_size", 24)
 	dir_hdr.add_theme_color_override("font_color", Color(0.98, 0.86, 0.52))
 	vb.add_child(dir_hdr)
 
@@ -152,7 +152,7 @@ func _build_ui() -> void:
 		db.custom_minimum_size = Vector2(0, 56)
 		db.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		db.add_theme_font_override("font", FontNunitoBold)
-		db.add_theme_font_size_override("font_size", 22)
+		db.add_theme_font_size_override("font_size", 24)
 		db.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 		db.set_meta("target_pos", d["pos"])
 		db.pressed.connect(_on_dir_selected.bind(db))
@@ -164,7 +164,7 @@ func _build_ui() -> void:
 	rand_btn.text = "🎲 Farklı Rastgele Konum"
 	rand_btn.custom_minimum_size = Vector2(0, 56)
 	rand_btn.add_theme_font_override("font", FontNunitoBold)
-	rand_btn.add_theme_font_size_override("font_size", 22)
+	rand_btn.add_theme_font_size_override("font_size", 24)
 	rand_btn.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 	rand_btn.set_meta("target_pos", Vector2i(-1, -1))
 	rand_btn.pressed.connect(_on_dir_selected.bind(rand_btn))
@@ -178,7 +178,7 @@ func _build_ui() -> void:
 	_status_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_status_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_status_lbl.add_theme_font_override("font", FontNunitoBold)
-	_status_lbl.add_theme_font_size_override("font_size", 20)
+	_status_lbl.add_theme_font_size_override("font_size", 22)
 	_status_lbl.add_theme_color_override("font_color", Color(1.0, 0.75, 0.45))
 	_status_lbl.visible = false
 	vb.add_child(_status_lbl)
@@ -188,7 +188,7 @@ func _build_ui() -> void:
 	_btn_restart.text = "🔄 Oyuna Tekrar Başla"
 	_btn_restart.custom_minimum_size = Vector2(0, 72)
 	_btn_restart.add_theme_font_override("font", FontCinzelBold)
-	_btn_restart.add_theme_font_size_override("font_size", 28)
+	_btn_restart.add_theme_font_size_override("font_size", 30)
 	_btn_restart.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 	var r_sb := StyleBoxFlat.new()
 	r_sb.bg_color = Color(0.58, 0.22, 0.14, 1.0)
@@ -210,7 +210,7 @@ func _build_ui() -> void:
 	btn_worlds.text = "Dünya Seçimine Dön"
 	btn_worlds.custom_minimum_size = Vector2(0, 52)
 	btn_worlds.add_theme_font_override("font", FontNunitoBold)
-	btn_worlds.add_theme_font_size_override("font_size", 21)
+	btn_worlds.add_theme_font_size_override("font_size", 23)
 	btn_worlds.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 	var w_sb := StyleBoxFlat.new()
 	w_sb.bg_color = Color(0.16, 0.13, 0.18, 0.92)

@@ -89,7 +89,7 @@ func _style_spinbox(spin: SpinBox) -> void:
 	if le != null:
 		le.alignment = HORIZONTAL_ALIGNMENT_CENTER
 		le.add_theme_font_override("font", FontNunitoBold)
-		le.add_theme_font_size_override("font_size", 24)
+		le.add_theme_font_size_override("font_size", 26)
 		le.add_theme_color_override("font_color", Color(1.0, 0.95, 0.85))
 		var sb_box := StyleBoxFlat.new()
 		sb_box.bg_color = Color(0.14, 0.12, 0.18, 0.95)
@@ -105,7 +105,7 @@ func _style_spinbox(spin: SpinBox) -> void:
 
 func _style_all_button(btn: Button) -> void:
 	btn.add_theme_font_override("font", FontNunitoBold)
-	btn.add_theme_font_size_override("font_size", 22)
+	btn.add_theme_font_size_override("font_size", 24)
 	btn.add_theme_color_override("font_color", Color(0.18, 0.12, 0.05))
 	var b_sb := StyleBoxFlat.new()
 	b_sb.bg_color = Color(0.92, 0.78, 0.44, 1.0)
@@ -121,7 +121,7 @@ func _style_action_button(btn: Button) -> void:
 	if btn == null:
 		return
 	btn.add_theme_font_override("font", FontNunitoBold)
-	btn.add_theme_font_size_override("font_size", 24)
+	btn.add_theme_font_size_override("font_size", 26)
 	btn.remove_theme_constant_override("outline_size")
 	btn.remove_theme_color_override("font_outline_color")
 	btn.add_theme_color_override("font_color", Color(0.20, 0.14, 0.08, 1.0))
@@ -166,13 +166,13 @@ func _style_action_button(btn: Button) -> void:
 
 func _setup_fonts_and_styles() -> void:
 	title_label.add_theme_font_override("font", FontNunitoBold)
-	title_label.add_theme_font_size_override("font_size", 30)
+	title_label.add_theme_font_size_override("font_size", 32)
 	title_label.add_theme_constant_override("outline_size", 3)
 	title_label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.98))
 	title_label.add_theme_color_override("font_color", Color(1.0, 0.94, 0.80))
 
 	target_header_label.add_theme_font_override("font", FontNunitoBold)
-	target_header_label.add_theme_font_size_override("font_size", 28)
+	target_header_label.add_theme_font_size_override("font_size", 30)
 	target_header_label.add_theme_constant_override("outline_size", 4)
 	target_header_label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 1.0))
 	target_header_label.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.95))
@@ -180,7 +180,7 @@ func _setup_fonts_and_styles() -> void:
 	target_header_label.add_theme_color_override("font_color", Color(1.0, 0.92, 0.55))
 
 	owner_label.add_theme_font_override("font", FontNunitoBold)
-	owner_label.add_theme_font_size_override("font_size", 24)
+	owner_label.add_theme_font_size_override("font_size", 26)
 	owner_label.add_theme_constant_override("outline_size", 3)
 	owner_label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 1.0))
 	owner_label.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.95))
@@ -188,7 +188,7 @@ func _setup_fonts_and_styles() -> void:
 	owner_label.add_theme_color_override("font_color", Color(1.0, 0.95, 0.85))
 
 	alliance_label.add_theme_font_override("font", FontNunitoBold)
-	alliance_label.add_theme_font_size_override("font_size", 24)
+	alliance_label.add_theme_font_size_override("font_size", 26)
 	alliance_label.add_theme_constant_override("outline_size", 3)
 	alliance_label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 1.0))
 	alliance_label.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.95))
@@ -196,7 +196,7 @@ func _setup_fonts_and_styles() -> void:
 	alliance_label.add_theme_color_override("font_color", Color(0.70, 0.88, 1.0))
 
 	points_label.add_theme_font_override("font", FontNunitoBold)
-	points_label.add_theme_font_size_override("font_size", 24)
+	points_label.add_theme_font_size_override("font_size", 26)
 	points_label.add_theme_constant_override("outline_size", 3)
 	points_label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 1.0))
 	points_label.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.95))
@@ -204,7 +204,7 @@ func _setup_fonts_and_styles() -> void:
 	points_label.add_theme_color_override("font_color", Color(1.0, 0.85, 0.35))
 
 	distance_label.add_theme_font_override("font", FontNunitoBold)
-	distance_label.add_theme_font_size_override("font_size", 24)
+	distance_label.add_theme_font_size_override("font_size", 26)
 	distance_label.add_theme_constant_override("outline_size", 3)
 	distance_label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 1.0))
 	distance_label.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.95))
@@ -212,7 +212,7 @@ func _setup_fonts_and_styles() -> void:
 	distance_label.add_theme_color_override("font_color", Color(0.55, 0.95, 0.65))
 
 	estimate_label.add_theme_font_override("font", FontNunitoBold)
-	estimate_label.add_theme_font_size_override("font_size", 24)
+	estimate_label.add_theme_font_size_override("font_size", 26)
 	estimate_label.add_theme_constant_override("outline_size", 4)
 	estimate_label.add_theme_color_override("font_outline_color", Color(0.05, 0.05, 0.08, 1.0))
 	estimate_label.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.95))
@@ -220,7 +220,7 @@ func _setup_fonts_and_styles() -> void:
 	estimate_label.add_theme_color_override("font_color", Color(1.0, 0.95, 0.78, 1.0))
 
 	warning_label.add_theme_font_override("font", FontNunitoBold)
-	warning_label.add_theme_font_size_override("font_size", 24)
+	warning_label.add_theme_font_size_override("font_size", 26)
 	warning_label.add_theme_constant_override("outline_size", 3)
 	warning_label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.98))
 	warning_label.add_theme_color_override("font_color", Color(1.0, 0.78, 0.35))
@@ -243,7 +243,7 @@ func _ensure_switch_button() -> void:
 	_btn_switch_to_village.custom_minimum_size = Vector2(0, 56)
 	_btn_switch_to_village.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 	_btn_switch_to_village.add_theme_font_override("font", FontNunitoBold)
-	_btn_switch_to_village.add_theme_font_size_override("font_size", 24)
+	_btn_switch_to_village.add_theme_font_size_override("font_size", 26)
 	_btn_switch_to_village.add_theme_color_override("font_color", Color(1.0, 0.98, 0.90))
 	var sb := StyleBoxFlat.new()
 	sb.bg_color = Color(0.16, 0.45, 0.24, 0.98)
@@ -360,7 +360,7 @@ func _populate_units() -> void:
 		var lbl := Label.new()
 		lbl.text = "%s (Mevcut: %d)" % [u_name, have]
 		lbl.add_theme_font_override("font", FontNunitoBold)
-		lbl.add_theme_font_size_override("font_size", 24)
+		lbl.add_theme_font_size_override("font_size", 26)
 		lbl.add_theme_constant_override("outline_size", 3)
 		lbl.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.98))
 		lbl.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.95))
@@ -414,7 +414,7 @@ func _populate_resources() -> void:
 		var lbl := Label.new()
 		lbl.text = "%s (Mevcut: %d)" % [r_name, have]
 		lbl.add_theme_font_override("font", FontNunitoBold)
-		lbl.add_theme_font_size_override("font_size", 24)
+		lbl.add_theme_font_size_override("font_size", 26)
 		lbl.add_theme_constant_override("outline_size", 3)
 		lbl.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.98))
 		lbl.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.95))
@@ -740,7 +740,7 @@ func _show_vizier_protection_warning(attack_type: String, remaining_secs: int) -
 	title.text = "BAŞ VEZİR UYARISI • KORUMA KALKANI"
 	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	title.add_theme_font_override("font", FontCinzelBold)
-	title.add_theme_font_size_override("font_size", 26)
+	title.add_theme_font_size_override("font_size", 28)
 	title.add_theme_color_override("font_color", Color(1.0, 0.84, 0.36))
 	hdr.add_child(title)
 
@@ -773,8 +773,8 @@ func _show_vizier_protection_warning(attack_type: String, remaining_secs: int) -
 	msg_lbl.custom_minimum_size = Vector2(540, 120)
 	msg_lbl.add_theme_font_override("normal_font", FontNunitoBold)
 	msg_lbl.add_theme_font_override("bold_font", FontNunitoBold)
-	msg_lbl.add_theme_font_size_override("normal_font_size", 21)
-	msg_lbl.add_theme_font_size_override("bold_font_size", 21)
+	msg_lbl.add_theme_font_size_override("normal_font_size", 23)
+	msg_lbl.add_theme_font_size_override("bold_font_size", 23)
 	msg_lbl.add_theme_color_override("default_color", Color(0.96, 0.93, 0.86))
 	msg_lbl.text = "[b][color=#FFD86B]Lordum,[/color][/b] köyünüz şu anda [color=#66EE88]Yeni Oyuncu Koruma Kalkanı[/color] altındadır (Kalan: [b]%s[/b]).\n\n[color=#FF8877]Bu saldırıyı gerçekleştirirseniz üzerindeki koruma kalkanı kaldırılacaktır[/color] ve diğer oyuncular köyünüze saldırabilecektir!\n\nYine de seferi başlatmak istiyor musunuz?" % _fmt_shield_duration(remaining_secs)
 	body_hb.add_child(msg_lbl)
@@ -790,7 +790,7 @@ func _show_vizier_protection_warning(attack_type: String, remaining_secs: int) -
 	btn_cancel.custom_minimum_size = Vector2(0, 60)
 	btn_cancel.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 	btn_cancel.add_theme_font_override("font", FontNunitoBold)
-	btn_cancel.add_theme_font_size_override("font_size", 21)
+	btn_cancel.add_theme_font_size_override("font_size", 23)
 	var bc_sb := StyleBoxFlat.new()
 	bc_sb.bg_color = Color(0.16, 0.34, 0.24, 0.98)
 	bc_sb.border_color = Color(0.50, 0.90, 0.60, 1.0)
@@ -812,7 +812,7 @@ func _show_vizier_protection_warning(attack_type: String, remaining_secs: int) -
 	btn_confirm.custom_minimum_size = Vector2(0, 60)
 	btn_confirm.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 	btn_confirm.add_theme_font_override("font", FontNunitoBold)
-	btn_confirm.add_theme_font_size_override("font_size", 21)
+	btn_confirm.add_theme_font_size_override("font_size", 23)
 	var ba_sb := StyleBoxFlat.new()
 	ba_sb.bg_color = Color(0.58, 0.16, 0.16, 0.98)
 	ba_sb.border_color = Color(0.98, 0.72, 0.36, 1.0)

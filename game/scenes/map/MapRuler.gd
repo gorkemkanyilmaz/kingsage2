@@ -64,7 +64,7 @@ func _draw() -> void:
 	var ox := -float(map_scroll.scroll_horizontal)
 	var oy := -float(map_scroll.scroll_vertical)
 	var font := get_theme_default_font()
-	var font_size := 24
+	var font_size := 26
 
 	# --- Kenar vinyeti (sabit, harita parşömenini çerçeveler) ---
 	if _soft != null:
