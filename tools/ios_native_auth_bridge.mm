@@ -184,6 +184,8 @@ static NSString *TVKExtractEmailFromJWT(NSString *jwt) {
 }
 
 @interface TVKKeyboardToolbarHandler : NSObject
+@property (nonatomic, weak) UIView *activeInputView;
+@property (nonatomic, strong) UILabel *previewLabel;
 + (instancetype)shared;
 - (void)install;
 - (void)dismissKeyboard:(id)sender;
@@ -211,24 +213,43 @@ static NSString *TVKExtractEmailFromJWT(NSString *jwt) {
                                                  selector:@selector(onTextBeginEditing:)
                                                      name:UITextViewTextDidBeginEditingNotification
                                                    object:nil];
+        [[NSNotificationCenter defaultCenter] addObserver:self
+                                                 selector:@selector(onTextDidChange:)
+                                                     name:UITextFieldTextDidChangeNotification
+                                                   object:nil];
+        [[NSNotificationCenter defaultCenter] addObserver:self
+                                                 selector:@selector(onTextDidChange:)
+                                                     name:UITextViewTextDidChangeNotification
+                                                   object:nil];
     });
 }
 
 - (UIToolbar *)buildDoneToolbar {
     CGRect scr = [UIScreen mainScreen].bounds;
-    UIToolbar *tb = [[UIToolbar alloc] initWithFrame:CGRectMake(0, 0, MAX(320.0, scr.size.width), 46.0)];
+    UIToolbar *tb = [[UIToolbar alloc] initWithFrame:CGRectMake(0, 0, MAX(320.0, scr.size.width), 50.0)];
     tb.tag = kTVKKeyboardToolbarTag;
     tb.barStyle = UIBarStyleBlack;
     tb.translucent = NO;
     tb.barTintColor = [UIColor colorWithRed:0.09 green:0.08 blue:0.13 alpha:1.0];
     tb.tintColor = [UIColor colorWithRed:0.96 green:0.82 blue:0.40 alpha:1.0];
 
-    UIBarButtonItem *titleHint = [[UIBarButtonItem alloc] initWithTitle:@"Taht ve Kılıç"
-                                                                  style:UIBarButtonItemStylePlain
-                                                                 target:nil
-                                                                 action:nil];
-    titleHint.enabled = NO;
+    CGFloat lblW = MAX(170.0, scr.size.width - 140.0);
+    UIView *pillBox = [[UIView alloc] initWithFrame:CGRectMake(0, 0, lblW, 34.0)];
+    pillBox.backgroundColor = [UIColor colorWithRed:0.05 green:0.06 blue:0.10 alpha:1.0];
+    pillBox.layer.cornerRadius = 8.0;
+    pillBox.layer.borderWidth = 1.2;
+    pillBox.layer.borderColor = [UIColor colorWithRed:0.85 green:0.70 blue:0.32 alpha:0.95].CGColor;
 
+    UILabel *lbl = [[UILabel alloc] initWithFrame:CGRectMake(10.0, 0.0, lblW - 20.0, 34.0)];
+    lbl.font = [UIFont boldSystemFontOfSize:16.0];
+    lbl.textColor = [UIColor colorWithRed:0.98 green:0.93 blue:0.72 alpha:1.0];
+    lbl.text = @"Sayı / Metin Girin";
+    lbl.adjustsFontSizeToFitWidth = YES;
+    lbl.minimumScaleFactor = 0.7;
+    [pillBox addSubview:lbl];
+    self.previewLabel = lbl;
+
+    UIBarButtonItem *previewItem = [[UIBarButtonItem alloc] initWithCustomView:pillBox];
     UIBarButtonItem *flex = [[UIBarButtonItem alloc] initWithBarButtonSystemItem:UIBarButtonSystemItemFlexibleSpace
                                                                           target:nil
                                                                           action:nil];
@@ -236,8 +257,28 @@ static NSString *TVKExtractEmailFromJWT(NSString *jwt) {
                                                                 style:UIBarButtonItemStyleDone
                                                                target:self
                                                                action:@selector(dismissKeyboard:)];
-    tb.items = @[titleHint, flex, doneBtn];
+    tb.items = @[previewItem, flex, doneBtn];
     return tb;
+}
+
+- (void)refreshPreviewTextForView:(UIView *)v {
+    if (self.previewLabel == nil || v == nil) {
+        return;
+    }
+    NSString *txt = nil;
+    if ([v isKindOfClass:[UITextField class]]) {
+        txt = ((UITextField *)v).text;
+    } else if ([v isKindOfClass:[UITextView class]]) {
+        txt = ((UITextView *)v).text;
+    }
+    NSString *clean = [txt stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]] ?: @"";
+    if (clean.length > 0) {
+        self.previewLabel.textColor = [UIColor colorWithRed:0.52 green:0.98 blue:0.68 alpha:1.0];
+        self.previewLabel.text = [NSString stringWithFormat:@"Girilen: %@", clean];
+    } else {
+        self.previewLabel.textColor = [UIColor colorWithRed:0.98 green:0.93 blue:0.72 alpha:1.0];
+        self.previewLabel.text = @"Sayı / Metin Girin";
+    }
 }
 
 - (void)onTextBeginEditing:(NSNotification *)note {
@@ -256,6 +297,7 @@ static NSString *TVKExtractEmailFromJWT(NSString *jwt) {
             if (v == nil || v.window == nil || ![v isFirstResponder]) {
                 return;
             }
+            self.activeInputView = v;
             if ([v isKindOfClass:[UITextField class]]) {
                 UITextField *tf = (UITextField *)v;
                 if (tf.inputAccessoryView == nil || tf.inputAccessoryView.tag != kTVKKeyboardToolbarTag) {
@@ -269,13 +311,37 @@ static NSString *TVKExtractEmailFromJWT(NSString *jwt) {
                     [tv reloadInputViews];
                 }
             }
+            [self refreshPreviewTextForView:v];
         } @catch (NSException *ex) {
             NSLog(@"[TVKKeyboard] toolbar attach skipped: %@", ex);
         }
     });
 }
 
+- (void)onTextDidChange:(NSNotification *)note {
+    id obj = note.object;
+    if (![obj isKindOfClass:[UIView class]]) {
+        return;
+    }
+    UIView *v = (UIView *)obj;
+    if (v == self.activeInputView || [v isFirstResponder]) {
+        self.activeInputView = v;
+        [self refreshPreviewTextForView:v];
+    }
+}
+
 - (void)dismissKeyboard:(id)sender {
+    UIView *active = self.activeInputView;
+    if ([active isKindOfClass:[UITextField class]]) {
+        UITextField *tf = (UITextField *)active;
+        @try {
+            if (tf.delegate != nil && [tf.delegate respondsToSelector:@selector(textFieldShouldReturn:)]) {
+                [tf.delegate textFieldShouldReturn:tf];
+            }
+        } @catch (NSException *ex) {
+            NSLog(@"[TVKKeyboard] textFieldShouldReturn skipped: %@", ex);
+        }
+    }
     [[UIApplication sharedApplication] sendAction:@selector(resignFirstResponder) to:nil from:nil forEvent:nil];
     if (@available(iOS 13.0, *)) {
         for (UIScene *scene in [UIApplication sharedApplication].connectedScenes) {

@@ -9,7 +9,7 @@ const ICON_IRON: Texture2D = preload("res://assets/sprites/ui/nano_banana/sharp_
 const ICON_CITIZENS: Texture2D = preload("res://assets/sprites/ui/nano_banana/sharp_icon_citizens.tres")
 const ICON_STORAGE: Texture2D = preload("res://assets/sprites/ui/nano_banana/sharp_icon_storage.tres")
 const ICON_DIAMOND: Texture2D = preload("res://assets/sprites/ui/nano_banana/sharp_icon_diamond.tres")
-const ICON_MARKET: Texture2D = preload("res://assets/sprites/ui/nano_banana/sharp_icon_market.png")
+const ICON_MARKET: Texture2D = preload("res://assets/sprites/ui/nano_banana/sharp_icon_market.tres")
 const ICON_CASTLE_CREST: Texture2D = preload("res://assets/sprites/ui/nano_banana/sharp_icon_castle_crest.tres")
 const TEX_ROYAL_BTN_BG: Texture2D = preload("res://assets/sprites/ui/nano_banana/sharp_ui_royal_btn_bg.tres")
 const FONT_BOLD: Font = preload("res://assets/fonts/Nunito-Bold.ttf")
@@ -273,7 +273,7 @@ func _apply_responsive_layout() -> void:
 			island_w = float(gc.call("get_ios_dynamic_island_width"))
 
 	var has_island := island_w > 0.0
-	var effective_island_w := minf(island_w, 340.0) if has_island else 0.0
+	var effective_island_w := minf(island_w, 336.0) if has_island else 0.0
 	var top_pad := 10.0
 	var bottom_pad := 10.0
 	var sep := 8
@@ -284,7 +284,7 @@ func _apply_responsive_layout() -> void:
 		top_pad = 6.0
 		bottom_pad = 9.0
 		sep = 6
-		top_row_h = maxf(56.0, safe_top)
+		top_row_h = maxf(64.0, safe_top)
 	elif safe_top > 0.0:
 		top_pad = maxf(10.0, safe_top + 2.0)
 
@@ -316,6 +316,8 @@ func _apply_responsive_layout() -> void:
 
 	if village_info_box != null:
 		village_info_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL if has_island else Control.SIZE_SHRINK_BEGIN
+		village_info_box.size_flags_stretch_ratio = 1.0
+		village_info_box.clip_contents = has_island
 		village_info_box.add_theme_constant_override("separation", 6 if has_island else 8)
 
 	if left_flex_spacer != null:
@@ -327,6 +329,8 @@ func _apply_responsive_layout() -> void:
 
 	if right_wing != null:
 		right_wing.size_flags_horizontal = Control.SIZE_EXPAND_FILL if has_island else Control.SIZE_SHRINK_END
+		right_wing.size_flags_stretch_ratio = 1.0
+		right_wing.clip_contents = false
 		right_wing.add_theme_constant_override("separation", 6 if has_island else 10)
 
 	if crest_icon != null:
@@ -349,31 +353,31 @@ func _apply_responsive_layout() -> void:
 		btn_rename_village.custom_minimum_size = Vector2(34, 34) if has_island else Vector2(38, 38)
 		btn_rename_village.add_theme_font_size_override("font_size", 19 if has_island else 21)
 	if btn_diamonds != null:
-		btn_diamonds.custom_minimum_size = Vector2(166, 52) if has_island else Vector2(210, 56)
+		btn_diamonds.custom_minimum_size = Vector2(150, 50) if has_island else Vector2(210, 56)
 		btn_diamonds.text = ""
 		btn_diamonds.icon = null
 	if _diamonds_icon_rect != null:
-		var d_sz := 34 if has_island else 40
+		var d_sz := 30 if has_island else 40
 		_diamonds_icon_rect.custom_minimum_size = Vector2(d_sz, d_sz)
 	if _diamonds_count_lbl != null:
-		_diamonds_count_lbl.add_theme_font_size_override("font_size", 21 if has_island else 23)
+		_diamonds_count_lbl.add_theme_font_size_override("font_size", 20 if has_island else 23)
 	if _diamonds_sub_lbl != null:
-		_diamonds_sub_lbl.add_theme_font_size_override("font_size", 12 if has_island else 14)
+		_diamonds_sub_lbl.add_theme_font_size_override("font_size", 11 if has_island else 14)
 	if _diamonds_plus_badge != null:
-		var pb_sz := 26 if has_island else 30
+		var pb_sz := 24 if has_island else 30
 		_diamonds_plus_badge.custom_minimum_size = Vector2(pb_sz, pb_sz)
 	if btn_market != null:
-		btn_market.custom_minimum_size = Vector2(174, 52) if has_island else Vector2(218, 56)
+		btn_market.custom_minimum_size = Vector2(154, 50) if has_island else Vector2(218, 56)
 		btn_market.text = ""
 		btn_market.icon = null
 	if _market_icon_rect != null:
-		var m_sz := 34 if has_island else 42
+		var m_sz := 32 if has_island else 42
 		_market_icon_rect.custom_minimum_size = Vector2(m_sz, m_sz)
 	if _market_title_lbl != null:
-		_market_title_lbl.add_theme_font_size_override("font_size", 20 if has_island else 22)
+		_market_title_lbl.add_theme_font_size_override("font_size", 19 if has_island else 22)
 	if _market_sub_lbl != null:
 		_market_sub_lbl.text = "Dükkan" if has_island else "Parşömen & Paket"
-		_market_sub_lbl.add_theme_font_size_override("font_size", 12 if has_island else 14)
+		_market_sub_lbl.add_theme_font_size_override("font_size", 11 if has_island else 14)
 	if village_name_label != null:
 		village_name_label.clip_text = has_island
 		village_name_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS if has_island else TextServer.OVERRUN_NO_TRIMMING
@@ -430,15 +434,15 @@ func _ensure_right_wing_contents() -> void:
 		d_margin.name = "DiamondsContent"
 		d_margin.set_anchors_preset(Control.PRESET_FULL_RECT)
 		d_margin.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		d_margin.add_theme_constant_override("margin_left", 10)
-		d_margin.add_theme_constant_override("margin_right", 10)
-		d_margin.add_theme_constant_override("margin_top", 4)
-		d_margin.add_theme_constant_override("margin_bottom", 4)
+		d_margin.add_theme_constant_override("margin_left", 8)
+		d_margin.add_theme_constant_override("margin_right", 8)
+		d_margin.add_theme_constant_override("margin_top", 3)
+		d_margin.add_theme_constant_override("margin_bottom", 3)
 		btn_diamonds.add_child(d_margin)
 
 		var d_row := HBoxContainer.new()
 		d_row.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		d_row.add_theme_constant_override("separation", 8)
+		d_row.add_theme_constant_override("separation", 6)
 		d_margin.add_child(d_row)
 
 		_diamonds_icon_rect = TextureRect.new()
@@ -509,15 +513,15 @@ func _ensure_right_wing_contents() -> void:
 		m_margin.name = "MarketContent"
 		m_margin.set_anchors_preset(Control.PRESET_FULL_RECT)
 		m_margin.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		m_margin.add_theme_constant_override("margin_left", 10)
-		m_margin.add_theme_constant_override("margin_right", 12)
-		m_margin.add_theme_constant_override("margin_top", 4)
-		m_margin.add_theme_constant_override("margin_bottom", 4)
+		m_margin.add_theme_constant_override("margin_left", 8)
+		m_margin.add_theme_constant_override("margin_right", 8)
+		m_margin.add_theme_constant_override("margin_top", 3)
+		m_margin.add_theme_constant_override("margin_bottom", 3)
 		btn_market.add_child(m_margin)
 
 		var m_row := HBoxContainer.new()
 		m_row.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		m_row.add_theme_constant_override("separation", 9)
+		m_row.add_theme_constant_override("separation", 6)
 		m_margin.add_child(m_row)
 
 		_market_icon_rect = TextureRect.new()

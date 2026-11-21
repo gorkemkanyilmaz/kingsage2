@@ -147,6 +147,8 @@ var _focused_train_unit: String = ""
 var _focused_train_line: LineEdit = null
 var _focused_train_spin: SpinBox = null
 var _kb_scroll_done_for: String = ""
+var _kb_was_open_on_mobile: bool = false
+var _train_scroll_orig_min_h: float = 480.0
 
 
 func _ensure_nodes() -> void:
@@ -322,7 +324,7 @@ func _commit_focused_train_input(override_txt: String = "__FROM_LINE__", release
 	if target_spin != null and is_instance_valid(target_spin):
 		target_spin.value = float(new_val)
 	if target_line != null and is_instance_valid(target_line):
-		target_line.text = str(new_val)
+		target_line.text = str(new_val) if new_val > 0 else ""
 	if train_list != null:
 		var card := train_list.get_node_or_null("TrainCard_" + u_key)
 		if card != null and card.has_meta("update_calc"):
@@ -334,6 +336,7 @@ func _commit_focused_train_input(override_txt: String = "__FROM_LINE__", release
 		_focused_train_line = null
 		_focused_train_spin = null
 		_kb_scroll_done_for = ""
+		_kb_was_open_on_mobile = false
 		if target_line != null and is_instance_valid(target_line) and target_line.has_focus():
 			target_line.release_focus()
 		_restore_keyboard_lift()
@@ -377,20 +380,35 @@ func _update_keyboard_lift() -> void:
 		return
 	if active_train_box != null:
 		active_train_box.hide()
+	var scroll := get_node_or_null("VBox/TrainSection/TrainScroll") as ScrollContainer
+	if scroll != null and scroll.custom_minimum_size.y > 115.0:
+		_train_scroll_orig_min_h = scroll.custom_minimum_size.y
+		scroll.custom_minimum_size.y = 110.0
 	var vp := get_viewport()
 	var vp_h: float = vp.get_visible_rect().size.y if vp != null else 1920.0
 	if vp_h <= 10.0:
 		vp_h = 1920.0
 	var kb_px: int = DisplayServer.virtual_keyboard_get_height() if DisplayServer.get_name() != "headless" else 0
+	if kb_px > 0:
+		_kb_was_open_on_mobile = true
+	elif _kb_was_open_on_mobile and (OS.has_feature("ios") or OS.has_feature("android")):
+		_kb_was_open_on_mobile = false
+		_commit_focused_train_input("__FROM_LINE__", true)
+		return
 	var win_h: float = float(DisplayServer.window_get_size().y) if DisplayServer.get_name() != "headless" else vp_h
 	var kb_vp_h: float = (float(kb_px) * vp_h / maxf(1.0, win_h)) if kb_px > 0 else 0.0
 	if OS.has_feature("ios") or OS.has_feature("android") or DisplayServer.is_touchscreen_available():
 		kb_vp_h = maxf(kb_vp_h, vp_h * 0.48)
 	if kb_vp_h <= 10.0:
 		kb_vp_h = 256.0
-	var top_limit: float = 152.0
+	var top_limit: float = 160.0
+	var par: Node = get_parent()
+	if par != null:
+		var rbar: Node = par.get_node_or_null("ResourceBar")
+		if rbar != null and rbar.has_method("get_bar_height"):
+			top_limit = maxf(top_limit, float(rbar.call("get_bar_height")) + 12.0)
 	var bottom_off: float = minf(-256.0, -kb_vp_h - 18.0)
-	var desired_h: float = minf(920.0, maxf(460.0, vp_h + bottom_off - top_limit))
+	var desired_h: float = clampf(vp_h + bottom_off - top_limit, 360.0, 820.0)
 	offset_bottom = bottom_off
 	offset_top = bottom_off - desired_h
 	if _kb_scroll_done_for != _focused_train_unit and train_list != null:
@@ -407,12 +425,30 @@ func _deferred_scroll_to_train_card(u_key: String) -> void:
 	if scroll != null and card != null:
 		var row_node := card.find_child("TrainInputRow_" + u_key, true, false) as Control
 		var row_bottom := card.position.y + (row_node.position.y + row_node.size.y if row_node != null else card.size.y)
-		var visible_h := maxf(200.0, scroll.size.y)
+		var visible_h := maxf(140.0, scroll.size.y)
+		var desired := maxf(card.position.y - 8.0, row_bottom - visible_h + 26.0)
+		scroll.scroll_vertical = int(maxf(0.0, desired))
+		call_deferred("_align_train_scroll_pass", u_key)
+
+
+func _align_train_scroll_pass(u_key: String) -> void:
+	if not visible or _current_tab != Tab.TRAIN or train_list == null or _focused_train_unit != u_key:
+		return
+	var scroll := get_node_or_null("VBox/TrainSection/TrainScroll") as ScrollContainer
+	var card := train_list.get_node_or_null("TrainCard_" + u_key) as Control
+	if scroll != null and card != null:
+		var row_node := card.find_child("TrainInputRow_" + u_key, true, false) as Control
+		var row_bottom := card.position.y + (row_node.position.y + row_node.size.y if row_node != null else card.size.y)
+		var visible_h := maxf(140.0, scroll.size.y)
 		var desired := maxf(card.position.y - 8.0, row_bottom - visible_h + 26.0)
 		scroll.scroll_vertical = int(maxf(0.0, desired))
 
 
 func _restore_keyboard_lift() -> void:
+	_kb_was_open_on_mobile = false
+	var scroll := get_node_or_null("VBox/TrainSection/TrainScroll") as ScrollContainer
+	if scroll != null and scroll.custom_minimum_size.y < _train_scroll_orig_min_h:
+		scroll.custom_minimum_size.y = _train_scroll_orig_min_h
 	if _kb_preview_bar != null:
 		_kb_preview_bar.hide()
 	if absf(offset_bottom - (-256.0)) > 0.5:
@@ -2301,10 +2337,11 @@ func _populate_train_list() -> void:
 			input_row.add_child(btn_p10)
 			input_row.add_child(btn_max)
 
-			# Visible pure LineEdit for mobile-safe numeric entry (avoids Godot SpinBox resetting typed text on iOS)
+			# Visible pure LineEdit for mobile-safe numeric entry (keeps empty text "" for 0 so iOS keyboard starts clean)
 			var qty_edit := LineEdit.new()
 			qty_edit.name = "QtyEdit_" + u_key
-			qty_edit.text = str(int(_train_counts.get(u_key, 0)))
+			var init_cnt := int(_train_counts.get(u_key, 0))
+			qty_edit.text = str(init_cnt) if init_cnt > 0 else ""
 			qty_edit.placeholder_text = "0"
 			qty_edit.alignment = HORIZONTAL_ALIGNMENT_CENTER
 			qty_edit.select_all_on_focus = true
@@ -2317,7 +2354,7 @@ func _populate_train_list() -> void:
 			qty_edit.add_theme_constant_override("outline_size", 2)
 			qty_edit.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.95))
 			qty_edit.add_theme_color_override("font_color", Color(1.0, 0.97, 0.88))
-			qty_edit.add_theme_color_override("font_placeholder_color", Color(0.65, 0.62, 0.56, 0.85))
+			qty_edit.add_theme_color_override("font_placeholder_color", Color(0.88, 0.85, 0.78, 0.92))
 			var qe_sb := StyleBoxFlat.new()
 			qe_sb.bg_color = Color(0.06, 0.07, 0.12, 0.98)
 			qe_sb.border_color = Color(0.78, 0.65, 0.32, 0.92)
@@ -2331,6 +2368,9 @@ func _populate_train_list() -> void:
 			qe_foc.set_border_width_all(3)
 			qty_edit.add_theme_stylebox_override("normal", qe_sb)
 			qty_edit.add_theme_stylebox_override("focus", qe_foc)
+			_ensure_kb_preview_bar()
+			if _kb_preview_bar != null:
+				qty_edit.set_meta("keep_focus_controls", [_kb_preview_bar])
 			input_row.add_child(qty_edit)
 
 			# Hidden backing SpinBox kept in sync for quick +/- buttons and automated tests
@@ -2441,9 +2481,13 @@ func _populate_train_list() -> void:
 
 			if s_line != null:
 				s_line.focus_entered.connect(func():
+					var gc_f: Node = Engine.get_main_loop().root.get_node_or_null("GameConfig") if Engine.get_main_loop() is SceneTree else null
+					if gc_f != null and gc_f.has_method("mark_focus_guard"):
+						gc_f.call("mark_focus_guard", s_line, 500)
+					_kb_was_open_on_mobile = false
 					if s_line.text.strip_edges() == "0":
 						s_line.text = ""
-					else:
+					elif not s_line.text.is_empty():
 						s_line.call_deferred("select_all")
 					_focused_train_unit = u_key
 					_focused_train_spin = spin
@@ -2471,7 +2515,7 @@ func _populate_train_list() -> void:
 						var parsed := clampi(digits.to_int(), 0, 99999) if not digits.is_empty() else 0
 						_train_counts[u_key] = parsed
 						spin.value = float(parsed)
-						s_line.text = str(parsed)
+						s_line.text = str(parsed) if parsed > 0 else ""
 						update_calc.call()
 				)
 				s_line.focus_exited.connect(func():
@@ -2482,13 +2526,13 @@ func _populate_train_list() -> void:
 						var parsed := clampi(digits.to_int(), 0, 99999) if not digits.is_empty() else 0
 						_train_counts[u_key] = parsed
 						spin.value = float(parsed)
-						s_line.text = str(parsed)
+						s_line.text = str(parsed) if parsed > 0 else ""
 						update_calc.call()
 				)
 
 			spin.value_changed.connect(func(v: float):
 				if s_line != null and is_instance_valid(s_line) and not s_line.has_focus():
-					s_line.text = str(int(v))
+					s_line.text = str(int(v)) if int(v) > 0 else ""
 				update_calc.call()
 				if _focused_train_unit == u_key:
 					if _focused_train_line != null and is_instance_valid(_focused_train_line) and _focused_train_line.has_focus():

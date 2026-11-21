@@ -11,7 +11,7 @@
 [ext_resource type="Texture2D" path="res://assets/sprites/ui/nano_banana/sharp_icon_diamond.tres" id="9_diamond_tex"]
 [ext_resource type="Texture2D" path="res://assets/sprites/ui/nano_banana/sharp_icon_storage.tres" id="10_storage_tex"]
 [ext_resource type="Texture2D" path="res://assets/sprites/ui/nano_banana/sharp_icon_castle_crest.tres" id="11_castle_crest"]
-[ext_resource type="Texture2D" path="res://assets/sprites/ui/nano_banana/sharp_icon_market.png" id="12_market_tex"]
+[ext_resource type="Texture2D" path="res://assets/sprites/ui/nano_banana/sharp_icon_market.tres" id="12_market_tex"]
 
 [sub_resource type="StyleBoxFlat" id="sb_bar"]
 bg_color = Color(0.08, 0.07, 0.11, 0.98)
@@ -169,6 +169,7 @@ expand_mode = 1
 stretch_mode = 5
 
 [node name="BtnPrevVillage" type="Button" parent="VBox/TopRow/VillageInfo"]
+visible = false
 custom_minimum_size = Vector2(36, 36)
 layout_mode = 2
 size_flags_vertical = 4
@@ -204,6 +205,7 @@ theme_override_styles/pressed = SubResource("sb_nav_btn_hover")
 text = "✏️"
 
 [node name="BtnNextVillage" type="Button" parent="VBox/TopRow/VillageInfo"]
+visible = false
 custom_minimum_size = Vector2(36, 36)
 layout_mode = 2
 size_flags_vertical = 4

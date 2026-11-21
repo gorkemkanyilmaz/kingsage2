@@ -170,10 +170,27 @@ func _run() -> void:
 	var train_btn: Button = bp.find_child("TrainBtn_spear", true, false) as Button
 	_assert(train_btn != null, "TrainBtn_spear bulunamadı")
 
-	# 5a. Odaklanınca baştaki '0' temizlenmeli ve "100" yazınca state_changed veya process frame silmemeli
+	# 5a. Başlangıçta metin "" ve placeholder "0" olmalı; dokunuş+emüle mouse race'i odağı düşürmemeli!
+	_assert(le.text == "" and le.placeholder_text == "0", "Sıfır durumundayken text boş ve placeholder '0' olmalıydı: '%s' / '%s'" % [le.text, le.placeholder_text])
 	le.grab_focus()
 	await process_frame
-	_assert(le.text == "", "Odaklanınca ilk '0' temizlenmeliydi, yoksa 0100 yazılır: '%s'" % le.text)
+	_assert(le.has_focus(), "QtyEdit_spear odak kazanmalıydı")
+
+	var gc: Node = root.get_node_or_null("GameConfig")
+	_assert(gc != null, "GameConfig autoload eksik")
+	var touch_ev := InputEventScreenTouch.new()
+	touch_ev.pressed = true
+	touch_ev.position = Vector2(400.0, 1400.0)
+	touch_ev.set_meta("allow_headless_input_test", true)
+	gc.call("_input", touch_ev)
+	var emu_mouse := InputEventMouseButton.new()
+	emu_mouse.button_index = MOUSE_BUTTON_LEFT
+	emu_mouse.pressed = true
+	emu_mouse.position = Vector2(400.0, 1400.0)
+	emu_mouse.set_meta("allow_headless_input_test", true)
+	gc.call("_input", emu_mouse)
+	await process_frame
+	_assert(le.has_focus(), "Touch -> Emüle MouseButton yarışı QtyEdit_spear odağını düşürmemeliydi!")
 
 	var kb_bar: Control = bp.find_child("TrainKeyboardPreviewBar", true, false) as Control
 	var kb_lbl: Label = bp.find_child("PreviewText", true, false) as Label
@@ -221,7 +238,7 @@ func _run() -> void:
 	await process_frame
 	_assert(int(spin.value) == 25, "focus_exited sonrası spin.value 25 olmalıydı, şu an: %d" % int(spin.value))
 
-	# 6. ResourceBar Elmas & Pazar sağ kanat kontrolü
+	# 6. ResourceBar Elmas & Pazar sağ kanat + Tek Köyde Gizli Oklar + Dynamic Island kontrolü
 	var rbar_scene: PackedScene = load("res://ui/ResourceBar.tscn")
 	var rbar: Control = rbar_scene.instantiate()
 	root.add_child(rbar)
@@ -230,9 +247,32 @@ func _run() -> void:
 	var btn_m: Button = rbar.find_child("BtnMarket", true, false) as Button
 	var d_cnt: Label = rbar.find_child("DiamondsCountLabel", true, false) as Label
 	var m_tit: Label = rbar.find_child("MarketTitleLabel", true, false) as Label
+	var m_ico: TextureRect = rbar.find_child("MarketIcon", true, false) as TextureRect
+	var prev_v_btn: Button = rbar.find_child("BtnPrevVillage", true, false) as Button
+	var next_v_btn: Button = rbar.find_child("BtnNextVillage", true, false) as Button
+	var r_wing: HBoxContainer = rbar.find_child("RightWing", true, false) as HBoxContainer
 	_assert(btn_d != null and btn_m != null, "ResourceBar sağ kanadında BtnDiamonds ve BtnMarket bulunmalı")
 	_assert(d_cnt != null and int(d_cnt.text) >= 0, "BtnDiamonds içinde Elmas sayısı görünmeli")
 	_assert(m_tit != null and m_tit.text == "PAZAR", "BtnMarket içinde PAZAR başlığı görünmeli")
+	_assert(m_ico != null and m_ico.texture != null, "MarketIcon sharp_icon_market.tres yüklenmiş olmalı")
+	_assert(prev_v_btn != null and not prev_v_btn.visible and next_v_btn != null and not next_v_btn.visible, "Tek köy varken soldaki gereksiz önceki/sonraki köy butonları gizli olmalı")
+
+	# Simüle iPhone Dynamic Island testi (safe_top = 162, island_w = 390)
+	gc.set("_safe_top_px", 162.0)
+	gc.set("_test_island_width", 390.0)
+	rbar.size = Vector2(1080.0, 240.0)
+	rbar.call("_apply_responsive_layout")
+	await process_frame
+	var di_h := float(rbar.call("get_bar_height"))
+	var res_row: Control = rbar.find_child("ResourcesRow", true, false) as Control
+	var isl_sp: Control = rbar.find_child("IslandSpacer", true, false) as Control
+	_assert(di_h >= 162.0 + 62.0, "Dynamic Island modunda bar yüksekliği safe_top altına inmeliydi: %s" % str(di_h))
+	_assert(res_row != null and res_row.position.y >= 162.0, "Hammaddeler (ResourcesRow) Dynamic Island (162px) altında kalmalıydı, y=%s" % [str(res_row.position.y) if res_row != null else "null"])
+	_assert(isl_sp != null and isl_sp.visible and isl_sp.position.x >= 340.0 and isl_sp.position.x + isl_sp.size.x <= 750.0, "IslandSpacer merkeze yakın konumlanmalıydı: x=%s w=%s" % [str(isl_sp.position.x) if isl_sp != null else "", str(isl_sp.size.x) if isl_sp != null else ""])
+	_assert(r_wing != null and btn_d.custom_minimum_size.x + btn_m.custom_minimum_size.x + 6.0 <= 320.0, "Dynamic Island modunda RightWing toplam minimum genişliği <= 320px olmalıydı")
+	gc.set("_safe_top_px", 0.0)
+	gc.set("_test_island_width", -1.0)
+	rbar.call("_apply_responsive_layout")
 
 	print("[PASS] test_reports_and_persistence: tüm kalıcılık, rapor, eğitim klavyesi ve sağ header kontrolleri geçti!")
 	quit(0)

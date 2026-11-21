@@ -141,6 +141,7 @@ var _safe_bg_layer: CanvasLayer = null
 var _safe_top_px: float = 0.0
 var _safe_bottom_px: float = 0.0
 var _safe_last_scene_id: int = 0
+var _test_island_width: float = -1.0
 
 
 func _setup_mobile_safe_area() -> void:
@@ -200,6 +201,8 @@ func get_ios_safe_bottom() -> float:
 
 
 func get_ios_dynamic_island_width() -> float:
+	if _test_island_width >= 0.0:
+		return _test_island_width
 	if OS.get_name() == "iOS" and _safe_top_px >= 90.0:
 		return 390.0
 	return 0.0
@@ -491,6 +494,16 @@ func _deferred_hide_virtual_keyboard() -> void:
 		DisplayServer.virtual_keyboard_hide()
 
 
+var _last_touch_press_msec: int = 0
+var _focus_guard_ctrl: Control = null
+var _focus_guard_until_msec: int = 0
+
+
+func mark_focus_guard(ctrl: Control, duration_ms: int = 450) -> void:
+	_focus_guard_ctrl = ctrl
+	_focus_guard_until_msec = Time.get_ticks_msec() + duration_ms
+
+
 func dismiss_keyboard_for(target: Control = null) -> void:
 	dismiss_virtual_keyboard(target)
 
@@ -557,6 +570,11 @@ static func attach_mobile_keyboard_dismiss(ctrl: Control, on_submit: Callable = 
 		var le: LineEdit = sp.get_line_edit()
 		if le != null:
 			le.virtual_keyboard_type = LineEdit.KEYBOARD_TYPE_NUMBER
+			le.focus_entered.connect(func():
+				var gc_node: Node = get_singleton()
+				if gc_node != null and gc_node.has_method("mark_focus_guard"):
+					gc_node.call("mark_focus_guard", le, 450)
+			)
 			le.text_submitted.connect(func(txt: String):
 				_apply_spinbox_digits(sp, txt)
 				le.release_focus()
@@ -572,6 +590,11 @@ static func attach_mobile_keyboard_dismiss(ctrl: Control, on_submit: Callable = 
 		var le2 := ctrl as LineEdit
 		if numeric:
 			le2.virtual_keyboard_type = LineEdit.KEYBOARD_TYPE_NUMBER
+		le2.focus_entered.connect(func():
+			var gc_node: Node = get_singleton()
+			if gc_node != null and gc_node.has_method("mark_focus_guard"):
+				gc_node.call("mark_focus_guard", le2, 450)
+		)
 		le2.text_submitted.connect(func(txt: String):
 			le2.release_focus()
 			dismiss_virtual_keyboard()
@@ -589,18 +612,24 @@ static func attach_mobile_keyboard_dismiss(ctrl: Control, on_submit: Callable = 
 
 
 func _input(event: InputEvent) -> void:
-	if DisplayServer.get_name() == "headless":
+	var is_headless := (DisplayServer.get_name() == "headless")
+	if is_headless and not (event.has_meta("allow_headless_input_test")):
 		return
+	var now_ms := Time.get_ticks_msec()
 	var tapped := false
 	var tap_pos := Vector2.ZERO
 	if event is InputEventScreenTouch:
 		var st := event as InputEventScreenTouch
 		if st.pressed:
+			_last_touch_press_msec = now_ms
 			tapped = true
 			tap_pos = st.position
 	elif event is InputEventMouseButton:
 		var mb := event as InputEventMouseButton
 		if mb.button_index == MOUSE_BUTTON_LEFT and mb.pressed:
+			# Godot emulates MouseButton right after ScreenTouch at pre-lift coordinates; ignore it
+			if _last_touch_press_msec > 0 and now_ms - _last_touch_press_msec < 200:
+				return
 			tapped = true
 			tap_pos = mb.position
 	if not tapped:
@@ -613,8 +642,17 @@ func _input(event: InputEvent) -> void:
 		return
 	if not (focus_owner is LineEdit or focus_owner is TextEdit):
 		return
+	if focus_owner == _focus_guard_ctrl and now_ms <= _focus_guard_until_msec:
+		return
 	if focus_owner.get_global_rect().has_point(tap_pos):
 		return
+	if focus_owner.has_meta("keep_focus_controls"):
+		var kf = focus_owner.get_meta("keep_focus_controls")
+		if kf is Array:
+			for c in kf:
+				if c is Control and is_instance_valid(c) and (c as Control).is_visible_in_tree():
+					if (c as Control).get_global_rect().has_point(tap_pos):
+						return
 	var par: Node = focus_owner.get_parent()
 	if par is SpinBox:
 		var sp := par as SpinBox
