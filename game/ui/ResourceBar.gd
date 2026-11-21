@@ -208,6 +208,8 @@ func _ready() -> void:
 			eb.realm_changed.connect(_on_realm_changed)
 		if eb.has_signal("village_switched") and not eb.village_switched.is_connected(_on_village_switched):
 			eb.village_switched.connect(_on_village_switched)
+		if eb.has_signal("state_changed") and not eb.state_changed.is_connected(_on_state_changed_refresh):
+			eb.state_changed.connect(_on_state_changed_refresh)
 
 	var sm := _autoload("StoreManager")
 	if sm != null and sm.has_signal("diamonds_changed") and not sm.diamonds_changed.is_connected(_on_diamonds_changed):
@@ -350,7 +352,10 @@ func _apply_responsive_layout() -> void:
 	if btn_next != null:
 		btn_next.custom_minimum_size = Vector2(30, 34) if has_island else Vector2(36, 38)
 	if btn_rename_village != null:
-		btn_rename_village.custom_minimum_size = Vector2(34, 34) if has_island else Vector2(38, 38)
+		btn_rename_village.visible = true
+		btn_rename_village.disabled = false
+		btn_rename_village.mouse_filter = Control.MOUSE_FILTER_STOP
+		btn_rename_village.custom_minimum_size = Vector2(40, 40) if has_island else Vector2(42, 42)
 		btn_rename_village.add_theme_font_size_override("font_size", 21 if has_island else 23)
 	if btn_diamonds != null:
 		btn_diamonds.custom_minimum_size = Vector2(150, 54) if has_island else Vector2(210, 60)
@@ -381,6 +386,7 @@ func _apply_responsive_layout() -> void:
 	if village_name_label != null:
 		village_name_label.clip_text = has_island
 		village_name_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS if has_island else TextServer.OVERRUN_NO_TRIMMING
+		village_name_label.custom_minimum_size.x = 60.0 if has_island else 0.0
 		village_name_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL if has_island else Control.SIZE_SHRINK_BEGIN
 		village_name_label.add_theme_font_override("font", FONT_BOLD)
 		village_name_label.add_theme_font_size_override("font_size", 23 if has_island else 26)
@@ -909,6 +915,10 @@ func _on_realm_changed(village_id: int, _val: int) -> void:
 
 
 func _on_village_switched(_village_id: int) -> void:
+	refresh()
+
+
+func _on_state_changed_refresh() -> void:
 	refresh()
 
 
@@ -1549,9 +1559,15 @@ func _show_rename_modal(target_vid: int = -1) -> void:
 	if root == null:
 		return
 	if is_instance_valid(_rename_modal):
-		_rename_modal.queue_free()
+		var old_m := _rename_modal
+		_rename_modal = null
+		if old_m.get_parent() != null:
+			old_m.get_parent().remove_child(old_m)
+		old_m.queue_free()
 	var prev := root.get_node_or_null("VillageRenameModal")
 	if prev != null:
+		if prev.get_parent() != null:
+			prev.get_parent().remove_child(prev)
 		prev.queue_free()
 
 	var layer := CanvasLayer.new()
@@ -1560,22 +1576,33 @@ func _show_rename_modal(target_vid: int = -1) -> void:
 	_rename_modal = layer
 	root.add_child(layer)
 
+	var close_modal := func():
+		if _rename_modal == layer:
+			_rename_modal = null
+		if is_instance_valid(layer):
+			layer.queue_free()
+
 	var dim := ColorRect.new()
 	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
-	dim.color = Color(0.03, 0.02, 0.05, 0.72)
+	dim.color = Color(0.03, 0.02, 0.05, 0.76)
 	layer.add_child(dim)
 	dim.gui_input.connect(func(ev: InputEvent):
 		if _is_tap_event(ev):
-			layer.queue_free()
+			close_modal.call()
 	)
 
-	var center := CenterContainer.new()
-	center.set_anchors_preset(Control.PRESET_FULL_RECT)
-	center.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	layer.add_child(center)
+	var top_margin := MarginContainer.new()
+	top_margin.set_anchors_preset(Control.PRESET_FULL_RECT)
+	top_margin.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	top_margin.add_theme_constant_override("margin_top", 190)
+	top_margin.add_theme_constant_override("margin_left", 24)
+	top_margin.add_theme_constant_override("margin_right", 24)
+	layer.add_child(top_margin)
 
 	var card := PanelContainer.new()
-	card.custom_minimum_size = Vector2(600, 0)
+	card.custom_minimum_size = Vector2(640, 0)
+	card.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	card.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
 	var card_sb := StyleBoxFlat.new()
 	card_sb.bg_color = Color(0.10, 0.09, 0.14, 0.98)
 	card_sb.border_color = Color(0.86, 0.68, 0.28, 0.96)
@@ -1586,10 +1613,10 @@ func _show_rename_modal(target_vid: int = -1) -> void:
 	card_sb.content_margin_top = 20
 	card_sb.content_margin_bottom = 20
 	card.add_theme_stylebox_override("panel", card_sb)
-	center.add_child(card)
+	top_margin.add_child(card)
 
 	var vb := VBoxContainer.new()
-	vb.add_theme_constant_override("separation", 14)
+	vb.add_theme_constant_override("separation", 16)
 	card.add_child(vb)
 
 	var title := Label.new()
@@ -1603,37 +1630,53 @@ func _show_rename_modal(target_vid: int = -1) -> void:
 	line.text = str(v.get("name", ""))
 	line.max_length = 24
 	line.placeholder_text = "Yeni köy adını girin..."
-	line.custom_minimum_size = Vector2(0, 52)
+	line.custom_minimum_size = Vector2(0, 58)
+	line.mouse_filter = Control.MOUSE_FILTER_STOP
 	line.add_theme_font_override("font", FONT_BOLD)
 	line.add_theme_font_size_override("font_size", 24)
+	line.add_theme_color_override("font_color", Color(0.99, 0.96, 0.88))
+	line.add_theme_color_override("font_placeholder_color", Color(0.62, 0.58, 0.50))
+	var inp_sb := StyleBoxFlat.new()
+	inp_sb.bg_color = Color(0.05, 0.05, 0.09, 1.0)
+	inp_sb.border_color = Color(0.84, 0.68, 0.28, 0.92)
+	inp_sb.set_border_width_all(2)
+	inp_sb.set_corner_radius_all(12)
+	inp_sb.set_content_margin_all(12)
+	line.add_theme_stylebox_override("normal", inp_sb)
+	line.add_theme_stylebox_override("focus", inp_sb)
 	vb.add_child(line)
 
 	var hb := HBoxContainer.new()
 	hb.alignment = BoxContainer.ALIGNMENT_END
-	hb.add_theme_constant_override("separation", 10)
+	hb.add_theme_constant_override("separation", 12)
 	vb.add_child(hb)
 
 	var cancel_btn := Button.new()
 	cancel_btn.text = "İptal"
-	cancel_btn.custom_minimum_size = Vector2(130, 48)
+	cancel_btn.custom_minimum_size = Vector2(140, 52)
 	_style_modal_btn(cancel_btn, Color(0.22, 0.19, 0.24, 0.95), Color(0.62, 0.56, 0.44, 0.85))
 	cancel_btn.pressed.connect(func():
 		var gc_r := _autoload("GameConfig")
 		if gc_r != null and gc_r.has_method("dismiss_keyboard_for"):
 			gc_r.call("dismiss_keyboard_for", line)
-		layer.queue_free()
+		close_modal.call()
 	)
 	hb.add_child(cancel_btn)
 
 	var save_btn := Button.new()
 	save_btn.text = "Kaydet"
-	save_btn.custom_minimum_size = Vector2(150, 48)
+	save_btn.custom_minimum_size = Vector2(160, 52)
 	_style_modal_btn(save_btn, Color(0.18, 0.44, 0.24, 0.96), Color(0.45, 0.86, 0.52, 0.95))
-	var apply_rename_fn := func():
+	var done_ref: Array = [false]
+	var apply_rename_fn := func(override_text: String = "__FROM_LINE__"):
+		if bool(done_ref[0]):
+			return
+		done_ref[0] = true
+		var raw_txt := line.text if (override_text == "__FROM_LINE__" and is_instance_valid(line)) else override_text
+		var new_name := raw_txt.strip_edges()
 		var gc_r := _autoload("GameConfig")
 		if gc_r != null and gc_r.has_method("dismiss_keyboard_for"):
-			gc_r.call("dismiss_keyboard_for", line)
-		var new_name := line.text.strip_edges()
+			gc_r.call("dismiss_keyboard_for", line if is_instance_valid(line) else null)
 		if not new_name.is_empty():
 			var vid_r := int(v.get("id", -1))
 			if gs.has_method("rename_village"):
@@ -1642,12 +1685,17 @@ func _show_rename_modal(target_vid: int = -1) -> void:
 				v["name"] = new_name
 			var wm_r := _autoload("WorldManager")
 			if wm_r != null and wm_r.has_method("save_active_world"):
-				wm_r.call("save_active_world", true)
+				var lseq: int = int(wm_r.get("_local_mutation_seq")) if wm_r.get("_local_mutation_seq") != null else 0
+				var cseq: int = int(wm_r.get("_last_cloud_save_seq")) if wm_r.get("_last_cloud_save_seq") != null else -1
+				if cseq < lseq:
+					wm_r.call("save_active_world", true)
 			refresh()
-		layer.queue_free()
-	save_btn.pressed.connect(apply_rename_fn)
+		close_modal.call()
+	save_btn.pressed.connect(func(): apply_rename_fn.call("__FROM_LINE__"))
 	hb.add_child(save_btn)
+	line.set_meta("keep_focus_controls", [save_btn, cancel_btn])
 	var gc_bind := _autoload("GameConfig")
 	if gc_bind != null and gc_bind.has_method("bind_keyboard_dismiss"):
-		gc_bind.call("bind_keyboard_dismiss", line, func(_txt: String): apply_rename_fn.call())
-	line.grab_focus()
+		gc_bind.call("bind_keyboard_dismiss", line, func(txt: String): apply_rename_fn.call(txt))
+	line.call_deferred("grab_focus")
+	line.call_deferred("select_all")

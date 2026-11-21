@@ -127,21 +127,37 @@ func rename_village(vid: int, new_name: String) -> bool:
 	var clean := new_name.strip_edges()
 	if clean.is_empty():
 		return false
+	var now_u := int(Time.get_unix_time_from_system())
+	var next_nu := now_u
+	var next_seq := 1
 	var found := false
 	for v in villages:
-		if int(v.get("id", -1)) == vid:
-			v["name"] = clean
+		if typeof(v) == TYPE_DICTIONARY and int((v as Dictionary).get("id", -1)) == vid:
+			var vd := v as Dictionary
+			next_nu = maxi(now_u, int(vd.get("name_updated_unix", 0)) + 1)
+			next_seq = int(vd.get("name_edit_seq", 0)) + 1
+			vd["name"] = clean
+			vd["name_updated_unix"] = next_nu
+			vd["name_edit_seq"] = next_seq
 			found = true
 			break
 	if world is Dictionary and world.has("villages"):
 		for wv in world["villages"]:
-			if int(wv.get("id", -1)) == vid:
-				wv["name"] = clean
+			if typeof(wv) == TYPE_DICTIONARY and int((wv as Dictionary).get("id", -1)) == vid:
+				var wvd := wv as Dictionary
+				wvd["name"] = clean
+				wvd["name_updated_unix"] = next_nu
+				wvd["name_edit_seq"] = next_seq
 				break
 	if found:
-		var sm = Engine.get_main_loop().root.get_node_or_null("SaveManager") if Engine.get_main_loop() is SceneTree else null
-		if sm != null:
-			sm.save_game()
+		var loop := Engine.get_main_loop()
+		if loop is SceneTree:
+			var wm = (loop as SceneTree).root.get_node_or_null("WorldManager")
+			if wm != null and wm.has_method("notify_local_mutation"):
+				wm.call("notify_local_mutation")
+			var sm = (loop as SceneTree).root.get_node_or_null("SaveManager")
+			if sm != null:
+				sm.save_game()
 		_emit_state_changed()
 	return found
 

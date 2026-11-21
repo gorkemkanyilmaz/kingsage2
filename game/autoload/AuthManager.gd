@@ -93,10 +93,23 @@ func clear_session_only() -> void:
 	display_name = ""
 	email = ""
 	auth_token = ""
+	identity_token = ""
 	if FileAccess.file_exists(SESSION_FILE):
 		DirAccess.remove_absolute(ProjectSettings.globalize_path(SESSION_FILE))
 	_web_remove(WEB_SESSION_KEY)
 	auth_state_changed.emit(false, {})
+
+
+func clear_all_account_data() -> void:
+	var loop = Engine.get_main_loop()
+	if loop is SceneTree:
+		var net = loop.root.get_node_or_null("NetworkManager")
+		if net != null:
+			net.auth_token = ""
+	clear_session_only()
+	if FileAccess.file_exists(KNOWN_ACCOUNTS_FILE):
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(KNOWN_ACCOUNTS_FILE))
+	_web_remove("tvk_account_profiles")
 
 
 func logout() -> void:

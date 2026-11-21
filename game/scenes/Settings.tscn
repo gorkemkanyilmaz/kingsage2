@@ -1,27 +1,64 @@
 [gd_scene format=3 uid="uid://n7p2m8k1v5q4w"]
 
 [ext_resource type="Script" path="res://scenes/Settings.gd" id="1_sett"]
-[ext_resource type="Theme" path="res://themes/TahtVeKilic.tres" id="2_theme"]
-[ext_resource type="Script" path="res://ui/Backdrop.gd" id="3_backdrop"]
-[ext_resource type="FontFile" path="res://assets/fonts/Cinzel-Bold.ttf" id="4_cinzel"]
+[ext_resource type="PackedScene" path="res://ui/ResourceBar.tscn" id="2_rbar"]
+[ext_resource type="PackedScene" path="res://ui/BottomNav.tscn" id="3_bnav"]
+[ext_resource type="Theme" path="res://themes/TahtVeKilic.tres" id="4_theme"]
+[ext_resource type="Script" path="res://ui/Backdrop.gd" id="5_backdrop"]
+[ext_resource type="FontFile" path="res://assets/fonts/Cinzel-Bold.ttf" id="6_cinzel"]
+[ext_resource type="FontFile" path="res://assets/fonts/Nunito-Bold.ttf" id="7_nunito_bold"]
+[ext_resource type="FontFile" path="res://assets/fonts/Nunito-SemiBold.ttf" id="8_nunito_semibold"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_header"]
+content_margin_left = 22.0
+content_margin_top = 12.0
+content_margin_right = 22.0
+content_margin_bottom = 12.0
+bg_color = Color(0.117647, 0.105882, 0.129412, 0.97)
+border_width_bottom = 2
+border_color = Color(0.85098, 0.721569, 0.42, 0.95)
+corner_radius_top_left = 16
+corner_radius_top_right = 16
+corner_radius_bottom_right = 16
+corner_radius_bottom_left = 16
+shadow_color = Color(0, 0, 0, 0.42)
+shadow_size = 10
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_card"]
-content_margin_left = 40.0
-content_margin_top = 36.0
-content_margin_right = 40.0
-content_margin_bottom = 36.0
-bg_color = Color(0.984314, 0.956863, 0.886275, 0.82)
-border_width_left = 3
-border_width_top = 3
-border_width_right = 3
-border_width_bottom = 3
-border_color = Color(0.603922, 0.392157, 0.215686, 0.55)
-corner_radius_top_left = 22
-corner_radius_top_right = 22
-corner_radius_bottom_right = 22
-corner_radius_bottom_left = 22
-shadow_color = Color(0.419608, 0.262745, 0.164706, 0.28)
-shadow_size = 10
+content_margin_left = 22.0
+content_margin_top = 18.0
+content_margin_right = 22.0
+content_margin_bottom = 18.0
+bg_color = Color(0.105882, 0.0980392, 0.141176, 0.96)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.831373, 0.678431, 0.341176, 0.85)
+corner_radius_top_left = 16
+corner_radius_top_right = 16
+corner_radius_bottom_right = 16
+corner_radius_bottom_left = 16
+shadow_color = Color(0, 0, 0, 0.38)
+shadow_size = 8
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_danger_card"]
+content_margin_left = 22.0
+content_margin_top = 18.0
+content_margin_right = 22.0
+content_margin_bottom = 18.0
+bg_color = Color(0.156863, 0.0705882, 0.0823529, 0.96)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.862745, 0.282353, 0.282353, 0.92)
+corner_radius_top_left = 16
+corner_radius_top_right = 16
+corner_radius_bottom_right = 16
+corner_radius_bottom_left = 16
+shadow_color = Color(0, 0, 0, 0.42)
+shadow_size = 8
 
 [node name="Settings" type="Control"]
 layout_mode = 3
@@ -30,7 +67,7 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-theme = ExtResource("2_theme")
+theme = ExtResource("4_theme")
 script = ExtResource("1_sett")
 
 [node name="Background" type="ColorRect" parent="."]
@@ -40,7 +77,7 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-color = Color(0.992157, 0.964706, 0.890196, 1)
+color = Color(0.0588235, 0.0509804, 0.0745098, 1)
 
 [node name="Backdrop" type="Control" parent="."]
 layout_mode = 1
@@ -50,84 +87,172 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
-script = ExtResource("3_backdrop")
-emblem_path = "res://assets/sprites/icons/cartography/2x/mill.png"
-emblem_alpha = 0.07
-emblem_size = 400.0
-emblem_center = Vector2(0.5, 0.20)
+script = ExtResource("5_backdrop")
+tint = Color(0.055, 0.05, 0.08, 1)
+show_texture = false
+emblem_path = "res://assets/sprites/icons/cartography/2x/banner.png"
+emblem_alpha = 0.06
+emblem_size = 420.0
+emblem_center = Vector2(0.5, 0.42)
 
-[node name="Card" type="Panel" parent="."]
+[node name="Header" type="PanelContainer" parent="."]
 layout_mode = 1
-anchors_preset = 8
-anchor_left = 0.5
-anchor_top = 0.5
-anchor_right = 0.5
-anchor_bottom = 0.5
-offset_left = -460.0
-offset_top = -380.0
-offset_right = 460.0
-offset_bottom = 380.0
+anchors_preset = 10
+anchor_right = 1.0
+offset_left = 20.0
+offset_top = 124.0
+offset_right = -20.0
+offset_bottom = 218.0
 grow_horizontal = 2
-grow_vertical = 2
-mouse_filter = 2
-theme_override_styles/panel = SubResource("StyleBoxFlat_card")
+theme_override_styles/panel = SubResource("StyleBoxFlat_header")
 
-[node name="Center" type="CenterContainer" parent="."]
+[node name="HBox" type="HBoxContainer" parent="Header"]
+layout_mode = 2
+theme_override_constants/separation = 14
+
+[node name="Title" type="Label" parent="Header/HBox"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(1, 0.917647, 0.647059, 1)
+theme_override_colors/font_shadow_color = Color(0, 0, 0, 0.85)
+theme_override_constants/shadow_offset_y = 2
+theme_override_font_sizes/font_size = 34
+theme_override_fonts/font = ExtResource("6_cinzel")
+text = "⚙️ Ayarlar & Hesap"
+
+[node name="ResourceBar" parent="." instance=ExtResource("2_rbar")]
+layout_mode = 1
+anchors_preset = 10
+anchor_right = 1.0
+offset_bottom = 116.0
+grow_horizontal = 2
+
+[node name="Center" type="ScrollContainer" parent="."]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
+offset_left = 24.0
+offset_top = 232.0
+offset_right = -24.0
+offset_bottom = -258.0
 grow_horizontal = 2
 grow_vertical = 2
+follow_focus = false
+horizontal_scroll_mode = 0
+vertical_scroll_mode = 1
+scroll_deadzone = 12
 
 [node name="VBox" type="VBoxContainer" parent="Center"]
-custom_minimum_size = Vector2(760, 0)
 layout_mode = 2
-theme_override_constants/separation = 32
-alignment = 1
+size_flags_horizontal = 3
+theme_override_constants/separation = 18
 
-[node name="Title" type="Label" parent="Center/VBox"]
+[node name="AccountCard" type="PanelContainer" parent="Center/VBox"]
 layout_mode = 2
-theme_override_colors/font_color = Color(0.239216, 0.152941, 0.058824, 1)
-theme_override_colors/font_outline_color = Color(0.980392, 0.921569, 0.733333, 0.9)
-theme_override_constants/outline_size = 8
-theme_override_font_sizes/font_size = 54
-theme_override_fonts/font = ExtResource("4_cinzel")
-text = "Ayarlar"
-horizontal_alignment = 1
+theme_override_styles/panel = SubResource("StyleBoxFlat_card")
 
-[node name="ProfileRow" type="VBoxContainer" parent="Center/VBox"]
+[node name="VBox" type="VBoxContainer" parent="Center/VBox/AccountCard"]
 layout_mode = 2
 theme_override_constants/separation = 12
 
+[node name="CardTitle" type="Label" parent="Center/VBox/AccountCard/VBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.901961, 0.560784, 1)
+theme_override_font_sizes/font_size = 26
+theme_override_fonts/font = ExtResource("6_cinzel")
+text = "👑 Hükümdar Profili"
+
+[node name="AccountInfo" type="Label" parent="Center/VBox/AccountCard/VBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.921569, 0.898039, 0.835294, 1)
+theme_override_font_sizes/font_size = 22
+theme_override_fonts/font = ExtResource("8_nunito_semibold")
+text = "Yükleniyor..."
+autowrap_mode = 3
+
+[node name="BtnLogout" type="Button" parent="Center/VBox/AccountCard/VBox"]
+custom_minimum_size = Vector2(0, 68)
+layout_mode = 2
+theme_override_font_sizes/font_size = 24
+theme_override_fonts/font = ExtResource("7_nunito_bold")
+text = "🚪 Oturumu Kapat"
+
+[node name="ProfileRow" type="VBoxContainer" parent="Center/VBox"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
 [node name="Label" type="Label" parent="Center/VBox/ProfileRow"]
 layout_mode = 2
-theme_override_font_sizes/font_size = 28
-text = "Dünya Profili:"
+theme_override_colors/font_color = Color(0.980392, 0.878431, 0.521569, 1)
+theme_override_font_sizes/font_size = 25
+theme_override_fonts/font = ExtResource("7_nunito_bold")
+text = "🌍 Dünya Kural Profili:"
 
 [node name="Option" type="OptionButton" parent="Center/VBox/ProfileRow"]
+custom_minimum_size = Vector2(0, 74)
+layout_mode = 2
+theme_override_font_sizes/font_size = 24
+theme_override_fonts/font = ExtResource("7_nunito_bold")
+
+[node name="BtnTutorialReplay" type="Button" parent="Center/VBox"]
 custom_minimum_size = Vector2(0, 76)
 layout_mode = 2
 theme_override_font_sizes/font_size = 26
-
-[node name="Spacer" type="Control" parent="Center/VBox"]
-custom_minimum_size = Vector2(0, 24)
-layout_mode = 2
-
-[node name="BtnTutorialReplay" type="Button" parent="Center/VBox"]
-custom_minimum_size = Vector2(0, 96)
-layout_mode = 2
-theme_override_font_sizes/font_size = 28
+theme_override_fonts/font = ExtResource("7_nunito_bold")
 text = "🎓 Başlangıç Rehberini Tekrarla"
 
 [node name="BtnBack" type="Button" parent="Center/VBox"]
-custom_minimum_size = Vector2(0, 96)
+custom_minimum_size = Vector2(0, 76)
 layout_mode = 2
-theme_override_font_sizes/font_size = 28
-text = " Köye Dön"
+theme_override_font_sizes/font_size = 26
+theme_override_fonts/font = ExtResource("7_nunito_bold")
+text = "🏰 Köye Dön"
 
 [node name="BtnMainMenu" type="Button" parent="Center/VBox"]
-custom_minimum_size = Vector2(0, 96)
+custom_minimum_size = Vector2(0, 76)
 layout_mode = 2
-theme_override_font_sizes/font_size = 28
-text = " Ana Menüye Dön"
+theme_override_font_sizes/font_size = 26
+theme_override_fonts/font = ExtResource("7_nunito_bold")
+text = "🗺️ Dünya Seçimine Dön"
+
+[node name="DangerCard" type="PanelContainer" parent="Center/VBox"]
+layout_mode = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_danger_card")
+
+[node name="VBox" type="VBoxContainer" parent="Center/VBox/DangerCard"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="DangerTitle" type="Label" parent="Center/VBox/DangerCard/VBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.54, 0.50, 1)
+theme_override_font_sizes/font_size = 25
+theme_override_fonts/font = ExtResource("6_cinzel")
+text = "⚠️ Tehlikeli Bölge"
+
+[node name="DangerDesc" type="Label" parent="Center/VBox/DangerCard/VBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.94, 0.85, 0.84, 1)
+theme_override_font_sizes/font_size = 21
+theme_override_fonts/font = ExtResource("8_nunito_semibold")
+text = "Hesabınızı sildiğinizde tüm köyleriniz, binalarınız, askerleriniz, raporlarınız ve oyuncu ayarlarınız kalıcı olarak silinir. Bu işlem geri alınamaz."
+autowrap_mode = 3
+
+[node name="BtnDeleteAccount" type="Button" parent="Center/VBox/DangerCard/VBox"]
+custom_minimum_size = Vector2(0, 76)
+layout_mode = 2
+theme_override_font_sizes/font_size = 25
+theme_override_fonts/font = ExtResource("7_nunito_bold")
+text = "🗑️ Hesabı Sil"
+
+[node name="BottomNav" parent="." instance=ExtResource("3_bnav")]
+layout_mode = 1
+anchors_preset = 12
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_top = -248.0
+offset_bottom = 0.0
+grow_horizontal = 2
+grow_vertical = 0

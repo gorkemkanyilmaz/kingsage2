@@ -191,7 +191,7 @@ func login_online(provider: String, display_name: String, callback: Callable = C
 	req.request(server_url + "/api/auth/login", headers, HTTPClient.METHOD_POST, payload)
 
 
-func sync_state_from_cloud(token: String, callback: Callable = Callable()) -> void:
+func sync_state_from_cloud(token: String, callback: Callable = Callable(), req_seq: int = -1) -> void:
 	var req := HTTPRequest.new()
 	add_child(req)
 	req.timeout = 10.0
@@ -212,7 +212,7 @@ func sync_state_from_cloud(token: String, callback: Callable = Callable()) -> vo
 				if loop is SceneTree:
 					var wm = loop.root.get_node_or_null("WorldManager")
 					if wm != null and wm.has_method("apply_cloud_sync"):
-						wm.apply_cloud_sync(res_data)
+						wm.apply_cloud_sync(res_data, false, req_seq)
 
 		if callback.is_valid():
 			callback.call(success, res_data)
@@ -226,10 +226,16 @@ func sync_state_from_cloud(token: String, callback: Callable = Callable()) -> vo
 func pull_shared_world_from_cloud(callback: Callable = Callable()) -> void:
 	if auth_token.is_empty():
 		return
-	sync_state_from_cloud(auth_token, callback)
+	var req_seq := -1
+	var loop = Engine.get_main_loop()
+	if loop is SceneTree:
+		var wm = loop.root.get_node_or_null("WorldManager")
+		if wm != null and wm.get("_local_mutation_seq") != null:
+			req_seq = int(wm.get("_local_mutation_seq"))
+	sync_state_from_cloud(auth_token, callback, req_seq)
 
 
-func save_state_to_cloud(token: String, state_dict: Dictionary, callback: Callable = Callable()) -> void:
+func save_state_to_cloud(token: String, state_dict: Dictionary, callback: Callable = Callable(), req_seq: int = -1) -> void:
 	var req := HTTPRequest.new()
 	add_child(req)
 	req.timeout = 10.0
@@ -253,7 +259,7 @@ func save_state_to_cloud(token: String, state_dict: Dictionary, callback: Callab
 				if loop is SceneTree:
 					var wm = loop.root.get_node_or_null("WorldManager")
 					if wm != null and wm.has_method("apply_cloud_sync"):
-						wm.apply_cloud_sync(res_data, true)
+						wm.apply_cloud_sync(res_data, true, req_seq)
 		if callback.is_valid():
 			callback.call(success)
 		if success and not res_data.is_empty():
@@ -262,6 +268,42 @@ func save_state_to_cloud(token: String, state_dict: Dictionary, callback: Callab
 	)
 
 	req.request(server_url + "/api/game/save", headers, HTTPClient.METHOD_POST, payload)
+
+
+func delete_account_online(callback: Callable = Callable()) -> void:
+	var loop = Engine.get_main_loop()
+	var auth = loop.root.get_node_or_null("AuthManager") if loop is SceneTree else null
+	var token: String = auth_token
+	if token.is_empty() and auth != null:
+		token = str(auth.auth_token)
+	if token.is_empty() or not is_cloud_sync_enabled():
+		auth_token = ""
+		if callback.is_valid():
+			callback.call(true, {"ok": true, "local_only": true})
+		return
+
+	var req := HTTPRequest.new()
+	add_child(req)
+	req.timeout = 15.0
+	var headers := PackedStringArray([
+		"Content-Type: application/json",
+		"Authorization: Bearer " + token,
+	])
+	req.request_completed.connect(func(result: int, response_code: int, _hdrs: PackedStringArray, body: PackedByteArray):
+		var ok := (result == HTTPRequest.RESULT_SUCCESS and (response_code == 200 or response_code == 401 or response_code == 404))
+		var res_json := {}
+		var json_str := body.get_string_from_utf8()
+		var test_json := JSON.new()
+		if not json_str.is_empty() and test_json.parse(json_str) == OK and typeof(test_json.data) == TYPE_DICTIONARY:
+			res_json = test_json.data
+		res_json["_http_code"] = response_code
+		if ok:
+			auth_token = ""
+		if callback.is_valid():
+			callback.call(ok, res_json)
+		req.queue_free()
+	)
+	req.request(server_url + "/api/account/delete", headers, HTTPClient.METHOD_POST, "{}")
 
 
 # =============================================================================

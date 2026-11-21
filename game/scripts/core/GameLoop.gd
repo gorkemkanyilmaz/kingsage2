@@ -268,14 +268,42 @@ func _emit_events(events: Array) -> void:
 		match str(ev.get("type", "")):
 			"building_completed":
 				bus.building_completed.emit(vid, str(ev.get("key", "")), int(ev.get("level", 0)))
+				var wm_bc := _autoload("WorldManager")
+				if wm_bc != null:
+					if wm_bc.has_method("notify_local_mutation"):
+						wm_bc.call("notify_local_mutation")
+					if wm_bc.has_method("save_active_world"):
+						wm_bc.call("save_active_world", true)
+				bus.state_changed.emit()
 			"building_torn_down":
 				bus.building_torn_down.emit(vid, str(ev.get("key", "")))
+				var wm_td := _autoload("WorldManager")
+				if wm_td != null:
+					if wm_td.has_method("notify_local_teardown"):
+						wm_td.call("notify_local_teardown", vid, str(ev.get("key", "")))
+					if wm_td.has_method("save_active_world"):
+						wm_td.call("save_active_world", true)
+				bus.state_changed.emit()
 			"realm_of_power_changed":
 				bus.realm_of_power_changed.emit(vid, int(ev.get("value", 0)))
 			"research_completed":
 				bus.research_completed.emit(vid, str(ev.get("unit_key", ev.get("key", ""))))
+				var wm_rc := _autoload("WorldManager")
+				if wm_rc != null:
+					if wm_rc.has_method("notify_local_mutation"):
+						wm_rc.call("notify_local_mutation")
+					if wm_rc.has_method("save_active_world"):
+						wm_rc.call("save_active_world", true)
+				bus.state_changed.emit()
 			"unit_trained", "training_completed":
 				bus.unit_trained.emit(vid, str(ev.get("unit_key", ev.get("key", ""))), int(ev.get("count", 0)))
+				var wm_ut := _autoload("WorldManager")
+				if wm_ut != null:
+					if wm_ut.has_method("notify_local_mutation"):
+						wm_ut.call("notify_local_mutation")
+					if wm_ut.has_method("save_active_world"):
+						wm_ut.call("save_active_world")
+				bus.state_changed.emit()
 			"village_conquered":
 				bus.village_conquered.emit(vid, str(ev.get("owner", "")))
 				bus.state_changed.emit()

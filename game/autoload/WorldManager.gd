@@ -37,15 +37,28 @@ const CLOUD_POLL_INTERVAL_SEC := 8.0
 var _cloud_poll_accum: float = 0.0
 var _cloud_poll_in_flight: bool = false
 var _last_local_mutation_unix: int = 0
+var _local_mutation_seq: int = 0
+var _last_cloud_save_seq: int = 0
+var _recent_teardown_until_unix: int = 0
 var _wallet_lock_until_unix: int = 0
 var _is_applying_cloud_sync: bool = false
 var _suppress_reset_save: bool = false
 var suppress_auto_conquered_prompt: bool = false
 
 
+func notify_local_mutation() -> void:
+	_local_mutation_seq += 1
+	_last_local_mutation_unix = int(Time.get_unix_time_from_system())
+
+
+func notify_local_teardown(_vid: int = -1, _key: String = "") -> void:
+	notify_local_mutation()
+	_recent_teardown_until_unix = int(Time.get_unix_time_from_system()) + 30
+
+
 func notify_local_wallet_mutation() -> void:
+	notify_local_mutation()
 	var now := int(Time.get_unix_time_from_system())
-	_last_local_mutation_unix = now
 	_wallet_lock_until_unix = now + 12
 
 
@@ -64,6 +77,16 @@ func _ready() -> void:
 			bus.state_changed.connect(_on_state_changed_autosave)
 		if bus.has_signal("village_conquered") and not bus.village_conquered.is_connected(_on_village_conquered_signal):
 			bus.village_conquered.connect(_on_village_conquered_signal)
+		if bus.has_signal("building_started") and not bus.building_started.is_connected(_on_building_progress_event):
+			bus.building_started.connect(_on_building_progress_event)
+		if bus.has_signal("building_completed") and not bus.building_completed.is_connected(_on_building_completed_event):
+			bus.building_completed.connect(_on_building_completed_event)
+		if bus.has_signal("building_torn_down") and not bus.building_torn_down.is_connected(_on_building_torndown_event):
+			bus.building_torn_down.connect(_on_building_torndown_event)
+		if bus.has_signal("research_completed") and not bus.research_completed.is_connected(_on_research_completed_event):
+			bus.research_completed.connect(_on_research_completed_event)
+		if bus.has_signal("unit_trained") and not bus.unit_trained.is_connected(_on_building_progress_event):
+			bus.unit_trained.connect(_on_building_progress_event)
 
 
 func _check_client_reset_epoch() -> void:
@@ -132,11 +155,47 @@ func _notification(what: int) -> void:
 			save_active_world()
 
 
+func _on_building_progress_event(_a = null, _b = null, _c = null) -> void:
+	if _is_applying_cloud_sync or _suppress_reset_save:
+		return
+	notify_local_mutation()
+
+
+func _on_building_completed_event(_vid = -1, _key: String = "", _lvl: int = 0) -> void:
+	if _is_applying_cloud_sync or _suppress_reset_save:
+		return
+	notify_local_mutation()
+	var gs = _find_game_state()
+	if gs != null and gs.has_active_village():
+		_last_autosave_unix = int(Time.get_unix_time_from_system())
+		save_active_world(true)
+
+
+func _on_building_torndown_event(vid: int = -1, key: String = "") -> void:
+	if _is_applying_cloud_sync or _suppress_reset_save:
+		return
+	notify_local_teardown(vid, key)
+	var gs = _find_game_state()
+	if gs != null and gs.has_active_village():
+		_last_autosave_unix = int(Time.get_unix_time_from_system())
+		save_active_world(true)
+
+
+func _on_research_completed_event(_vid = -1, _key: String = "") -> void:
+	if _is_applying_cloud_sync or _suppress_reset_save:
+		return
+	notify_local_mutation()
+	var gs = _find_game_state()
+	if gs != null and gs.has_active_village():
+		_last_autosave_unix = int(Time.get_unix_time_from_system())
+		save_active_world(true)
+
+
 func _on_state_changed_autosave() -> void:
 	if _is_applying_cloud_sync or _suppress_reset_save:
 		return
+	notify_local_mutation()
 	var now := int(Time.get_unix_time_from_system())
-	_last_local_mutation_unix = now
 	var gs = _find_game_state()
 	if gs != null and gs.has_active_village():
 		var force_cloud := (now - _last_autosave_unix >= 2)
@@ -1347,7 +1406,8 @@ func save_active_world(force_cloud: bool = false) -> bool:
 		var net = Engine.get_main_loop().root.get_node_or_null("NetworkManager")
 		if net != null and not str(net.auth_token).is_empty() and (force_cloud or (now - _last_cloud_save_unix) >= 2):
 			_last_cloud_save_unix = now
-			net.save_state_to_cloud(net.auth_token, w_data)
+			_last_cloud_save_seq = _local_mutation_seq
+			net.save_state_to_cloud(net.auth_token, w_data, Callable(), _local_mutation_seq)
 	return ok
 
 
@@ -1442,22 +1502,102 @@ func _preserve_monotonic_progress_from_local(target_w: Dictionary, local_w: Dict
 	_apply_report_sigs_to_state(t_state, p_name)
 
 
-func _merge_shared_world_data(local_w: Dictionary, cloud_w: Dictionary, p_name: String, local_ts: int, cloud_ts: int, from_save_response: bool) -> Dictionary:
-	if local_w.is_empty() or not has_player_village(int(cloud_w.get("world_id", 1)), p_name):
+func _preserve_own_village_progress_from_local(target_w: Dictionary, local_w: Dictionary, p_name: String) -> void:
+	if target_w.is_empty() or local_w.is_empty():
+		return
+	var t_state: Dictionary = target_w.get("state", {}) if typeof(target_w.get("state")) == TYPE_DICTIONARY else {}
+	var l_state: Dictionary = local_w.get("state", {}) if typeof(local_w.get("state")) == TYPE_DICTIONARY else {}
+	var t_villages: Array = t_state.get("villages", []) if typeof(t_state.get("villages")) == TYPE_ARRAY else []
+	var l_villages: Array = l_state.get("villages", []) if typeof(l_state.get("villages")) == TYPE_ARRAY else []
+	if t_villages.is_empty() or l_villages.is_empty():
+		return
+
+	var l_by_id: Dictionary = {}
+	for lv in l_villages:
+		if _is_real_player_village_dict(lv) and _matches_player(str((lv as Dictionary).get("owner", "")), p_name):
+			l_by_id[int((lv as Dictionary).get("id", 0))] = lv as Dictionary
+
+	var now_u := int(Time.get_unix_time_from_system())
+	var teardown_active := (now_u < _recent_teardown_until_unix)
+	var protected_buildings: Dictionary = {}
+
+	for tv in t_villages:
+		if not (_is_real_player_village_dict(tv) and _matches_player(str((tv as Dictionary).get("owner", "")), p_name)):
+			continue
+		var tvd := tv as Dictionary
+		var vid := int(tvd.get("id", 0))
+		if not l_by_id.has(vid):
+			continue
+		var lvd: Dictionary = l_by_id[vid]
+
+		if not teardown_active and typeof(lvd.get("buildings")) == TYPE_DICTIONARY:
+			var lb: Dictionary = lvd["buildings"]
+			if typeof(tvd.get("buildings")) != TYPE_DICTIONARY:
+				tvd["buildings"] = {}
+			var tb: Dictionary = tvd["buildings"]
+			for bk in lb.keys():
+				var l_lvl := int(lb.get(bk, 0))
+				var t_lvl := int(tb.get(bk, 0))
+				if l_lvl > t_lvl:
+					tb[bk] = l_lvl
+					if not protected_buildings.has(vid):
+						protected_buildings[vid] = {}
+					(protected_buildings[vid] as Dictionary)[str(bk)] = l_lvl
+			tvd["points"] = maxi(int(tvd.get("points", 0)), int(lvd.get("points", 0)))
+
+		var l_nu := int(lvd.get("name_updated_unix", 0))
+		var t_nu := int(tvd.get("name_updated_unix", 0))
+		var l_ns := int(lvd.get("name_edit_seq", 0))
+		var t_ns := int(tvd.get("name_edit_seq", 0))
+		var l_name := str(lvd.get("name", "")).strip_edges()
+		if not l_name.is_empty() and (l_nu > t_nu or (l_nu == t_nu and l_ns > t_ns)):
+			tvd["name"] = l_name
+			tvd["name_updated_unix"] = l_nu
+			tvd["name_edit_seq"] = l_ns
+
+	if not protected_buildings.is_empty() and typeof(t_state.get("queues")) == TYPE_ARRAY:
+		var cleaned_q: Array = []
+		for q in (t_state["queues"] as Array):
+			if typeof(q) == TYPE_DICTIONARY and str((q as Dictionary).get("type", "")) == "build":
+				var qd := q as Dictionary
+				var q_vid := int(qd.get("village_id", -1))
+				var q_key := str(qd.get("key", ""))
+				if protected_buildings.has(q_vid) and (protected_buildings[q_vid] as Dictionary).has(q_key):
+					var min_done := int((protected_buildings[q_vid] as Dictionary)[q_key])
+					if int(qd.get("target_level", 0)) <= min_done:
+						continue
+			cleaned_q.append(q)
+		t_state["queues"] = cleaned_q
+
+
+func _merge_shared_world_data(local_w: Dictionary, cloud_w: Dictionary, p_name: String, local_ts: int, cloud_ts: int, from_save_response: bool, req_seq: int = -1) -> Dictionary:
+	var has_newer_local_mutation := (req_seq >= 0 and _local_mutation_seq > req_seq)
+	var local_has_v := false
+	var l_chk_villages: Variant = local_w.get("state", {}).get("villages", []) if typeof(local_w.get("state")) == TYPE_DICTIONARY else []
+	if typeof(l_chk_villages) == TYPE_ARRAY:
+		for lv_chk in (l_chk_villages as Array):
+			if _is_real_player_village_dict(lv_chk) and _matches_player(str((lv_chk as Dictionary).get("owner", "")), p_name):
+				local_has_v = true
+				break
+
+	if local_w.is_empty() or not (local_has_v or has_player_village(int(cloud_w.get("world_id", 1)), p_name)):
 		var out_c := cloud_w.duplicate(true)
 		_preserve_monotonic_progress_from_local(out_c, local_w, p_name, true)
+		_preserve_own_village_progress_from_local(out_c, local_w, p_name)
 		return out_c
 
 	# Eğer sunucu bu kaydedişten hemen sonra döndüyse ve yerel ekstra mutasyon olmadıysa sunucunun ortak dünyası kanoniktir.
-	if from_save_response and _last_local_mutation_unix <= _last_cloud_save_unix:
+	if from_save_response and not has_newer_local_mutation and _last_local_mutation_unix <= _last_cloud_save_unix:
 		var out_s := cloud_w.duplicate(true)
 		_preserve_monotonic_progress_from_local(out_s, local_w, p_name, true)
+		_preserve_own_village_progress_from_local(out_s, local_w, p_name)
 		return out_s
 
-	# Yerel değişiklik sunucudan eskiyse veya eşitse doğrudan ortak dünyayı al (ama monotonik ilerlemeyi ve rapor sig'lerini koru).
-	if cloud_ts >= local_ts and not from_save_response:
+	# Yerel değişiklik sunucudan eskiyse veya eşitse doğrudan ortak dünyayı al (ama monotonik ilerlemeyi ve bina/isim/rapor sig'lerini koru).
+	if cloud_ts >= local_ts and not from_save_response and not has_newer_local_mutation:
 		var out_newer := cloud_w.duplicate(true)
 		_preserve_monotonic_progress_from_local(out_newer, local_w, p_name, true)
+		_preserve_own_village_progress_from_local(out_newer, local_w, p_name)
 		return out_newer
 
 	# Yerel durum sunucudan daha yeni ise: ortak dünyadaki diğer oyuncuları/ittifakları/mesajları al, kendi köylerimizi ve kuyruklarımızı koru!
@@ -1767,7 +1907,9 @@ func _live_sync_game_state_from_world(merged_w: Dictionary, p_name: String) -> v
 		maybe_show_conquered_modal_for_current_scene(w_id, p_name)
 
 
-func apply_cloud_sync(res_data: Dictionary, from_save_response: bool = false) -> bool:
+func apply_cloud_sync(res_data: Dictionary, from_save_response: bool = false, req_seq: int = -1) -> bool:
+	if _suppress_reset_save:
+		return false
 	var loop = Engine.get_main_loop()
 	var auth = loop.root.get_node_or_null("AuthManager") if loop is SceneTree else null
 	var raw_name: String = str(auth.display_name) if (auth != null and not str(auth.display_name).is_empty()) else str(res_data.get("display_name", "Lord Gorkem"))
@@ -1815,7 +1957,24 @@ func apply_cloud_sync(res_data: Dictionary, from_save_response: bool = false) ->
 		var local_ts := int(local_w.get("last_saved_unix", 0))
 		var cloud_ts := int(cloud_w.get("last_saved_unix", res_data.get("updated_unix", 0)))
 
-		var merged_w := _merge_shared_world_data(local_w, cloud_w, p_name, local_ts, cloud_ts, from_save_response)
+		# Anlık RAM GameState verisini yerel snapshot'a bindir ki az önce yapılan yükseltme/isim değişikliği disk gecikmesi yüzünden ezilmesin
+		var effective_local_w := local_w.duplicate(true)
+		var effective_local_ts := local_ts
+		if gs_sync != null and gs_sync.has_active_village() and w_id == current_world_id:
+			if effective_local_w.is_empty():
+				effective_local_w = {
+					"world_id": w_id,
+					"world_name": "Dünya %d" % w_id,
+					"seed": BASE_SEED + w_id,
+					"last_saved_unix": int(Time.get_unix_time_from_system()),
+					"registered_real_players": [p_name],
+					"state": gs_sync.to_dict(),
+				}
+			else:
+				effective_local_w["state"] = gs_sync.to_dict()
+			effective_local_ts = maxi(local_ts, _last_local_mutation_unix)
+
+		var merged_w := _merge_shared_world_data(effective_local_w, cloud_w, p_name, effective_local_ts, cloud_ts, from_save_response, req_seq)
 		_deduplicate_player_starter_villages(merged_w)
 		_enforce_min_village_distance(merged_w)
 		save_world_dict(w_id, merged_w)
@@ -1836,11 +1995,13 @@ func apply_cloud_sync(res_data: Dictionary, from_save_response: bool = false) ->
 			if res_data.has("diamonds") or res_data.has("scrolls"):
 				gs_sync._emit_state_changed()
 
-		if not from_save_response and local_has and local_ts > cloud_ts and _cloud_enabled() and loop is SceneTree:
+		var has_newer_mut := (req_seq >= 0 and _local_mutation_seq > req_seq)
+		if (not from_save_response or has_newer_mut) and local_has and (effective_local_ts > cloud_ts or has_newer_mut) and _cloud_enabled() and loop is SceneTree:
 			var net = loop.root.get_node_or_null("NetworkManager")
 			if net != null and not str(net.auth_token).is_empty():
 				_last_cloud_save_unix = int(Time.get_unix_time_from_system())
-				net.save_state_to_cloud(net.auth_token, merged_w)
+				_last_cloud_save_seq = _local_mutation_seq
+				net.save_state_to_cloud(net.auth_token, merged_w, Callable(), _local_mutation_seq)
 		return true
 
 	var sv = res_data.get("server_village", null)
@@ -2186,4 +2347,82 @@ func _find_game_state() -> Node:
 			game_state = p_node
 			return p_node
 	return null
+
+
+func wipe_all_local_data() -> void:
+	_suppress_reset_save = true
+	_cloud_poll_in_flight = false
+	_cloud_poll_accum = 0.0
+	_local_mutation_seq += 1000
+	_last_cloud_save_seq = _local_mutation_seq
+	_last_local_mutation_unix = 0
+	_last_cloud_save_unix = 0
+	_last_autosave_unix = 0
+	_wallet_lock_until_unix = 0
+	_recent_teardown_until_unix = 0
+	suppress_auto_conquered_prompt = true
+
+	if DirAccess.dir_exists_absolute(WORLDS_DIR):
+		var d := DirAccess.open(WORLDS_DIR)
+		if d != null:
+			d.list_dir_begin()
+			var fname := d.get_next()
+			while fname != "":
+				if not d.current_is_dir():
+					DirAccess.remove_absolute(ProjectSettings.globalize_path(WORLDS_DIR.path_join(fname)))
+				fname = d.get_next()
+			d.list_dir_end()
+
+	for path in [
+		META_FILE,
+		"user://savegame.json",
+		"user://taht_ve_kilic_save.json",
+		"user://taht_ve_kilic_config.json",
+		"user://auth_session.json",
+		"user://account_profiles.json",
+	]:
+		if FileAccess.file_exists(path):
+			DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
+
+	if OS.has_feature("web"):
+		JavaScriptBridge.eval("""
+(function(){
+  try {
+    var keys = [];
+    for (var i = 0; i < window.localStorage.length; i++) {
+      var k = window.localStorage.key(i);
+      if (k && k.indexOf('tvk_') === 0 && k !== 'tvk_client_reset_epoch') {
+        keys.push(k);
+      }
+    }
+    keys.forEach(function(k){ window.localStorage.removeItem(k); });
+    if (typeof FS !== 'undefined' && FS.syncfs) { FS.syncfs(false, function(){}); }
+  } catch(e) {}
+})();
+""", true)
+
+	var cfg := _find_autoload("GameConfig")
+	if cfg != null and cfg.has_method("apply_profile"):
+		cfg.call("apply_profile", "tr")
+
+	var tut := _find_autoload("TutorialManager")
+	if tut != null:
+		tut.set("_active", false)
+		tut.set("_shown_step", -1)
+		tut.set("_shown_substate", "")
+		tut.set("_victory_reward_granted", false)
+		if tut.has_method("_set_overlay_visible"):
+			tut.call("_set_overlay_visible", false)
+
+	var net := _find_autoload("NetworkManager")
+	if net != null:
+		net.auth_token = ""
+
+	var gs = _find_game_state()
+	if gs != null and gs.has_method("reset"):
+		gs.reset()
+
+	reset_all_worlds()
+	suppress_auto_conquered_prompt = false
+	_suppress_reset_save = false
 

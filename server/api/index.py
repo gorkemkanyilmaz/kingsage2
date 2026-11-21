@@ -1763,6 +1763,28 @@ def merge_world_state(server_w: Optional[Dict[str, Any]], client_raw: Dict[str, 
         if is_act_v:
             if vid in remapped_preserve_server and s_v is not None:
                 continue
+            # Bayat client kaydı veya sunucudaki daha yüksek bina seviyesi / daha yeni köy ismi korunur
+            if s_v is not None and isinstance(s_v, dict):
+                s_blds = s_v.get("buildings") if isinstance(s_v.get("buildings"), dict) else {}
+                c_blds = c_v.get("buildings") if isinstance(c_v.get("buildings"), dict) else {}
+                c_teardown = int(c_v.get("teardown_unix", 0) or 0) > int(s_v.get("teardown_unix", 0) or 0)
+                if c_last < s_last and not c_teardown and isinstance(s_blds, dict):
+                    merged_blds = dict(c_blds)
+                    for bk, sv_lvl in s_blds.items():
+                        sv_i = int(sv_lvl or 0)
+                        cv_i = int(merged_blds.get(bk, 0) or 0)
+                        if sv_i > cv_i:
+                            merged_blds[bk] = sv_i
+                    c_v["buildings"] = merged_blds
+                    c_v["points"] = max(int(c_v.get("points", 0) or 0), int(s_v.get("points", 0) or 0))
+                s_nu = int(s_v.get("name_updated_unix", 0) or 0)
+                c_nu = int(c_v.get("name_updated_unix", 0) or 0)
+                s_ns = int(s_v.get("name_edit_seq", 0) or 0)
+                c_ns = int(c_v.get("name_edit_seq", 0) or 0)
+                if (s_nu > c_nu or (s_nu == c_nu and s_ns > c_ns)) and str(s_v.get("name", "")).strip():
+                    c_v["name"] = s_v["name"]
+                    c_v["name_updated_unix"] = s_nu
+                    c_v["name_edit_seq"] = s_ns
             # Aktif oyuncunun kendi köyü (veya fethettiği köy): henüz client'ın görmediği sunucu savaşlarını koru
             if vid in unseen_server_battles_by_vid:
                 v_units = dict(c_v.get("units") or {})
@@ -3447,6 +3469,23 @@ def store_use_scroll(req: UseScrollRequest, user: Dict[str, Any] = Depends(get_c
                             pool -= rem_s
                             saved += rem_s
                             changed_ws = True
+                    # Tamamlanan inşaat kuyruğu öğelerini sunucu köy binalarına da yansıt ki yarışta seviye düşmesin
+                    if cat == "build":
+                        completed_qs = [q for q in matching_q if int(q.get("finish_unix", now + 1) or (now + 1)) <= now]
+                        if completed_qs:
+                            completed_ids = {id(q) for q in completed_qs}
+                            for cq in completed_qs:
+                                q_key = str(cq.get("key", "") or "")
+                                tgt_lvl = int(cq.get("target_level", 0) or 0)
+                                for sv in (state.get("villages") or []):
+                                    if isinstance(sv, dict) and int(sv.get("id", -1) or -1) == target_vid:
+                                        sblds = sv.setdefault("buildings", {})
+                                        if q_key and isinstance(sblds, dict):
+                                            cur_l = int(sblds.get(q_key, 0) or 0)
+                                            next_l = tgt_lvl if tgt_lvl > cur_l else (cur_l + 1)
+                                            sblds[q_key] = max(cur_l, next_l)
+                                        break
+                            state["queues"] = [q for q in (state.get("queues") or []) if id(q) not in completed_ids]
             if changed_ws:
                 w_data["last_saved_unix"] = now
                 cursor.execute(
@@ -3902,3 +3941,176 @@ def oauth_poll(session: str = Query(...)):
     except Exception:
         data = {}
     return {"ok": True, "status": row["status"], "provider": row["provider"], "data": data}
+
+
+def _wipe_player_from_world_state(w_data: Dict[str, Any], norm_p: str) -> Dict[str, Any]:
+    if not isinstance(w_data, dict):
+        return w_data
+    state = w_data.get("state")
+    if not isinstance(state, dict):
+        return w_data
+
+    owned_vids = set()
+    kept_villages = []
+    for v in (state.get("villages") or []):
+        if isinstance(v, dict) and _is_real_player_village(v) and _matches_player(str(v.get("owner", "")), norm_p):
+            try:
+                owned_vids.add(int(v.get("id", 0) or 0))
+            except Exception:
+                pass
+            continue
+        kept_villages.append(v)
+    state["villages"] = kept_villages
+    _rebuild_tiles(state)
+
+    if isinstance(state.get("queues"), list):
+        state["queues"] = [
+            q for q in state["queues"]
+            if not (isinstance(q, dict) and int(q.get("village_id", 0) or 0) in owned_vids)
+        ]
+
+    if isinstance(state.get("movements"), list):
+        kept_movs = []
+        for m in state["movements"]:
+            if not isinstance(m, dict):
+                continue
+            m_owner = str(m.get("owner", "") or "").strip()
+            m_vid = int(m.get("village_id", 0) or 0)
+            fv = int(m.get("from_village_id", 0) or 0)
+            tv = int(m.get("to_village_id", 0) or 0)
+            is_ret = (str(m.get("state", "")) == "returning" or str(m.get("type", "")) == "return")
+            belongs = (
+                (m_owner and _matches_player(m_owner, norm_p))
+                or m_vid in owned_vids
+                or (not is_ret and fv in owned_vids)
+                or (is_ret and tv in owned_vids)
+            )
+            if not belongs:
+                kept_movs.append(m)
+        state["movements"] = kept_movs
+
+    if isinstance(state.get("reports"), list):
+        kept_reps = []
+        for rep in state["reports"]:
+            if not isinstance(rep, dict):
+                continue
+            r_vid = int(rep.get("village_id", 0) or 0)
+            if r_vid in owned_vids:
+                continue
+            kept_reps.append(rep)
+        state["reports"] = kept_reps
+
+    if isinstance(state.get("messages"), list):
+        kept_msgs = []
+        for msg in state["messages"]:
+            if not isinstance(msg, dict):
+                continue
+            fn = str(msg.get("from", msg.get("from_name", "")) or "")
+            tn = str(msg.get("to", msg.get("to_name", "")) or "")
+            if _matches_player(fn, norm_p) or _matches_player(tn, norm_p):
+                continue
+            kept_msgs.append(msg)
+        state["messages"] = kept_msgs
+
+    if isinstance(state.get("alliances"), list):
+        kept_alliances = []
+        for a in state["alliances"]:
+            if not isinstance(a, dict):
+                continue
+            mems = [
+                m for m in (a.get("members") or [])
+                if not (isinstance(m, dict) and _matches_player(str(m.get("name", "")), norm_p))
+            ]
+            if not mems:
+                continue
+            a["members"] = mems
+            if _matches_player(str(a.get("leader", "")), norm_p):
+                a["leader"] = str(mems[0].get("name", ""))
+                mems[0]["rank"] = "leader"
+            if isinstance(a.get("invitations"), list):
+                a["invitations"] = [
+                    inv for inv in a["invitations"]
+                    if not (isinstance(inv, dict) and _matches_player(str(inv.get("player_name", "")), norm_p))
+                ]
+            kept_alliances.append(a)
+        state["alliances"] = kept_alliances
+
+    w_dict = state.get("world")
+    if isinstance(w_dict, dict):
+        profs = w_dict.get("player_profiles")
+        if isinstance(profs, dict):
+            for pk in [k for k in profs.keys() if _matches_player(str(k), norm_p)]:
+                profs.pop(pk, None)
+        psb = w_dict.get("player_starter_boost")
+        if isinstance(psb, dict):
+            for bk in [k for k in psb.keys() if _matches_player(str(k), norm_p)]:
+                psb.pop(bk, None)
+
+    reg_players = w_data.get("registered_real_players")
+    if isinstance(reg_players, list):
+        w_data["registered_real_players"] = [
+            rp for rp in reg_players if not _matches_player(str(rp), norm_p)
+        ]
+    return w_data
+
+
+@app.post("/api/account/delete")
+def delete_account(user: Dict[str, Any] = Depends(get_current_user)):
+    now = int(time.time())
+    uid = str(user["id"])
+    dname = str(user.get("display_name") or "").strip()
+    norm_p = _norm_p_name(dname)
+    name_variants = list(_name_variants(dname)) or ([norm_p] if norm_p else [])
+
+    conn = get_db()
+    with conn:
+        cursor = conn.cursor()
+        ensure_cloud_saves_table(cursor, conn.is_pg)
+
+        cursor.execute("DELETE FROM cloud_saves WHERE user_id = ?", (uid,))
+        cursor.execute("DELETE FROM queues WHERE user_id = ?", (uid,))
+        cursor.execute("DELETE FROM movements WHERE user_id = ?", (uid,))
+        cursor.execute("DELETE FROM villages WHERE user_id = ?", (uid,))
+        cursor.execute("DELETE FROM iap_transactions WHERE user_id = ?", (uid,))
+
+        for nm in name_variants:
+            cursor.execute("DELETE FROM villages WHERE LOWER(owner) = LOWER(?) AND is_bot = 0", (nm,))
+            cursor.execute("DELETE FROM reports WHERE LOWER(user_name) = LOWER(?)", (nm,))
+            cursor.execute("DELETE FROM messages WHERE LOWER(from_name) = LOWER(?) OR LOWER(to_name) = LOWER(?)", (nm, nm))
+            cursor.execute("DELETE FROM alliance_invitations WHERE LOWER(user_name) = LOWER(?) OR LOWER(invited_by) = LOWER(?)", (nm, nm))
+            cursor.execute("DELETE FROM alliance_members WHERE LOWER(user_name) = LOWER(?)", (nm,))
+
+        if name_variants:
+            cursor.execute("SELECT id, leader_name, founder_name FROM alliances")
+            for ar in cursor.fetchall():
+                ar_d = dict(ar)
+                if _matches_player(str(ar_d.get("leader_name") or ""), norm_p) or _matches_player(str(ar_d.get("founder_name") or ""), norm_p):
+                    aid = ar_d["id"]
+                    cursor.execute("SELECT user_name FROM alliance_members WHERE alliance_id = ? ORDER BY joined_unix ASC LIMIT 1", (aid,))
+                    next_m = cursor.fetchone()
+                    if next_m:
+                        next_leader = str(next_m["user_name"])
+                        cursor.execute("UPDATE alliances SET leader_name = ? WHERE id = ?", (next_leader, aid))
+                        cursor.execute("UPDATE alliance_members SET rank = 'leader' WHERE alliance_id = ? AND user_name = ?", (aid, next_leader))
+                    else:
+                        cursor.execute("DELETE FROM alliance_invitations WHERE alliance_id = ?", (aid,))
+                        cursor.execute("DELETE FROM alliances WHERE id = ?", (aid,))
+
+        cursor.execute("SELECT world_id, state_json FROM world_states ORDER BY world_id ASC")
+        for ws in cursor.fetchall():
+            wid = int(ws["world_id"])
+            try:
+                w_data = json.loads(ws["state_json"])
+            except Exception:
+                continue
+            cleaned_w = _wipe_player_from_world_state(w_data, norm_p)
+            cleaned_w["last_saved_unix"] = now
+            cursor.execute(
+                "UPDATE world_states SET state_json = ?, updated_unix = ? WHERE world_id = ?",
+                (json.dumps(cleaned_w, ensure_ascii=False), now, wid),
+            )
+
+        cursor.execute("DELETE FROM users WHERE id = ?", (uid,))
+        _sync_worlds_table_from_states(cursor, now)
+
+    return {"ok": True, "deleted": True}

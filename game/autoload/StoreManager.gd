@@ -730,6 +730,9 @@ func _apply_scroll_to_village_queue(gs: Node, scroll_id: String, category: Strin
 	if total_reduced <= 0 and not any_completed:
 		return {"ok": false, "error": "Kısaltılacak süre bulunamadı."}
 
+	var wm_mut := _autoload("WorldManager")
+	if wm_mut != null and wm_mut.has_method("notify_local_mutation"):
+		wm_mut.call("notify_local_mutation")
 	_consume_scroll(gs, scroll_id, category, target_id, active_vid)
 	if any_completed:
 		_trigger_simulation(gs, now)
