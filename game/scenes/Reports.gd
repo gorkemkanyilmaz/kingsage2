@@ -102,6 +102,10 @@ func _ready() -> void:
 	_ensure_report_toolbar()
 	_setup_tabs()
 	_setup_composer()
+	var gc_util := preload("res://autoload/GameConfig.gd")
+	gc_util.attach_mobile_keyboard_dismiss(recipient_input)
+	gc_util.attach_mobile_keyboard_dismiss(subject_input)
+	gc_util.attach_mobile_keyboard_dismiss(body_input)
 
 	if detail_panel != null:
 		detail_panel.hide()

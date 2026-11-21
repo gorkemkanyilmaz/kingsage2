@@ -67,15 +67,18 @@ func check_server(callback: Callable = Callable()) -> void:
 	req.request(server_url + "/api/health")
 
 
-func check_account_online(provider: String, email: String, provider_uid: String, callback: Callable = Callable()) -> void:
+func check_account_online(provider: String, email: String, provider_uid: String, callback: Callable = Callable(), _retry_count: int = 0, identity_token: String = "") -> void:
 	var req := HTTPRequest.new()
 	add_child(req)
-	req.timeout = 8.0
-	var payload := JSON.stringify({
+	req.timeout = 18.0
+	var payload_dict := {
 		"provider": provider,
 		"email": email.strip_edges(),
 		"provider_uid": provider_uid.strip_edges(),
-	})
+	}
+	if not identity_token.strip_edges().is_empty():
+		payload_dict["identity_token"] = identity_token.strip_edges()
+	var payload := JSON.stringify(payload_dict)
 	var headers := ["Content-Type: application/json"]
 	req.request_completed.connect(func(result: int, response_code: int, _hdrs: PackedStringArray, body: PackedByteArray):
 		var success := (result == HTTPRequest.RESULT_SUCCESS and response_code == 200)
@@ -87,6 +90,13 @@ func check_account_online(provider: String, email: String, provider_uid: String,
 		res_data["_http_code"] = response_code
 		if success:
 			is_server_reachable = true
+		elif response_code != 400 and response_code != 403 and response_code != 404 and _retry_count < 1 and is_inside_tree():
+			req.queue_free()
+			get_tree().create_timer(0.8).timeout.connect(func():
+				if is_inside_tree():
+					check_account_online(provider, email, provider_uid, callback, _retry_count + 1, identity_token)
+			)
+			return
 		if callback.is_valid():
 			callback.call(success, res_data)
 		req.queue_free()
@@ -97,10 +107,11 @@ func check_account_online(provider: String, email: String, provider_uid: String,
 func login_online(provider: String, display_name: String, callback: Callable = Callable(), _retry_count: int = 0, explicit_email: String = "", explicit_uid: String = "") -> void:
 	var req := HTTPRequest.new()
 	add_child(req)
-	req.timeout = 10.0
+	req.timeout = 20.0
 
 	var auth_email := explicit_email.strip_edges()
 	var auth_uid := explicit_uid.strip_edges()
+	var auth_id_tok := ""
 	var loop_pre = Engine.get_main_loop()
 	if loop_pre is SceneTree:
 		var auth_pre = loop_pre.root.get_node_or_null("AuthManager")
@@ -109,6 +120,8 @@ func login_online(provider: String, display_name: String, callback: Callable = C
 				auth_email = str(auth_pre.email).strip_edges()
 			if auth_uid.is_empty():
 				auth_uid = str(auth_pre.user_id).strip_edges()
+			if auth_pre.get("identity_token") != null:
+				auth_id_tok = str(auth_pre.get("identity_token")).strip_edges()
 
 	var payload_dict := {
 		"provider": provider,
@@ -118,6 +131,8 @@ func login_online(provider: String, display_name: String, callback: Callable = C
 		payload_dict["email"] = auth_email
 	if not auth_uid.is_empty():
 		payload_dict["provider_uid"] = auth_uid
+	if not auth_id_tok.is_empty():
+		payload_dict["identity_token"] = auth_id_tok
 	var payload := JSON.stringify(payload_dict)
 
 	var headers := ["Content-Type: application/json"]
@@ -152,6 +167,8 @@ func login_online(provider: String, display_name: String, callback: Callable = C
 					elif not auth_email.is_empty():
 						auth.email = auth_email
 					auth.save_session()
+					if auth.has_method("_cache_known_account"):
+						auth.call("_cache_known_account", provider, auth_uid, auth.email, auth.display_name, auth.user_id)
 					auth.auth_state_changed.emit(true, auth.get_profile())
 				var wm = loop.root.get_node_or_null("WorldManager")
 				if wm != null and wm.has_method("apply_cloud_sync"):
@@ -159,7 +176,7 @@ func login_online(provider: String, display_name: String, callback: Callable = C
 			server_status_changed.emit(true, res_data)
 		elif response_code != 400 and response_code != 403 and response_code != 409 and _retry_count < 1 and is_inside_tree():
 			req.queue_free()
-			get_tree().create_timer(1.5).timeout.connect(func():
+			get_tree().create_timer(0.8).timeout.connect(func():
 				if is_inside_tree():
 					login_online(provider, display_name, callback, _retry_count + 1, explicit_email, explicit_uid)
 			)

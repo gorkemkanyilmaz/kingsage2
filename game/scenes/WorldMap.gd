@@ -336,6 +336,7 @@ func _style_header() -> void:
 	for sb in [coord_x_input, coord_y_input]:
 		if sb != null:
 			sb.custom_minimum_size = Vector2(130, 52)
+			preload("res://autoload/GameConfig.gd").attach_mobile_keyboard_dismiss(sb, Callable(), true)
 			var le: LineEdit = sb.get_line_edit()
 			if le != null:
 				le.alignment = HORIZONTAL_ALIGNMENT_CENTER

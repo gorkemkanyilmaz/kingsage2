@@ -1,6 +1,7 @@
 extends PanelContainer
 
-const DESKTOP_BAR_HEIGHT := 116.0
+const DESKTOP_BAR_HEIGHT := 146.0
+const GameConfigUtil := preload("res://autoload/GameConfig.gd")
 const EconomyAPI := preload("res://scripts/sim/economy/EconomyAPI.gd")
 const RulesEngine := preload("res://scripts/rules/RulesEngine.gd")
 const ICON_WOOD: Texture2D = preload("res://assets/sprites/ui/nano_banana/sharp_icon_wood.tres")
@@ -246,20 +247,20 @@ func _apply_responsive_layout() -> void:
 			island_w = float(gc.call("get_ios_dynamic_island_width"))
 
 	var has_island := island_w > 0.0
-	var effective_island_w := minf(island_w, 350.0) if has_island else 0.0
-	var top_pad := 9.0
-	var bottom_pad := 9.0
-	var sep := 6
-	var top_row_h := 48.0
-	var res_row_h := 48.0
+	var effective_island_w := minf(island_w, 340.0) if has_island else 0.0
+	var top_pad := 10.0
+	var bottom_pad := 10.0
+	var sep := 8
+	var top_row_h := 56.0
+	var res_row_h := 62.0
 
 	if has_island:
-		top_pad = 4.0
-		bottom_pad = 8.0
-		sep = 4
-		top_row_h = maxf(48.0, safe_top - 2.0)
+		top_pad = 6.0
+		bottom_pad = 9.0
+		sep = 6
+		top_row_h = maxf(54.0, safe_top)
 	elif safe_top > 0.0:
-		top_pad = maxf(9.0, safe_top + 2.0)
+		top_pad = maxf(10.0, safe_top + 2.0)
 
 	var total_h := top_pad + top_row_h + float(sep) + res_row_h + bottom_pad
 	_last_bar_height = total_h
@@ -271,6 +272,9 @@ func _apply_responsive_layout() -> void:
 			mut_sb = panel_sb.duplicate() as StyleBoxFlat
 			mut_sb.resource_local_to_scene = true
 			add_theme_stylebox_override("panel", mut_sb)
+		mut_sb.bg_color = Color(0.06, 0.07, 0.11, 0.98)
+		mut_sb.border_color = Color(0.88, 0.71, 0.30, 0.94)
+		mut_sb.border_width_bottom = 2
 		mut_sb.content_margin_top = top_pad
 		mut_sb.content_margin_bottom = bottom_pad
 		mut_sb.content_margin_left = 10.0 if has_island else 14.0
@@ -282,10 +286,11 @@ func _apply_responsive_layout() -> void:
 		top_row.custom_minimum_size.y = top_row_h
 	if resources_row != null:
 		resources_row.custom_minimum_size.y = res_row_h
-		resources_row.add_theme_constant_override("separation", 6)
+		resources_row.add_theme_constant_override("separation", 8)
 
 	if village_info_box != null:
 		village_info_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL if has_island else Control.SIZE_SHRINK_BEGIN
+		village_info_box.add_theme_constant_override("separation", 6 if has_island else 8)
 
 	if left_flex_spacer != null:
 		left_flex_spacer.visible = not has_island
@@ -299,26 +304,53 @@ func _apply_responsive_layout() -> void:
 
 	if crest_icon != null:
 		crest_icon.texture = ICON_CASTLE_CREST
-		crest_icon.custom_minimum_size = Vector2(24, 24) if has_island else Vector2(30, 30)
+		crest_icon.custom_minimum_size = Vector2(28, 28) if has_island else Vector2(34, 34)
 
 	if points_box != null:
 		points_box.visible = true
 	if points_label != null:
-		points_label.add_theme_font_size_override("font_size", 15 if has_island else 18)
+		points_label.add_theme_font_override("font", FONT_BOLD)
+		points_label.add_theme_font_size_override("font_size", 17 if has_island else 20)
+		points_label.add_theme_color_override("font_color", Color(1.0, 0.89, 0.44))
+		points_label.add_theme_constant_override("outline_size", 2)
+		points_label.add_theme_color_override("font_outline_color", Color(0.05, 0.04, 0.02, 0.95))
 	if btn_prev != null:
-		btn_prev.custom_minimum_size = Vector2(28, 32) if has_island else Vector2(34, 34)
+		btn_prev.custom_minimum_size = Vector2(30, 34) if has_island else Vector2(36, 38)
 	if btn_next != null:
-		btn_next.custom_minimum_size = Vector2(28, 32) if has_island else Vector2(34, 34)
+		btn_next.custom_minimum_size = Vector2(30, 34) if has_island else Vector2(36, 38)
 	if btn_rename_village != null:
-		btn_rename_village.custom_minimum_size = Vector2(32, 32) if has_island else Vector2(34, 34)
+		btn_rename_village.custom_minimum_size = Vector2(34, 34) if has_island else Vector2(38, 38)
+		btn_rename_village.add_theme_font_size_override("font_size", 17 if has_island else 19)
 	if btn_market != null:
-		btn_market.custom_minimum_size = Vector2(146, 38) if has_island else Vector2(168, 40)
-		btn_market.add_theme_font_size_override("font_size", 17 if has_island else 19)
+		btn_market.custom_minimum_size = Vector2(180, 44) if has_island else Vector2(222, 48)
+		btn_market.add_theme_font_override("font", FONT_BOLD)
+		btn_market.add_theme_font_size_override("font_size", 19 if has_island else 21)
+		btn_market.add_theme_color_override("font_color", Color(1.0, 0.96, 0.84))
+		btn_market.add_theme_constant_override("outline_size", 3)
+		btn_market.add_theme_color_override("font_outline_color", Color(0.04, 0.08, 0.16, 0.96))
 	if village_name_label != null:
 		village_name_label.clip_text = has_island
 		village_name_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS if has_island else TextServer.OVERRUN_NO_TRIMMING
 		village_name_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL if has_island else Control.SIZE_SHRINK_BEGIN
-		village_name_label.add_theme_font_size_override("font_size", 16 if has_island else 20)
+		village_name_label.add_theme_font_override("font", FONT_BOLD)
+		village_name_label.add_theme_font_size_override("font_size", 19 if has_island else 22)
+		village_name_label.add_theme_color_override("font_color", Color(1.0, 0.95, 0.82))
+		village_name_label.add_theme_constant_override("outline_size", 3)
+		village_name_label.add_theme_color_override("font_outline_color", Color(0.04, 0.04, 0.07, 0.95))
+
+	for pair_sz in [
+		[wood_title_label, wood_label],
+		[stone_title_label, stone_label],
+		[iron_title_label, iron_label],
+		[storage_title_label, storage_label],
+		[citizens_title_label, citizens_label],
+	]:
+		var tl := pair_sz[0] as Label
+		var vl := pair_sz[1] as Label
+		if tl != null:
+			tl.add_theme_font_size_override("font_size", 13 if has_island else 14)
+		if vl != null:
+			vl.add_theme_font_size_override("font_size", 19 if has_island else 22)
 
 	custom_minimum_size.y = total_h
 	offset_top = 0.0
@@ -343,19 +375,51 @@ func _on_village_name_gui_input(event: InputEvent) -> void:
 
 func _ensure_royal_wing_frames() -> void:
 	_village_info_sb = null
+	if points_box is PanelContainer:
+		var psb := StyleBoxFlat.new()
+		psb.bg_color = Color(0.18, 0.13, 0.06, 0.96)
+		psb.border_color = Color(0.95, 0.78, 0.34, 0.95)
+		psb.set_border_width_all(2)
+		psb.set_corner_radius_all(12)
+		psb.content_margin_left = 12.0
+		psb.content_margin_right = 12.0
+		psb.content_margin_top = 5.0
+		psb.content_margin_bottom = 5.0
+		psb.shadow_color = Color(0, 0, 0, 0.45)
+		psb.shadow_size = 4
+		(points_box as PanelContainer).add_theme_stylebox_override("panel", psb)
+
+	if btn_rename_village != null:
+		var rsb := StyleBoxFlat.new()
+		rsb.bg_color = Color(0.14, 0.13, 0.21, 0.96)
+		rsb.border_color = Color(0.84, 0.68, 0.32, 0.85)
+		rsb.set_border_width_all(1)
+		rsb.set_corner_radius_all(10)
+		rsb.set_content_margin_all(4)
+		var rhov := rsb.duplicate() as StyleBoxFlat
+		rhov.bg_color = Color(0.24, 0.21, 0.33, 1.0)
+		rhov.border_color = Color(0.98, 0.84, 0.44, 1.0)
+		btn_rename_village.add_theme_stylebox_override("normal", rsb)
+		btn_rename_village.add_theme_stylebox_override("hover", rhov)
+		btn_rename_village.add_theme_stylebox_override("pressed", rhov)
+
 	if btn_market != null:
 		var msb := StyleBoxFlat.new()
-		msb.bg_color = Color(0.11, 0.18, 0.31, 0.96)
-		msb.border_color = Color(0.84, 0.68, 0.34, 0.80)
-		msb.set_border_width_all(1)
-		msb.set_corner_radius_all(10)
-		msb.content_margin_left = 10.0
-		msb.content_margin_right = 12.0
-		msb.content_margin_top = 4.0
-		msb.content_margin_bottom = 4.0
+		msb.bg_color = Color(0.08, 0.19, 0.38, 0.98)
+		msb.border_color = Color(0.96, 0.79, 0.34, 0.98)
+		msb.set_border_width_all(2)
+		msb.border_width_bottom = 3
+		msb.set_corner_radius_all(14)
+		msb.content_margin_left = 14.0
+		msb.content_margin_right = 16.0
+		msb.content_margin_top = 5.0
+		msb.content_margin_bottom = 5.0
+		msb.shadow_color = Color(0.0, 0.0, 0.0, 0.55)
+		msb.shadow_size = 6
+		msb.shadow_offset = Vector2(0, 2)
 		var m_hov := msb.duplicate() as StyleBoxFlat
-		m_hov.bg_color = Color(0.16, 0.26, 0.44, 1.0)
-		m_hov.border_color = Color(0.96, 0.82, 0.44, 0.98)
+		m_hov.bg_color = Color(0.13, 0.28, 0.54, 1.0)
+		m_hov.border_color = Color(1.0, 0.90, 0.52, 1.0)
 		btn_market.add_theme_stylebox_override("normal", msb)
 		btn_market.add_theme_stylebox_override("hover", m_hov)
 		btn_market.add_theme_stylebox_override("pressed", m_hov)
@@ -399,30 +463,75 @@ func _fmt_num(val: int) -> String:
 
 func _ensure_resource_box_titles() -> void:
 	var defs := [
-		[wood_box, "WoodTitle", "ODUN", Color(0.62, 0.90, 0.50)],
-		[stone_box, "StoneTitle", "TAŞ", Color(0.82, 0.84, 0.90)],
-		[iron_box, "IronTitle", "DEMİR", Color(0.66, 0.82, 0.98)],
-		[storage_box, "StorageTitle", "DEPO", Color(0.96, 0.80, 0.44)],
-		[citizens_box, "CitizensTitle", "NÜFUS", Color(0.84, 0.96, 0.86)],
+		[wood_box, wood_label, wood_bar, "WoodTitle", "ODUN", Color(0.58, 0.92, 0.46), Color(0.32, 0.54, 0.24, 0.82)],
+		[stone_box, stone_label, stone_bar, "StoneTitle", "TAŞ", Color(0.84, 0.86, 0.94), Color(0.46, 0.48, 0.56, 0.82)],
+		[iron_box, iron_label, iron_bar, "IronTitle", "DEMİR", Color(0.62, 0.84, 1.0), Color(0.30, 0.48, 0.72, 0.82)],
+		[storage_box, storage_label, storage_bar, "StorageTitle", "DEPO", Color(0.98, 0.82, 0.42), Color(0.66, 0.50, 0.20, 0.85)],
+		[citizens_box, citizens_label, citizens_bar, "CitizensTitle", "NÜFUS", Color(0.74, 0.98, 0.80), Color(0.30, 0.58, 0.42, 0.82)],
 	]
 	for d in defs:
 		var box := d[0] as Control
+		var val_lbl := d[1] as Label
+		var bar := d[2] as ProgressBar
 		if box == null:
 			continue
+		if box is PanelContainer:
+			var csb := StyleBoxFlat.new()
+			csb.bg_color = Color(0.09, 0.11, 0.17, 0.96)
+			csb.border_color = d[6] as Color
+			csb.set_border_width_all(1)
+			csb.border_width_bottom = 2
+			csb.set_corner_radius_all(11)
+			csb.content_margin_left = 8.0
+			csb.content_margin_right = 8.0
+			csb.content_margin_top = 5.0
+			csb.content_margin_bottom = 5.0
+			(box as PanelContainer).add_theme_stylebox_override("panel", csb)
+		if bar != null:
+			bar.custom_minimum_size.y = 6.0
 		var row := box.find_child("Row", true, false) as HBoxContainer
-		if row == null or row.get_node_or_null(str(d[1])) != null:
+		if row == null:
 			continue
-		var t := Label.new()
-		t.name = str(d[1])
-		t.text = str(d[2])
-		t.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		t.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-		t.add_theme_font_override("font", FONT_BOLD)
-		t.add_theme_font_size_override("font_size", 12)
-		t.add_theme_color_override("font_color", d[3] as Color)
-		row.add_child(t)
-		row.move_child(t, 1)
-		match str(d[1]):
+		row.add_theme_constant_override("separation", 6)
+		var ico := row.get_node_or_null("Icon") as TextureRect
+		if ico != null:
+			ico.custom_minimum_size = Vector2(30, 30)
+		var stack := row.get_node_or_null("TextStack") as VBoxContainer
+		if stack == null:
+			stack = VBoxContainer.new()
+			stack.name = "TextStack"
+			stack.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			stack.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			stack.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+			stack.alignment = BoxContainer.ALIGNMENT_CENTER
+			stack.add_theme_constant_override("separation", -2)
+			row.add_child(stack)
+		var t := stack.get_node_or_null(str(d[3])) as Label
+		if t == null:
+			t = Label.new()
+			t.name = str(d[3])
+			t.text = str(d[4])
+			t.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			t.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+			t.add_theme_font_override("font", FONT_BOLD)
+			t.add_theme_font_size_override("font_size", 14)
+			t.add_theme_color_override("font_color", d[5] as Color)
+			t.add_theme_constant_override("outline_size", 2)
+			t.add_theme_color_override("font_outline_color", Color(0.03, 0.03, 0.06, 0.96))
+			stack.add_child(t)
+		if val_lbl != null and val_lbl.get_parent() != stack:
+			if val_lbl.get_parent() != null:
+				val_lbl.get_parent().remove_child(val_lbl)
+			stack.add_child(val_lbl)
+		if val_lbl != null:
+			val_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			val_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+			val_lbl.add_theme_font_override("font", FONT_BOLD)
+			val_lbl.add_theme_font_size_override("font_size", 22)
+			val_lbl.add_theme_color_override("font_color", Color(0.99, 0.97, 0.91))
+			val_lbl.add_theme_constant_override("outline_size", 3)
+			val_lbl.add_theme_color_override("font_outline_color", Color(0.03, 0.03, 0.06, 0.98))
+		match str(d[3]):
 			"WoodTitle": wood_title_label = t
 			"StoneTitle": stone_title_label = t
 			"IronTitle": iron_title_label = t
@@ -608,10 +717,11 @@ func _update_market_button() -> void:
 			var p = gs.get("player")
 			if p is Dictionary:
 				diamonds = int((p as Dictionary).get("diamonds", 0))
-	btn_market.text = "%d | PAZAR" % diamonds
+	btn_market.text = "%d  •  PAZAR" % diamonds
 	btn_market.icon = ICON_DIAMOND
 	btn_market.expand_icon = true
-	btn_market.add_theme_constant_override("icon_max_width", 28)
+	btn_market.add_theme_constant_override("icon_max_width", 30)
+	btn_market.add_theme_constant_override("h_separation", 8)
 	btn_market.tooltip_text = "Kraliyet Pazarı: Elmas, hızlandırma parşömenleri ve kaynak paketleri\nElmas bakiyeniz: %d" % diamonds
 
 
@@ -1288,14 +1398,18 @@ func _show_rename_modal(target_vid: int = -1) -> void:
 	cancel_btn.text = "İptal"
 	cancel_btn.custom_minimum_size = Vector2(130, 48)
 	_style_modal_btn(cancel_btn, Color(0.22, 0.19, 0.24, 0.95), Color(0.62, 0.56, 0.44, 0.85))
-	cancel_btn.pressed.connect(func(): layer.queue_free())
+	cancel_btn.pressed.connect(func():
+		GameConfigUtil.dismiss_virtual_keyboard(line)
+		layer.queue_free()
+	)
 	hb.add_child(cancel_btn)
 
 	var save_btn := Button.new()
 	save_btn.text = "Kaydet"
 	save_btn.custom_minimum_size = Vector2(150, 48)
 	_style_modal_btn(save_btn, Color(0.18, 0.44, 0.24, 0.96), Color(0.45, 0.86, 0.52, 0.95))
-	save_btn.pressed.connect(func():
+	var apply_rename_fn := func():
+		GameConfigUtil.dismiss_virtual_keyboard(line)
 		var new_name := line.text.strip_edges()
 		if not new_name.is_empty():
 			var vid_r := int(v.get("id", -1))
@@ -1308,6 +1422,7 @@ func _show_rename_modal(target_vid: int = -1) -> void:
 				wm_r.call("save_active_world", true)
 			refresh()
 		layer.queue_free()
-	)
+	save_btn.pressed.connect(apply_rename_fn)
 	hb.add_child(save_btn)
+	GameConfigUtil.attach_mobile_keyboard_dismiss(line, func(_txt: String): apply_rename_fn.call())
 	line.grab_focus()

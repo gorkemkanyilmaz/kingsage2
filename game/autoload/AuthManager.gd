@@ -104,7 +104,10 @@ func logout() -> void:
 	if loop is SceneTree:
 		var wm = loop.root.get_node_or_null("WorldManager")
 		if is_logged_in and wm != null and wm.has_method("save_active_world"):
-			wm.save_active_world()
+			wm.save_active_world(true)
+		var net = loop.root.get_node_or_null("NetworkManager")
+		if net != null:
+			net.auth_token = ""
 
 	is_logged_in = false
 	auth_provider = ""
@@ -112,6 +115,7 @@ func logout() -> void:
 	display_name = ""
 	email = ""
 	auth_token = ""
+	identity_token = ""
 
 	if FileAccess.file_exists(SESSION_FILE):
 		DirAccess.remove_absolute(ProjectSettings.globalize_path(SESSION_FILE))
@@ -425,11 +429,12 @@ func _start_ios_native_auth(prov: String, is_apple: bool, req_id: String, base_u
 			var res_prov := str(data.get("provider", prov))
 			var res_email := str(data.get("email", ""))
 			var res_uid := str(data.get("provider_uid", ""))
+			var res_id_tok := str(data.get("identity_token", ""))
 			if _auth_poll_timer != null and is_instance_valid(_auth_poll_timer):
 				_auth_poll_timer.stop()
 			if is_instance_valid(status_lbl):
 				status_lbl.text = "Hesap bilgileri doğrulanıyor..."
-			_handle_verified_identity(res_prov, res_email, res_uid, parent_node, on_complete)
+			_handle_verified_identity(res_prov, res_email, res_uid, parent_node, on_complete, res_id_tok)
 		else:
 			if is_instance_valid(status_lbl):
 				status_lbl.text = str(data.get("error", "Giriş iptal edildi."))
@@ -562,10 +567,77 @@ func _poll_oauth_endpoint(base_url: String, req_id: String, prov: String, remote
 	req.request("%s/api/auth/oauth_poll?session=%s" % [base_url, req_id])
 
 
-func _handle_verified_identity(prov: String, raw_email: String, raw_uid: String, parent_node: Node, on_complete: Callable) -> void:
+const GameConfigUtil := preload("res://autoload/GameConfig.gd")
+var identity_token: String = ""
+const KNOWN_ACCOUNTS_FILE := "user://account_profiles.json"
+
+
+func _cache_known_account(prov: String, raw_uid: String, raw_email: String, disp_name: String, srv_uid: String) -> void:
+	var store := _load_known_accounts()
+	var entry := {
+		"provider": prov,
+		"display_name": disp_name,
+		"email": raw_email,
+		"user_id": srv_uid,
+		"provider_uid": raw_uid,
+	}
+	for k in [raw_uid, srv_uid, raw_email.strip_edges().to_lower()]:
+		if not k.is_empty():
+			store[prov + ":" + k] = entry
+	var f := FileAccess.open(KNOWN_ACCOUNTS_FILE, FileAccess.WRITE)
+	if f != null:
+		f.store_string(JSON.stringify(store))
+		f.close()
+
+
+func _load_known_accounts() -> Dictionary:
+	if not FileAccess.file_exists(KNOWN_ACCOUNTS_FILE):
+		return {}
+	var f := FileAccess.open(KNOWN_ACCOUNTS_FILE, FileAccess.READ)
+	var txt := f.get_as_text() if f != null else ""
+	if f != null:
+		f.close()
+	var jp := JSON.new()
+	if not txt.is_empty() and jp.parse(txt) == OK and typeof(jp.data) == TYPE_DICTIONARY:
+		return jp.data as Dictionary
+	return {}
+
+
+func _lookup_known_account(prov: String, raw_uid: String, raw_email: String) -> Dictionary:
+	var store := _load_known_accounts()
+	for k in [raw_uid, raw_email.strip_edges().to_lower()]:
+		if not k.is_empty() and store.has(prov + ":" + k) and typeof(store[prov + ":" + k]) == TYPE_DICTIONARY:
+			return store[prov + ":" + k] as Dictionary
+	return {}
+
+
+func _show_account_check_retry_sheet(prov: String, clean_email: String, clean_uid: String, parent_node: Node, on_complete: Callable, raw_id_tok: String) -> void:
+	var is_apple := (prov == "apple")
+	var title := "Apple Hesabı Bağlanamadı" if is_apple else "Google Hesabı Bağlanamadı"
+	_show_waiting_sheet(parent_node, title, "Sunucuyla bağlantı zaman aşımına uğradı. Hesabınız kontrol edilemedi; lütfen tekrar deneyin.", is_apple)
+	if _auth_sheet != null and is_instance_valid(_auth_sheet):
+		var vb := _auth_sheet.find_child("VBoxContainer", true, false) as VBoxContainer
+		if vb != null:
+			var retry_btn := Button.new()
+			retry_btn.text = "🔄 Tekrar Dene"
+			retry_btn.custom_minimum_size = Vector2(220, 54)
+			retry_btn.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+			var FontNunitoBold = load("res://assets/fonts/Nunito-Bold.ttf")
+			if FontNunitoBold != null:
+				retry_btn.add_theme_font_override("font", FontNunitoBold)
+			retry_btn.add_theme_font_size_override("font_size", 21)
+			retry_btn.pressed.connect(func():
+				_handle_verified_identity(prov, clean_email, clean_uid, parent_node, on_complete, raw_id_tok)
+			)
+			vb.add_child(retry_btn)
+			vb.move_child(retry_btn, maxi(0, vb.get_child_count() - 2))
+
+
+func _handle_verified_identity(prov: String, raw_email: String, raw_uid: String, parent_node: Node, on_complete: Callable, raw_id_tok: String = "") -> void:
 	var clean_prov := "apple" if prov.strip_edges().to_lower() == "apple" else "google"
 	var clean_email := raw_email.strip_edges().to_lower()
 	var clean_uid := raw_uid.strip_edges()
+	identity_token = raw_id_tok.strip_edges()
 	if clean_uid.is_empty() and not clean_email.is_empty():
 		clean_uid = clean_prov + "_" + (clean_prov + ":" + clean_email).sha256_text().substr(0, 14)
 
@@ -573,14 +645,37 @@ func _handle_verified_identity(prov: String, raw_email: String, raw_uid: String,
 	var net = loop.root.get_node_or_null("NetworkManager") if loop is SceneTree else null
 	if net != null and net.has_method("check_account_online"):
 		net.check_account_online(clean_prov, clean_email, clean_uid, func(success: bool, res_data: Dictionary):
-			_dismiss_auth_sheet()
 			if success and bool(res_data.get("exists", false)):
+				_dismiss_auth_sheet()
 				var existing_name := str(res_data.get("display_name", "")).strip_edges()
 				var resolved_email := str(res_data.get("email", clean_email))
 				var resolved_uid := str(res_data.get("user_id", clean_uid))
+				var srv_token := str(res_data.get("token", "")).strip_edges()
 				auth_provider = clean_prov
 				email = resolved_email
 				user_id = resolved_uid
+				display_name = _normalize_name(existing_name) if not existing_name.is_empty() else "Lord Oyuncu"
+				_cache_known_account(clean_prov, clean_uid, resolved_email, display_name, resolved_uid)
+
+				if not srv_token.is_empty():
+					# check_account zaten geçerli token + cloud_state + server_village döndürdü; ikinci round-trip gerekmez!
+					net.auth_token = srv_token
+					net.is_server_reachable = true
+					auth_token = srv_token
+					is_logged_in = true
+					save_session()
+					auth_state_changed.emit(true, get_profile())
+					var wm = loop.root.get_node_or_null("WorldManager") if loop is SceneTree else null
+					if wm != null and wm.has_method("apply_cloud_sync"):
+						wm.apply_cloud_sync(res_data)
+					net.server_status_changed.emit(true, res_data)
+					net.auth_completed.emit(true, res_data)
+					var prof := get_profile()
+					prof["_server_synced"] = true
+					if on_complete.is_valid():
+						on_complete.call(prof)
+					return
+
 				net.login_online(clean_prov, existing_name, func(l_ok: bool, _l_data: Dictionary):
 					if not l_ok:
 						complete_external_login(clean_prov, existing_name, resolved_email, resolved_uid)
@@ -588,10 +683,28 @@ func _handle_verified_identity(prov: String, raw_email: String, raw_uid: String,
 					prof["_server_synced"] = l_ok
 					if on_complete.is_valid():
 						on_complete.call(prof)
-				, 0, resolved_email, resolved_uid)
+				, 0, resolved_email, clean_uid)
 				return
+
+			if not success:
+				# Sunucu doğrulanamadıysa kullanıcıyı yeni oyuncu gibi isim ekranına atma!
+				var cached := _lookup_known_account(clean_prov, clean_uid, clean_email)
+				if not cached.is_empty() and not str(cached.get("display_name", "")).is_empty():
+					_dismiss_auth_sheet()
+					var prof_c := complete_external_login(clean_prov, str(cached.get("display_name", "")), str(cached.get("email", clean_email)), clean_uid)
+					if not str(cached.get("user_id", "")).is_empty():
+						user_id = str(cached.get("user_id"))
+						save_session()
+					prof_c["_server_synced"] = false
+					if on_complete.is_valid():
+						on_complete.call(prof_c)
+					return
+				_show_account_check_retry_sheet(clean_prov, clean_email, clean_uid, parent_node, on_complete, identity_token)
+				return
+
+			_dismiss_auth_sheet()
 			_show_lord_name_prompt_modal(clean_prov, clean_email, clean_uid, parent_node, on_complete)
-		)
+		, 0, identity_token)
 	else:
 		_dismiss_auth_sheet()
 		_show_lord_name_prompt_modal(clean_prov, clean_email, clean_uid, parent_node, on_complete)
@@ -726,11 +839,19 @@ func _show_lord_name_prompt_modal(prov: String, clean_email: String, clean_uid: 
 		btn_cancel.add_theme_font_override("font", FontNunitoBold)
 	btn_cancel.add_theme_font_size_override("font_size", 19)
 	btn_cancel.pressed.connect(func():
+		GameConfigUtil.dismiss_virtual_keyboard(name_edit)
 		_dismiss_name_modal()
 	)
 	vb.add_child(btn_cancel)
 
+	dim.gui_input.connect(func(ev: InputEvent):
+		var tapped := (ev is InputEventMouseButton and (ev as InputEventMouseButton).pressed) or (ev is InputEventScreenTouch and (ev as InputEventScreenTouch).pressed)
+		if tapped:
+			GameConfigUtil.dismiss_virtual_keyboard(name_edit)
+	)
+
 	var submit_fn := func():
+		GameConfigUtil.dismiss_virtual_keyboard(name_edit)
 		var chosen := name_edit.text.strip_edges()
 		if chosen.length() < 2:
 			err_lbl.text = "⚠️ Lütfen en az 2 karakterli bir Hükümdar ismi girin."
@@ -740,7 +861,7 @@ func _show_lord_name_prompt_modal(prov: String, clean_email: String, clean_uid: 
 			err_lbl.text = "⚠️ Lütfen geçerli bir Hükümdar ismi girin."
 			return
 		btn_confirm.disabled = true
-		btn_confirm.text = "Kontrol Ediliyor..."
+		btn_confirm.text = "Bağlanıyor..."
 		err_lbl.text = ""
 		var loop = Engine.get_main_loop()
 		var net = loop.root.get_node_or_null("NetworkManager") if loop is SceneTree else null
@@ -749,6 +870,7 @@ func _show_lord_name_prompt_modal(prov: String, clean_email: String, clean_uid: 
 				if not is_instance_valid(_name_modal):
 					return
 				if ok:
+					_cache_known_account(prov, clean_uid, clean_email, str(res_data.get("display_name", norm)), str(res_data.get("user_id", "")))
 					_dismiss_name_modal()
 					var prof := get_profile()
 					prof["_server_synced"] = true
@@ -774,7 +896,7 @@ func _show_lord_name_prompt_modal(prov: String, clean_email: String, clean_uid: 
 				on_complete.call(prof)
 
 	btn_confirm.pressed.connect(submit_fn)
-	name_edit.text_submitted.connect(func(_txt: String): submit_fn.call())
+	GameConfigUtil.attach_mobile_keyboard_dismiss(name_edit, func(_txt: String): submit_fn.call())
 
 	var host := parent_node.get_tree().root if (parent_node != null and parent_node.get_tree() != null) else get_tree().root
 	if host != null:

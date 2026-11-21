@@ -645,6 +645,65 @@ def test_scroll_wallet_persistence_and_resource_packs(client, tok):
     assert "spy:1:100:2:1" in (matched_prof.get("read_report_sigs") or []), matched_prof
     assert "battle:1:200:3:1" in (matched_prof.get("deleted_report_sigs") or []), matched_prof
     print("[PASS] Rapor read_report_sigs ve deleted_report_sigs sunucu merge ile korundu!")
+    test_returning_apple_user_restoration(client)
+
+
+def test_returning_apple_user_restoration(client):
+    """Apple ile ilk kez giris + koy gelistirme + cikis + tekrar YALNIZCA Apple UID ile giris -> eski Lord & koy geri gelmeli."""
+    import base64
+    uid_raw = "001999.appleuserxyz.8842"
+    first_email = "privaterelay@icloud.appleid.com"
+
+    # 1. İlk girişte check_account -> exists=False
+    r_chk1 = client.post("/api/auth/check_account", json={
+        "provider": "apple", "email": first_email, "provider_uid": uid_raw
+    })
+    assert r_chk1.status_code == 200 and r_chk1.json().get("exists") is False, r_chk1.text
+
+    # 2. Kullanıcı Lord adını seçip Diyara Adım At der
+    r_reg = client.post("/api/auth/login", json={
+        "provider": "apple", "display_name": "Lord Seljuk", "email": first_email, "provider_uid": uid_raw
+    })
+    assert r_reg.status_code == 200, r_reg.text
+    jr = r_reg.json()
+    tok = jr["token"]
+    assert jr["display_name"] == "Lord Seljuk", jr
+    assert jr["provider_uid"] == uid_raw, jr
+
+    # Çakışan başka hesap aynı ismi alamamalı (409)
+    r_dup = client.post("/api/auth/login", json={
+        "provider": "apple", "display_name": "Lord Seljuk", "email": "other@icloud.com", "provider_uid": "009999.other"
+    })
+    assert r_dup.status_code == 409 and r_dup.json().get("error_code") == "NAME_TAKEN", r_dup.text
+
+    # Köyünü kurup kaydeder
+    now = int(time.time())
+    w_state = make_player_world("Lord Seljuk", 130, 88, 92, now, tutorial_done=True)
+    r_save = client.post("/api/game/save", headers={"Authorization": f"Bearer {tok}"}, json=w_state)
+    assert r_save.status_code == 200, r_save.text
+
+    # 3. Kullanıcı çıkış yapar ve iOS FaceID tekrar giriş yapar (Apple artık email vermez, sadece uid veya id_token verir!)
+    r_chk2 = client.post("/api/auth/check_account", json={
+        "provider": "apple", "email": "", "provider_uid": uid_raw
+    })
+    assert r_chk2.status_code == 200, r_chk2.text
+    j2 = r_chk2.json()
+    assert j2["exists"] is True, j2
+    assert j2["display_name"] == "Lord Seljuk", j2
+    assert j2["has_village"] is True, j2
+    assert len(j2.get("token", "")) > 10, j2
+    assert j2["email"] == first_email, j2
+
+    # 4. JWT içindeki sub/email fallback doğrulaması
+    hdr_b64 = base64.urlsafe_b64encode(b'{"alg":"RS256"}').decode().rstrip("=")
+    pl_b64 = base64.urlsafe_b64encode(json.dumps({"sub": uid_raw, "email": first_email}).encode()).decode().rstrip("=")
+    fake_jwt = f"{hdr_b64}.{pl_b64}.sig"
+    r_chk3 = client.post("/api/auth/check_account", json={
+        "provider": "apple", "email": "", "provider_uid": "", "identity_token": fake_jwt
+    })
+    assert r_chk3.status_code == 200 and r_chk3.json().get("exists") is True, r_chk3.text
+    assert r_chk3.json().get("display_name") == "Lord Seljuk", r_chk3.text
+    print("[PASS] Returning Apple kullanici restorasyonu (UID + JWT fallback + cikis/giris kaliciligi) dogrulandi!")
 
 
 if __name__ == "__main__":

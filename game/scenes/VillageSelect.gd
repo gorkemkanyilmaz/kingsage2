@@ -448,6 +448,14 @@ func _do_login(provider: String) -> void:
 				if net != null:
 					net.login_online(provider, canonical_name)
 			_refresh_auth_state()
+			if DisplayServer.get_name() != "headless" and is_inside_tree():
+				var root = Engine.get_main_loop().root if Engine.get_main_loop() is SceneTree else null
+				var wm = root.get_node_or_null("WorldManager") if root != null else null
+				var p_name := _get_player_name()
+				if wm != null and wm.has_method("has_player_village") and wm.has_player_village(wm.current_world_id, p_name):
+					var is_conq := bool(wm.has_method("is_player_conquered") and wm.is_player_conquered(wm.current_world_id, p_name))
+					if not is_conq and wm.enter_world(wm.current_world_id, p_name):
+						get_tree().change_scene_to_file("res://scenes/Village.tscn")
 		)
 		return
 

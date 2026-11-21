@@ -389,12 +389,14 @@ class AuthLoginRequest(BaseModel):
     display_name: str = Field(..., min_length=1, max_length=60)
     email: Optional[str] = Field(None, max_length=120)
     provider_uid: Optional[str] = Field(None, max_length=160)
+    identity_token: Optional[str] = Field(None, max_length=4096)
 
 
 class CheckAccountRequest(BaseModel):
     provider: str = Field(..., max_length=20)
     email: Optional[str] = Field(None, max_length=120)
     provider_uid: Optional[str] = Field(None, max_length=160)
+    identity_token: Optional[str] = Field(None, max_length=4096)
 
 class JoinWorldRequest(BaseModel):
     world_id: int = Field(1, ge=1, le=10)
@@ -693,10 +695,15 @@ RESOURCE_PACKS: List[Dict[str, Any]] = [
 ]
 
 
+_PG_SCHEMA_INITIALIZED = False
+_PG_EPOCH_VERIFIED = False
+
+
 def _ensure_users_store_columns(cursor, is_pg: bool) -> None:
     if is_pg:
         cursor.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS diamonds INTEGER DEFAULT 35")
         cursor.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS scrolls_json TEXT DEFAULT '{}'")
+        cursor.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS provider_uid TEXT DEFAULT ''")
         return
     cursor.execute("PRAGMA table_info(users)")
     cols = set()
@@ -707,6 +714,8 @@ def _ensure_users_store_columns(cursor, is_pg: bool) -> None:
         cursor.execute("ALTER TABLE users ADD COLUMN diamonds INTEGER DEFAULT 35")
     if "scrolls_json" not in cols:
         cursor.execute("ALTER TABLE users ADD COLUMN scrolls_json TEXT DEFAULT '{}'")
+    if "provider_uid" not in cols:
+        cursor.execute("ALTER TABLE users ADD COLUMN provider_uid TEXT DEFAULT ''")
 
 
 def _parse_user_wallet(user_row: Optional[Dict[str, Any]]) -> tuple:
@@ -1930,6 +1939,9 @@ def merge_world_state(server_w: Optional[Dict[str, Any]], client_raw: Dict[str, 
 
 
 def ensure_cloud_saves_table(cursor, is_pg: bool) -> None:
+    global _PG_SCHEMA_INITIALIZED
+    if is_pg and _PG_SCHEMA_INITIALIZED:
+        return
     bigint_t = "BIGINT" if is_pg else "INTEGER"
     cursor.execute("""CREATE TABLE IF NOT EXISTS cloud_saves (
         user_id TEXT PRIMARY KEY,
@@ -1963,9 +1975,14 @@ def ensure_cloud_saves_table(cursor, is_pg: bool) -> None:
         created_unix {0} NOT NULL
     )""".format(bigint_t))
     _ensure_users_store_columns(cursor, is_pg)
+    if is_pg:
+        _PG_SCHEMA_INITIALIZED = True
 
 
 def _ensure_world_reset_epoch(cursor, now: int) -> None:
+    global _PG_EPOCH_VERIFIED
+    if getattr(cursor, "is_pg", False) and _PG_EPOCH_VERIFIED:
+        return
     cursor.execute("SELECT v FROM server_meta WHERE k = ?", ("world_reset_epoch",))
     row = cursor.fetchone()
     current_epoch = 0
@@ -1976,6 +1993,8 @@ def _ensure_world_reset_epoch(cursor, now: int) -> None:
         except Exception:
             current_epoch = 0
     if current_epoch >= WORLD_RESET_EPOCH:
+        if getattr(cursor, "is_pg", False):
+            _PG_EPOCH_VERIFIED = True
         return
     for tbl in (
         "cloud_saves",
@@ -2076,11 +2095,10 @@ def _serialize_server_village(v_row) -> Optional[Dict[str, Any]]:
     return v
 
 
-def _fetch_cloud_and_village(cursor, user_id: str, display_name: str):
+def _fetch_cloud_and_village_with_worlds(cursor, user_id: str, display_name: str):
     now = int(time.time())
     _ensure_world1_bots_seeded(cursor, now)
     _migrate_legacy_cloud_saves_to_world_states(cursor, now)
-    worlds_meta = _sync_worlds_table_from_states(cursor, now)
 
     cursor.execute("SELECT world_id, state_json, updated_unix FROM world_states ORDER BY world_id ASC")
     ws_rows = cursor.fetchall()
@@ -2094,6 +2112,8 @@ def _fetch_cloud_and_village(cursor, user_id: str, display_name: str):
                     row["state_json"] = new_js
             except Exception:
                 pass
+
+    worlds_meta = _sync_worlds_table_from_states(cursor, now)
 
     chosen_w = None
     chosen_updated = 0
@@ -2162,7 +2182,77 @@ def _fetch_cloud_and_village(cursor, user_id: str, display_name: str):
     cursor.execute("SELECT * FROM villages WHERE owner = ? AND is_bot = 0 ORDER BY id ASC LIMIT 1", (display_name,))
     v_row = cursor.fetchone()
     server_village = _serialize_server_village(v_row)
-    return cloud_state, chosen_updated, server_village
+    return cloud_state, chosen_updated, server_village, worlds_meta
+
+
+def _fetch_cloud_and_village(cursor, user_id: str, display_name: str):
+    cs, cu, sv, _wm = _fetch_cloud_and_village_with_worlds(cursor, user_id, display_name)
+    return cs, cu, sv
+
+
+def _decode_jwt_claims_unverified(token: str) -> Dict[str, Any]:
+    tok = (token or "").strip()
+    if not tok or "." not in tok:
+        return {}
+    parts = tok.split(".")
+    if len(parts) < 2:
+        return {}
+    try:
+        import base64
+        seg = parts[1].replace("-", "+").replace("_", "/")
+        pad = (-len(seg)) % 4
+        if pad:
+            seg += "=" * pad
+        raw = base64.b64decode(seg)
+        obj = json.loads(raw.decode("utf-8"))
+        return obj if isinstance(obj, dict) else {}
+    except Exception:
+        return {}
+
+
+def _find_user_by_identity(cursor, provider: str, clean_email: str, clean_uid: str, identity_token: str = ""):
+    claims = _decode_jwt_claims_unverified(identity_token)
+    jwt_sub = str(claims.get("sub") or "").strip()
+    jwt_email = str(claims.get("email") or "").strip().lower()
+
+    uid_candidates = []
+    for cand in (clean_uid, jwt_sub):
+        if cand and cand not in uid_candidates:
+            uid_candidates.append(cand)
+
+    email_candidates = []
+    for cand in (clean_email, jwt_email):
+        if cand and "@" in cand and cand not in email_candidates:
+            email_candidates.append(cand)
+
+    for uid in uid_candidates:
+        cursor.execute("SELECT * FROM users WHERE provider_uid = ? AND provider = ?", (uid, provider))
+        row = cursor.fetchone()
+        if row:
+            return row, uid, (email_candidates[0] if email_candidates else "")
+        h12 = f"{provider}_{hashlib.sha256(f'{provider}:{uid}'.encode('utf-8')).hexdigest()[:12]}"
+        h14 = f"{provider}_{hashlib.sha256(f'{provider}:{uid}'.encode('utf-8')).hexdigest()[:14]}"
+        for id_cand in (h12, h14, uid):
+            cursor.execute("SELECT * FROM users WHERE id = ?", (id_cand,))
+            row = cursor.fetchone()
+            if row:
+                return row, uid, (email_candidates[0] if email_candidates else "")
+
+    for em in email_candidates:
+        cursor.execute("SELECT * FROM users WHERE LOWER(email) = LOWER(?) AND provider = ?", (em, provider))
+        row = cursor.fetchone()
+        if row:
+            return row, (uid_candidates[0] if uid_candidates else ""), em
+        # Also check web oauth_submit deterministic email-based user_id formats
+        em_h12 = f"{provider}_{hashlib.sha256(f'{provider}:{em}'.encode('utf-8')).hexdigest()[:12]}"
+        em_h14 = f"{provider}_{hashlib.sha256(f'{provider}:{em}'.encode('utf-8')).hexdigest()[:14]}"
+        for id_cand in (em_h12, em_h14):
+            cursor.execute("SELECT * FROM users WHERE id = ?", (id_cand,))
+            row = cursor.fetchone()
+            if row:
+                return row, (uid_candidates[0] if uid_candidates else ""), em
+
+    return None, (uid_candidates[0] if uid_candidates else ""), (email_candidates[0] if email_candidates else "")
 
 
 def _name_variants(raw_name: str) -> set:
@@ -2189,10 +2279,14 @@ def _is_display_name_taken(cursor, display_name: str, exclude_user_id: Optional[
 
     # 2. Kayıtlı diğer oyuncular
     cursor.execute("SELECT id, display_name FROM users")
+    exclude_name = ""
     for u in cursor.fetchall():
-        if exclude_user_id and str(u["id"]) == str(exclude_user_id):
+        uid_s = str(u["id"])
+        u_dname = str(u["display_name"] or "")
+        if exclude_user_id and uid_s == str(exclude_user_id):
+            exclude_name = u_dname
             continue
-        if _name_variants(str(u["display_name"] or "")) & wanted:
+        if _name_variants(u_dname) & wanted:
             return True
 
     # 3. Köyler tablosundaki gerçek oyuncular ve botlar
@@ -2210,11 +2304,8 @@ def _is_display_name_taken(cursor, display_name: str, exclude_user_id: Optional[
         try:
             wd = json.loads(ws["state_json"])
             for rp in _collect_real_players(wd):
-                if exclude_user_id:
-                    cursor.execute("SELECT display_name FROM users WHERE id = ?", (exclude_user_id,))
-                    ex_u = cursor.fetchone()
-                    if ex_u and _matches_player(rp, str(ex_u["display_name"] or "")):
-                        continue
+                if exclude_name and _matches_player(rp, exclude_name):
+                    continue
                 if _name_variants(rp) & wanted:
                     return True
         except Exception:
@@ -2230,24 +2321,14 @@ def auth_check_account(req: CheckAccountRequest):
         provider = "google"
     clean_email = (req.email or "").strip().lower()
     clean_uid = (req.provider_uid or "").strip()
+    raw_id_tok = (req.identity_token or "").strip()
 
     conn = get_db()
     cursor = conn.cursor()
     ensure_cloud_saves_table(cursor, conn.is_pg)
     _ensure_world_reset_epoch(cursor, now)
-    _ensure_world1_bots_seeded(cursor, now)
 
-    existing = None
-    if clean_uid:
-        uid_hash = f"{provider}_{hashlib.sha256(f'{provider}:{clean_uid}'.encode('utf-8')).hexdigest()[:12]}"
-        cursor.execute("SELECT * FROM users WHERE id = ?", (uid_hash,))
-        existing = cursor.fetchone()
-        if not existing:
-            cursor.execute("SELECT * FROM users WHERE id = ?", (clean_uid,))
-            existing = cursor.fetchone()
-    if not existing and clean_email:
-        cursor.execute("SELECT * FROM users WHERE LOWER(email) = LOWER(?) AND provider = ?", (clean_email, provider))
-        existing = cursor.fetchone()
+    existing, resolved_uid, resolved_email = _find_user_by_identity(cursor, provider, clean_email, clean_uid, raw_id_tok)
 
     if not existing:
         conn.commit()
@@ -2256,15 +2337,19 @@ def auth_check_account(req: CheckAccountRequest):
 
     user_id = existing["id"]
     display_name = existing["display_name"]
-    email = dict(existing).get("email") or clean_email
+    existing_d = dict(existing)
+    email = existing_d.get("email") or resolved_email or clean_email
+    stored_puid = str(existing_d.get("provider_uid") or "").strip() or resolved_uid
     created_unix = int(existing["created_unix"] or now)
     token = f"tk_tok_{secrets.token_hex(24)}"
-    cursor.execute("UPDATE users SET token = ?, last_login_unix = ? WHERE id = ?", (token, now, user_id))
+    cursor.execute(
+        "UPDATE users SET token = ?, last_login_unix = ?, provider_uid = ?, email = ? WHERE id = ?",
+        (token, now, stored_puid, email, user_id)
+    )
 
-    cloud_state, cloud_updated_unix, server_village = _fetch_cloud_and_village(cursor, user_id, display_name)
-    worlds_meta = _sync_worlds_table_from_states(cursor, now)
+    cloud_state, cloud_updated_unix, server_village, worlds_meta = _fetch_cloud_and_village_with_worlds(cursor, user_id, display_name)
     has_village = bool(server_village is not None or _player_has_village_in_world(cloud_state, display_name))
-    u_diamonds, u_scrolls = _parse_user_wallet(dict(existing))
+    u_diamonds, u_scrolls = _parse_user_wallet(existing_d)
     conn.commit()
     conn.close()
 
@@ -2275,6 +2360,7 @@ def auth_check_account(req: CheckAccountRequest):
         "user_id": user_id,
         "provider": provider,
         "email": email,
+        "provider_uid": stored_puid,
         "display_name": display_name,
         "created_unix": created_unix,
         "starter_boost_until_unix": created_unix + STARTER_BOOST_SECONDS,
@@ -2301,38 +2387,30 @@ def auth_login(req: AuthLoginRequest):
 
     clean_email = (req.email or "").strip().lower()
     clean_uid = (req.provider_uid or "").strip()
-    has_explicit_identity = bool(clean_email or clean_uid)
-
-    uid_seed = f"{provider}:{clean_uid}" if clean_uid else (f"{provider}:{clean_email}" if clean_email else f"{provider}:{display_name.lower()}")
-    det_hash = hashlib.sha256(uid_seed.encode("utf-8")).hexdigest()[:12]
-    user_id = f"{provider}_{det_hash}"
-    token = f"tk_tok_{secrets.token_hex(24)}"
-    email = clean_email or f"{display_name.lower().replace(' ', '.')}@{provider}.com"
+    raw_id_tok = (req.identity_token or "").strip()
 
     conn = get_db()
     cursor = conn.cursor()
     ensure_cloud_saves_table(cursor, conn.is_pg)
     _ensure_world_reset_epoch(cursor, now)
-    _ensure_world1_bots_seeded(cursor, now)
+
+    existing, resolved_uid, resolved_email = _find_user_by_identity(cursor, provider, clean_email, clean_uid, raw_id_tok)
+    eff_uid = resolved_uid or clean_uid
+    eff_email = resolved_email or clean_email
+    has_explicit_identity = bool(eff_email or eff_uid)
+
+    uid_seed = f"{provider}:{eff_uid}" if eff_uid else (f"{provider}:{eff_email}" if eff_email else f"{provider}:{display_name.lower()}")
+    det_hash = hashlib.sha256(uid_seed.encode("utf-8")).hexdigest()[:12]
+    user_id = f"{provider}_{det_hash}"
+    token = f"tk_tok_{secrets.token_hex(24)}"
+    email = eff_email or f"{display_name.lower().replace(' ', '.')}@{provider}.com"
 
     bare_name = display_name[5:].strip() if display_name.startswith("Lord ") else display_name
     candidates = [display_name]
     if bare_name and bare_name != display_name:
         candidates.append(bare_name)
 
-    existing = None
     if has_explicit_identity:
-        # Gerçek Apple/Google hesabı: yalnızca kendi UID veya e-postasıyla eşleş; başka hesabın ismine sızma!
-        if clean_uid:
-            cursor.execute("SELECT * FROM users WHERE id = ?", (user_id,))
-            existing = cursor.fetchone()
-            if not existing:
-                cursor.execute("SELECT * FROM users WHERE id = ?", (clean_uid,))
-                existing = cursor.fetchone()
-        if not existing and clean_email:
-            cursor.execute("SELECT * FROM users WHERE LOWER(email) = LOWER(?) AND provider = ?", (clean_email, provider))
-            existing = cursor.fetchone()
-
         exclude_uid = existing["id"] if existing else user_id
         if _is_display_name_taken(cursor, display_name, exclude_user_id=exclude_uid):
             conn.commit()
@@ -2346,7 +2424,6 @@ def auth_login(req: AuthLoginRequest):
                 },
             )
     else:
-        # Geriye dönük uyumluluk: isimsiz/test login çağrıları
         for cand in candidates:
             cursor.execute("SELECT * FROM users WHERE LOWER(display_name) = LOWER(?) AND provider = ?", (cand, provider))
             existing = cursor.fetchone()
@@ -2361,26 +2438,30 @@ def auth_login(req: AuthLoginRequest):
 
     created_unix = now
     if existing:
+        existing_d = dict(existing)
         user_id = existing["id"]
         if not has_explicit_identity:
             display_name = existing["display_name"]
         elif existing["display_name"] != display_name:
             cursor.execute("UPDATE users SET display_name = ? WHERE id = ?", (display_name, user_id))
-        email = dict(existing).get("email") or email
+        email = existing_d.get("email") or email
+        stored_puid = str(existing_d.get("provider_uid") or "").strip() or eff_uid
         created_unix = int(existing["created_unix"] or now)
-        cursor.execute("UPDATE users SET token = ?, last_login_unix = ?, provider = ? WHERE id = ?", (token, now, provider, user_id))
+        cursor.execute(
+            "UPDATE users SET token = ?, last_login_unix = ?, provider = ?, provider_uid = ?, email = ? WHERE id = ?",
+            (token, now, provider, stored_puid, email, user_id)
+        )
     else:
         cursor.execute("""
-            INSERT INTO users (id, provider, email, display_name, token, created_unix, last_login_unix, diamonds, scrolls_json)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, (user_id, provider, email, display_name, token, now, now, STARTER_DIAMONDS, "{}"))
+            INSERT INTO users (id, provider, email, provider_uid, display_name, token, created_unix, last_login_unix, diamonds, scrolls_json)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (user_id, provider, email, eff_uid, display_name, token, now, now, STARTER_DIAMONDS, "{}"))
 
     cursor.execute("SELECT diamonds, scrolls_json FROM users WHERE id = ?", (user_id,))
     u_wallet_row = cursor.fetchone()
     u_diamonds, u_scrolls = _parse_user_wallet(u_wallet_row)
 
-    cloud_state, cloud_updated_unix, server_village = _fetch_cloud_and_village(cursor, user_id, display_name)
-    worlds_meta = _sync_worlds_table_from_states(cursor, now)
+    cloud_state, cloud_updated_unix, server_village, worlds_meta = _fetch_cloud_and_village_with_worlds(cursor, user_id, display_name)
     has_village = bool(server_village is not None or _player_has_village_in_world(cloud_state, display_name))
 
     conn.commit()
@@ -2392,6 +2473,7 @@ def auth_login(req: AuthLoginRequest):
         "user_id": user_id,
         "provider": provider,
         "email": email,
+        "provider_uid": eff_uid,
         "display_name": display_name,
         "created_unix": created_unix,
         "starter_boost_until_unix": created_unix + STARTER_BOOST_SECONDS,

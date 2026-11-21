@@ -42,8 +42,14 @@ func _ready() -> void:
 		if not _is_authenticated():
 			_show_auth_modal()
 			return
-		if sm != null and sm.load_game():
-			_sync_player_name()
+		_sync_player_name()
+		var p_name := _get_player_name()
+		var wm = root.get_node_or_null("WorldManager") if root != null else null
+		if wm != null and wm.has_method("has_player_village") and bool(wm.has_player_village(wm.current_world_id, p_name)):
+			if wm.enter_world(wm.current_world_id, p_name):
+				get_tree().change_scene_to_file("res://scenes/Village.tscn")
+				return
+		if sm != null and sm.has_save() and sm.load_game():
 			get_tree().change_scene_to_file("res://scenes/Village.tscn")
 	)
 
@@ -66,10 +72,7 @@ func _ready() -> void:
 func _on_cloud_auth_completed(success: bool, _data: Dictionary) -> void:
 	if not success or not is_inside_tree():
 		return
-	var root = Engine.get_main_loop().root if Engine.get_main_loop() is SceneTree else null
-	var sm = root.get_node_or_null("SaveManager") if root != null else null
-	if sm != null and btn_continue != null:
-		btn_continue.disabled = not bool(sm.has_save())
+	_refresh_auth_state()
 
 
 func _is_authenticated() -> bool:
@@ -126,10 +129,10 @@ func _refresh_auth_state() -> void:
 			var wm = Engine.get_main_loop().root.get_node_or_null("WorldManager") if Engine.get_main_loop() is SceneTree else null
 			var p_name := _get_player_name()
 			var conquered: bool = (wm != null and wm.has_method("is_player_conquered") and bool(wm.is_player_conquered(wm.current_world_id, p_name)))
-			if sm != null:
-				var can_cont: bool = (not conquered) and bool(sm.has_save())
-				cont.visible = can_cont
-				cont.disabled = not can_cont
+			var has_cloud_v: bool = (wm != null and wm.has_method("has_player_village") and bool(wm.has_player_village(wm.current_world_id, p_name)))
+			var can_cont: bool = (not conquered) and (has_cloud_v or (sm != null and bool(sm.has_save())))
+			cont.visible = can_cont
+			cont.disabled = not can_cont
 	else:
 		if _profile_bar != null:
 			_profile_bar.hide()

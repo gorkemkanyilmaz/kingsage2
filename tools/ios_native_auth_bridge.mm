@@ -155,9 +155,135 @@ static NSString *TVKBase64AppStoreReceipt(void) {
 
 static TVKNativeAuthBridge *gBridge = nil;
 static TVKStoreKitBridge *gStoreKitBridge = nil;
+static const NSInteger kTVKKeyboardToolbarTag = 90214;
+
+static NSString *TVKExtractEmailFromJWT(NSString *jwt) {
+    if (jwt.length == 0) {
+        return @"";
+    }
+    NSArray<NSString *> *parts = [jwt componentsSeparatedByString:@"."];
+    if (parts.count < 2) {
+        return @"";
+    }
+    NSMutableString *b64 = [parts[1] mutableCopy];
+    [b64 replaceOccurrencesOfString:@"-" withString:@"+" options:0 range:NSMakeRange(0, b64.length)];
+    [b64 replaceOccurrencesOfString:@"_" withString:@"/" options:0 range:NSMakeRange(0, b64.length)];
+    while (b64.length % 4 != 0) {
+        [b64 appendString:@"="];
+    }
+    NSData *decoded = [[NSData alloc] initWithBase64EncodedString:b64 options:0];
+    if (decoded.length == 0) {
+        return @"";
+    }
+    id obj = [NSJSONSerialization JSONObjectWithData:decoded options:0 error:nil];
+    if (![obj isKindOfClass:[NSDictionary class]]) {
+        return @"";
+    }
+    id em = ((NSDictionary *)obj)[@"email"];
+    return [em isKindOfClass:[NSString class]] ? [(NSString *)em stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]] : @"";
+}
+
+@interface TVKKeyboardToolbarHandler : NSObject
++ (instancetype)shared;
+- (void)install;
+- (void)dismissKeyboard:(id)sender;
+@end
+
+@implementation TVKKeyboardToolbarHandler
+
++ (instancetype)shared {
+    static TVKKeyboardToolbarHandler *inst = nil;
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        inst = [[TVKKeyboardToolbarHandler alloc] init];
+    });
+    return inst;
+}
+
+- (void)install {
+    static dispatch_once_t regToken;
+    dispatch_once(&regToken, ^{
+        [[NSNotificationCenter defaultCenter] addObserver:self
+                                                 selector:@selector(onTextBeginEditing:)
+                                                     name:UITextFieldTextDidBeginEditingNotification
+                                                   object:nil];
+        [[NSNotificationCenter defaultCenter] addObserver:self
+                                                 selector:@selector(onTextBeginEditing:)
+                                                     name:UITextViewTextDidBeginEditingNotification
+                                                   object:nil];
+    });
+}
+
+- (UIToolbar *)buildDoneToolbar {
+    CGRect scr = [UIScreen mainScreen].bounds;
+    UIToolbar *tb = [[UIToolbar alloc] initWithFrame:CGRectMake(0, 0, MAX(320.0, scr.size.width), 46.0)];
+    tb.tag = kTVKKeyboardToolbarTag;
+    tb.barStyle = UIBarStyleBlack;
+    tb.translucent = NO;
+    tb.barTintColor = [UIColor colorWithRed:0.09 green:0.08 blue:0.13 alpha:1.0];
+    tb.tintColor = [UIColor colorWithRed:0.96 green:0.82 blue:0.40 alpha:1.0];
+
+    UIBarButtonItem *titleHint = [[UIBarButtonItem alloc] initWithTitle:@"Taht ve Kılıç"
+                                                                  style:UIBarButtonItemStylePlain
+                                                                 target:nil
+                                                                 action:nil];
+    titleHint.enabled = NO;
+    [titleHint setTitleTextAttributes:@{
+        NSForegroundColorAttributeName: [UIColor colorWithRed:0.78 green:0.74 blue:0.64 alpha:0.85],
+        NSFontAttributeName: [UIFont systemFontOfSize:13 weight:UIFontWeightMedium]
+    } forState:UIControlStateDisabled];
+
+    UIBarButtonItem *flex = [[UIBarButtonItem alloc] initWithBarButtonSystemItem:UIBarButtonSystemItemFlexibleSpace
+                                                                          target:nil
+                                                                          action:nil];
+    UIBarButtonItem *doneBtn = [[UIBarButtonItem alloc] initWithTitle:@"✓ Tamam"
+                                                                style:UIBarButtonItemStyleDone
+                                                               target:self
+                                                               action:@selector(dismissKeyboard:)];
+    [doneBtn setTitleTextAttributes:@{
+        NSForegroundColorAttributeName: [UIColor colorWithRed:1.0 green:0.89 blue:0.46 alpha:1.0],
+        NSFontAttributeName: [UIFont boldSystemFontOfSize:16]
+    } forState:UIControlStateNormal];
+    tb.items = @[titleHint, flex, doneBtn];
+    [tb sizeToFit];
+    return tb;
+}
+
+- (void)onTextBeginEditing:(NSNotification *)note {
+    id obj = note.object;
+    if ([obj isKindOfClass:[UITextField class]]) {
+        UITextField *tf = (UITextField *)obj;
+        if (tf.inputAccessoryView == nil || tf.inputAccessoryView.tag != kTVKKeyboardToolbarTag) {
+            tf.inputAccessoryView = [self buildDoneToolbar];
+            [tf reloadInputViews];
+        }
+    } else if ([obj isKindOfClass:[UITextView class]]) {
+        UITextView *tv = (UITextView *)obj;
+        if (tv.inputAccessoryView == nil || tv.inputAccessoryView.tag != kTVKKeyboardToolbarTag) {
+            tv.inputAccessoryView = [self buildDoneToolbar];
+            [tv reloadInputViews];
+        }
+    }
+}
+
+- (void)dismissKeyboard:(id)sender {
+    [[UIApplication sharedApplication] sendAction:@selector(resignFirstResponder) to:nil from:nil forEvent:nil];
+    if (@available(iOS 13.0, *)) {
+        for (UIScene *scene in [UIApplication sharedApplication].connectedScenes) {
+            if ([scene isKindOfClass:[UIWindowScene class]]) {
+                for (UIWindow *w in ((UIWindowScene *)scene).windows) {
+                    [w endEditing:YES];
+                }
+            }
+        }
+    }
+}
+
+@end
 
 extern "C" void tvk_ios_auth_bridge_init(void) {
     dispatch_async(dispatch_get_main_queue(), ^{
+        [[TVKKeyboardToolbarHandler shared] install];
         [[TVKNativeAuthBridge shared] cleanupStaleFiles];
         [[TVKNativeAuthBridge shared] startWatcher];
         [[TVKStoreKitBridge shared] cleanupStaleFiles];
@@ -173,6 +299,7 @@ extern "C" void tvk_ios_auth_bridge_init(void) {
                                                           object:nil
                                                            queue:[NSOperationQueue mainQueue]
                                                       usingBlock:^(NSNotification * _Nonnull note) {
+            [[TVKKeyboardToolbarHandler shared] install];
             [[TVKNativeAuthBridge shared] cleanupStaleFiles];
             [[TVKNativeAuthBridge shared] startWatcher];
             [[TVKStoreKitBridge shared] cleanupStaleFiles];
@@ -182,6 +309,7 @@ extern "C" void tvk_ios_auth_bridge_init(void) {
                                                           object:nil
                                                            queue:[NSOperationQueue mainQueue]
                                                       usingBlock:^(NSNotification * _Nonnull note) {
+            [[TVKKeyboardToolbarHandler shared] install];
             [[TVKNativeAuthBridge shared] startWatcher];
             [[TVKStoreKitBridge shared] start];
         }];
@@ -190,11 +318,13 @@ extern "C" void tvk_ios_auth_bridge_init(void) {
                                                               object:nil
                                                                queue:[NSOperationQueue mainQueue]
                                                           usingBlock:^(NSNotification * _Nonnull note) {
+                [[TVKKeyboardToolbarHandler shared] install];
                 [[TVKNativeAuthBridge shared] startWatcher];
                 [[TVKStoreKitBridge shared] start];
             }];
         }
         dispatch_async(dispatch_get_main_queue(), ^{
+            [[TVKKeyboardToolbarHandler shared] install];
             [[TVKNativeAuthBridge shared] cleanupStaleFiles];
             [[TVKNativeAuthBridge shared] startWatcher];
             [[TVKStoreKitBridge shared] cleanupStaleFiles];
@@ -440,7 +570,16 @@ extern "C" void tvk_ios_auth_bridge_init(void) {
         NSString *uid = cred.user ?: @"";
         NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
 
+        NSString *idTok = @"";
+        if (cred.identityToken != nil) {
+            NSString *utf8Tok = [[NSString alloc] initWithData:cred.identityToken encoding:NSUTF8StringEncoding];
+            idTok = utf8Tok ?: [cred.identityToken base64EncodedStringWithOptions:0];
+        }
+
         NSString *email = cred.email;
+        if (email.length == 0 && idTok.length > 0) {
+            email = TVKExtractEmailFromJWT(idTok);
+        }
         if (email.length > 0 && uid.length > 0) {
             [defaults setObject:email forKey:[kTVKAppleEmailPrefix stringByAppendingString:uid]];
         } else if (uid.length > 0) {
@@ -471,12 +610,6 @@ extern "C" void tvk_ios_auth_bridge_init(void) {
             fullName = [NSString stringWithFormat:@"Apple %@", shortId];
         }
         [defaults synchronize];
-
-        NSString *idTok = @"";
-        if (cred.identityToken != nil) {
-            NSString *utf8Tok = [[NSString alloc] initWithData:cred.identityToken encoding:NSUTF8StringEncoding];
-            idTok = utf8Tok ?: [cred.identityToken base64EncodedStringWithOptions:0];
-        }
 
         [self finishSuccessWithProvider:@"apple"
                             providerUid:uid

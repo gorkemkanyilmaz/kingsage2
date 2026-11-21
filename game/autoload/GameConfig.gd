@@ -158,6 +158,8 @@ func _setup_mobile_safe_area() -> void:
 
 
 func _on_tree_changed_safe_area() -> void:
+	if not is_inside_tree():
+		return
 	var tree := get_tree()
 	if tree == null or tree.current_scene == null:
 		return
@@ -480,3 +482,103 @@ func save_to_file(path: String = CONFIG_PATH) -> bool:
 	file.store_string(JSON.stringify(to_dict(), "\t"))
 	file.close()
 	return true
+
+
+# --- Mobil Sanal Klavye & Odak Kapatma Yardımcıları ---------------------------
+
+static func dismiss_virtual_keyboard(target: Control = null) -> void:
+	if target != null and is_instance_valid(target):
+		var par: Node = target.get_parent()
+		if par is SpinBox:
+			(par as SpinBox).apply()
+		if target is SpinBox:
+			(target as SpinBox).apply()
+			var sb_le: LineEdit = (target as SpinBox).get_line_edit()
+			if sb_le != null and sb_le.has_focus():
+				sb_le.release_focus()
+		elif target.has_focus():
+			target.release_focus()
+	if DisplayServer.get_name() != "headless":
+		DisplayServer.virtual_keyboard_hide()
+
+
+static func attach_mobile_keyboard_dismiss(ctrl: Control, on_submit: Callable = Callable(), numeric: bool = false) -> void:
+	if ctrl == null:
+		return
+	if ctrl is SpinBox:
+		var sp := ctrl as SpinBox
+		sp.update_on_text_changed = true
+		var le: LineEdit = sp.get_line_edit()
+		if le != null:
+			le.virtual_keyboard_type = LineEdit.KEYBOARD_TYPE_NUMBER
+			le.text_submitted.connect(func(_txt: String):
+				sp.apply()
+				le.release_focus()
+				if DisplayServer.get_name() != "headless":
+					DisplayServer.virtual_keyboard_hide()
+				if on_submit.is_valid():
+					on_submit.call()
+			)
+			le.focus_exited.connect(func():
+				sp.apply()
+				if DisplayServer.get_name() != "headless":
+					DisplayServer.virtual_keyboard_hide()
+			)
+	elif ctrl is LineEdit:
+		var le2 := ctrl as LineEdit
+		if numeric:
+			le2.virtual_keyboard_type = LineEdit.KEYBOARD_TYPE_NUMBER
+		le2.text_submitted.connect(func(txt: String):
+			le2.release_focus()
+			if DisplayServer.get_name() != "headless":
+				DisplayServer.virtual_keyboard_hide()
+			if on_submit.is_valid():
+				on_submit.call(txt)
+		)
+		le2.focus_exited.connect(func():
+			if DisplayServer.get_name() != "headless":
+				DisplayServer.virtual_keyboard_hide()
+		)
+	elif ctrl is TextEdit:
+		var te := ctrl as TextEdit
+		te.focus_exited.connect(func():
+			if DisplayServer.get_name() != "headless":
+				DisplayServer.virtual_keyboard_hide()
+		)
+
+
+func _input(event: InputEvent) -> void:
+	if DisplayServer.get_name() == "headless":
+		return
+	var tapped := false
+	var tap_pos := Vector2.ZERO
+	if event is InputEventScreenTouch:
+		var st := event as InputEventScreenTouch
+		if st.pressed:
+			tapped = true
+			tap_pos = st.position
+	elif event is InputEventMouseButton:
+		var mb := event as InputEventMouseButton
+		if mb.button_index == MOUSE_BUTTON_LEFT and mb.pressed:
+			tapped = true
+			tap_pos = mb.position
+	if not tapped:
+		return
+	var vp := get_viewport()
+	if vp == null:
+		return
+	var focus_owner: Control = vp.gui_get_focus_owner()
+	if focus_owner == null or not is_instance_valid(focus_owner):
+		return
+	if not (focus_owner is LineEdit or focus_owner is TextEdit):
+		return
+	if focus_owner.get_global_rect().has_point(tap_pos):
+		return
+	var par: Node = focus_owner.get_parent()
+	if par is SpinBox:
+		var sp := par as SpinBox
+		if sp.get_global_rect().has_point(tap_pos):
+			return
+		sp.apply()
+	focus_owner.release_focus()
+	DisplayServer.virtual_keyboard_hide()

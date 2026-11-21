@@ -84,6 +84,7 @@ func _ready() -> void:
 
 
 func _style_spinbox(spin: SpinBox) -> void:
+	spin.update_on_text_changed = true
 	var le := spin.get_line_edit()
 	if le != null:
 		le.alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -97,6 +98,7 @@ func _style_spinbox(spin: SpinBox) -> void:
 		sb_box.set_corner_radius_all(10)
 		le.add_theme_stylebox_override("normal", sb_box)
 		le.add_theme_stylebox_override("focus", sb_box)
+	preload("res://autoload/GameConfig.gd").attach_mobile_keyboard_dismiss(spin, Callable(), true)
 
 
 func _style_all_button(btn: Button) -> void:

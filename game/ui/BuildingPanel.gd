@@ -2066,6 +2066,7 @@ func _populate_train_list() -> void:
 			spin.max_value = 99999
 			spin.step = 1
 			spin.value = int(_train_counts.get(u_key, 0))
+			spin.update_on_text_changed = true
 			spin.custom_minimum_size = Vector2(120, 54)
 			spin.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 			spin.mouse_filter = Control.MOUSE_FILTER_PASS
@@ -2077,6 +2078,7 @@ func _populate_train_list() -> void:
 				s_line.add_theme_font_size_override("font_size", 24)
 				s_line.add_theme_constant_override("outline_size", 2)
 				s_line.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.95))
+			preload("res://autoload/GameConfig.gd").attach_mobile_keyboard_dismiss(spin, Callable(), true)
 			input_row.add_child(spin)
 
 			var train_btn := Button.new()
@@ -2173,6 +2175,8 @@ func _populate_train_list() -> void:
 			btn_max.pressed.connect(func(): spin.value = _calculate_max_trainable(u_key))
 
 			train_btn.pressed.connect(func():
+				spin.apply()
+				preload("res://autoload/GameConfig.gd").dismiss_virtual_keyboard(spin)
 				var c := int(spin.value)
 				if c > 0:
 					_on_start_train_pressed(u_key, c)
