@@ -368,10 +368,12 @@ func _find_target_item() -> Dictionary:
 			if _target_id != null and str(md.get("id", "")) == str(_target_id):
 				return md
 		var vid := int(gs.active_village_id)
+		var p_name := str(gs.player.get("name", "")).strip_edges().to_lower()
 		for m in gs.movements:
 			if typeof(m) == TYPE_DICTIONARY:
 				var md := m as Dictionary
-				if int(md.get("from_village_id", -1)) == vid or int(md.get("to_village_id", -1)) == vid or int(md.get("village_id", -1)) == vid:
+				var m_own := str(md.get("owner", "")).strip_edges().to_lower()
+				if (not p_name.is_empty() and m_own == p_name) or int(md.get("from_village_id", -1)) == vid or int(md.get("to_village_id", -1)) == vid or int(md.get("village_id", -1)) == vid:
 					return md
 		return {}
 	else:
@@ -494,6 +496,29 @@ func _populate_rows() -> void:
 			action_btn.add_theme_stylebox_override("pressed", u_h)
 			action_btn.add_theme_color_override("font_color", Color(1, 1, 1))
 			action_btn.pressed.connect(_on_use_scroll_pressed.bind(s_id))
+			hb.add_child(action_btn)
+
+			var buy_more_btn := Button.new()
+			buy_more_btn.name = "BuyMoreScrollBtn_" + s_id
+			buy_more_btn.text = "+1 Al (💎 %d)" % cost
+			buy_more_btn.custom_minimum_size = Vector2(142, 52)
+			buy_more_btn.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+			buy_more_btn.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+			buy_more_btn.add_theme_font_override("font", FontNunitoBold)
+			buy_more_btn.add_theme_font_size_override("font_size", 18)
+			var bm_sb := StyleBoxFlat.new()
+			bm_sb.bg_color = Color(0.14, 0.32, 0.54, 0.98)
+			bm_sb.border_color = Color(0.58, 0.88, 1.0, 0.95)
+			bm_sb.set_border_width_all(2)
+			bm_sb.set_corner_radius_all(12)
+			buy_more_btn.add_theme_stylebox_override("normal", bm_sb)
+			var bm_h := bm_sb.duplicate() as StyleBoxFlat
+			bm_h.bg_color = bm_sb.bg_color.lightened(0.12)
+			buy_more_btn.add_theme_stylebox_override("hover", bm_h)
+			buy_more_btn.add_theme_stylebox_override("pressed", bm_h)
+			buy_more_btn.add_theme_color_override("font_color", Color(0.95, 0.98, 1.0))
+			buy_more_btn.pressed.connect(_on_buy_more_scroll_pressed.bind(s_id, s_name, cost))
+			hb.add_child(buy_more_btn)
 		else:
 			action_btn.name = "QuickBuyScrollBtn_" + s_id
 			action_btn.text = "💎 %d Al & Kullan" % cost
@@ -509,9 +534,25 @@ func _populate_rows() -> void:
 			action_btn.add_theme_stylebox_override("pressed", q_h)
 			action_btn.add_theme_color_override("font_color", Color(0.14, 0.08, 0.02))
 			action_btn.pressed.connect(_on_quick_buy_use_pressed.bind(s_id, cost))
+			hb.add_child(action_btn)
 
-		hb.add_child(action_btn)
 		_rows_vbox.add_child(row_card)
+
+
+func _on_buy_more_scroll_pressed(scroll_id: String, scroll_name: String, cost: int) -> void:
+	var sm := _get_store_manager()
+	if sm == null or not sm.has_method("buy_scroll"):
+		_show_status("Mağaza servisi hazır değil.", false)
+		return
+	var b_res = sm.call("buy_scroll", scroll_id, 1)
+	if typeof(b_res) == TYPE_DICTIONARY and bool((b_res as Dictionary).get("ok", false)):
+		_show_status("✅ +1 %s envantere eklendi! '⚡ Kullan' ile hemen uygulayabilirsiniz." % scroll_name, true)
+		_refresh_all()
+	else:
+		if _get_diamonds() < cost:
+			_show_status("💎 Yetersiz elmas (%d gerekli)." % cost, false)
+		else:
+			_show_status(str((b_res as Dictionary).get("error", "Satın alınamadı.")) if typeof(b_res) == TYPE_DICTIONARY else "Satın alınamadı.", false)
 
 
 func _show_status(msg: String, is_ok: bool) -> void:

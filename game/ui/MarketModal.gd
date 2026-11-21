@@ -4,6 +4,12 @@ extends CanvasLayer
 const FontCinzelBold := preload("res://assets/fonts/Cinzel-Bold.ttf")
 const FontNunitoBold := preload("res://assets/fonts/Nunito-Bold.ttf")
 const FontNunitoSemiBold := preload("res://assets/fonts/Nunito-SemiBold.ttf")
+const RulesEngineScript := preload("res://scripts/rules/RulesEngine.gd")
+const IconWood := preload("res://assets/sprites/ui/nano_banana/sharp_icon_wood.tres")
+const IconStone := preload("res://assets/sprites/ui/nano_banana/sharp_icon_stone.tres")
+const IconIron := preload("res://assets/sprites/ui/nano_banana/sharp_icon_iron.tres")
+const IconStorage := preload("res://assets/sprites/ui/nano_banana/sharp_icon_storage.tres")
+const IconDiamond := preload("res://assets/sprites/ui/nano_banana/sharp_icon_diamond.tres")
 
 const FALLBACK_PACKS: Array[Dictionary] = [
 	{"id": "diamonds_10", "product_id": "com.tahtkilic.kingsage2.diamonds_10", "name": "Avuç Dolusu Elmas", "diamonds": 10, "badge": "Başlangıç", "usd": "$0.99", "eur": "€0.99", "try": "₺49,99"},
@@ -28,11 +34,21 @@ const FALLBACK_SCROLLS: Array[Dictionary] = [
 	{"id": "march_60m", "category": "march", "seconds": 3600, "cost_diamonds": 30, "name": "Sefer Hızlandırma 1 Saat"},
 ]
 
+const FALLBACK_RESOURCE_PACKS: Array[Dictionary] = [
+	{"id": "res_wood_1000", "name": "1.000 Odun Sandığı", "cost_diamonds": 5, "wood": 1000, "stone": 0, "iron": 0, "fill_storage": false, "badge": "🪵 Kereste", "description": "Aktif köy ambarına anında +1.000 Odun ekler."},
+	{"id": "res_stone_1000", "name": "1.000 Taş Sandığı", "cost_diamonds": 5, "wood": 0, "stone": 1000, "iron": 0, "fill_storage": false, "badge": "🪨 Taş Blok", "description": "Aktif köy ambarına anında +1.000 Taş ekler."},
+	{"id": "res_iron_1000", "name": "1.000 Demir Sandığı", "cost_diamonds": 5, "wood": 0, "stone": 0, "iron": 1000, "fill_storage": false, "badge": "⛏️ Cevher", "description": "Aktif köy ambarına anında +1.000 Demir ekler."},
+	{"id": "res_bundle_1500", "name": "Kraliyet Erzak Paketi (+1.500 Tümü)", "cost_diamonds": 12, "wood": 1500, "stone": 1500, "iron": 1500, "fill_storage": false, "badge": "⭐ Avantajlı", "description": "Aktif köye +1.500 Odun, +1.500 Taş ve +1.500 Demir ekler."},
+	{"id": "res_bundle_5000", "name": "İmparatorluk Hazine Kervanı (+5.000 Tümü)", "cost_diamonds": 35, "wood": 5000, "stone": 5000, "iron": 5000, "fill_storage": false, "badge": "👑 Büyük Paket", "description": "Aktif köye +5.000 Odun, +5.000 Taş ve +5.000 Demir ekler."},
+	{"id": "res_fill_storage", "name": "Ambarları Doldur (%100 Tam Depo)", "cost_diamonds": 25, "wood": 0, "stone": 0, "iron": 0, "fill_storage": true, "badge": "🏛️ Tam Kapasite", "description": "Aktif köyün Odun, Taş ve Demir ambarlarını Depo kapasitesinin %100'üne doldurur."},
+]
+
 const TABS := [
 	{"key": "build", "label": "🔨 İnşaat"},
 	{"key": "train", "label": "⚔️ Eğitim"},
 	{"key": "research", "label": "🔬 Araştırma"},
 	{"key": "march", "label": "🐴 Sefer"},
+	{"key": "resources", "label": "📦 Kaynak Al"},
 	{"key": "diamonds", "label": "💎 Elmas Al"},
 ]
 
@@ -60,7 +76,7 @@ func _ready() -> void:
 
 
 func open_tab(tab_key: String = "build") -> void:
-	_current_tab = tab_key if tab_key in ["build", "train", "research", "march", "diamonds"] else "build"
+	_current_tab = tab_key if tab_key in ["build", "train", "research", "march", "resources", "diamonds"] else "build"
 	_ensure_ui()
 	_connect_signals()
 	if _current_tab == "diamonds":
@@ -129,6 +145,15 @@ func _get_diamond_packs() -> Array:
 		if raw is Array and not (raw as Array).is_empty():
 			return raw
 	return FALLBACK_PACKS
+
+
+func _get_resource_packs() -> Array:
+	var sm := _get_store_manager()
+	if sm != null and sm.has_method("get_resource_packs"):
+		var raw = sm.call("get_resource_packs")
+		if raw is Array and not (raw as Array).is_empty():
+			return raw
+	return FALLBACK_RESOURCE_PACKS
 
 
 func _get_pack_price_label(pack: Dictionary) -> String:
@@ -269,31 +294,30 @@ func _ensure_ui() -> void:
 	_diamond_label.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0))
 	dia_pill.add_child(_diamond_label)
 
-	if OS.get_name() != "iOS":
-		_currency_option = OptionButton.new()
-		_currency_option.name = "CurrencySelector"
-		_currency_option.custom_minimum_size = Vector2(118, 44)
-		_currency_option.add_theme_font_override("font", FontNunitoBold)
-		_currency_option.add_theme_font_size_override("font_size", 18)
-		_currency_option.add_theme_color_override("font_color", Color(1.0, 0.95, 0.82))
-		_currency_option.add_item("₺ TRY", 0)
-		_currency_option.add_item("$ USD", 1)
-		_currency_option.add_item("€ EUR", 2)
-		var cur_sb := StyleBoxFlat.new()
-		cur_sb.bg_color = Color(0.16, 0.14, 0.22, 0.98)
-		cur_sb.border_color = Color(0.75, 0.62, 0.34, 0.9)
-		cur_sb.set_border_width_all(2)
-		cur_sb.set_corner_radius_all(10)
-		cur_sb.content_margin_left = 10
-		cur_sb.content_margin_right = 10
-		_currency_option.add_theme_stylebox_override("normal", cur_sb)
-		_currency_option.add_theme_stylebox_override("hover", cur_sb)
-		_currency_option.add_theme_stylebox_override("pressed", cur_sb)
-		var sm := _get_store_manager()
-		var pref := str(sm.get("preferred_currency")) if sm != null else "TRY"
-		_currency_option.selected = 1 if pref == "USD" else (2 if pref == "EUR" else 0)
-		_currency_option.item_selected.connect(_on_currency_selected)
-		hdr.add_child(_currency_option)
+	_currency_option = OptionButton.new()
+	_currency_option.name = "CurrencySelector"
+	_currency_option.custom_minimum_size = Vector2(118, 44)
+	_currency_option.add_theme_font_override("font", FontNunitoBold)
+	_currency_option.add_theme_font_size_override("font_size", 18)
+	_currency_option.add_theme_color_override("font_color", Color(1.0, 0.95, 0.82))
+	_currency_option.add_item("₺ TRY", 0)
+	_currency_option.add_item("$ USD", 1)
+	_currency_option.add_item("€ EUR", 2)
+	var cur_sb := StyleBoxFlat.new()
+	cur_sb.bg_color = Color(0.16, 0.14, 0.22, 0.98)
+	cur_sb.border_color = Color(0.75, 0.62, 0.34, 0.9)
+	cur_sb.set_border_width_all(2)
+	cur_sb.set_corner_radius_all(10)
+	cur_sb.content_margin_left = 10
+	cur_sb.content_margin_right = 10
+	_currency_option.add_theme_stylebox_override("normal", cur_sb)
+	_currency_option.add_theme_stylebox_override("hover", cur_sb)
+	_currency_option.add_theme_stylebox_override("pressed", cur_sb)
+	var sm := _get_store_manager()
+	var pref := str(sm.get("preferred_currency")) if sm != null else "TRY"
+	_currency_option.selected = 1 if pref == "USD" else (2 if pref == "EUR" else 0)
+	_currency_option.item_selected.connect(_on_currency_selected)
+	hdr.add_child(_currency_option)
 
 	_close_btn = Button.new()
 	_close_btn.name = "MarketCloseBtn"
@@ -457,6 +481,8 @@ func _refresh_list() -> void:
 
 	if _current_tab == "diamonds":
 		_populate_diamonds_tab()
+	elif _current_tab == "resources":
+		_populate_resources_tab()
 	else:
 		_populate_scrolls_tab(_current_tab)
 
@@ -596,15 +622,45 @@ func _populate_scrolls_tab(cat: String) -> void:
 		inv_pill.add_child(inv_lbl)
 		info_vb.add_child(inv_pill)
 
+		var btn_col := HBoxContainer.new()
+		btn_col.add_theme_constant_override("separation", 10)
+		btn_col.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		btn_col.mouse_filter = Control.MOUSE_FILTER_PASS
+		row.add_child(btn_col)
+
+		if owned > 0:
+			var use_btn := Button.new()
+			use_btn.name = "MarketUseScrollBtn_" + s_id
+			use_btn.text = "⚡ Kullan (%d)" % owned
+			use_btn.custom_minimum_size = Vector2(158, 56)
+			use_btn.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+			use_btn.mouse_filter = Control.MOUSE_FILTER_PASS
+			use_btn.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+			use_btn.add_theme_font_override("font", FontNunitoBold)
+			use_btn.add_theme_font_size_override("font_size", 19)
+			var u_sb := StyleBoxFlat.new()
+			u_sb.bg_color = Color(0.18, 0.56, 0.30, 1.0)
+			u_sb.border_color = Color(0.56, 0.94, 0.66, 1.0)
+			u_sb.set_border_width_all(2)
+			u_sb.set_corner_radius_all(12)
+			use_btn.add_theme_stylebox_override("normal", u_sb)
+			var u_hov := u_sb.duplicate() as StyleBoxFlat
+			u_hov.bg_color = Color(0.24, 0.68, 0.38, 1.0)
+			use_btn.add_theme_stylebox_override("hover", u_hov)
+			use_btn.add_theme_stylebox_override("pressed", u_hov)
+			use_btn.add_theme_color_override("font_color", Color(1.0, 1.0, 1.0))
+			use_btn.pressed.connect(_on_use_scroll_from_market.bind(s_id, s_name, cat))
+			btn_col.add_child(use_btn)
+
 		var buy_btn := Button.new()
 		buy_btn.name = "BuyScrollBtn_" + s_id
 		buy_btn.text = "💎 %d Satın Al" % cost
-		buy_btn.custom_minimum_size = Vector2(180, 56)
+		buy_btn.custom_minimum_size = Vector2(166 if owned > 0 else 180, 56)
 		buy_btn.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		buy_btn.mouse_filter = Control.MOUSE_FILTER_PASS
 		buy_btn.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 		buy_btn.add_theme_font_override("font", FontNunitoBold)
-		buy_btn.add_theme_font_size_override("font_size", 20)
+		buy_btn.add_theme_font_size_override("font_size", 19 if owned > 0 else 20)
 		buy_btn.add_theme_constant_override("outline_size", 0)
 		buy_btn.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0))
 		var can_buy := diamonds >= cost
@@ -621,9 +677,205 @@ func _populate_scrolls_tab(cat: String) -> void:
 		buy_btn.add_theme_color_override("font_color", Color(1.0, 0.98, 0.94))
 		buy_btn.add_theme_color_override("font_hover_color", Color(1, 1, 1))
 		buy_btn.pressed.connect(_on_buy_scroll_pressed.bind(s_id, s_name, cost))
+		btn_col.add_child(buy_btn)
+
+		_content_list.add_child(card)
+
+
+func _on_use_scroll_from_market(scroll_id: String, scroll_name: String, cat: String) -> void:
+	var sm := _get_store_manager()
+	if sm == null or not sm.has_method("apply_scroll_to_queue"):
+		_show_status("Hızlandırma servisi hazır değil.", false)
+		return
+	var res = sm.call("apply_scroll_to_queue", scroll_id, cat, null)
+	if typeof(res) == TYPE_DICTIONARY and bool((res as Dictionary).get("ok", false)):
+		var sec := int((res as Dictionary).get("reduced_seconds", 0))
+		var done := bool((res as Dictionary).get("completed", false))
+		var dur_str := str(sm.call("format_duration", sec)) if sm.has_method("format_duration") else ("%d sn" % sec)
+		if done:
+			_show_status("⚡ %s kullanıldı ve işlem anında tamamlandı!" % scroll_name, true)
+		else:
+			_show_status("⚡ %s kullanıldı! Süre %s kısaltıldı." % [scroll_name, dur_str], true)
+		_refresh_all()
+	else:
+		var err := str((res as Dictionary).get("error", "Şu anda bu kategoride hızlandırılacak aktif bir işlem yok.")) if typeof(res) == TYPE_DICTIONARY else "Hızlandırılacak aktif işlem yok."
+		_show_status(err, false)
+
+
+func _populate_resources_tab() -> void:
+	var loop := Engine.get_main_loop()
+	var gs: Node = (loop as SceneTree).root.get_node_or_null("GameState") if loop is SceneTree and (loop as SceneTree).root != null else null
+	var v: Dictionary = gs.call("get_active_village") if gs != null and gs.has_method("get_active_village") else {}
+	var blds: Dictionary = v.get("buildings", {}) if typeof(v.get("buildings")) == TYPE_DICTIONARY else {}
+	var st_lvl := maxi(1, int(blds.get("storage", blds.get("warehouse", 1))))
+	var cap := maxi(1000, int(RulesEngineScript.storage_capacity(st_lvl)))
+	var res: Dictionary = v.get("resources", {}) if typeof(v.get("resources")) == TYPE_DICTIONARY else {}
+	var cur_w := int(res.get("wood", 0))
+	var cur_s := int(res.get("stone", 0))
+	var cur_i := int(res.get("iron", 0))
+
+	var intro := PanelContainer.new()
+	intro.mouse_filter = Control.MOUSE_FILTER_PASS
+	var i_sb := StyleBoxFlat.new()
+	i_sb.bg_color = Color(0.13, 0.11, 0.18, 0.94)
+	i_sb.border_color = Color(0.75, 0.62, 0.34, 0.85)
+	i_sb.set_border_width_all(1)
+	i_sb.set_corner_radius_all(12)
+	i_sb.set_content_margin_all(12)
+	intro.add_theme_stylebox_override("panel", i_sb)
+	var intro_lbl := Label.new()
+	intro_lbl.text = "🏛️ Aktif Köy Ambarı (Depo Sv.%d • Kapasite: %d)\n🪵 Odun: %d / %d   •   🪨 Taş: %d / %d   •   ⛏️ Demir: %d / %d" % [
+		st_lvl, cap, cur_w, cap, cur_s, cap, cur_i, cap
+	]
+	intro_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	intro_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	intro_lbl.add_theme_font_override("font", FontNunitoBold)
+	intro_lbl.add_theme_font_size_override("font_size", 18)
+	intro_lbl.add_theme_color_override("font_color", Color(0.95, 0.90, 0.76))
+	intro.add_child(intro_lbl)
+	_content_list.add_child(intro)
+
+	var diamonds := _get_diamonds()
+	var rpacks := _get_resource_packs()
+	for rp_raw in rpacks:
+		var rp: Dictionary = rp_raw
+		var rp_id := str(rp.get("id", ""))
+		var rp_name := str(rp.get("name", rp_id))
+		var rp_desc := str(rp.get("description", ""))
+		var rp_badge := str(rp.get("badge", ""))
+		var cost := int(rp.get("cost_diamonds", 5))
+		var is_fill := bool(rp.get("fill_storage", false))
+
+		var card := PanelContainer.new()
+		card.name = "ResourcePackCard_" + rp_id
+		card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		card.mouse_filter = Control.MOUSE_FILTER_PASS
+		var c_sb := StyleBoxFlat.new()
+		c_sb.bg_color = Color(0.14, 0.12, 0.19, 0.98)
+		c_sb.border_color = Color(0.82, 0.66, 0.34, 0.92)
+		c_sb.set_border_width_all(2)
+		c_sb.set_corner_radius_all(14)
+		c_sb.content_margin_left = 16
+		c_sb.content_margin_right = 16
+		c_sb.content_margin_top = 14
+		c_sb.content_margin_bottom = 14
+		card.add_theme_stylebox_override("panel", c_sb)
+
+		var row := HBoxContainer.new()
+		row.mouse_filter = Control.MOUSE_FILTER_PASS
+		row.add_theme_constant_override("separation", 14)
+		card.add_child(row)
+
+		var icon_box := PanelContainer.new()
+		icon_box.custom_minimum_size = Vector2(68, 68)
+		icon_box.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		icon_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		var ic_sb := StyleBoxFlat.new()
+		ic_sb.bg_color = Color(0.20, 0.16, 0.10, 0.98)
+		ic_sb.border_color = Color(0.95, 0.78, 0.34, 0.95)
+		ic_sb.set_border_width_all(2)
+		ic_sb.set_corner_radius_all(12)
+		icon_box.add_theme_stylebox_override("panel", ic_sb)
+		var tex_rect := TextureRect.new()
+		tex_rect.custom_minimum_size = Vector2(44, 44)
+		tex_rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		tex_rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		tex_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		if rp_id.contains("wood"):
+			tex_rect.texture = IconWood
+		elif rp_id.contains("stone"):
+			tex_rect.texture = IconStone
+		elif rp_id.contains("iron"):
+			tex_rect.texture = IconIron
+		else:
+			tex_rect.texture = IconStorage
+		icon_box.add_child(tex_rect)
+		row.add_child(icon_box)
+
+		var info_vb := VBoxContainer.new()
+		info_vb.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		info_vb.mouse_filter = Control.MOUSE_FILTER_PASS
+		info_vb.add_theme_constant_override("separation", 4)
+		row.add_child(info_vb)
+
+		var top_line := HBoxContainer.new()
+		top_line.add_theme_constant_override("separation", 8)
+		info_vb.add_child(top_line)
+
+		var name_lbl := Label.new()
+		name_lbl.text = rp_name
+		name_lbl.add_theme_font_override("font", FontNunitoBold)
+		name_lbl.add_theme_font_size_override("font_size", 22)
+		name_lbl.add_theme_color_override("font_color", Color(1.0, 0.94, 0.72))
+		top_line.add_child(name_lbl)
+
+		if not rp_badge.is_empty():
+			var b_lbl := Label.new()
+			b_lbl.text = "[%s]" % rp_badge
+			b_lbl.add_theme_font_override("font", FontNunitoBold)
+			b_lbl.add_theme_font_size_override("font_size", 16)
+			b_lbl.add_theme_color_override("font_color", Color(0.58, 0.90, 1.0))
+			top_line.add_child(b_lbl)
+
+		var desc_lbl := Label.new()
+		desc_lbl.text = "%s • Fiyat: 💎 %d Elmas" % [rp_desc, cost]
+		desc_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		desc_lbl.add_theme_font_override("font", FontNunitoSemiBold)
+		desc_lbl.add_theme_font_size_override("font_size", 18)
+		desc_lbl.add_theme_color_override("font_color", Color(0.84, 0.82, 0.76))
+		info_vb.add_child(desc_lbl)
+
+		var buy_btn := Button.new()
+		buy_btn.name = "BuyResourceBtn_" + rp_id
+		buy_btn.text = "💎 %d Satın Al" % cost
+		buy_btn.custom_minimum_size = Vector2(180, 56)
+		buy_btn.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		buy_btn.mouse_filter = Control.MOUSE_FILTER_PASS
+		buy_btn.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+		buy_btn.add_theme_font_override("font", FontNunitoBold)
+		buy_btn.add_theme_font_size_override("font_size", 20)
+		var can_buy := diamonds >= cost
+		var b_sb := StyleBoxFlat.new()
+		b_sb.bg_color = Color(0.18, 0.50, 0.28, 1.0) if can_buy else Color(0.24, 0.20, 0.26, 0.95)
+		b_sb.border_color = Color(0.56, 0.94, 0.66, 1.0) if can_buy else Color(0.45, 0.40, 0.50, 0.8)
+		b_sb.set_border_width_all(2)
+		b_sb.set_corner_radius_all(12)
+		buy_btn.add_theme_stylebox_override("normal", b_sb)
+		var b_hov := b_sb.duplicate() as StyleBoxFlat
+		b_hov.bg_color = b_sb.bg_color.lightened(0.14)
+		buy_btn.add_theme_stylebox_override("hover", b_hov)
+		buy_btn.add_theme_stylebox_override("pressed", b_hov)
+		buy_btn.add_theme_color_override("font_color", Color(1.0, 0.98, 0.94))
+		buy_btn.pressed.connect(_on_buy_resource_pack_pressed.bind(rp_id, rp_name, cost))
 		row.add_child(buy_btn)
 
 		_content_list.add_child(card)
+
+
+func _on_buy_resource_pack_pressed(pack_id: String, pack_name: String, cost: int) -> void:
+	var sm := _get_store_manager()
+	if sm == null or not sm.has_method("buy_resource_pack"):
+		_show_status("Mağaza servisi hazır değil.", false)
+		return
+	var res = sm.call("buy_resource_pack", pack_id)
+	if typeof(res) == TYPE_DICTIONARY and bool((res as Dictionary).get("ok", false)):
+		var added: Dictionary = (res as Dictionary).get("added_resources", {}) if typeof((res as Dictionary).get("added_resources")) == TYPE_DICTIONARY else {}
+		var parts: Array[String] = []
+		if int(added.get("wood", 0)) > 0:
+			parts.append("+%d Odun" % int(added["wood"]))
+		if int(added.get("stone", 0)) > 0:
+			parts.append("+%d Taş" % int(added["stone"]))
+		if int(added.get("iron", 0)) > 0:
+			parts.append("+%d Demir" % int(added["iron"]))
+		var summary := ", ".join(parts) if not parts.is_empty() else pack_name
+		_show_status("📦 %s köy ambarınıza eklendi!" % summary, true)
+		_refresh_all()
+	else:
+		var err := str((res as Dictionary).get("error", "Kaynak paketi alınamadı.")) if typeof(res) == TYPE_DICTIONARY else "Kaynak paketi alınamadı."
+		if _get_diamonds() < cost:
+			_show_status("💎 Yetersiz elmas (%d gerekli). 'Elmas Al' sekmesinden edinebilirsiniz." % cost, false)
+		else:
+			_show_status(err, false)
 
 
 func _on_buy_scroll_pressed(scroll_id: String, scroll_name: String, cost: int) -> void:

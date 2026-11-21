@@ -37,8 +37,15 @@ const CLOUD_POLL_INTERVAL_SEC := 8.0
 var _cloud_poll_accum: float = 0.0
 var _cloud_poll_in_flight: bool = false
 var _last_local_mutation_unix: int = 0
+var _wallet_lock_until_unix: int = 0
 var _is_applying_cloud_sync: bool = false
 var suppress_auto_conquered_prompt: bool = false
+
+
+func notify_local_wallet_mutation() -> void:
+	var now := int(Time.get_unix_time_from_system())
+	_last_local_mutation_unix = now
+	_wallet_lock_until_unix = now + 12
 
 
 func _ready() -> void:
@@ -129,12 +136,12 @@ func _on_state_changed_autosave() -> void:
 		return
 	var now := int(Time.get_unix_time_from_system())
 	_last_local_mutation_unix = now
-	if now - _last_autosave_unix < 3:
-		return
 	var gs = _find_game_state()
 	if gs != null and gs.has_active_village():
-		_last_autosave_unix = now
-		save_active_world()
+		var force_cloud := (now - _last_autosave_unix >= 2)
+		if force_cloud:
+			_last_autosave_unix = now
+		save_active_world(force_cloud)
 
 
 func _cloud_enabled() -> bool:
@@ -1091,8 +1098,8 @@ func _apply_to_game_state(w_data: Dictionary, player_name: String, active_vid: i
 	gs.player["points"] = total_points
 
 
-## Anlık GameState'i aktif dünya dosyasına kaydeder.
-func save_active_world() -> bool:
+## Anlık GameState'i aktif dünya dosyasına kaydeder (force_cloud: bulut kaydını throttle'sız hemen gönder).
+func save_active_world(force_cloud: bool = false) -> bool:
 	var gs = _find_game_state()
 	if gs == null:
 		return false
@@ -1123,6 +1130,12 @@ func save_active_world() -> bool:
 			for k in (nw["player_profiles"] as Dictionary).keys():
 				merged_p[k] = nw["player_profiles"][k]
 		nw["player_profiles"] = merged_p
+	if typeof(prev_world.get("player_profiles")) == TYPE_DICTIONARY:
+		var merged_p: Dictionary = (prev_world["player_profiles"] as Dictionary).duplicate(true)
+		if typeof(nw.get("player_profiles")) == TYPE_DICTIONARY:
+			for k in (nw["player_profiles"] as Dictionary).keys():
+				merged_p[k] = nw["player_profiles"][k]
+		nw["player_profiles"] = merged_p
 	if typeof(prev_world.get("player_starter_boost")) == TYPE_DICTIONARY:
 		var merged_b: Dictionary = (prev_world["player_starter_boost"] as Dictionary).duplicate(true)
 		if typeof(nw.get("player_starter_boost")) == TYPE_DICTIONARY:
@@ -1133,6 +1146,8 @@ func save_active_world() -> bool:
 
 	w_data["last_saved_unix"] = now
 	w_data["state"] = next_state
+	if now < _wallet_lock_until_unix or force_cloud:
+		w_data["wallet_authoritative"] = true
 
 	var p_name := str(gs.player.get("name", "Lord Gorkem"))
 	var reg_list: Array = w_data.get("registered_real_players", [])
@@ -1143,7 +1158,7 @@ func save_active_world() -> bool:
 	var ok := save_world_dict(current_world_id, w_data)
 	if ok and _cloud_enabled() and Engine.get_main_loop() is SceneTree:
 		var net = Engine.get_main_loop().root.get_node_or_null("NetworkManager")
-		if net != null and not str(net.auth_token).is_empty() and (now - _last_cloud_save_unix) >= 3:
+		if net != null and not str(net.auth_token).is_empty() and (force_cloud or (now - _last_cloud_save_unix) >= 2):
 			_last_cloud_save_unix = now
 			net.save_state_to_cloud(net.auth_token, w_data)
 	return ok
@@ -1265,6 +1280,28 @@ func _merge_shared_world_data(local_w: Dictionary, cloud_w: Dictionary, p_name: 
 			combined_queues.append((q as Dictionary).duplicate(true))
 	m_state["queues"] = combined_queues
 
+	# Yerel seferleri (movements) koru, diğer oyuncuların sunucudaki seferlerini tut
+	var c_movements: Array = m_state.get("movements", []) if typeof(m_state.get("movements")) == TYPE_ARRAY else []
+	var l_movements: Array = l_state.get("movements", []) if typeof(l_state.get("movements")) == TYPE_ARRAY else []
+	m_state["movements"] = _merge_player_and_remote_movements(l_movements, c_movements, p_name, local_vids)
+
+	# Yerel yeni raporları koru
+	if typeof(l_state.get("reports")) == TYPE_ARRAY and typeof(m_state.get("reports")) == TYPE_ARRAY:
+		var seen_r_ids: Dictionary = {}
+		var comb_reps: Array = []
+		for r in (m_state["reports"] as Array):
+			if typeof(r) == TYPE_DICTIONARY:
+				var r_key := "%s_%d_%d" % [str((r as Dictionary).get("type", "")), int((r as Dictionary).get("village_id", 0)), int((r as Dictionary).get("unix", (r as Dictionary).get("created_unix", 0)))]
+				seen_r_ids[r_key] = true
+				comb_reps.append(r)
+		for lr in (l_state["reports"] as Array):
+			if typeof(lr) == TYPE_DICTIONARY:
+				var lr_key := "%s_%d_%d" % [str((lr as Dictionary).get("type", "")), int((lr as Dictionary).get("village_id", 0)), int((lr as Dictionary).get("unix", (lr as Dictionary).get("created_unix", 0)))]
+				if not seen_r_ids.has(lr_key):
+					seen_r_ids[lr_key] = true
+					comb_reps.append((lr as Dictionary).duplicate(true))
+		m_state["reports"] = comb_reps
+
 	# Kendi yerel profilimizi koru, diğer profilleri sunucudan tut
 	var m_world: Dictionary = m_state.get("world", {}) if typeof(m_state.get("world")) == TYPE_DICTIONARY else {}
 	var l_world: Dictionary = l_state.get("world", {}) if typeof(l_state.get("world")) == TYPE_DICTIONARY else {}
@@ -1288,6 +1325,68 @@ func _merge_shared_world_data(local_w: Dictionary, cloud_w: Dictionary, p_name: 
 	merged["state"] = m_state
 	merged["last_saved_unix"] = maxi(local_ts, cloud_ts)
 	return merged
+
+
+func _is_own_movement_dict(m: Dictionary, p_name: String, owned_vids: Dictionary) -> bool:
+	var m_owner := str(m.get("owner", "")).strip_edges()
+	if not m_owner.is_empty() and _matches_player(m_owner, p_name):
+		return true
+	var m_vid := int(m.get("village_id", -1))
+	if owned_vids.has(m_vid):
+		return true
+	var is_ret := (str(m.get("state", "")) == "returning" or str(m.get("type", "")) == "return")
+	if is_ret:
+		return owned_vids.has(int(m.get("to_village_id", -1)))
+	return owned_vids.has(int(m.get("from_village_id", -1)))
+
+
+func _merge_player_and_remote_movements(local_movs: Array, remote_movs: Array, p_name: String, owned_vids: Dictionary) -> Array:
+	var returned_origin_ids: Dictionary = {}
+	var returned_seeds: Dictionary = {}
+	for src_arr in [local_movs, remote_movs]:
+		for item in src_arr:
+			if typeof(item) != TYPE_DICTIONARY:
+				continue
+			var md := item as Dictionary
+			if str(md.get("state", "")) == "returning" or str(md.get("type", "")) == "return":
+				var omid := int(md.get("origin_movement_id", 0))
+				if omid > 0:
+					returned_origin_ids[omid] = true
+				var bseed := int(md.get("battle_seed", 0))
+				if bseed > 0:
+					returned_seeds[bseed] = true
+
+	var out: Array = []
+	var seen_keys: Dictionary = {}
+	# Kendi hareketlerimizde yerel liste otoriterdir
+	for lm in local_movs:
+		if typeof(lm) != TYPE_DICTIONARY:
+			continue
+		var md := (lm as Dictionary).duplicate(true)
+		if not _is_own_movement_dict(md, p_name, owned_vids):
+			continue
+		var is_ret := (str(md.get("state", "")) == "returning" or str(md.get("type", "")) == "return")
+		var mid := int(md.get("id", 0))
+		var bseed := int(md.get("battle_seed", 0))
+		if not is_ret and ((mid > 0 and returned_origin_ids.has(mid)) or (bseed > 0 and returned_seeds.has(bseed))):
+			continue
+		var k := "own_%d_%s_%d" % [mid, "ret" if is_ret else "out", bseed]
+		if not seen_keys.has(k):
+			seen_keys[k] = true
+			out.append(md)
+
+	# Diğer oyuncuların hareketlerini sunucudan ekle
+	for rm in remote_movs:
+		if typeof(rm) != TYPE_DICTIONARY:
+			continue
+		var rmd := (rm as Dictionary).duplicate(true)
+		if _is_own_movement_dict(rmd, p_name, owned_vids):
+			continue
+		var r_key := "rem_%d_%d_%s_%d" % [int(rmd.get("from_village_id", 0)), int(rmd.get("to_village_id", 0)), str(rmd.get("type", "")), int(rmd.get("depart_unix", 0))]
+		if not seen_keys.has(r_key):
+			seen_keys[r_key] = true
+			out.append(rmd)
+	return out
 
 
 func _live_sync_game_state_from_world(merged_w: Dictionary, p_name: String) -> void:
@@ -1326,7 +1425,9 @@ func _live_sync_game_state_from_world(merged_w: Dictionary, p_name: String) -> v
 	elif first_owned_vid < 0 and (prev_owned or is_player_conquered(w_id, p_name)):
 		gs.active_village_id = -1
 	gs.player["points"] = total_pts
-	if typeof(st.get("player")) == TYPE_DICTIONARY:
+	var now_sync := int(Time.get_unix_time_from_system())
+	var wallet_locked := (now_sync < _wallet_lock_until_unix)
+	if typeof(st.get("player")) == TYPE_DICTIONARY and not wallet_locked:
 		var rp: Dictionary = st["player"]
 		if _matches_player(str(rp.get("name", "")), p_name):
 			if rp.has("diamonds") and rp.get("diamonds") != null:
@@ -1334,15 +1435,24 @@ func _live_sync_game_state_from_world(merged_w: Dictionary, p_name: String) -> v
 			if typeof(rp.get("scrolls")) == TYPE_DICTIONARY:
 				gs.player["scrolls"] = (rp["scrolls"] as Dictionary).duplicate(true)
 
+	var owned_vids: Dictionary = {}
+	for v in gs.villages:
+		if _is_real_player_village_dict(v) and _matches_player(str((v as Dictionary).get("owner", "")), p_name):
+			owned_vids[int((v as Dictionary).get("id", 0))] = true
+
 	if typeof(st.get("alliances")) == TYPE_ARRAY:
 		gs.alliances = (st["alliances"] as Array).duplicate(true)
 	if typeof(st.get("movements")) == TYPE_ARRAY:
-		gs.movements = (st["movements"] as Array).duplicate(true)
+		if _last_local_mutation_unix > _last_cloud_save_unix or wallet_locked:
+			gs.movements = _merge_player_and_remote_movements(gs.movements, st["movements"] as Array, p_name, owned_vids)
+		else:
+			# Yine de kendi aktif hareketlerimizde giden+dönen çakışmasını temizle
+			var remote_movs := (st["movements"] as Array).duplicate(true)
+			if not gs.movements.is_empty():
+				gs.movements = _merge_player_and_remote_movements(gs.movements, remote_movs, p_name, owned_vids)
+			else:
+				gs.movements = remote_movs
 	if typeof(st.get("queues")) == TYPE_ARRAY:
-		var owned_vids: Dictionary = {}
-		for v in gs.villages:
-			if _is_real_player_village_dict(v) and _matches_player(str((v as Dictionary).get("owner", "")), p_name):
-				owned_vids[int((v as Dictionary).get("id", 0))] = true
 		var merged_queues: Array = []
 		for lq in gs.queues:
 			if typeof(lq) == TYPE_DICTIONARY and owned_vids.has(int((lq as Dictionary).get("village_id", 0))):
@@ -1389,7 +1499,8 @@ func apply_cloud_sync(res_data: Dictionary, from_save_response: bool = false) ->
 		_sync_worlds_meta_from_server(res_data.get("worlds_meta", []))
 
 	var gs_sync := _find_game_state()
-	if gs_sync != null and not from_save_response:
+	var wallet_locked_now := (int(Time.get_unix_time_from_system()) < _wallet_lock_until_unix)
+	if gs_sync != null and not from_save_response and not wallet_locked_now:
 		if res_data.has("diamonds") and res_data.get("diamonds") != null:
 			gs_sync.player["diamonds"] = maxi(0, int(res_data.get("diamonds", 35)))
 		if typeof(res_data.get("scrolls")) == TYPE_DICTIONARY:
@@ -1437,7 +1548,7 @@ func apply_cloud_sync(res_data: Dictionary, from_save_response: bool = false) ->
 
 		_live_sync_game_state_from_world(merged_w, p_name)
 
-		if gs_sync != null and not from_save_response:
+		if gs_sync != null and not from_save_response and not wallet_locked_now:
 			if res_data.has("diamonds") and res_data.get("diamonds") != null:
 				gs_sync.player["diamonds"] = maxi(0, int(res_data.get("diamonds", 35)))
 			if typeof(res_data.get("scrolls")) == TYPE_DICTIONARY:

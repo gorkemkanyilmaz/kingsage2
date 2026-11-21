@@ -8,6 +8,7 @@ const ICON_STONE: Texture2D = preload("res://assets/sprites/ui/nano_banana/sharp
 const ICON_IRON: Texture2D = preload("res://assets/sprites/ui/nano_banana/sharp_icon_iron.tres")
 const ICON_CITIZENS: Texture2D = preload("res://assets/sprites/ui/nano_banana/sharp_icon_citizens.tres")
 const ICON_STORAGE: Texture2D = preload("res://assets/sprites/ui/nano_banana/sharp_icon_storage.tres")
+const ICON_DIAMOND: Texture2D = preload("res://assets/sprites/ui/nano_banana/sharp_icon_diamond.tres")
 const FONT_BOLD: Font = preload("res://assets/fonts/Nunito-Bold.ttf")
 const FONT_SEMIBOLD: Font = preload("res://assets/fonts/Nunito-SemiBold.ttf")
 
@@ -19,19 +20,25 @@ var island_spacer: Control
 var right_wing: HBoxContainer
 
 var village_name_label: Label
+var btn_rename_village: Button
 var points_box: Control
 var points_label: Label
 var wood_box: Control
+var wood_title_label: Label
 var wood_label: Label
 var wood_bar: ProgressBar
 var stone_box: Control
+var stone_title_label: Label
 var stone_label: Label
 var stone_bar: ProgressBar
 var iron_box: Control
+var iron_title_label: Label
 var iron_label: Label
 var iron_bar: ProgressBar
 var citizens_box: Control
+var citizens_title_label: Label
 var citizens_label: Label
+var citizens_bar: ProgressBar
 
 var storage_bar: ProgressBar
 var storage_label: Label
@@ -47,6 +54,12 @@ var _last_bar_height: float = DESKTOP_BAR_HEIGHT
 var _switcher_modal: CanvasLayer = null
 var _economy_modal: CanvasLayer = null
 var _rename_modal: CanvasLayer = null
+var _tooltip_layer: CanvasLayer = null
+var _tooltip_panel: PanelContainer = null
+var _tooltip_title: Label = null
+var _tooltip_body: Label = null
+var _tooltip_hide_timer: Timer = null
+var _last_tooltip_key: String = ""
 
 
 func _ensure_nodes() -> void:
@@ -65,6 +78,8 @@ func _ensure_nodes() -> void:
 
 	if village_name_label == null:
 		village_name_label = find_child("VillageName", true, false) as Label
+	if btn_rename_village == null:
+		btn_rename_village = find_child("BtnRenameVillage", true, false) as Button
 	if points_box == null:
 		points_box = find_child("PointsBox", true, false) as Control
 	if points_label == null:
@@ -104,6 +119,8 @@ func _ensure_nodes() -> void:
 		btn_next = find_child("BtnNextVillage", true, false) as Button
 	if btn_market == null:
 		btn_market = find_child("BtnMarket", true, false) as Button
+
+	_ensure_resource_box_titles()
 
 	if _pb_fill_ok == null:
 		_pb_fill_ok = StyleBoxFlat.new()
@@ -178,6 +195,13 @@ func _ready() -> void:
 			box.mouse_filter = Control.MOUSE_FILTER_STOP
 			if not box.gui_input.is_connected(_on_economy_box_gui_input):
 				box.gui_input.connect(_on_economy_box_gui_input)
+	for pair in [["points", points_box], ["wood", wood_box], ["stone", stone_box], ["iron", iron_box], ["citizens", citizens_box]]:
+		var bx := pair[1] as Control
+		if bx != null:
+			bx.mouse_entered.connect(_on_box_mouse_entered.bind(str(pair[0]), bx))
+
+	if btn_rename_village != null and not btn_rename_village.pressed.is_connected(_on_rename_btn_pressed):
+		btn_rename_village.pressed.connect(_on_rename_btn_pressed)
 
 	if not resized.is_connected(_on_self_resized):
 		resized.connect(_on_self_resized)
@@ -285,7 +309,170 @@ func _on_village_name_gui_input(event: InputEvent) -> void:
 func _on_economy_box_gui_input(event: InputEvent) -> void:
 	if _is_tap_event(event):
 		accept_event()
+		var key := "points"
+		var src: Control = null
+		for pair in [["wood", wood_box], ["stone", stone_box], ["iron", iron_box], ["citizens", citizens_box], ["points", points_box]]:
+			var ctrl := pair[1] as Control
+			if ctrl != null and ctrl.get_global_rect().has_point(get_global_mouse_position()):
+				key = str(pair[0])
+				src = ctrl
+				break
+		_show_resource_tooltip(key, src)
+
+
+func _on_box_mouse_entered(key: String, ctrl: Control) -> void:
+	_show_resource_tooltip(key, ctrl, 2.5)
+
+
+func _fmt_num(val: int) -> String:
+	var s := str(absi(val))
+	var out := ""
+	var c := 0
+	for idx in range(s.length() - 1, -1, -1):
+		out = s[idx] + out
+		c += 1
+		if c % 3 == 0 and idx > 0:
+			out = "." + out
+	return ("-" + out) if val < 0 else out
+
+
+func _ensure_resource_box_titles() -> void:
+	var defs := [
+		[wood_box, "WoodTitle", "ODUN", Color(0.62, 0.90, 0.50)],
+		[stone_box, "StoneTitle", "TAŞ", Color(0.82, 0.84, 0.90)],
+		[iron_box, "IronTitle", "DEMİR", Color(0.66, 0.82, 0.98)],
+		[citizens_box, "CitizensTitle", "NÜFUS", Color(0.84, 0.96, 0.86)],
+	]
+	for d in defs:
+		var box := d[0] as Control
+		if box == null:
+			continue
+		var row := box.find_child("Row", true, false) as HBoxContainer
+		if row == null or row.get_node_or_null(str(d[1])) != null:
+			continue
+		var t := Label.new()
+		t.name = str(d[1])
+		t.text = str(d[2])
+		t.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		t.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		t.add_theme_font_override("font", FONT_BOLD)
+		t.add_theme_font_size_override("font_size", 13)
+		t.add_theme_color_override("font_color", d[3] as Color)
+		row.add_child(t)
+		row.move_child(t, 1)
+		match str(d[1]):
+			"WoodTitle": wood_title_label = t
+			"StoneTitle": stone_title_label = t
+			"IronTitle": iron_title_label = t
+			"CitizensTitle": citizens_title_label = t
+
+
+func _tooltip_text_for(key: String) -> Dictionary:
+	var gs := _get_game_state()
+	var v: Dictionary = gs.call("get_active_village") if gs != null and gs.has_method("get_active_village") else {}
+	var b: Dictionary = v.get("buildings", {}) if typeof(v.get("buildings")) == TYPE_DICTIONARY else {}
+	var res: Dictionary = v.get("resources", {}) if typeof(v.get("resources")) == TYPE_DICTIONARY else {}
+	var st_lvl := maxi(1, int(b.get("storage", 1)))
+	var cap := maxi(1000, int(RulesEngine.storage_capacity(st_lvl)))
+	match key:
+		"wood":
+			var hr := int(round(RulesEngine.production_per_hour("wood", int(b.get("wood", 0)))))
+			return {"title": "🪵 ODUN", "body": "Mevcut: %s / %s (Depo Sv.%d)\nÜretim: +%s /saat (Oduncu Kampı Sv.%d)\nKullanım: bina inşaatı ve Silahtar, Okçu, Baltacı eğitimi." % [_fmt_num(int(res.get("wood", 0))), _fmt_num(cap), st_lvl, _fmt_num(hr), int(b.get("wood", 0))]}
+		"stone":
+			var hr2 := int(round(RulesEngine.production_per_hour("stone", int(b.get("stone", 0)))))
+			return {"title": "🪨 TAŞ", "body": "Mevcut: %s / %s (Depo Sv.%d)\nÜretim: +%s /saat (Taş Ocağı Sv.%d)\nKullanım: Kale, Sur, Depo ve bina geliştirmeleri." % [_fmt_num(int(res.get("stone", 0))), _fmt_num(cap), st_lvl, _fmt_num(hr2), int(b.get("stone", 0))]}
+		"iron":
+			var hr3 := int(round(RulesEngine.production_per_hour("iron", int(b.get("iron", 0)))))
+			return {"title": "⛏️ DEMİR", "body": "Mevcut: %s / %s (Depo Sv.%d)\nÜretim: +%s /saat (Maden Ocağı Sv.%d)\nKullanım: zırhlı birlikler, Baltacı, Süvari ve silahlar." % [_fmt_num(int(res.get("iron", 0))), _fmt_num(cap), st_lvl, _fmt_num(hr3), int(b.get("iron", 0))]}
+		"citizens":
+			var pop: Dictionary = EconomyAPI.population_summary(v)
+			return {"title": "👥 NÜFUS (BOŞ İŞÇİ)", "body": "Boş: %d  •  Kullanılan: %d  •  Toplam kapasite: %d (Değirmen Sv.%d)\nYeni bina inşası ve asker eğitimi için boş vatandaş gerekir." % [int(pop.get("free", 0)), int(pop.get("used", 0)), int(pop.get("max", 0)), int(b.get("farm", 0))]}
+		_:
+			return {"title": "👑 PUAN", "body": "Köyünüzün toplam puanı (parantez içi tüm köylerinizin toplamı).\nPuan; bina seviyeleri arttıkça yükselir ve sıralamayı belirler."}
+
+
+func _show_resource_tooltip(key: String, anchor: Control, auto_hide_sec: float = 4.5) -> void:
+	var tree := _scene_tree()
+	if tree == null:
+		return
+	var root := tree.current_scene
+	if root == null:
+		root = tree.root
+	if root == null:
+		return
+	if is_instance_valid(_tooltip_layer):
+		_tooltip_layer.queue_free()
+	var info := _tooltip_text_for(key)
+
+	var layer := CanvasLayer.new()
+	layer.name = "ResourceTooltipLayer"
+	layer.layer = 137
+	_tooltip_layer = layer
+	root.add_child(layer)
+
+	var panel := PanelContainer.new()
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color(0.09, 0.08, 0.12, 0.98)
+	sb.border_color = Color(0.90, 0.74, 0.34, 0.98)
+	sb.set_border_width_all(2)
+	sb.set_corner_radius_all(12)
+	sb.content_margin_left = 16
+	sb.content_margin_right = 16
+	sb.content_margin_top = 10
+	sb.content_margin_bottom = 12
+	sb.shadow_size = 8
+	sb.shadow_color = Color(0, 0, 0, 0.6)
+	panel.add_theme_stylebox_override("panel", sb)
+	panel.custom_minimum_size = Vector2(520, 0)
+	layer.add_child(panel)
+
+	var vb := VBoxContainer.new()
+	vb.add_theme_constant_override("separation", 6)
+	panel.add_child(vb)
+	var t := Label.new()
+	t.text = str(info.get("title", ""))
+	t.add_theme_font_override("font", FONT_BOLD)
+	t.add_theme_font_size_override("font_size", 22)
+	t.add_theme_color_override("font_color", Color(1.0, 0.88, 0.48))
+	vb.add_child(t)
+	var body := Label.new()
+	body.text = str(info.get("body", ""))
+	body.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	body.custom_minimum_size = Vector2(488, 0)
+	body.add_theme_font_override("font", FONT_SEMIBOLD)
+	body.add_theme_font_size_override("font_size", 18)
+	body.add_theme_color_override("font_color", Color(0.94, 0.92, 0.86))
+	vb.add_child(body)
+	var more := Button.new()
+	more.text = "🏰 Köy Ekonomisi Özeti"
+	more.custom_minimum_size = Vector2(0, 40)
+	_style_modal_btn(more, Color(0.20, 0.18, 0.28, 0.96), Color(0.78, 0.62, 0.30, 0.90))
+	more.pressed.connect(func():
+		layer.queue_free()
 		_show_economy_modal()
+	)
+	vb.add_child(more)
+
+	var vp := tree.root.get_visible_rect().size
+	if vp.x < 100.0:
+		vp = Vector2(1080, 1920)
+	var ax := 20.0
+	var ay := _last_bar_height + 4.0
+	if anchor != null:
+		var gr := anchor.get_global_rect()
+		ax = clampf(gr.position.x, 12.0, maxf(12.0, vp.x - 540.0))
+		ay = gr.end.y + 6.0
+	panel.position = Vector2(ax, ay)
+
+	var timer := Timer.new()
+	timer.wait_time = auto_hide_sec
+	timer.one_shot = true
+	timer.timeout.connect(func():
+		if is_instance_valid(layer):
+			layer.queue_free()
+	)
+	layer.add_child(timer)
+	timer.start()
 
 
 func _on_prev_village_pressed() -> void:
@@ -354,7 +541,11 @@ func _update_market_button() -> void:
 			var p = gs.get("player")
 			if p is Dictionary:
 				diamonds = int((p as Dictionary).get("diamonds", 0))
-	btn_market.text = "💎 %d  +" % diamonds
+	btn_market.text = "%d | PAZAR" % diamonds
+	btn_market.icon = ICON_DIAMOND
+	btn_market.expand_icon = true
+	btn_market.add_theme_constant_override("icon_max_width", 28)
+	btn_market.tooltip_text = "Kraliyet Pazarı: Elmas, hızlandırma parşömenleri ve kaynak paketleri\nElmas bakiyeniz: %d" % diamonds
 
 
 func _apply_gauge(bar: ProgressBar, amount: float, cap: int) -> void:
@@ -400,8 +591,8 @@ func refresh() -> void:
 			village_name_label.text = "%s | 🏰 %s (%d|%d)" % [p_name, v_name, vx, vy]
 		village_name_label.tooltip_text = "%s | 🏰 %s (%d|%d)\nKöyleri görmek ve seçmek için dokun" % [p_name, v_name, vx, vy]
 
-	var villages_list = gs.get("villages")
-	var multi: bool = (villages_list is Array and (villages_list as Array).size() > 1)
+	var villages_list: Array = gs.call("get_player_villages") if gs.has_method("get_player_villages") else []
+	var multi: bool = villages_list.size() > 1
 	if btn_prev != null:
 		btn_prev.visible = multi
 	if btn_next != null:
@@ -409,10 +600,10 @@ func refresh() -> void:
 
 	if points_label != null:
 		var v_pts := int(v.get("points", 0))
-		if villages_list is Array and (villages_list as Array).size() > 1:
+		if multi:
 			var total_pts := 0
 			for item in villages_list:
-				total_pts += int(item.get("points", 0))
+				total_pts += int((item as Dictionary).get("points", 0))
 			points_label.text = "👑 %d P (%d)" % [v_pts, total_pts]
 		else:
 			points_label.text = "👑 %d P" % v_pts
@@ -423,14 +614,14 @@ func refresh() -> void:
 	var i := float(res.get("iron", 0))
 
 	if wood_label != null:
-		wood_label.text = "%d" % int(w)
+		wood_label.text = _fmt_num(int(w))
 	if stone_label != null:
-		stone_label.text = "%d" % int(s)
+		stone_label.text = _fmt_num(int(s))
 	if iron_label != null:
-		iron_label.text = "%d" % int(i)
+		iron_label.text = _fmt_num(int(i))
 
 	var b: Dictionary = v.get("buildings", {})
-	var wh_lvl := int(b.get("warehouse", 1))
+	var wh_lvl := maxi(1, int(b.get("storage", 1)))
 	var cap := int(RulesEngine.storage_capacity(wh_lvl))
 	if cap <= 0:
 		cap = 1000
@@ -502,15 +693,15 @@ func _show_economy_modal() -> void:
 
 	var b: Dictionary = v.get("buildings", {})
 	var res: Dictionary = v.get("resources", {})
-	var wh_lvl := int(b.get("warehouse", 1))
+	var wh_lvl := maxi(1, int(b.get("storage", 1)))
 	var cap := maxi(1000, int(RulesEngine.storage_capacity(wh_lvl)))
 
 	var wood := int(res.get("wood", 0))
 	var stone := int(res.get("stone", 0))
 	var iron := int(res.get("iron", 0))
-	var wood_hr := int(round(RulesEngine.production_per_hour("lumber", int(b.get("lumber", 0)))))
-	var stone_hr := int(round(RulesEngine.production_per_hour("quarry", int(b.get("quarry", 0)))))
-	var iron_hr := int(round(RulesEngine.production_per_hour("ironmine", int(b.get("ironmine", 0)))))
+	var wood_hr := int(round(RulesEngine.production_per_hour("wood", int(b.get("wood", 0)))))
+	var stone_hr := int(round(RulesEngine.production_per_hour("stone", int(b.get("stone", 0)))))
+	var iron_hr := int(round(RulesEngine.production_per_hour("iron", int(b.get("iron", 0)))))
 
 	var pop: Dictionary = EconomyAPI.population_summary(v)
 	var rlm: Dictionary = EconomyAPI.realm_summary(v)
@@ -585,9 +776,9 @@ func _show_economy_modal() -> void:
 	vb.add_child(sub)
 
 	var res_entries := [
-		{"icon": ICON_WOOD, "name": "Odun (Oduncu Sv.%d)" % int(b.get("lumber", 0)), "cur": wood, "rate": wood_hr, "tint": Color(0.56, 0.86, 0.46)},
-		{"icon": ICON_STONE, "name": "Taş (Taş Ocağı Sv.%d)" % int(b.get("quarry", 0)), "cur": stone, "rate": stone_hr, "tint": Color(0.78, 0.80, 0.84)},
-		{"icon": ICON_IRON, "name": "Demir (Demir Madeni Sv.%d)" % int(b.get("ironmine", 0)), "cur": iron, "rate": iron_hr, "tint": Color(0.62, 0.78, 0.96)},
+		{"icon": ICON_WOOD, "name": "Odun (Oduncu Sv.%d)" % int(b.get("wood", 0)), "cur": wood, "rate": wood_hr, "tint": Color(0.56, 0.86, 0.46)},
+		{"icon": ICON_STONE, "name": "Taş (Taş Ocağı Sv.%d)" % int(b.get("stone", 0)), "cur": stone, "rate": stone_hr, "tint": Color(0.78, 0.80, 0.84)},
+		{"icon": ICON_IRON, "name": "Demir (Demir Madeni Sv.%d)" % int(b.get("iron", 0)), "cur": iron, "rate": iron_hr, "tint": Color(0.62, 0.78, 0.96)},
 	]
 	for entry in res_entries:
 		var row_card := PanelContainer.new()
@@ -828,15 +1019,12 @@ func _show_village_switcher_modal() -> void:
 	title.add_theme_color_override("font_color", Color(0.98, 0.85, 0.45))
 	header.add_child(title)
 
-	var rename_btn := Button.new()
-	rename_btn.text = "✏️ Adı Değiştir"
-	rename_btn.custom_minimum_size = Vector2(180, 44)
-	_style_modal_btn(rename_btn, Color(0.20, 0.18, 0.28, 0.96), Color(0.78, 0.62, 0.30, 0.90))
-	rename_btn.pressed.connect(func():
-		layer.queue_free()
-		_show_rename_modal()
-	)
-	header.add_child(rename_btn)
+	var close_top := Button.new()
+	close_top.text = "✕"
+	close_top.custom_minimum_size = Vector2(44, 44)
+	_style_modal_btn(close_top, Color(0.32, 0.14, 0.14, 0.95), Color(0.84, 0.38, 0.34, 0.9))
+	close_top.pressed.connect(func(): layer.queue_free())
+	header.add_child(close_top)
 
 	var scroll := ScrollContainer.new()
 	scroll.custom_minimum_size = Vector2(0, 440)
@@ -850,8 +1038,8 @@ func _show_village_switcher_modal() -> void:
 	scroll.add_child(list_vb)
 
 	var active_id := int(gs.get("active_village_id"))
-	var villages_arr = gs.get("villages")
-	if villages_arr is Array:
+	var villages_arr: Array = gs.call("get_player_villages") if gs.has_method("get_player_villages") else []
+	if true:
 		for item in villages_arr:
 			if not (item is Dictionary):
 				continue
@@ -905,8 +1093,20 @@ func _show_village_switcher_modal() -> void:
 			sub.add_theme_color_override("font_color", Color(0.80, 0.78, 0.72))
 			info_vb.add_child(sub)
 
+			var ren_btn := Button.new()
+			ren_btn.text = "✏️ İsim"
+			ren_btn.mouse_filter = Control.MOUSE_FILTER_PASS
+			ren_btn.custom_minimum_size = Vector2(110, 44)
+			ren_btn.tooltip_text = "Köy adını değiştir"
+			_style_modal_btn(ren_btn, Color(0.20, 0.18, 0.28, 0.96), Color(0.78, 0.62, 0.30, 0.90))
+			ren_btn.pressed.connect(func():
+				layer.queue_free()
+				_show_rename_modal(vid)
+			)
+			hb.add_child(ren_btn)
+
 			var sel_btn := Button.new()
-			sel_btn.text = "Seçili" if is_cur else "Geçiş Yap"
+			sel_btn.text = "Seçili" if is_cur else "Köye Geç"
 			sel_btn.disabled = is_cur
 			sel_btn.mouse_filter = Control.MOUSE_FILTER_PASS
 			sel_btn.custom_minimum_size = Vector2(140, 44)
@@ -927,11 +1127,19 @@ func _show_village_switcher_modal() -> void:
 	vb.add_child(close_btn)
 
 
-func _show_rename_modal() -> void:
+func _on_rename_btn_pressed() -> void:
+	_show_rename_modal(-1)
+
+
+func _show_rename_modal(target_vid: int = -1) -> void:
 	var gs := _get_game_state()
 	if gs == null:
 		return
-	var v: Dictionary = gs.call("get_active_village") if gs.has_method("get_active_village") else {}
+	var v: Dictionary = {}
+	if target_vid > 0 and gs.has_method("get_village"):
+		v = gs.call("get_village", target_vid)
+	if v.is_empty():
+		v = gs.call("get_active_village") if gs.has_method("get_active_village") else {}
 	if v.is_empty():
 		return
 
@@ -1022,10 +1230,14 @@ func _show_rename_modal() -> void:
 	save_btn.pressed.connect(func():
 		var new_name := line.text.strip_edges()
 		if not new_name.is_empty():
+			var vid_r := int(v.get("id", -1))
 			if gs.has_method("rename_village"):
-				gs.call("rename_village", int(v.get("id", -1)), new_name)
+				gs.call("rename_village", vid_r, new_name)
 			else:
 				v["name"] = new_name
+			var wm_r := _autoload("WorldManager")
+			if wm_r != null and wm_r.has_method("save_active_world"):
+				wm_r.call("save_active_world", true)
 			refresh()
 		layer.queue_free()
 	)

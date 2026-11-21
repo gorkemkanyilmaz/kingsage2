@@ -5,10 +5,12 @@ signal diamonds_changed(amount: int)
 signal scrolls_changed(scrolls: Dictionary)
 signal scroll_purchased(scroll_id: String, qty: int)
 signal scroll_used(category: String, scroll_id: String, seconds_reduced: int)
+signal resources_purchased(pack_id: String, added_resources: Dictionary)
 signal purchase_completed(ok: bool, product_id: String, diamonds_added: int, message: String)
 signal products_updated(products: Dictionary)
 
 const GameLoopScript := preload("res://scripts/core/GameLoop.gd")
+const RulesEngineScript := preload("res://scripts/rules/RulesEngine.gd")
 
 const STARTER_DIAMONDS := 35
 
@@ -161,6 +163,75 @@ const SPEEDUP_SCROLLS: Array[Dictionary] = [
 		"cost_diamonds": 30,
 		"name": "Sefer Hızlandırma 1 Saat",
 		"description": "Ordu yürüyüş veya dönüş süresini 1 saat kısaltır.",
+	},
+]
+
+const RESOURCE_PACKS: Array[Dictionary] = [
+	{
+		"id": "res_wood_1000",
+		"name": "1.000 Odun Sandığı",
+		"cost_diamonds": 5,
+		"wood": 1000,
+		"stone": 0,
+		"iron": 0,
+		"fill_storage": false,
+		"badge": "🪵 Kereste",
+		"description": "Aktif köy ambarına anında +1.000 Odun ekler.",
+	},
+	{
+		"id": "res_stone_1000",
+		"name": "1.000 Taş Sandığı",
+		"cost_diamonds": 5,
+		"wood": 0,
+		"stone": 1000,
+		"iron": 0,
+		"fill_storage": false,
+		"badge": "🪨 Taş Blok",
+		"description": "Aktif köy ambarına anında +1.000 Taş ekler.",
+	},
+	{
+		"id": "res_iron_1000",
+		"name": "1.000 Demir Sandığı",
+		"cost_diamonds": 5,
+		"wood": 0,
+		"stone": 0,
+		"iron": 1000,
+		"fill_storage": false,
+		"badge": "⛏️ Cevher",
+		"description": "Aktif köy ambarına anında +1.000 Demir ekler.",
+	},
+	{
+		"id": "res_bundle_1500",
+		"name": "Kraliyet Erzak Paketi (+1.500 Tümü)",
+		"cost_diamonds": 12,
+		"wood": 1500,
+		"stone": 1500,
+		"iron": 1500,
+		"fill_storage": false,
+		"badge": "⭐ Avantajlı",
+		"description": "Aktif köye +1.500 Odun, +1.500 Taş ve +1.500 Demir ekler.",
+	},
+	{
+		"id": "res_bundle_5000",
+		"name": "İmparatorluk Hazine Kervanı (+5.000 Tümü)",
+		"cost_diamonds": 35,
+		"wood": 5000,
+		"stone": 5000,
+		"iron": 5000,
+		"fill_storage": false,
+		"badge": "👑 Büyük Paket",
+		"description": "Aktif köye +5.000 Odun, +5.000 Taş ve +5.000 Demir ekler.",
+	},
+	{
+		"id": "res_fill_storage",
+		"name": "Ambarları Doldur (%100 Tam Depo)",
+		"cost_diamonds": 25,
+		"wood": 0,
+		"stone": 0,
+		"iron": 0,
+		"fill_storage": true,
+		"badge": "🏛️ Tam Kapasite",
+		"description": "Aktif köyün Odun, Taş ve Demir ambarlarını Depo kapasitesinin %100'üne doldurur.",
 	},
 ]
 
@@ -333,15 +404,34 @@ func get_pack_def(pack_id_or_product_id: String) -> Dictionary:
 	return {}
 
 
+func get_resource_packs() -> Array[Dictionary]:
+	var out: Array[Dictionary] = []
+	for rp in RESOURCE_PACKS:
+		out.append(rp.duplicate(true))
+	return out
+
+
+func get_resource_pack_def(pack_id: String) -> Dictionary:
+	for rp in RESOURCE_PACKS:
+		if str(rp.get("id", "")) == pack_id:
+			return rp.duplicate(true)
+	return {}
+
+
 func get_pack_price_label(pack: Dictionary, currency_override: String = "") -> String:
 	var cur := currency_override.strip_edges().to_upper()
-	var pid := str(pack.get("product_id", ""))
-	if cur.is_empty() and OS.get_name() == "iOS" and localized_prices.has(pid):
-		var loc := str(localized_prices.get(pid, "")).strip_edges()
-		if not loc.is_empty():
-			return loc
 	if cur.is_empty():
 		cur = preferred_currency.strip_edges().to_upper()
+	var pid := str(pack.get("product_id", ""))
+	if OS.get_name() == "iOS" and localized_prices.has(pid):
+		var loc := str(localized_prices.get(pid, "")).strip_edges()
+		if not loc.is_empty():
+			if cur == "TRY" and (loc.contains("₺") or loc.to_upper().contains("TL") or loc.to_upper().contains("TRY")):
+				return loc
+			if cur == "USD" and loc.contains("$"):
+				return loc
+			if cur == "EUR" and loc.contains("€"):
+				return loc
 	match cur:
 		"USD":
 			return str(pack.get("usd", "$0.99"))
@@ -362,7 +452,12 @@ static func format_duration(secs: int) -> String:
 
 
 func _emit_wallet_and_state(save_now: bool = true) -> void:
+	var wm := _autoload("WorldManager")
+	if wm != null and wm.has_method("notify_local_wallet_mutation"):
+		wm.call("notify_local_wallet_mutation")
 	if save_now:
+		if wm != null and wm.has_method("save_active_world"):
+			wm.call("save_active_world", true)
 		var sm := _autoload("SaveManager")
 		if sm != null and sm.has_method("save_game"):
 			sm.save_game()
@@ -380,11 +475,18 @@ func _emit_wallet_and_state(save_now: bool = true) -> void:
 
 
 func _current_sim_now() -> int:
+	var wall_now := int(Time.get_unix_time_from_system())
+	var best_now := wall_now
 	if GameLoopScript.instance != null:
 		var gl_now := int(GameLoopScript.instance.now_unix())
 		if gl_now > 0:
-			return gl_now
-	return int(Time.get_unix_time_from_system())
+			best_now = maxi(best_now, gl_now)
+	var gs := _game_state()
+	if gs != null and typeof(gs.get("world")) == TYPE_DICTIONARY:
+		var w := gs.get("world") as Dictionary
+		if w.has("sim_now_unix"):
+			best_now = maxi(best_now, int(w.get("sim_now_unix", 0)))
+	return best_now
 
 
 func buy_scroll(scroll_id: String, qty: int = 1) -> Dictionary:
@@ -410,11 +512,6 @@ func buy_scroll(scroll_id: String, qty: int = 1) -> Dictionary:
 	scrolls_dict[scroll_id] = new_count
 
 	_suppress_bus_sync = true
-	if DisplayServer.get_name() != "headless":
-		var net_pre := _autoload("NetworkManager")
-		var wm_pre := _autoload("WorldManager")
-		if net_pre != null and not str(net_pre.get("auth_token")).is_empty() and wm_pre != null:
-			wm_pre.set("_last_cloud_save_unix", int(Time.get_unix_time_from_system()))
 	_emit_wallet_and_state(true)
 	_suppress_bus_sync = false
 	scroll_purchased.emit(scroll_id, qty)
@@ -433,6 +530,81 @@ func buy_scroll(scroll_id: String, qty: int = 1) -> Dictionary:
 		"error": "",
 		"diamonds": new_diamonds,
 		"count": new_count,
+	}
+
+
+func buy_resource_pack(pack_id: String) -> Dictionary:
+	var def := get_resource_pack_def(pack_id)
+	if def.is_empty():
+		return {"ok": false, "error": "Bilinmeyen kaynak paketi: %s" % pack_id}
+	var gs := _game_state()
+	if gs == null or not gs.has_method("get_active_village"):
+		return {"ok": false, "error": "Aktif köy bulunamadı."}
+	var v: Dictionary = gs.call("get_active_village")
+	if v.is_empty():
+		return {"ok": false, "error": "Aktif köy bulunamadı."}
+
+	_ensure_player_wallet(gs)
+	var player_dict := gs.get("player") as Dictionary
+	var cur_diamonds := maxi(0, int(player_dict.get("diamonds", STARTER_DIAMONDS)))
+	var cost := int(def.get("cost_diamonds", 5))
+	if cur_diamonds < cost:
+		return {"ok": false, "error": "Yetersiz elmas (Gereken: %d, Mevcut: %d)." % [cost, cur_diamonds]}
+
+	var blds: Dictionary = v.get("buildings", {}) if typeof(v.get("buildings")) == TYPE_DICTIONARY else {}
+	var storage_lvl := maxi(1, int(blds.get("storage", blds.get("warehouse", 1))))
+	var cap := maxi(1000, int(RulesEngineScript.storage_capacity(storage_lvl)))
+	var res: Dictionary = v.get("resources", {}) if typeof(v.get("resources")) == TYPE_DICTIONARY else {"wood": 0, "stone": 0, "iron": 0}
+
+	var is_fill := bool(def.get("fill_storage", false))
+	var added := {"wood": 0, "stone": 0, "iron": 0}
+	var total_added := 0
+	for rk in ["wood", "stone", "iron"]:
+		var cur_val := maxi(0, int(res.get(rk, 0)))
+		var req_add := int(def.get(rk, 0))
+		var next_val := cur_val
+		if is_fill:
+			next_val = maxi(cur_val, cap)
+		elif req_add > 0:
+			next_val = mini(cap, cur_val + req_add)
+		var diff := maxi(0, next_val - cur_val)
+		added[rk] = diff
+		total_added += diff
+
+	if total_added <= 0:
+		return {"ok": false, "error": "Depo tamamen dolu (%d / %d)! Önce Depo'yu yükseltin veya kaynak harcayın." % [cap, cap]}
+
+	for rk in ["wood", "stone", "iron"]:
+		if int(added[rk]) > 0:
+			res[rk] = maxi(0, int(res.get(rk, 0))) + int(added[rk])
+	v["resources"] = res
+
+	var new_diamonds := cur_diamonds - cost
+	player_dict["diamonds"] = new_diamonds
+
+	var vid := int(v.get("id", gs.get("active_village_id")))
+	var bus := _autoload("EventBus")
+	if bus != null and bus.has_signal("resources_changed"):
+		bus.resources_changed.emit(vid)
+
+	_emit_wallet_and_state(true)
+	resources_purchased.emit(pack_id, added)
+
+	if DisplayServer.get_name() != "headless":
+		var net := _autoload("NetworkManager")
+		if net != null and not str(net.get("auth_token")).is_empty() and net.has_method("api_request"):
+			net.api_request("/api/store/buy_resources", HTTPClient.METHOD_POST, {
+				"pack_id": pack_id,
+				"village_id": vid,
+			}, Callable())
+
+	return {
+		"ok": true,
+		"error": "",
+		"diamonds": new_diamonds,
+		"added_resources": added,
+		"resources": res.duplicate(true),
+		"storage_cap": cap,
 	}
 
 
@@ -558,7 +730,7 @@ func _apply_scroll_to_village_queue(gs: Node, scroll_id: String, category: Strin
 	if total_reduced <= 0 and not any_completed:
 		return {"ok": false, "error": "Kısaltılacak süre bulunamadı."}
 
-	_consume_scroll(gs, scroll_id)
+	_consume_scroll(gs, scroll_id, category, target_id, active_vid)
 	if any_completed:
 		_trigger_simulation(gs, now)
 
@@ -572,19 +744,37 @@ func _apply_scroll_to_village_queue(gs: Node, scroll_id: String, category: Strin
 	}
 
 
-func _is_player_movement(m: Dictionary, active_vid: int, player_name: String) -> bool:
-	var owner := str(m.get("owner", "")).strip_edges()
+func _norm_player_name(raw_name: String) -> String:
+	var n := raw_name.strip_edges()
+	while n.to_lower().begins_with("lord lord "):
+		n = n.substr(5).strip_edges()
+	return n.to_lower()
+
+
+func _is_player_movement(m: Dictionary, active_vid: int, player_name: String, owned_vids: Dictionary = {}) -> bool:
+	var owner := _norm_player_name(str(m.get("owner", "")))
+	var p_norm := _norm_player_name(player_name)
 	var m_state := str(m.get("state", "outgoing"))
 	var m_type := str(m.get("type", ""))
 	var is_ret := (m_state == "returning" or m_type == "return")
-	if not player_name.is_empty() and not owner.is_empty():
-		return owner == player_name
+	if not p_norm.is_empty() and not owner.is_empty() and owner == p_norm:
+		return true
+	var v_id := int(m.get("village_id", -1))
+	var f_id := int(m.get("from_village_id", -1))
+	var t_id := int(m.get("to_village_id", -1))
+	if not owned_vids.is_empty():
+		if owned_vids.has(v_id):
+			return true
+		if not is_ret and owned_vids.has(f_id):
+			return true
+		if is_ret and owned_vids.has(t_id):
+			return true
 	if active_vid > 0:
-		if int(m.get("village_id", -1)) == active_vid:
+		if v_id == active_vid:
 			return true
-		if not is_ret and int(m.get("from_village_id", -1)) == active_vid:
+		if not is_ret and f_id == active_vid:
 			return true
-		if is_ret and int(m.get("to_village_id", -1)) == active_vid:
+		if is_ret and t_id == active_vid:
 			return true
 	return false
 
@@ -597,13 +787,20 @@ func _apply_scroll_to_march(gs: Node, scroll_id: String, scroll_secs: int, targe
 	var active_vid := int(gs.get("active_village_id"))
 	var player_dict: Dictionary = gs.get("player") if typeof(gs.get("player")) == TYPE_DICTIONARY else {}
 	var player_name := str(player_dict.get("name", "")).strip_edges()
+	var owned_vids: Dictionary = {}
+	if gs.has_method("get_player_villages"):
+		for pv in gs.call("get_player_villages"):
+			if typeof(pv) == TYPE_DICTIONARY:
+				owned_vids[int((pv as Dictionary).get("id", -1))] = true
+	if active_vid > 0:
+		owned_vids[active_vid] = true
 
 	var candidates: Array = []
 	for mv in (movements_raw as Array):
 		if typeof(mv) != TYPE_DICTIONARY:
 			continue
 		var m := mv as Dictionary
-		if _is_player_movement(m, active_vid, player_name):
+		if _is_player_movement(m, active_vid, player_name, owned_vids):
 			candidates.append(m)
 
 	if candidates.is_empty():
@@ -624,7 +821,7 @@ func _apply_scroll_to_march(gs: Node, scroll_id: String, scroll_secs: int, targe
 		if target_m.is_empty() and is_num and tgt_int >= 0 and tgt_int < candidates.size():
 			target_m = candidates[tgt_int] as Dictionary
 		if target_m.is_empty():
-			return {"ok": false, "error": "Hedef sefer bulunamadı."}
+			target_m = candidates[0] as Dictionary
 
 	var depart_u := int(target_m.get("depart_unix", 0))
 	var old_arrive := int(target_m.get("arrive_unix", 0))
@@ -637,12 +834,16 @@ func _apply_scroll_to_march(gs: Node, scroll_id: String, scroll_secs: int, targe
 		applied = mini(old_arrive - now, scroll_secs)
 
 	var new_arrive := maxi(1, old_arrive - applied)
+	if new_arrive <= now:
+		new_arrive = now
 	var is_returning := (str(target_m.get("state", "")) == "returning" or str(target_m.get("type", "")) == "return")
 	target_m["arrive_unix"] = new_arrive
+	target_m["depart_unix"] = depart_u - applied
 	target_m["return_unix"] = new_arrive if is_returning else (new_arrive + int(target_m["base_travel_seconds"]))
 
 	var completed := (new_arrive <= now)
-	_consume_scroll(gs, scroll_id)
+	var used_mid: Variant = target_m.get("id", target_id)
+	_consume_scroll(gs, scroll_id, "march", used_mid, active_vid)
 	if completed:
 		_trigger_simulation(gs, now)
 
@@ -656,7 +857,7 @@ func _apply_scroll_to_march(gs: Node, scroll_id: String, scroll_secs: int, targe
 	}
 
 
-func _consume_scroll(gs: Node, scroll_id: String) -> void:
+func _consume_scroll(gs: Node, scroll_id: String, category: String = "", target_id: Variant = null, village_id: int = -1) -> void:
 	_ensure_player_wallet(gs)
 	var player_dict := gs.get("player") as Dictionary
 	var scrolls_dict := player_dict.get("scrolls") as Dictionary
@@ -665,14 +866,38 @@ func _consume_scroll(gs: Node, scroll_id: String) -> void:
 		scrolls_dict[scroll_id] = next_cnt
 	else:
 		scrolls_dict.erase(scroll_id)
+	if DisplayServer.get_name() != "headless":
+		var net := _autoload("NetworkManager")
+		if net != null and not str(net.get("auth_token")).is_empty() and net.has_method("api_request"):
+			net.api_request("/api/store/use_scroll", HTTPClient.METHOD_POST, {
+				"scroll_id": scroll_id,
+				"category": category,
+				"target_id": target_id,
+				"village_id": village_id,
+			}, Callable())
 
 
 func _trigger_simulation(gs: Node, now: int) -> void:
 	if GameLoopScript.instance != null and GameLoopScript.instance.now_unix() > 0:
-		GameLoopScript.instance.simulate(0.1)
+		var gl_now := int(GameLoopScript.instance.now_unix())
+		var dt := maxf(0.1, float(now - gl_now) + 0.1)
+		GameLoopScript.instance.simulate(dt)
+
+	# Hala now veya öncesinde bitmesi gereken hareket/kuyruk kaldıysa doğrudan simüle et
+	var needs_direct := false
+	if typeof(gs.get("movements")) == TYPE_ARRAY:
+		for m in (gs.get("movements") as Array):
+			if typeof(m) == TYPE_DICTIONARY and int((m as Dictionary).get("arrive_unix", now + 999)) <= now:
+				needs_direct = true
+				break
+	if not needs_direct and typeof(gs.get("queues")) == TYPE_ARRAY:
+		for q in (gs.get("queues") as Array):
+			if typeof(q) == TYPE_DICTIONARY and int((q as Dictionary).get("finish_unix", now + 999)) <= now:
+				needs_direct = true
+				break
+	if not needs_direct and GameLoopScript.instance != null and GameLoopScript.instance.now_unix() > 0:
 		return
 
-	# Fallback (headless / GameLoop sahnede yokken)
 	var st: Dictionary = gs.call("to_dict")
 	if typeof(st.get("world")) != TYPE_DICTIONARY:
 		st["world"] = {}

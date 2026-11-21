@@ -222,6 +222,20 @@ func _run_tests() -> void:
 	_check(qm.call("claim_quest", "q_unlock_statue"), "q_unlock_statue ödülü alınabildi")
 
 	# 10. Dinamik çoklu görev hedef yönlendirme butonları testi (tamamlanan alt hedef gizlenmeli)
+	var qdefs: Array = qm.call("get_all_quest_defs")
+	var idx_spy := -1
+	var idx_axe_r := -1
+	var idx_axe_t := -1
+	var idx_raid := -1
+	for qi in range(qdefs.size()):
+		match str(qdefs[qi].get("id", "")):
+			"q_spy_mission": idx_spy = qi
+			"q_research_axe": idx_axe_r = qi
+			"q_train_axe_100": idx_axe_t = qi
+			"q_raid_mission": idx_raid = qi
+	_check(idx_axe_r > idx_spy and idx_axe_t > idx_axe_r and idx_raid > idx_axe_t, "Baltacı Araştır + 100 Baltacı Üret görevleri 'İlk Ganimet Seferi'nden ÖNCE geliyor")
+	_check(int(qm.call("get_quest_progress", "q_train_axe_100")["target"]) == 100, "100 Baltacı görevi hedefi 100")
+
 	active_v = gs.call("get_active_village")
 	active_v["buildings"]["wood"] = 1
 	active_v["buildings"]["stone"] = 1

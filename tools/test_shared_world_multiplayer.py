@@ -596,6 +596,41 @@ def test_store_endpoints(client):
     jr = r_relog.json()
     assert jr["diamonds"] == 80 and jr["scrolls"].get("build_10m") == 1, jr
     print("[PASS] Elmas magazasi (/api/store/*), 35 baslangic elmasi, parşomen alimi ve IAP tekrar korumasi dogrulandi!")
+    test_scroll_wallet_persistence_and_resource_packs(client, jr["token"])
+
+
+def test_scroll_wallet_persistence_and_resource_packs(client, tok):
+    hdr = {"Authorization": f"Bearer {tok}"}
+    cat = client.get("/api/store/catalog").json()
+    assert len(cat["resource_packs"]) == 6, cat.get("resource_packs")
+
+    # Parşömen bayat /api/game/save ile silinmemeli
+    st = client.get("/api/game/state", headers=hdr).json()
+    assert st["scrolls"].get("build_10m") == 1, st["scrolls"]
+    stale = copy.deepcopy(st["cloud_state"]) if st.get("cloud_state") else None
+    if stale:
+        stale["state"]["player"]["scrolls"] = {}
+        stale["state"]["player"]["diamonds"] = 35
+        r_save = client.post("/api/game/save", headers=hdr, json=stale)
+        assert r_save.status_code == 200, r_save.text
+        st2 = client.get("/api/game/state", headers=hdr).json()
+        assert st2["scrolls"].get("build_10m") == 1, f"Bayat save parsomeni sildi: {st2['scrolls']}"
+        assert st2["diamonds"] == 80, f"Bayat save elmasi ezdi: {st2['diamonds']}"
+
+    # use_scroll envanterden düşer
+    r_use = client.post("/api/store/use_scroll", headers=hdr, json={"scroll_id": "build_10m", "category": "build"})
+    assert r_use.status_code == 200, r_use.text
+    assert r_use.json()["scrolls"].get("build_10m", 0) == 0, r_use.json()
+    r_use2 = client.post("/api/store/use_scroll", headers=hdr, json={"scroll_id": "build_10m", "category": "build"})
+    assert r_use2.status_code == 400, r_use2.text
+
+    # Elmasla kaynak alma
+    r_res = client.post("/api/store/buy_resources", headers=hdr, json={"pack_id": "res_bundle_1500"})
+    assert r_res.status_code == 200, r_res.text
+    assert r_res.json()["diamonds"] == 80 - 12, r_res.json()
+    r_bad = client.post("/api/store/buy_resources", headers=hdr, json={"pack_id": "yok_boyle_paket"})
+    assert r_bad.status_code == 400, r_bad.text
+    print("[PASS] Parsomen cuzdani kalici, use_scroll ve elmasla kaynak alma (buy_resources) dogrulandi!")
 
 
 if __name__ == "__main__":

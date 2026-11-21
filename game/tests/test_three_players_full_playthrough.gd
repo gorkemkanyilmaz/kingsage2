@@ -534,8 +534,11 @@ func _run_all_quests_for_player(p_name: String, gs: Node, wm: Node, qm: Node) ->
 			"spy_prereq":
 				_ensure_building_level(gs, wm, cap_vid, "barracks", 4)
 				_ensure_research(gs, wm, cap_vid, "spy")
+			"unit_researched":
+				_ensure_research(gs, wm, cap_vid, str(q.get("unit_key", "")))
 			"unit_count_peak":
 				var uk := str(q.get("unit_key", ""))
+				_ensure_research(gs, wm, cap_vid, uk)
 				var target_cnt := int(q.get("target", 1))
 				var cur_cnt := int(gs.get_village(cap_vid).get("units", {}).get(uk, 0))
 				if cur_cnt < target_cnt:

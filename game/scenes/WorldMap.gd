@@ -6,6 +6,7 @@ const ProtectionScript := preload("res://scripts/sim/actions/Protection.gd")
 const Palette := preload("res://themes/Palette.gd")
 const MapVillageViewScript := preload("res://scenes/map/MapVillageView.gd")
 const FontNunitoBold := preload("res://assets/fonts/Nunito-Bold.ttf")
+const GameLoopScript := preload("res://scripts/core/GameLoop.gd")
 
 const TexHarita1 := preload("res://assets/sprites/map/harita-1.jpg")
 const TexHarita2 := preload("res://assets/sprites/map/harita-2.jpg")
@@ -60,6 +61,17 @@ var _last_scroll_v: int = 0
 var movement_status_bar: PanelContainer
 var movement_status_label: Label
 
+# Alt Sefer Takip ve Hızlandırma Çubuğu (Harita altı canlı sefer süresi + parşömen hızlandırma)
+var bottom_march_bar: PanelContainer
+var bottom_march_title_label: Label
+var bottom_march_timer_label: Label
+var bottom_march_progress: ProgressBar
+var bottom_march_speedup_btn: Button
+var bottom_march_track_btn: Button
+var bottom_march_detail_btn: Button
+var _game_loop: Node = null
+var _monotonic_sim_now_f: float = 0.0
+
 # Sefer Detay & İptal Modalı (Madde 3)
 var movement_detail_panel: PanelContainer
 var _detail_movement_ref: Dictionary = {}
@@ -78,6 +90,7 @@ var _cached_own_sig: String = ""
 
 
 func _ready() -> void:
+	_ensure_game_loop()
 	send_troops_panel.hide()
 	send_troops_panel.z_index = 1000
 	send_troops_panel.z_as_relative = false
@@ -103,6 +116,7 @@ func _ready() -> void:
 	_build_villages()
 	_create_floating_controls()
 	_setup_movement_status_bar()
+	_setup_bottom_march_bar()
 	_sync_top_bars_layout()
 
 	if not resized.is_connected(_sync_top_bars_layout):
@@ -177,6 +191,105 @@ func _sync_top_bars_layout() -> void:
 func _on_scrolls_changed(_scrolls: Dictionary) -> void:
 	if movement_detail_panel != null and movement_detail_panel.visible:
 		_update_movement_detail_timer()
+	_refresh_movement_status_bar()
+
+
+func _ensure_game_loop() -> void:
+	if GameLoopScript.instance == null:
+		_game_loop = GameLoopScript.new()
+		add_child(_game_loop)
+	var clock = Engine.get_main_loop().root.get_node_or_null("GameClock") if Engine.get_main_loop() is SceneTree else null
+	if clock != null and clock.has_method("start"):
+		if not bool(clock.get("running")):
+			clock.start()
+
+
+func _effective_now_f() -> float:
+	var sys_f := float(Time.get_unix_time_from_system())
+	var best_f := sys_f
+	if GameLoopScript.instance != null and GameLoopScript.instance.now_unix() > 0:
+		var gl_now := float(GameLoopScript.instance.now_unix())
+		if gl_now > best_f + 1.0:
+			best_f = gl_now + fposmod(sys_f, 1.0)
+	var gs = Engine.get_main_loop().root.get_node_or_null("GameState") if Engine.get_main_loop() is SceneTree else null
+	if gs != null and typeof(gs.world) == TYPE_DICTIONARY and (gs.world as Dictionary).has("sim_now_unix"):
+		var s_now := float((gs.world as Dictionary).get("sim_now_unix", 0))
+		if s_now > best_f + 1.0:
+			best_f = s_now + fposmod(sys_f, 1.0)
+	if best_f < _monotonic_sim_now_f and (_monotonic_sim_now_f - best_f) < 5.0:
+		best_f = _monotonic_sim_now_f
+	_monotonic_sim_now_f = best_f
+	return best_f
+
+
+func _effective_now() -> int:
+	return int(floor(_effective_now_f()))
+
+
+func _norm_player_name(raw_name: String) -> String:
+	var n := raw_name.strip_edges()
+	while n.to_lower().begins_with("lord lord "):
+		n = n.substr(5).strip_edges()
+	return n.to_lower()
+
+
+func _collect_my_movements(gs: Node) -> Array:
+	if gs == null or typeof(gs.movements) != TYPE_ARRAY or gs.movements.is_empty():
+		return []
+	var returned_origin_ids: Dictionary = {}
+	var returned_seeds: Dictionary = {}
+	for raw_m in gs.movements:
+		if typeof(raw_m) == TYPE_DICTIONARY:
+			var md := raw_m as Dictionary
+			if str(md.get("state", "")) == "returning" or str(md.get("type", "")) == "return":
+				var omid := int(md.get("origin_movement_id", 0))
+				if omid > 0:
+					returned_origin_ids[omid] = true
+				var bseed := int(md.get("battle_seed", 0))
+				if bseed > 0:
+					returned_seeds[bseed] = true
+
+	var active_v: Dictionary = gs.get_active_village() if gs.has_active_village() else {}
+	var active_vid: int = int(active_v.get("id", gs.active_village_id))
+	var player_name: String = str(gs.player.get("name", "Kral"))
+	var p_norm := _norm_player_name(player_name)
+	var my_vids: Dictionary = {}
+	if active_vid > 0:
+		my_vids[active_vid] = true
+	if gs.has_method("get_player_villages"):
+		for pv in gs.get_player_villages():
+			if typeof(pv) == TYPE_DICTIONARY:
+				my_vids[int((pv as Dictionary).get("id", -1))] = true
+
+	var out: Array = []
+	var seen_ids: Dictionary = {}
+	for raw_m in gs.movements:
+		if typeof(raw_m) != TYPE_DICTIONARY:
+			continue
+		var m := raw_m as Dictionary
+		var m_owner := _norm_player_name(str(m.get("owner", "")))
+		var from_id := int(m.get("from_village_id", m.get("village_id", 0)))
+		var to_id := int(m.get("to_village_id", 0))
+		var vill_id := int(m.get("village_id", 0))
+		var is_ret := (str(m.get("state", "")) == "returning" or str(m.get("type", "")) == "return")
+		var mid := int(m.get("id", 0))
+		var bseed := int(m.get("battle_seed", 0))
+		if not is_ret and ((mid > 0 and returned_origin_ids.has(mid)) or (bseed > 0 and returned_seeds.has(bseed))):
+			continue
+		var is_mine := (
+			(not p_norm.is_empty() and not m_owner.is_empty() and m_owner == p_norm)
+			or my_vids.has(from_id)
+			or my_vids.has(to_id)
+			or my_vids.has(vill_id)
+		)
+		if not is_mine:
+			continue
+		var dk := "%d_%s_%d" % [mid, "ret" if is_ret else "out", bseed]
+		if mid > 0 and seen_ids.has(dk):
+			continue
+		seen_ids[dk] = true
+		out.append(m)
+	return out
 
 
 func _process(_delta: float) -> void:
@@ -917,28 +1030,19 @@ func _find_any_village(vid: int, gs: Node) -> Dictionary:
 
 func _on_draw_movements() -> void:
 	var gs = Engine.get_main_loop().root.get_node_or_null("GameState") if Engine.get_main_loop() is SceneTree else null
-	if gs == null or gs.movements.is_empty():
+	if gs == null:
+		return
+	var my_movements := _collect_my_movements(gs)
+	if my_movements.is_empty():
 		return
 
-	var active_v: Dictionary = gs.get_active_village() if gs.has_active_village() else {}
-	var active_vid: int = int(active_v.get("id", -1))
-	var player_name: String = str(gs.player.get("name", "Kral"))
-	var now_f: float = Time.get_unix_time_from_system()
+	var now_f: float = _effective_now_f()
 	var now: int = int(floor(now_f))
 	var anim_t: float = Time.get_ticks_msec() * 0.001
 
-	for m in gs.movements:
-		if typeof(m) != TYPE_DICTIONARY:
-			continue
-
-		var m_owner := str(m.get("owner", ""))
+	for m in my_movements:
 		var from_id := int(m.get("from_village_id", m.get("village_id", 0)))
 		var to_id := int(m.get("to_village_id", 0))
-
-		# Saldırı sahibi veya hedef/kaynak köyden birine sahip oyuncu görebilir
-		var is_mine := (m_owner == player_name or from_id == active_vid or to_id == active_vid)
-		if not is_mine:
-			continue
 
 		var origin_v: Dictionary = _find_any_village(from_id, gs)
 		var target_v: Dictionary = _find_any_village(to_id, gs)
@@ -1189,6 +1293,15 @@ func _setup_movement_status_bar() -> void:
 	btn_track.pressed.connect(_on_track_movement_pressed)
 	hbox.add_child(btn_track)
 
+	var btn_speed := Button.new()
+	btn_speed.name = "TopMarchSpeedupBtn"
+	btn_speed.text = "⚡ Hızlandır"
+	btn_speed.custom_minimum_size = Vector2(142, 42)
+	btn_speed.add_theme_font_override("font", FontNunitoBold)
+	btn_speed.add_theme_font_size_override("font_size", 18)
+	btn_speed.pressed.connect(_on_bottom_march_speedup_pressed)
+	hbox.add_child(btn_speed)
+
 	var btn_detail := Button.new()
 	btn_detail.text = " Detay & İptal"
 	btn_detail.custom_minimum_size = Vector2(150, 42)
@@ -1201,31 +1314,144 @@ func _setup_movement_status_bar() -> void:
 	movement_status_bar.hide()
 
 
+func _setup_bottom_march_bar() -> void:
+	bottom_march_bar = PanelContainer.new()
+	bottom_march_bar.name = "BottomMarchBar"
+	bottom_march_bar.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
+	bottom_march_bar.offset_left = 18.0
+	bottom_march_bar.offset_right = -18.0
+	bottom_march_bar.offset_top = -352.0
+	bottom_march_bar.offset_bottom = -256.0
+	bottom_march_bar.z_index = 960
+	bottom_march_bar.z_as_relative = false
+	bottom_march_bar.mouse_filter = Control.MOUSE_FILTER_STOP
+
+	var bar_sb := StyleBoxFlat.new()
+	bar_sb.bg_color = Color(0.09, 0.08, 0.13, 0.97)
+	bar_sb.border_color = Color(0.95, 0.78, 0.36, 0.98)
+	bar_sb.set_border_width_all(2)
+	bar_sb.set_corner_radius_all(16)
+	bar_sb.shadow_size = 10
+	bar_sb.shadow_color = Color(0, 0, 0, 0.65)
+	bar_sb.content_margin_left = 16
+	bar_sb.content_margin_right = 16
+	bar_sb.content_margin_top = 10
+	bar_sb.content_margin_bottom = 10
+	bottom_march_bar.add_theme_stylebox_override("panel", bar_sb)
+
+	var root_hb := HBoxContainer.new()
+	root_hb.add_theme_constant_override("separation", 12)
+	root_hb.alignment = BoxContainer.ALIGNMENT_CENTER
+	bottom_march_bar.add_child(root_hb)
+
+	var left_vb := VBoxContainer.new()
+	left_vb.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	left_vb.add_theme_constant_override("separation", 4)
+	root_hb.add_child(left_vb)
+
+	var top_line := HBoxContainer.new()
+	top_line.add_theme_constant_override("separation", 10)
+	left_vb.add_child(top_line)
+
+	bottom_march_title_label = Label.new()
+	bottom_march_title_label.name = "BottomMarchTitleLabel"
+	bottom_march_title_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	bottom_march_title_label.clip_text = true
+	bottom_march_title_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	bottom_march_title_label.add_theme_font_override("font", FontNunitoBold)
+	bottom_march_title_label.add_theme_font_size_override("font_size", 21)
+	bottom_march_title_label.add_theme_color_override("font_color", Color(1.0, 0.94, 0.76))
+	top_line.add_child(bottom_march_title_label)
+
+	bottom_march_timer_label = Label.new()
+	bottom_march_timer_label.name = "BottomMarchTimerLabel"
+	bottom_march_timer_label.add_theme_font_override("font", FontNunitoBold)
+	bottom_march_timer_label.add_theme_font_size_override("font_size", 24)
+	bottom_march_timer_label.add_theme_color_override("font_color", Color(0.42, 0.94, 1.0))
+	top_line.add_child(bottom_march_timer_label)
+
+	bottom_march_progress = ProgressBar.new()
+	bottom_march_progress.name = "BottomMarchProgressBar"
+	bottom_march_progress.custom_minimum_size = Vector2(0, 12)
+	bottom_march_progress.show_percentage = false
+	var pb_bg := StyleBoxFlat.new()
+	pb_bg.bg_color = Color(0.05, 0.04, 0.08, 0.95)
+	pb_bg.set_corner_radius_all(6)
+	var pb_fg := StyleBoxFlat.new()
+	pb_fg.bg_color = Color(0.96, 0.56, 0.18, 1.0)
+	pb_fg.set_corner_radius_all(6)
+	bottom_march_progress.add_theme_stylebox_override("background", pb_bg)
+	bottom_march_progress.add_theme_stylebox_override("fill", pb_fg)
+	left_vb.add_child(bottom_march_progress)
+
+	bottom_march_track_btn = Button.new()
+	bottom_march_track_btn.name = "BottomMarchTrackBtn"
+	bottom_march_track_btn.text = "🎯 Odakla"
+	bottom_march_track_btn.custom_minimum_size = Vector2(126, 54)
+	_style_floating_btn(bottom_march_track_btn, 19)
+	bottom_march_track_btn.pressed.connect(_on_track_movement_pressed)
+	root_hb.add_child(bottom_march_track_btn)
+
+	bottom_march_speedup_btn = Button.new()
+	bottom_march_speedup_btn.name = "BottomMarchSpeedupBtn"
+	bottom_march_speedup_btn.text = "⚡ Hızlandır"
+	bottom_march_speedup_btn.custom_minimum_size = Vector2(180, 54)
+	bottom_march_speedup_btn.add_theme_font_override("font", FontNunitoBold)
+	bottom_march_speedup_btn.add_theme_font_size_override("font_size", 20)
+	bottom_march_speedup_btn.add_theme_color_override("font_color", Color(1.0, 0.98, 0.90))
+	bottom_march_speedup_btn.pressed.connect(_on_bottom_march_speedup_pressed)
+	root_hb.add_child(bottom_march_speedup_btn)
+
+	bottom_march_detail_btn = Button.new()
+	bottom_march_detail_btn.name = "BottomMarchDetailBtn"
+	bottom_march_detail_btn.text = "🔍 Detay"
+	bottom_march_detail_btn.custom_minimum_size = Vector2(124, 54)
+	_style_floating_btn(bottom_march_detail_btn, 19)
+	bottom_march_detail_btn.pressed.connect(_on_details_status_bar_pressed)
+	root_hb.add_child(bottom_march_detail_btn)
+
+	add_child(bottom_march_bar)
+	bottom_march_bar.hide()
+
+
+func _on_bottom_march_speedup_pressed() -> void:
+	var gs = Engine.get_main_loop().root.get_node_or_null("GameState") if Engine.get_main_loop() is SceneTree else null
+	var my_movs := _collect_my_movements(gs)
+	if my_movs.is_empty():
+		return
+	var active_m: Dictionary = my_movs[0]
+	for m in my_movs:
+		var st := str(m.get("state", "outgoing"))
+		var tp := str(m.get("type", ""))
+		if st == "outgoing" and tp != "return":
+			active_m = m
+			break
+	var sm := _get_store_manager()
+	var target_id: Variant = active_m.get("id", null)
+	var title_txt := bottom_march_title_label.text if bottom_march_title_label != null else "Ordu Seferi"
+	if sm != null and sm.has_method("open_speedup_modal"):
+		sm.call("open_speedup_modal", self, "march", target_id, title_txt)
+	elif sm != null and sm.has_method("open_market"):
+		sm.call("open_market", self, "march")
+
+
 func _refresh_movement_status_bar() -> void:
 	if movement_status_bar == null:
 		return
 	var gs = Engine.get_main_loop().root.get_node_or_null("GameState") if Engine.get_main_loop() is SceneTree else null
 	if gs == null:
 		movement_status_bar.hide()
+		if bottom_march_bar != null:
+			bottom_march_bar.hide()
 		return
 
-	var active_v: Dictionary = gs.get_active_village() if gs.has_active_village() else {}
-	var active_vid: int = int(active_v.get("id", -1))
-	var player_name: String = str(gs.player.get("name", "Kral"))
-	var now: int = int(Time.get_unix_time_from_system())
-
-	var my_movements: Array = []
-	for m in gs.movements:
-		if typeof(m) != TYPE_DICTIONARY:
-			continue
-		var m_owner := str(m.get("owner", ""))
-		var from_id := int(m.get("from_village_id", m.get("village_id", 0)))
-		var to_id := int(m.get("to_village_id", 0))
-		if m_owner == player_name or from_id == active_vid or to_id == active_vid:
-			my_movements.append(m)
+	var now: int = _effective_now()
+	var my_movements: Array = _collect_my_movements(gs)
 
 	if my_movements.is_empty():
 		movement_status_bar.hide()
+		if bottom_march_bar != null:
+			bottom_march_bar.hide()
 		var legend = get_node_or_null("Legend")
 		if legend != null:
 			legend.show()
@@ -1236,11 +1462,14 @@ func _refresh_movement_status_bar() -> void:
 		legend_node.hide()
 
 	movement_status_bar.show()
+	if bottom_march_bar != null:
+		bottom_march_bar.show()
+
 	var active_m: Dictionary = my_movements[0]
 	for m in my_movements:
 		var st := str(m.get("state", "outgoing"))
 		var tp := str(m.get("type", ""))
-		if st == "returning" or tp == "return":
+		if st == "outgoing" and tp != "return":
 			active_m = m
 			break
 
@@ -1248,40 +1477,82 @@ func _refresh_movement_status_bar() -> void:
 	var m_state := str(active_m.get("state", "outgoing"))
 	var is_returning := (m_state == "returning" or m_type == "return")
 	var is_trade := (m_type == "trade")
+	var is_spy := (m_type == "spy")
+	var depart_unix := int(active_m.get("depart_unix", now))
 	var arrive_unix := int(active_m.get("arrive_unix", now))
+	var total_dur := maxi(1, arrive_unix - depart_unix)
 	var rem_secs := maxi(0, arrive_unix - now)
+	var pct := clampf(float(total_dur - rem_secs) / float(total_dur) * 100.0, 0.0, 100.0)
 	var time_str := _fmt_duration(rem_secs)
 
 	if is_returning:
-		movement_status_label.text = " Birlik Dönüş Yolunda! Üsse Kalan Süre: %s (Toplam %d)" % [time_str, my_movements.size()]
+		movement_status_label.text = "↩ Birlik Dönüş Yolunda! Üsse Kalan Süre: %s (Toplam %d)" % [time_str, my_movements.size()]
 		movement_status_label.add_theme_color_override("font_color", Color(0.3, 0.9, 1.0))
 	elif is_trade:
-		movement_status_label.text = " Katır Kervanı Sevkiyatta! Kalan Süre: %s (Toplam %d)" % [time_str, my_movements.size()]
+		movement_status_label.text = "⚖️ Katır Kervanı Sevkiyatta! Kalan Süre: %s (Toplam %d)" % [time_str, my_movements.size()]
 		movement_status_label.add_theme_color_override("font_color", Color(1.0, 0.85, 0.3))
+	elif is_spy:
+		movement_status_label.text = "🕵️ Casus Seferde! Hedefe Kalan Süre: %s (Toplam %d)" % [time_str, my_movements.size()]
+		movement_status_label.add_theme_color_override("font_color", Color(0.65, 0.88, 1.0))
 	else:
-		movement_status_label.text = " Ordu Seferde! Hedefe Kalan Süre: %s (Toplam %d)" % [time_str, my_movements.size()]
+		movement_status_label.text = "⚔️ Ordu Seferde! Hedefe Kalan Süre: %s (Toplam %d)" % [time_str, my_movements.size()]
 		movement_status_label.add_theme_color_override("font_color", Color(1.0, 0.5, 0.3))
+
+	if bottom_march_bar != null:
+		var to_id := int(active_m.get("to_village_id", 0))
+		var from_id := int(active_m.get("from_village_id", active_m.get("village_id", 0)))
+		var tgt_v := _find_any_village(to_id, gs)
+		var orig_v := _find_any_village(from_id, gs)
+		var tgt_name := str(tgt_v.get("name", "Köy #%d" % to_id))
+		var orig_name := str(orig_v.get("name", "Köy #%d" % from_id))
+		if is_returning:
+			bottom_march_title_label.text = "↩ Dönüş → %s" % tgt_name
+		elif is_spy:
+			bottom_march_title_label.text = "🕵️ Casus → %s" % tgt_name
+		elif is_trade:
+			bottom_march_title_label.text = "⚖️ Kervan → %s" % tgt_name
+		else:
+			bottom_march_title_label.text = "⚔️ Sefer: %s → %s" % [orig_name, tgt_name]
+		bottom_march_timer_label.text = "⏱ %s" % time_str
+		bottom_march_progress.value = pct
+
+		var sm := _get_store_manager()
+		var cnt := int(sm.call("get_category_scroll_total", "march")) if sm != null and sm.has_method("get_category_scroll_total") else 0
+		bottom_march_speedup_btn.text = "⚡ Hızlandır (%d)" % cnt if cnt > 0 else "⚡ Hızlandır"
+		var sb := StyleBoxFlat.new()
+		sb.bg_color = Color(0.16, 0.48, 0.26, 0.98) if cnt > 0 else Color(0.14, 0.28, 0.52, 0.98)
+		sb.border_color = Color(0.96, 0.80, 0.36, 1.0)
+		sb.set_border_width_all(2)
+		sb.set_corner_radius_all(12)
+		var sb_h := sb.duplicate() as StyleBoxFlat
+		sb_h.bg_color = sb.bg_color.lightened(0.12)
+		bottom_march_speedup_btn.add_theme_stylebox_override("normal", sb)
+		bottom_march_speedup_btn.add_theme_stylebox_override("hover", sb_h)
+		bottom_march_speedup_btn.add_theme_stylebox_override("pressed", sb_h)
 
 
 func _on_track_movement_pressed() -> void:
 	var gs = Engine.get_main_loop().root.get_node_or_null("GameState") if Engine.get_main_loop() is SceneTree else null
-	if gs == null or gs.movements.is_empty():
+	var my_movs := _collect_my_movements(gs)
+	if my_movs.is_empty():
 		return
-	var m: Dictionary = gs.movements[0]
-	for chk in gs.movements:
-		if str(chk.get("state", "")) == "returning" or str(chk.get("type", "")) == "return":
+	var m: Dictionary = my_movs[0]
+	for chk in my_movs:
+		if str(chk.get("state", "")) == "outgoing" and str(chk.get("type", "")) != "return":
 			m = chk
 			break
 	var from_id := int(m.get("from_village_id", m.get("village_id", 0)))
 	var to_id := int(m.get("to_village_id", 0))
 	var origin_v: Dictionary = _find_any_village(from_id, gs)
 	var target_v: Dictionary = _find_any_village(to_id, gs)
-	if origin_v.is_empty() or target_v.is_empty():
-		return
-	var from_pos := coord_to_world_pos(float(origin_v.get("x", 100)), float(origin_v.get("y", 100)))
-	var to_pos := coord_to_world_pos(float(target_v.get("x", 100)), float(target_v.get("y", 100)))
+	var from_x := float(m.get("from_x", origin_v.get("x", 100)))
+	var from_y := float(m.get("from_y", origin_v.get("y", 100)))
+	var to_x := float(m.get("to_x", target_v.get("x", 100)))
+	var to_y := float(m.get("to_y", target_v.get("y", 100)))
+	var from_pos := coord_to_world_pos(from_x, from_y)
+	var to_pos := coord_to_world_pos(to_x, to_y)
 
-	var now := int(Time.get_unix_time_from_system())
+	var now := _effective_now()
 	var depart_unix := int(m.get("depart_unix", now))
 	var arrive_unix := int(m.get("arrive_unix", now + 60))
 	var duration := maxi(1, arrive_unix - depart_unix)
@@ -1309,10 +1580,11 @@ const UNIT_NAMES_MAP := {
 
 func _on_details_status_bar_pressed() -> void:
 	var gs = Engine.get_main_loop().root.get_node_or_null("GameState") if Engine.get_main_loop() is SceneTree else null
-	if gs == null or gs.movements.is_empty():
+	var my_movs := _collect_my_movements(gs)
+	if my_movs.is_empty():
 		return
-	var m: Dictionary = gs.movements[0]
-	for chk in gs.movements:
+	var m: Dictionary = my_movs[0]
+	for chk in my_movs:
 		if str(chk.get("state", "")) == "outgoing" and str(chk.get("type", "")) != "return":
 			m = chk
 			break
@@ -1321,22 +1593,15 @@ func _on_details_status_bar_pressed() -> void:
 
 func _check_movement_click(screen_click_pos: Vector2) -> void:
 	var gs = Engine.get_main_loop().root.get_node_or_null("GameState") if Engine.get_main_loop() is SceneTree else null
-	if gs == null or gs.movements.is_empty():
+	var my_movs := _collect_my_movements(gs)
+	if my_movs.is_empty():
 		return
 
-	var active_v: Dictionary = gs.get_active_village() if gs.has_active_village() else {}
-	var active_vid: int = int(active_v.get("id", -1))
-	var player_name: String = str(gs.player.get("name", "Kral"))
-	var now: int = int(Time.get_unix_time_from_system())
+	var now: int = _effective_now()
 
-	for m in gs.movements:
-		if typeof(m) != TYPE_DICTIONARY:
-			continue
-		var m_owner := str(m.get("owner", ""))
+	for m in my_movs:
 		var from_id := int(m.get("from_village_id", m.get("village_id", 0)))
 		var to_id := int(m.get("to_village_id", 0))
-		if not (m_owner == player_name or from_id == active_vid or to_id == active_vid):
-			continue
 
 		var origin_v: Dictionary = _find_any_village(from_id, gs)
 		var target_v: Dictionary = _find_any_village(to_id, gs)
@@ -1723,23 +1988,24 @@ func _refresh_movement_detail_content() -> void:
 func _is_player_owned_movement(m: Dictionary, gs: Node) -> bool:
 	if gs == null:
 		return false
-	var player_name := str(gs.player.get("name", "")) if gs.get("player") is Dictionary else ""
-	var m_owner := str(m.get("owner", ""))
-	if not player_name.is_empty() and m_owner == player_name:
+	var player_name := _norm_player_name(str(gs.player.get("name", "")) if gs.get("player") is Dictionary else "")
+	var m_owner := _norm_player_name(str(m.get("owner", "")))
+	if not player_name.is_empty() and not m_owner.is_empty() and m_owner == player_name:
 		return true
 	var my_ids: Dictionary = {}
-	var v_list = gs.get("villages")
-	if v_list is Array:
-		for v in v_list:
+	if gs.has_method("get_player_villages"):
+		for v in gs.get_player_villages():
 			if v is Dictionary:
 				my_ids[int((v as Dictionary).get("id", -1))] = true
+	if int(gs.active_village_id) > 0:
+		my_ids[int(gs.active_village_id)] = true
 	var from_id := int(m.get("from_village_id", -1))
 	var to_id := int(m.get("to_village_id", -1))
 	var vill_id := int(m.get("village_id", -1))
 	var is_ret := (str(m.get("state", "")) == "returning" or str(m.get("type", "")) == "return")
 	if is_ret:
 		return my_ids.has(to_id) or my_ids.has(vill_id)
-	return my_ids.has(from_id)
+	return my_ids.has(from_id) or my_ids.has(vill_id)
 
 
 func _refresh_detail_speedup_button() -> void:
@@ -1802,7 +2068,7 @@ func _update_movement_detail_timer() -> void:
 		return
 
 	var m := live_m
-	var now := int(Time.get_unix_time_from_system())
+	var now := _effective_now()
 	var depart_unix := int(m.get("depart_unix", now))
 	var arrive_unix := int(m.get("arrive_unix", now + 60))
 	var duration := maxi(1, arrive_unix - depart_unix)

@@ -432,6 +432,18 @@ class BuyScrollRequest(BaseModel):
     qty: int = Field(1, ge=1, le=999)
 
 
+class UseScrollRequest(BaseModel):
+    scroll_id: str = Field(..., min_length=2, max_length=60)
+    category: Optional[str] = Field(None, max_length=30)
+    target_id: Optional[Any] = Field(None)
+    village_id: Optional[int] = Field(None)
+
+
+class BuyResourcesRequest(BaseModel):
+    pack_id: str = Field(..., min_length=2, max_length=60)
+    village_id: Optional[int] = Field(None)
+
+
 class VerifyIapRequest(BaseModel):
     product_id: str = Field(..., min_length=2, max_length=120)
     transaction_id: str = Field(..., min_length=2, max_length=200)
@@ -669,6 +681,15 @@ SPEEDUP_SCROLLS: List[Dict[str, Any]] = [
     {"id": "march_10m", "category": "march", "seconds": 600, "cost_diamonds": 8, "name": "Sefer Hızlandırma 10 Dk"},
     {"id": "march_30m", "category": "march", "seconds": 1800, "cost_diamonds": 18, "name": "Sefer Hızlandırma 30 Dk"},
     {"id": "march_60m", "category": "march", "seconds": 3600, "cost_diamonds": 30, "name": "Sefer Hızlandırma 1 Saat"},
+]
+
+RESOURCE_PACKS: List[Dict[str, Any]] = [
+    {"id": "res_wood_1000", "name": "1.000 Odun Sandığı", "cost_diamonds": 5, "wood": 1000, "stone": 0, "iron": 0, "fill_storage": False, "badge": "Kereste", "description": "Aktif köy ambarına anında +1.000 Odun ekler."},
+    {"id": "res_stone_1000", "name": "1.000 Taş Sandığı", "cost_diamonds": 5, "wood": 0, "stone": 1000, "iron": 0, "fill_storage": False, "badge": "Taş Blok", "description": "Aktif köy ambarına anında +1.000 Taş ekler."},
+    {"id": "res_iron_1000", "name": "1.000 Demir Sandığı", "cost_diamonds": 5, "wood": 0, "stone": 0, "iron": 1000, "fill_storage": False, "badge": "Cevher", "description": "Aktif köy ambarına anında +1.000 Demir ekler."},
+    {"id": "res_bundle_1500", "name": "Kraliyet Erzak Paketi (+1.500 Tümü)", "cost_diamonds": 12, "wood": 1500, "stone": 1500, "iron": 1500, "fill_storage": False, "badge": "⭐ Avantajlı", "description": "Aktif köye +1.500 Odun, +1.500 Taş ve +1.500 Demir ekler."},
+    {"id": "res_bundle_5000", "name": "İmparatorluk Hazine Kervanı (+5.000 Tümü)", "cost_diamonds": 35, "wood": 5000, "stone": 5000, "iron": 5000, "fill_storage": False, "badge": "👑 Büyük Paket", "description": "Aktif köye +5.000 Odun, +5.000 Taş ve +5.000 Demir ekler."},
+    {"id": "res_fill_storage", "name": "Ambarları Doldur (%100 Tam Depo)", "cost_diamonds": 25, "wood": 0, "stone": 0, "iron": 0, "fill_storage": True, "badge": "🏛️ Tam Kapasite", "description": "Aktif köyün Odun, Taş ve Demir ambarlarını Depo kapasitesinin %100'üne doldurur."},
 ]
 
 
@@ -1209,10 +1230,16 @@ def _prepare_world_for_player(
         p_diamonds = max(0, int(found_prof["diamonds"]))
 
     p_scrolls: Dict[str, int] = {}
-    if isinstance(found_prof.get("scrolls"), dict):
-        p_scrolls = copy.deepcopy(found_prof["scrolls"])
-    elif user_wallet is not None and isinstance(user_wallet.get("scrolls"), dict):
+    if user_wallet is not None and isinstance(user_wallet.get("scrolls"), dict):
         p_scrolls = copy.deepcopy(user_wallet["scrolls"])
+    elif isinstance(found_prof.get("scrolls"), dict):
+        p_scrolls = copy.deepcopy(found_prof["scrolls"])
+
+    if norm_p and isinstance(profiles, dict):
+        for pk, pv in profiles.items():
+            if _matches_player(pk, norm_p) and isinstance(pv, dict):
+                pv["diamonds"] = p_diamonds
+                pv["scrolls"] = copy.deepcopy(p_scrolls)
 
     state["active_village_id"] = active_vid
     state["player"] = {
@@ -1705,32 +1732,74 @@ def merge_world_state(server_w: Optional[Dict[str, Any]], client_raw: Dict[str, 
     s_state["queues"] = merged_queues
 
     # 4. Hareketler (movements)
+    all_acting_vids = acting_vids_now | acting_client_vids_before
+
+    def _is_acting_player_movement(mov: Dict[str, Any]) -> bool:
+        m_owner = str(mov.get("owner", "")).strip()
+        if m_owner and _matches_player(m_owner, act_name):
+            return True
+        m_vid = int(mov.get("village_id", 0) or 0)
+        if m_vid in all_acting_vids:
+            return True
+        m_state = str(mov.get("state", "outgoing"))
+        m_type = str(mov.get("type", ""))
+        is_ret = (m_state == "returning" or m_type == "return")
+        fv_raw = int(mov.get("from_village_id", 0) or 0)
+        tv_raw = int(mov.get("to_village_id", 0) or 0)
+        if is_ret:
+            return tv_raw in all_acting_vids
+        return fv_raw in all_acting_vids
+
+    # Dönüşe geçmiş (returning) hareketlerin orijinal gidiş ID veya battle_seed değerlerini topla
+    returned_origin_ids = set()
+    returned_seeds = set()
+    for m in (c_state.get("movements") or []):
+        if not isinstance(m, dict):
+            continue
+        if str(m.get("state", "")) == "returning" or str(m.get("type", "")) == "return":
+            orig_mid = int(m.get("origin_movement_id", 0) or 0)
+            if orig_mid > 0:
+                returned_origin_ids.add(orig_mid)
+            b_seed = int(m.get("battle_seed", 0) or 0)
+            if b_seed > 0:
+                returned_seeds.add(b_seed)
+
     merged_movements: List[Dict[str, Any]] = []
     seen_mov = set()
+    seen_acting_mov_ids = set()
     # Önce aktif oyuncunun köylerinden çıkan/client'ta bilinen hareketler
     for m in (c_state.get("movements") or []):
         if not isinstance(m, dict):
             continue
         mc = copy.deepcopy(m)
-        fv = int(mc.get("from_village_id", mc.get("village_id", 0)) or 0)
+        is_ret = (str(mc.get("state", "")) == "returning" or str(mc.get("type", "")) == "return")
+        mid = int(mc.get("id", 0) or 0)
+        b_seed = int(mc.get("battle_seed", 0) or 0)
+        if not is_ret and ((mid > 0 and mid in returned_origin_ids) or (b_seed > 0 and b_seed in returned_seeds)):
+            continue
+        fv = int(mc.get("from_village_id", 0) or 0)
         tv = int(mc.get("to_village_id", 0) or 0)
+        v_orig = int(mc.get("village_id", 0) or 0)
         if fv in vid_remap:
             mc["from_village_id"] = vid_remap[fv]
-            if "village_id" in mc:
-                mc["village_id"] = vid_remap[fv]
         if tv in vid_remap:
             mc["to_village_id"] = vid_remap[tv]
+        if v_orig in vid_remap:
+            mc["village_id"] = vid_remap[v_orig]
+        if mid > 0 and _is_acting_player_movement(mc):
+            if (mid, is_ret) in seen_acting_mov_ids:
+                continue
+            seen_acting_mov_ids.add((mid, is_ret))
         sig = _movement_sig(mc)
         if sig not in seen_mov:
             seen_mov.add(sig)
             merged_movements.append(mc)
-    # Diğer gerçek oyuncuların sunucudaki hareketlerini koru (henüz varmamış olanları)
+    # Diğer gerçek oyuncuların sunucudaki hareketlerini koru (aktif oyuncunun kendi hareketlerinde client %100 otoriterdir)
     for m in (s_state.get("movements") or []):
         if not isinstance(m, dict):
             continue
-        fv = int(m.get("from_village_id", m.get("village_id", 0)) or 0)
-        if fv in acting_vids_now or fv in acting_client_vids_before:
-            continue  # Aktif oyuncunun kendi hareketlerinde client otoriterdir
+        if _is_acting_player_movement(m):
+            continue
         sig = _movement_sig(m)
         if sig not in seen_mov and (int(m.get("arrive_unix", 0) or 0) > now or int(m.get("to_village_id", 0) or 0) not in acting_vids_now):
             seen_mov.add(sig)
@@ -2194,11 +2263,6 @@ def auth_check_account(req: CheckAccountRequest):
     worlds_meta = _sync_worlds_table_from_states(cursor, now)
     has_village = bool(server_village is not None or _player_has_village_in_world(cloud_state, display_name))
     u_diamonds, u_scrolls = _parse_user_wallet(dict(existing))
-    if isinstance(cloud_state, dict) and isinstance(cloud_state.get("state", {}).get("player"), dict):
-        p_obj = cloud_state["state"]["player"]
-        u_diamonds = max(0, int(p_obj.get("diamonds", u_diamonds)))
-        if isinstance(p_obj.get("scrolls"), dict):
-            u_scrolls = p_obj["scrolls"]
     conn.commit()
     conn.close()
 
@@ -2316,11 +2380,6 @@ def auth_login(req: AuthLoginRequest):
     cloud_state, cloud_updated_unix, server_village = _fetch_cloud_and_village(cursor, user_id, display_name)
     worlds_meta = _sync_worlds_table_from_states(cursor, now)
     has_village = bool(server_village is not None or _player_has_village_in_world(cloud_state, display_name))
-    if isinstance(cloud_state, dict) and isinstance(cloud_state.get("state", {}).get("player"), dict):
-        p_obj = cloud_state["state"]["player"]
-        u_diamonds = max(0, int(p_obj.get("diamonds", u_diamonds)))
-        if isinstance(p_obj.get("scrolls"), dict):
-            u_scrolls = p_obj["scrolls"]
 
     conn.commit()
     conn.close()
@@ -2706,12 +2765,9 @@ def get_cloud_state(user: Dict[str, Any] = Depends(get_current_user)):
         cursor, user["id"], user["display_name"]
     )
     worlds_meta = _sync_worlds_table_from_states(cursor, now)
-    u_diamonds, u_scrolls = _parse_user_wallet(user)
-    if isinstance(cloud_state, dict) and isinstance(cloud_state.get("state", {}).get("player"), dict):
-        p_obj = cloud_state["state"]["player"]
-        u_diamonds = max(0, int(p_obj.get("diamonds", u_diamonds)))
-        if isinstance(p_obj.get("scrolls"), dict):
-            u_scrolls = p_obj["scrolls"]
+    cursor.execute("SELECT diamonds, scrolls_json FROM users WHERE id = ?", (user["id"],))
+    u_fresh = cursor.fetchone()
+    u_diamonds, u_scrolls = _parse_user_wallet(dict(u_fresh) if u_fresh else user)
     conn.commit()
     conn.close()
     if cloud_state is not None:
@@ -2776,7 +2832,36 @@ def post_cloud_save(payload: Dict[str, Any], user: Dict[str, Any] = Depends(get_
             except Exception:
                 server_w = None
 
+        cursor.execute("SELECT diamonds, scrolls_json FROM users WHERE id = ?", (user["id"],))
+        u_w_row = cursor.fetchone()
+        db_diamonds, db_scrolls = _parse_user_wallet(dict(u_w_row) if u_w_row else user)
+
+        # Eğer client açıkça wallet_authoritative gönderdiyse veya DB boşken client parşömen taşıyorsa senkronla;
+        # aksi halde users tablosundaki yetkili cüzdanı koru (bayat save'in satın alınan parşömeni {} ile ezmesini engelle!)
+        raw_c_player = (
+            state_obj.get("state", {}).get("player")
+            if isinstance(state_obj.get("state"), dict)
+            else state_obj.get("player")
+        )
+        wallet_auth = bool(payload.get("wallet_authoritative", False) or state_obj.get("wallet_authoritative", False))
+        if isinstance(raw_c_player, dict):
+            if wallet_auth:
+                if raw_c_player.get("diamonds") is not None:
+                    db_diamonds = max(0, int(raw_c_player.get("diamonds", db_diamonds)))
+                if isinstance(raw_c_player.get("scrolls"), dict):
+                    db_scrolls = {
+                        str(k): max(0, int(v or 0))
+                        for k, v in raw_c_player["scrolls"].items()
+                        if int(v or 0) > 0
+                    }
+                cursor.execute(
+                    "UPDATE users SET diamonds = ?, scrolls_json = ? WHERE id = ?",
+                    (db_diamonds, json.dumps(db_scrolls, ensure_ascii=False), user["id"]),
+                )
+
         merged_w = merge_world_state(server_w, state_obj, user["display_name"], now)
+        auth_wallet = {"diamonds": db_diamonds, "scrolls": db_scrolls}
+        merged_for_player = _prepare_world_for_player(merged_w, user["display_name"], auth_wallet)
         merged_json = json.dumps(merged_w, ensure_ascii=False)
         if ws_row:
             cursor.execute(
@@ -2788,12 +2873,6 @@ def post_cloud_save(payload: Dict[str, Any], user: Dict[str, Any] = Depends(get_
                 "INSERT INTO world_states (world_id, state_json, updated_unix) VALUES (?, ?, ?)",
                 (w_id, merged_json, now)
             )
-
-        merged_for_player = _prepare_world_for_player(merged_w, user["display_name"])
-        c_player_save = (merged_for_player or {}).get("state", {}).get("player", {})
-        if isinstance(c_player_save, dict) and isinstance(c_player_save.get("scrolls"), dict):
-            clean_scrolls = {str(k): max(0, int(v or 0)) for k, v in c_player_save["scrolls"].items() if int(v or 0) > 0}
-            cursor.execute("UPDATE users SET scrolls_json = ? WHERE id = ?", (json.dumps(clean_scrolls, ensure_ascii=False), user["id"]))
         player_save_json = json.dumps(merged_for_player, ensure_ascii=False)
         cursor.execute("SELECT user_id FROM cloud_saves WHERE user_id = ?", (user["id"],))
         if cursor.fetchone():
@@ -2903,6 +2982,13 @@ def _find_pack_def(product_id: str, pack_id: Optional[str] = None) -> Optional[D
     return None
 
 
+def _find_resource_pack_def(pack_id: str) -> Optional[Dict[str, Any]]:
+    for rp in RESOURCE_PACKS:
+        if rp["id"] == pack_id:
+            return rp
+    return None
+
+
 @app.get("/api/store/catalog")
 def store_catalog(authorization: Optional[str] = Header(None)):
     res: Dict[str, Any] = {
@@ -2910,6 +2996,7 @@ def store_catalog(authorization: Optional[str] = Header(None)):
         "starter_diamonds": STARTER_DIAMONDS,
         "diamond_packs": DIAMOND_PACKS,
         "speedup_scrolls": SPEEDUP_SCROLLS,
+        "resource_packs": RESOURCE_PACKS,
     }
     if authorization and authorization.startswith("Bearer "):
         token = authorization.replace("Bearer ", "").strip()
@@ -2962,6 +3049,211 @@ def store_buy_scroll(req: BuyScrollRequest, user: Dict[str, Any] = Depends(get_c
         "qty": req.qty,
         "count": new_count,
         "added": 0,
+    }
+
+
+@app.post("/api/store/use_scroll")
+def store_use_scroll(req: UseScrollRequest, user: Dict[str, Any] = Depends(get_current_user)):
+    scroll_def = _find_scroll_def(req.scroll_id)
+    if not scroll_def:
+        raise HTTPException(status_code=400, detail="Geçersiz parşömen kimliği.")
+
+    now = int(time.time())
+    scroll_secs = max(1, int(scroll_def["seconds"]))
+    cat = str(req.category or scroll_def["category"]).strip()
+
+    conn = get_db()
+    with conn:
+        cursor = conn.cursor()
+        ensure_cloud_saves_table(cursor, conn.is_pg)
+        cursor.execute("SELECT diamonds, scrolls_json FROM users WHERE id = ?", (user["id"],))
+        u_row = cursor.fetchone()
+        cur_diamonds, scrolls = _parse_user_wallet(dict(u_row) if u_row else user)
+        have_cnt = int(scrolls.get(req.scroll_id, 0) or 0)
+        if have_cnt < 1:
+            raise HTTPException(status_code=400, detail="Bu parşömenden envanterinizde yok.")
+
+        next_cnt = have_cnt - 1
+        if next_cnt > 0:
+            scrolls[req.scroll_id] = next_cnt
+        else:
+            scrolls.pop(req.scroll_id, None)
+
+        cursor.execute(
+            "UPDATE users SET scrolls_json = ? WHERE id = ?",
+            (json.dumps(scrolls, ensure_ascii=False), user["id"]),
+        )
+        _sync_wallet_to_world_profiles(cursor, user["display_name"], cur_diamonds, scrolls, now)
+
+        # Ayrıca world_states içindeki eşleşen aktif sefer veya kuyruk süresini de sunucuda kısalt
+        norm_p = _norm_p_name(user["display_name"])
+        cursor.execute("SELECT world_id, state_json FROM world_states ORDER BY world_id ASC")
+        for ws in cursor.fetchall():
+            wid = int(ws["world_id"])
+            try:
+                w_data = json.loads(ws["state_json"])
+            except Exception:
+                continue
+            state = w_data.get("state")
+            if not isinstance(state, dict):
+                continue
+            owned_vids = {
+                int(v.get("id", 0) or 0)
+                for v in (state.get("villages") or [])
+                if _is_real_player_village(v) and _matches_player(str(v.get("owner", "")), norm_p)
+            }
+            if not owned_vids:
+                continue
+            changed_ws = False
+            if cat == "march":
+                for m in (state.get("movements") or []):
+                    if not isinstance(m, dict):
+                        continue
+                    is_ret = (str(m.get("state", "")) == "returning" or str(m.get("type", "")) == "return")
+                    m_owner = str(m.get("owner", "")).strip()
+                    belongs = (
+                        (m_owner and _matches_player(m_owner, norm_p))
+                        or int(m.get("village_id", 0) or 0) in owned_vids
+                        or (not is_ret and int(m.get("from_village_id", 0) or 0) in owned_vids)
+                        or (is_ret and int(m.get("to_village_id", 0) or 0) in owned_vids)
+                    )
+                    if not belongs:
+                        continue
+                    if req.target_id is not None and str(req.target_id) != "" and str(m.get("id", "")) != str(req.target_id):
+                        continue
+                    old_arr = int(m.get("arrive_unix", now) or now)
+                    dep_u = int(m.get("depart_unix", now) or now)
+                    if "base_travel_seconds" not in m:
+                        m["base_travel_seconds"] = max(1, old_arr - dep_u)
+                    applied = min(max(0, old_arr - now), scroll_secs)
+                    if applied <= 0 and old_arr > now:
+                        applied = min(old_arr - now, scroll_secs)
+                    new_arr = max(1, old_arr - applied)
+                    m["arrive_unix"] = new_arr
+                    m["depart_unix"] = dep_u - applied
+                    m["return_unix"] = new_arr if is_ret else (new_arr + int(m["base_travel_seconds"]))
+                    changed_ws = True
+                    break
+            elif cat in ("build", "train", "research"):
+                target_vid = int(req.village_id or state.get("active_village_id", -1) or -1)
+                if target_vid not in owned_vids and owned_vids:
+                    target_vid = sorted(owned_vids)[0]
+                matching_q = [
+                    q for q in (state.get("queues") or [])
+                    if isinstance(q, dict) and int(q.get("village_id", -1) or -1) == target_vid and str(q.get("type", "")) == cat
+                ]
+                matching_q.sort(key=lambda q: (int(q.get("start_unix", 0) or 0), int(q.get("finish_unix", 0) or 0), int(q.get("id", 0) or 0)))
+                if matching_q:
+                    pool = scroll_secs
+                    saved = 0
+                    for idx_q, q in enumerate(matching_q):
+                        old_s = int(q.get("start_unix", now) or now)
+                        old_f = int(q.get("finish_unix", now) or now)
+                        if idx_q > 0 and saved > 0 and old_s > now:
+                            sh = min(saved, old_s - now)
+                            old_s -= sh
+                            old_f = max(old_s, old_f - sh)
+                            q["start_unix"] = old_s
+                            q["finish_unix"] = old_f
+                        if pool > 0:
+                            eff_s = max(now, old_s)
+                            cur_rem = max(0, old_f - eff_s)
+                            rem_s = min(cur_rem, pool)
+                            new_f = max(1, old_f - rem_s)
+                            q["finish_unix"] = new_f
+                            pool -= rem_s
+                            saved += rem_s
+                            changed_ws = True
+            if changed_ws:
+                w_data["last_saved_unix"] = now
+                cursor.execute(
+                    "UPDATE world_states SET state_json = ?, updated_unix = ? WHERE world_id = ?",
+                    (json.dumps(w_data, ensure_ascii=False), now, wid),
+                )
+
+    return {
+        "ok": True,
+        "diamonds": cur_diamonds,
+        "scrolls": scrolls,
+        "scroll_id": req.scroll_id,
+        "count": next_cnt,
+    }
+
+
+@app.post("/api/store/buy_resources")
+def store_buy_resources(req: BuyResourcesRequest, user: Dict[str, Any] = Depends(get_current_user)):
+    rpack = _find_resource_pack_def(req.pack_id)
+    if not rpack:
+        raise HTTPException(status_code=400, detail="Geçersiz kaynak paketi kimliği.")
+
+    now = int(time.time())
+    cost = int(rpack["cost_diamonds"])
+    conn = get_db()
+    added_resources = {"wood": 0, "stone": 0, "iron": 0}
+    new_resources = {"wood": 0, "stone": 0, "iron": 0}
+
+    with conn:
+        cursor = conn.cursor()
+        ensure_cloud_saves_table(cursor, conn.is_pg)
+        cursor.execute("SELECT diamonds, scrolls_json FROM users WHERE id = ?", (user["id"],))
+        u_row = cursor.fetchone()
+        cur_diamonds, scrolls = _parse_user_wallet(dict(u_row) if u_row else user)
+        if cur_diamonds < cost:
+            raise HTTPException(status_code=400, detail=f"Yetersiz elmas (Gereken: {cost}, Mevcut: {cur_diamonds}).")
+
+        new_diamonds = cur_diamonds - cost
+        cursor.execute("UPDATE users SET diamonds = ? WHERE id = ?", (new_diamonds, user["id"]))
+        _sync_wallet_to_world_profiles(cursor, user["display_name"], new_diamonds, scrolls, now)
+
+        norm_p = _norm_p_name(user["display_name"])
+        cursor.execute("SELECT world_id, state_json FROM world_states ORDER BY world_id ASC")
+        for ws in cursor.fetchall():
+            wid = int(ws["world_id"])
+            try:
+                w_data = json.loads(ws["state_json"])
+            except Exception:
+                continue
+            state = w_data.get("state")
+            if not isinstance(state, dict):
+                continue
+            target_v = None
+            for v in (state.get("villages") or []):
+                if _is_real_player_village(v) and _matches_player(str(v.get("owner", "")), norm_p):
+                    if req.village_id is None or int(v.get("id", -1) or -1) == int(req.village_id):
+                        target_v = v
+                        break
+                    if target_v is None:
+                        target_v = v
+            if target_v is not None:
+                blds = target_v.get("buildings") if isinstance(target_v.get("buildings"), dict) else {}
+                st_lvl = max(1, int(blds.get("storage", blds.get("warehouse", 1)) or 1))
+                cap = int(round(1000.0 * (1.2335 ** max(0, st_lvl - 1))))
+                cap = max(1000, cap)
+                res = target_v.setdefault("resources", {"wood": 500, "stone": 500, "iron": 500})
+                for rk in ("wood", "stone", "iron"):
+                    cur_val = max(0, int(res.get(rk, 0) or 0))
+                    if bool(rpack.get("fill_storage", False)):
+                        next_val = max(cur_val, cap)
+                    else:
+                        add_v = int(rpack.get(rk, 0) or 0)
+                        next_val = min(cap, cur_val + add_v) if add_v > 0 else cur_val
+                    added_resources[rk] = max(0, next_val - cur_val)
+                    res[rk] = next_val
+                    new_resources[rk] = next_val
+                w_data["last_saved_unix"] = now
+                cursor.execute(
+                    "UPDATE world_states SET state_json = ?, updated_unix = ? WHERE world_id = ?",
+                    (json.dumps(w_data, ensure_ascii=False), now, wid),
+                )
+                break
+
+    return {
+        "ok": True,
+        "pack_id": req.pack_id,
+        "diamonds": new_diamonds,
+        "scrolls": scrolls,
+        "added_resources": added_resources,
+        "resources": new_resources,
     }
 
 

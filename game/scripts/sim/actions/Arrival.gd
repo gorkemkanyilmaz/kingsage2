@@ -319,6 +319,7 @@ static func _make_return(
 	var travel := int(movement.get("base_travel_seconds", maxi(0, depart - int(movement.get("depart_unix", 0)))))
 	return {
 		"id": _next_movement_id(state),
+		"origin_movement_id": int(movement.get("id", 0)),
 		"village_id": origin_id,
 		"type": "return",
 		"from_village_id": int(movement.get("to_village_id", 0)),

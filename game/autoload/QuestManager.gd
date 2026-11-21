@@ -285,6 +285,32 @@ const QUEST_DEFS: Array[Dictionary] = [
 		"vizier_desc": "[b][color=#FFD86B]Lordum,[/color][/b] artık haritada gözlerimiz var! [b]Dünya Haritası[/b]'na geçin, komşu bir köye (Barbar veya rakip) dokunun ve [b]yalnızca Casus[/b] seçerek bir [b]Casusluk Seferi[/b] başlatın."
 	},
 	{
+		"id": "q_research_axe",
+		"icon": "🪓",
+		"category": "SALDIRI HAZIRLIĞI",
+		"title": "Baltacı Araştır (Hücum Piyadesi)",
+		"target": 1,
+		"check_type": "unit_researched",
+		"unit_key": "axe",
+		"goto_type": "barracks_research",
+		"goto_target": "axe",
+		"reward": {"wood": 6500, "stone": 3500, "iron": 4500},
+		"vizier_desc": "[b][color=#FFD86B]Lordum,[/color][/b] casuslarımız hedef köylerin istihbaratını getirdi! Ganimet seferine çıkmadan önce yüksek hücum gücüne sahip [b]Baltacı[/b] birimini (Kışla Sv.2) araştırmalıyız. Kışla'da [b]Birim Araştır[/b] sekmesinden Baltacı'yı araştırın."
+	},
+	{
+		"id": "q_train_axe_100",
+		"icon": "⚔️",
+		"category": "SALDIRI ORDUSU",
+		"title": "100 Baltacı Üret (Hücum Ordusu)",
+		"target": 100,
+		"check_type": "unit_count_peak",
+		"unit_key": "axe",
+		"goto_type": "barracks_train",
+		"goto_target": "axe",
+		"reward": {"wood": 4500, "stone": 4000, "iron": 4500},
+		"vizier_desc": "[b][color=#FFD86B]Lordum,[/color][/b] ilk büyük ganimet seferimizden zaferle ve dolu ambarlarla dönmek için güçlü bir vurucu orduya ihtiyacımız var! Kışla [b]Asker Eğit[/b] sekmesinden [b]100 adet Baltacı[/b] yetiştirin."
+	},
+	{
 		"id": "q_raid_mission",
 		"icon": "💰",
 		"category": "SAVAŞ VE GANİMET",
@@ -731,7 +757,7 @@ func _sync_live_stats(gs: Node) -> void:
 				stats["raids_resolved"] = maxi(1, int(stats.get("raids_resolved", 0)))
 
 	# Peak asker sayıları (askerler yola çıktığında sayaç geriye düşmesin)
-	for u_key in ["spy", "snob"]:
+	for u_key in ["spear", "axe", "spy", "snob"]:
 		var u_k := str(u_key)
 		var total_u := _count_player_unit(u_k, gs)
 		var peak_k := "peak_" + u_k
@@ -1826,8 +1852,10 @@ func get_pending_navigation_actions(quest_or_id, gs_override: Node = null) -> Ar
 				})
 		"unit_researched":
 			var u_rk := str(q.get("unit_key", "spear"))
-			if int(bld.get("barracks", 0)) < 1:
-				_append_building_or_prereq_actions(out, bld, "barracks", 1)
+			var u_req_dict: Dictionary = RulesEngineScript.unit_data(u_rk).get("requires", {}) if typeof(RulesEngineScript.unit_data(u_rk).get("requires")) == TYPE_DICTIONARY else {}
+			var req_b_lvl := maxi(1, int(u_req_dict.get("barracks", 1)))
+			if int(bld.get("barracks", 0)) < req_b_lvl:
+				_append_building_or_prereq_actions(out, bld, "barracks", req_b_lvl)
 			else:
 				var u_rname := str(RulesEngineScript.unit_data(u_rk).get("name", u_rk))
 				out.append({
@@ -1878,8 +1906,10 @@ func get_pending_navigation_actions(quest_or_id, gs_override: Node = null) -> Ar
 						"target": "snob",
 					})
 			else:
-				if int(bld.get("barracks", 0)) < 1:
-					_append_building_or_prereq_actions(out, bld, "barracks", 1)
+				var u_req_dict2: Dictionary = RulesEngineScript.unit_data(uk).get("requires", {}) if typeof(RulesEngineScript.unit_data(uk).get("requires")) == TYPE_DICTIONARY else {}
+				var req_b_lvl2 := maxi(1, int(u_req_dict2.get("barracks", 1)))
+				if int(bld.get("barracks", 0)) < req_b_lvl2:
+					_append_building_or_prereq_actions(out, bld, "barracks", req_b_lvl2)
 				elif not uk.is_empty() and not bool(researched.get(uk, false)):
 					var u_name := str(RulesEngineScript.unit_data(uk).get("name", uk))
 					out.append({

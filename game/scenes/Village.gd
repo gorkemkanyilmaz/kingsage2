@@ -547,12 +547,26 @@ func _update_queue_ui() -> void:
 
 	# 1) Gelen Saldırılar / Akınlar ( En yüksek öncelik)
 	var incoming_count := 0
+	var returned_origin_ids: Dictionary = {}
+	var returned_seeds: Dictionary = {}
+	for m in gs.movements:
+		if typeof(m) == TYPE_DICTIONARY:
+			var md_chk := m as Dictionary
+			if str(md_chk.get("state", "")) == "returning" or str(md_chk.get("type", "")) == "return":
+				var omid := int(md_chk.get("origin_movement_id", 0))
+				if omid > 0:
+					returned_origin_ids[omid] = true
+				var bseed := int(md_chk.get("battle_seed", 0))
+				if bseed > 0:
+					returned_seeds[bseed] = true
+
 	for m in gs.movements:
 		if typeof(m) == TYPE_DICTIONARY:
 			var to_id = int((m as Dictionary).get("to_village_id", -1))
+			var from_id_inc = int((m as Dictionary).get("from_village_id", -1))
 			var m_type = str((m as Dictionary).get("type", ""))
 			var m_state = str((m as Dictionary).get("state", ""))
-			if to_id == vid and m_state == "outgoing" and (m_type in ["attack", "raid", "spy"]):
+			if to_id == vid and from_id_inc != vid and m_state == "outgoing" and (m_type in ["attack", "raid", "spy"]):
 				activities.append({
 					"category": "incoming_attack",
 					"type": m_type,
@@ -561,6 +575,7 @@ func _update_queue_ui() -> void:
 				incoming_count += 1
 
 	# 2) Çıkan ve Dönen Askeri Seferler
+	var seen_act_movs: Dictionary = {}
 	for m in gs.movements:
 		if typeof(m) == TYPE_DICTIONARY:
 			var m_dict := m as Dictionary
@@ -570,7 +585,15 @@ func _update_queue_ui() -> void:
 			var m_state := str(m_dict.get("state", ""))
 			var m_type := str(m_dict.get("type", "attack"))
 			var is_ret := (m_state == "returning" or m_type == "return")
+			var mid := int(m_dict.get("id", 0))
+			var bseed := int(m_dict.get("battle_seed", 0))
+			if not is_ret and ((mid > 0 and returned_origin_ids.has(mid)) or (bseed > 0 and returned_seeds.has(bseed))):
+				continue
 			if (from_id == vid and not is_ret and m_state == "outgoing") or (is_ret and (to_id == vid or vill_id == vid)):
+				var act_dedup_k := "%d_%s_%d" % [mid, "ret" if is_ret else "out", bseed]
+				if mid > 0 and seen_act_movs.has(act_dedup_k):
+					continue
+				seen_act_movs[act_dedup_k] = true
 				activities.append({
 					"category": "outgoing_attack",
 					"type": m_type,

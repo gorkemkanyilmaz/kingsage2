@@ -147,7 +147,30 @@ func _run_tests() -> void:
 		var ret_dur := int(ret_mv.get("arrive_unix", 0)) - int(ret_mv.get("depart_unix", 0))
 		_check(ret_dur == base_travel, "Gidiş hızlandırılmış olsa da dönüş süresi orijinal base_travel_seconds (%d sn) korundu (gelen: %d)" % [base_travel, ret_dur])
 
-	# 4. Village.tscn + BuildingView + BuildingPanel + ResourceBar + MarketModal UI doğrulamaları
+	# 4. Kaynak paketi (Elmas ile kaynak alma) + TRY fiyat etiketi + dönüş hareketi çoğalmama
+	gs.player["diamonds"] = 100
+	var av_pre: Dictionary = gs.call("get_active_village")
+	av_pre["resources"] = {"wood": 100, "stone": 100, "iron": 100}
+	var rp_res: Dictionary = store.call("buy_resource_pack", "res_wood_1000")
+	_check(bool(rp_res.get("ok", false)) and int(gs.call("get_active_village")["resources"]["wood"]) == 1100, "1.000 Odun Sandığı elmasla alındı (wood 100 -> 1100)")
+	_check(int(store.call("get_diamonds")) == 95, "Kaynak paketi 5 elmas düştü (100 -> 95)")
+	var rp_fill: Dictionary = store.call("buy_resource_pack", "res_fill_storage")
+	var fill_cap := int(RE.storage_capacity(int(gs.call("get_active_village")["buildings"].get("storage", 1))))
+	_check(bool(rp_fill.get("ok", false)) and int(gs.call("get_active_village")["resources"]["stone"]) == fill_cap, "Ambarları Doldur depo kapasitesine (%d) tamamladı" % fill_cap)
+	var rp_full: Dictionary = store.call("buy_resource_pack", "res_fill_storage")
+	_check(not bool(rp_full.get("ok", true)), "Depo tamamen doluyken kaynak paketi reddedildi")
+	var pk_try := str(store.call("get_pack_price_label", store.call("get_pack_def", "diamonds_10")))
+	_check(pk_try.contains("₺"), "Varsayılan para birimi TL (%s)" % pk_try)
+	var ret_cnt := 0
+	var out_cnt := 0
+	for mm in gs.movements:
+		if str(mm.get("type", "")) == "return":
+			ret_cnt += 1
+		else:
+			out_cnt += 1
+	_check(ret_cnt <= 1 and out_cnt == 0, "Hızlandırma sonrası yalnızca 1 dönüş hareketi var (giden yok)")
+
+	# 5. Village.tscn + BuildingView + BuildingPanel + ResourceBar + MarketModal UI doğrulamaları
 	var vil_scene := load("res://scenes/Village.tscn") as PackedScene
 	var vil := vil_scene.instantiate() as Control
 	root.add_child(vil)
