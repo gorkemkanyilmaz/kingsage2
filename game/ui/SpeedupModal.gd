@@ -504,19 +504,29 @@ func _populate_rows() -> void:
 		ic_ov.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 		ic_ov.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		ic_box.add_child(ic_ov)
+		var ic_pill_box := PanelContainer.new()
+		ic_pill_box.anchor_left = 0.0
+		ic_pill_box.anchor_right = 1.0
+		ic_pill_box.anchor_top = 1.0
+		ic_pill_box.anchor_bottom = 1.0
+		ic_pill_box.offset_top = -18.0
+		ic_pill_box.offset_bottom = 2.0
+		ic_pill_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		var ip_sb := StyleBoxFlat.new()
+		ip_sb.bg_color = Color(0.06, 0.05, 0.09, 0.92)
+		ip_sb.border_color = tier_col
+		ip_sb.set_border_width_all(1)
+		ip_sb.set_corner_radius_all(5)
+		ic_pill_box.add_theme_stylebox_override("panel", ip_sb)
 		var ic_pill := Label.new()
 		ic_pill.text = tier_txt
-		ic_pill.anchor_left = 0.0
-		ic_pill.anchor_right = 1.0
-		ic_pill.anchor_top = 1.0
-		ic_pill.anchor_bottom = 1.0
-		ic_pill.offset_top = -18.0
-		ic_pill.offset_bottom = 2.0
 		ic_pill.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		ic_pill.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 		ic_pill.add_theme_font_override("font", FontNunitoBold)
 		ic_pill.add_theme_font_size_override("font_size", 11)
 		ic_pill.add_theme_color_override("font_color", tier_col)
-		ic_ov.add_child(ic_pill)
+		ic_pill_box.add_child(ic_pill)
+		ic_ov.add_child(ic_pill_box)
 		hb.add_child(ic_box)
 
 		var info_vb := VBoxContainer.new()

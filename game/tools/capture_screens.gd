@@ -35,15 +35,22 @@ func _init() -> void:
 	var gs_node = root.get_node("GameState")
 	gs_node.world = world
 	gs_node.villages = world["villages"].duplicate(true)
-	gs_node.player = {"id": 1, "name": "Kral", "points": int(pv.get("points", 110))}
+	gs_node.player = {"id": 1, "name": "Kral", "points": int(pv.get("points", 110)), "diamonds": 35, "tutorial_completed": true, "tutorial_skipped": false}
 	gs_node.active_village_id = 999
+	var wm_auto = root.get_node_or_null("WorldManager")
+	if wm_auto != null:
+		wm_auto.set("suppress_auto_conquered_prompt", true)
+		wm_auto.set("current_world_id", 1)
 
-	# Rapor kartlarını denetlemek için örnek kayıtlar
+	# Rapor kartlarını denetlemek için örnek kayıtlar (gerçek oyun formatında)
 	var now := int(Time.get_unix_time_from_system())
 	gs_node.reports = [
-		{"type": "battle", "unix": now - 600, "data": {"kazanan": "Başkent", "kayip": 12}},
-		{"type": "spy", "unix": now - 5400, "data": {"hedef": "Erkonak", "sonuc": "basarili"}},
-		{"type": "trade", "unix": now - 9000, "data": {"odun": 250, "tas": 100}},
+		{"type": "battle", "village_id": 999, "unix": now - 600, "unread": true, "data": {"from_village_id": 999, "target_village_id": 2, "attacker_name": "Kral", "target_name": "Erkonak", "attacker_won": true}},
+		{"type": "spy", "village_id": 999, "unix": now - 5400, "unread": false, "data": {"from_village_id": 999, "target_village_id": 3, "attacker_name": "Kral", "target_name": "Kuzeykamp", "sonuc": "basarili"}},
+		{"type": "trade", "village_id": 999, "unix": now - 9000, "unread": false, "data": {"from_village_id": 999, "target_village_id": 4, "resources": {"wood": 250, "stone": 100}}},
+	]
+	gs_node.messages = [
+		{"id": 1, "from": "Baron Roland", "to": "Kral", "subject": "Saldırmazlık Paktı", "body": "Sayın Kral, sınır komşuluğumuz adına barış öneririm.", "created_unix": now - 1200, "read": false}
 	]
 
 	# Aktif inşaat örneği (İnşaat sürüyor: Seviye 2 Kalan: 01:20 görsel denetimi)
@@ -183,9 +190,31 @@ func _init() -> void:
 				await process_frame
 			_save_now("04b_world_map_bolge.png")
 
+	var rep_sc = load("res://scenes/Reports.gd")
+	if rep_sc != null:
+		rep_sc.initial_tab = "reports"
 	await _shot("res://scenes/Reports.tscn", "05_reports.png")
+	if rep_sc != null:
+		rep_sc.initial_tab = "messages"
+	await _shot("res://scenes/Reports.tscn", "05b_messages.png")
 	await _shot("res://scenes/Ranking.tscn", "06_ranking.png")
 	await _shot("res://scenes/Settings.tscn", "07_settings.png")
+
+	var mkt_modal = load("res://ui/MarketModal.gd").new()
+	root.add_child(mkt_modal)
+	mkt_modal.open_tab("build")
+	for i in range(8):
+		await process_frame
+	_save_now("08_market_modal.png")
+	mkt_modal.queue_free()
+
+	var spd_modal = load("res://ui/SpeedupModal.gd").new()
+	root.add_child(spd_modal)
+	spd_modal.configure("build", 1, "Oduncu Kampı (Sv. 2)")
+	for i in range(8):
+		await process_frame
+	_save_now("09_speedup_modal.png")
+	spd_modal.queue_free()
 
 	# Profil açılır menüsü açıkken (PopupMenu teması denetimi)
 	var st = current_scene

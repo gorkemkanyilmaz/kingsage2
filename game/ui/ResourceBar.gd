@@ -18,6 +18,7 @@ var top_row: HBoxContainer
 var resources_row: HBoxContainer
 var vbox_root: VBoxContainer
 var village_info_box: HBoxContainer
+var left_flex_spacer: Control
 var island_spacer: Control
 var right_wing: HBoxContainer
 
@@ -55,7 +56,7 @@ var btn_market: Button
 var _pb_fill_ok: StyleBoxFlat
 var _pb_fill_warn: StyleBoxFlat
 var _pb_fill_full: StyleBoxFlat
-var _village_info_sb: StyleBoxTexture = null
+var _village_info_sb: StyleBoxFlat = null
 var _last_bar_height: float = DESKTOP_BAR_HEIGHT
 var _switcher_modal: CanvasLayer = null
 var _economy_modal: CanvasLayer = null
@@ -77,6 +78,8 @@ func _ensure_nodes() -> void:
 		resources_row = find_child("ResourcesRow", true, false) as HBoxContainer
 	if village_info_box == null:
 		village_info_box = find_child("VillageInfo", true, false) as HBoxContainer
+	if left_flex_spacer == null:
+		left_flex_spacer = find_child("LeftFlexSpacer", true, false) as Control
 	if island_spacer == null:
 		island_spacer = find_child("IslandSpacer", true, false) as Control
 	if right_wing == null:
@@ -198,8 +201,8 @@ func _ready() -> void:
 
 	if village_name_label != null:
 		village_name_label.mouse_filter = Control.MOUSE_FILTER_STOP
-		village_name_label.clip_text = true
-		village_name_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+		village_name_label.clip_text = false
+		village_name_label.text_overrun_behavior = TextServer.OVERRUN_NO_TRIMMING
 		if not village_name_label.gui_input.is_connected(_on_village_name_gui_input):
 			village_name_label.gui_input.connect(_on_village_name_gui_input)
 
@@ -282,7 +285,10 @@ func _apply_responsive_layout() -> void:
 		resources_row.add_theme_constant_override("separation", 6)
 
 	if village_info_box != null:
-		village_info_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		village_info_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL if has_island else Control.SIZE_SHRINK_BEGIN
+
+	if left_flex_spacer != null:
+		left_flex_spacer.visible = not has_island
 
 	if island_spacer != null:
 		island_spacer.visible = has_island
@@ -293,23 +299,26 @@ func _apply_responsive_layout() -> void:
 
 	if crest_icon != null:
 		crest_icon.texture = ICON_CASTLE_CREST
-		crest_icon.custom_minimum_size = Vector2(22, 22) if has_island else Vector2(28, 28)
+		crest_icon.custom_minimum_size = Vector2(24, 24) if has_island else Vector2(30, 30)
 
 	if points_box != null:
 		points_box.visible = true
 	if points_label != null:
 		points_label.add_theme_font_size_override("font_size", 15 if has_island else 18)
 	if btn_prev != null:
-		btn_prev.custom_minimum_size = Vector2(28, 32) if has_island else Vector2(36, 36)
+		btn_prev.custom_minimum_size = Vector2(28, 32) if has_island else Vector2(34, 34)
 	if btn_next != null:
-		btn_next.custom_minimum_size = Vector2(28, 32) if has_island else Vector2(36, 36)
+		btn_next.custom_minimum_size = Vector2(28, 32) if has_island else Vector2(34, 34)
 	if btn_rename_village != null:
-		btn_rename_village.custom_minimum_size = Vector2(32, 32) if has_island else Vector2(38, 36)
+		btn_rename_village.custom_minimum_size = Vector2(32, 32) if has_island else Vector2(34, 34)
 	if btn_market != null:
-		btn_market.custom_minimum_size = Vector2(150, 40) if has_island else Vector2(180, 42)
+		btn_market.custom_minimum_size = Vector2(146, 38) if has_island else Vector2(168, 40)
 		btn_market.add_theme_font_size_override("font_size", 17 if has_island else 19)
 	if village_name_label != null:
-		village_name_label.add_theme_font_size_override("font_size", 16 if has_island else 21)
+		village_name_label.clip_text = has_island
+		village_name_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS if has_island else TextServer.OVERRUN_NO_TRIMMING
+		village_name_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL if has_island else Control.SIZE_SHRINK_BEGIN
+		village_name_label.add_theme_font_size_override("font_size", 16 if has_island else 20)
 
 	custom_minimum_size.y = total_h
 	offset_top = 0.0
@@ -333,42 +342,27 @@ func _on_village_name_gui_input(event: InputEvent) -> void:
 
 
 func _ensure_royal_wing_frames() -> void:
-	if _village_info_sb == null and TEX_ROYAL_BTN_BG != null:
-		_village_info_sb = StyleBoxTexture.new()
-		_village_info_sb.texture = TEX_ROYAL_BTN_BG
-		_village_info_sb.texture_margin_left = 18.0
-		_village_info_sb.texture_margin_right = 18.0
-		_village_info_sb.texture_margin_top = 8.0
-		_village_info_sb.texture_margin_bottom = 8.0
-		_village_info_sb.expand_margin_left = 4.0
-		_village_info_sb.expand_margin_right = 4.0
-		_village_info_sb.expand_margin_top = 2.0
-		_village_info_sb.expand_margin_bottom = 2.0
-		_village_info_sb.modulate_color = Color(0.95, 0.90, 0.80, 0.94)
-	if village_info_box != null and not village_info_box.draw.is_connected(_on_village_info_draw):
-		village_info_box.draw.connect(_on_village_info_draw)
-	if btn_market != null and TEX_ROYAL_BTN_BG != null:
-		var msb := StyleBoxTexture.new()
-		msb.texture = TEX_ROYAL_BTN_BG
-		msb.texture_margin_left = 18.0
-		msb.texture_margin_right = 18.0
-		msb.texture_margin_top = 8.0
-		msb.texture_margin_bottom = 8.0
-		msb.content_margin_left = 12.0
+	_village_info_sb = null
+	if btn_market != null:
+		var msb := StyleBoxFlat.new()
+		msb.bg_color = Color(0.11, 0.18, 0.31, 0.96)
+		msb.border_color = Color(0.84, 0.68, 0.34, 0.80)
+		msb.set_border_width_all(1)
+		msb.set_corner_radius_all(10)
+		msb.content_margin_left = 10.0
 		msb.content_margin_right = 12.0
 		msb.content_margin_top = 4.0
 		msb.content_margin_bottom = 4.0
-		msb.modulate_color = Color(0.92, 0.96, 1.0, 1.0)
-		var m_hov := msb.duplicate() as StyleBoxTexture
-		m_hov.modulate_color = Color(1.08, 1.08, 1.08, 1.0)
+		var m_hov := msb.duplicate() as StyleBoxFlat
+		m_hov.bg_color = Color(0.16, 0.26, 0.44, 1.0)
+		m_hov.border_color = Color(0.96, 0.82, 0.44, 0.98)
 		btn_market.add_theme_stylebox_override("normal", msb)
 		btn_market.add_theme_stylebox_override("hover", m_hov)
 		btn_market.add_theme_stylebox_override("pressed", m_hov)
 
 
 func _on_village_info_draw() -> void:
-	if village_info_box != null and _village_info_sb != null:
-		village_info_box.draw_style_box(_village_info_sb, Rect2(Vector2.ZERO, village_info_box.size))
+	pass
 
 
 func _on_economy_box_gui_input(event: InputEvent) -> void:

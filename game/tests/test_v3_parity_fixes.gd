@@ -204,6 +204,10 @@ func _run() -> void:
 	var rep_scn := (load("res://scenes/Reports.tscn") as PackedScene).instantiate()
 	root.add_child(rep_scn)
 	await process_frame
+	var rep_tab_bar := rep_scn.find_child("TabBar", true, false) as Control
+	var rep_toolbar := rep_scn.find_child("ReportToolbar", true, false) as Control
+	_check(rep_tab_bar != null and not rep_tab_bar.visible, "Raporlar ekranında Mesajlar sekme çubuğu gizli (ayrı ekran)")
+	_check(rep_toolbar != null and rep_toolbar.visible, "Raporlar ekranında rapor filtre araç çubuğu görünür")
 	var rep_list := rep_scn.find_child("List", true, false) as VBoxContainer
 	var sig_r: String = ReportsScript._report_sig(spy_r)
 	_check(rep_list != null and rep_list.get_child_count() == 1, "Saldıran Reports listesinde tek casusluk kartı render edildi")

@@ -181,16 +181,13 @@ text = "◀"
 
 [node name="VillageName" type="Label" parent="VBox/TopRow/VillageInfo"]
 layout_mode = 2
-size_flags_horizontal = 3
 size_flags_vertical = 4
 mouse_filter = 0
 theme_override_colors/font_color = Color(0.98, 0.94, 0.84, 1)
 theme_override_fonts/font = ExtResource("7_nunito_bold")
-theme_override_font_sizes/font_size = 21
+theme_override_font_sizes/font_size = 20
 text = "Lord | 🏰 Başkent (0|0) ▾"
 vertical_alignment = 1
-clip_text = true
-text_overrun_behavior = 3
 
 [node name="BtnRenameVillage" type="Button" parent="VBox/TopRow/VillageInfo"]
 custom_minimum_size = Vector2(38, 36)
@@ -231,6 +228,11 @@ theme_override_fonts/font = ExtResource("7_nunito_bold")
 theme_override_font_sizes/font_size = 18
 text = "👑 0 P"
 vertical_alignment = 1
+
+[node name="LeftFlexSpacer" type="Control" parent="VBox/TopRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+mouse_filter = 2
 
 [node name="IslandSpacer" type="Control" parent="VBox/TopRow"]
 visible = false

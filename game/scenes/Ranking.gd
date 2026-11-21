@@ -84,28 +84,27 @@ func _sync_top_bar_layout() -> void:
 func _style_header_alliance_btn() -> void:
 	if btn_alliance == null:
 		return
-	var st := StyleBoxTexture.new()
-	st.texture = TexRoyalBtnBg
-	st.texture_margin_left = 36
-	st.texture_margin_top = 18
-	st.texture_margin_right = 36
-	st.texture_margin_bottom = 18
-	st.content_margin_left = 14
+	var st := StyleBoxFlat.new()
+	st.bg_color = Color(0.10, 0.16, 0.27, 0.95)
+	st.border_color = Color(0.86, 0.70, 0.34, 0.88)
+	st.set_border_width_all(2)
+	st.set_corner_radius_all(12)
+	st.content_margin_left = 12
 	st.content_margin_right = 14
 	st.content_margin_top = 6
 	st.content_margin_bottom = 6
-	st.modulate_color = Color(0.86, 0.94, 1.08, 1.0)
 	btn_alliance.add_theme_stylebox_override("normal", st)
-	var h_st := st.duplicate() as StyleBoxTexture
-	h_st.modulate_color = Color(1.06, 1.12, 1.24, 1.0)
+	var h_st := st.duplicate() as StyleBoxFlat
+	h_st.bg_color = Color(0.15, 0.24, 0.39, 0.98)
+	h_st.border_color = Color(0.98, 0.84, 0.44, 1.0)
 	btn_alliance.add_theme_stylebox_override("hover", h_st)
 	btn_alliance.add_theme_stylebox_override("pressed", h_st)
 	btn_alliance.icon = IconAllianceShield
 	btn_alliance.expand_icon = true
 	btn_alliance.add_theme_constant_override("icon_max_width", 28)
 	btn_alliance.add_theme_font_override("font", FontCinzelBold)
-	btn_alliance.add_theme_font_size_override("font_size", 19)
-	btn_alliance.add_theme_color_override("font_color", Color(1.0, 0.93, 0.70))
+	btn_alliance.add_theme_font_size_override("font_size", 18)
+	btn_alliance.add_theme_color_override("font_color", Color(0.98, 0.93, 0.72))
 	if not btn_alliance.pressed.is_connected(_on_header_alliance_pressed):
 		btn_alliance.pressed.connect(_on_header_alliance_pressed)
 

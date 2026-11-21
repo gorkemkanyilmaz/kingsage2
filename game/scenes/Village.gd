@@ -190,38 +190,29 @@ func _style_alliance_btn() -> void:
 	btn_alliance.text = "İTTİFAK"
 	btn_alliance.icon = IconAllianceShield
 	btn_alliance.expand_icon = true
-	btn_alliance.add_theme_constant_override("icon_max_width", 34)
+	btn_alliance.add_theme_constant_override("icon_max_width", 30)
 	btn_alliance.add_theme_font_override("font", FontCinzelBold)
-	btn_alliance.add_theme_font_size_override("font_size", 20)
-	if TexRoyalBtnBg != null:
-		var tsb := StyleBoxTexture.new()
-		tsb.texture = TexRoyalBtnBg
-		tsb.texture_margin_left = 18
-		tsb.texture_margin_right = 18
-		tsb.texture_margin_top = 8
-		tsb.texture_margin_bottom = 8
-		tsb.content_margin_left = 12
-		tsb.content_margin_right = 14
-		tsb.content_margin_top = 6
-		tsb.content_margin_bottom = 6
-		tsb.modulate_color = Color(0.95, 0.96, 1.0, 1.0)
-		var thov := tsb.duplicate() as StyleBoxTexture
-		thov.modulate_color = Color(1.08, 1.08, 1.08, 1.0)
-		btn_alliance.add_theme_stylebox_override("normal", tsb)
-		btn_alliance.add_theme_stylebox_override("hover", thov)
-		btn_alliance.add_theme_stylebox_override("pressed", thov)
-	else:
-		var sb := StyleBoxFlat.new()
-		sb.bg_color = Color(0.12, 0.18, 0.28, 0.95)
-		sb.border_color = Color(0.92, 0.76, 0.34, 0.95)
-		sb.set_border_width_all(2)
-		sb.set_corner_radius_all(14)
-		btn_alliance.add_theme_stylebox_override("normal", sb)
-		btn_alliance.add_theme_stylebox_override("hover", sb)
-		btn_alliance.add_theme_stylebox_override("pressed", sb)
-	btn_alliance.add_theme_color_override("font_color", Color(1.0, 0.94, 0.72))
+	btn_alliance.add_theme_font_size_override("font_size", 19)
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color(0.10, 0.16, 0.27, 0.94)
+	sb.border_color = Color(0.86, 0.70, 0.34, 0.88)
+	sb.set_border_width_all(2)
+	sb.set_corner_radius_all(12)
+	sb.content_margin_left = 12
+	sb.content_margin_right = 14
+	sb.content_margin_top = 6
+	sb.content_margin_bottom = 6
+	sb.shadow_color = Color(0, 0, 0, 0.50)
+	sb.shadow_size = 6
+	var hov := sb.duplicate() as StyleBoxFlat
+	hov.bg_color = Color(0.15, 0.24, 0.39, 0.98)
+	hov.border_color = Color(0.98, 0.84, 0.44, 1.0)
+	btn_alliance.add_theme_stylebox_override("normal", sb)
+	btn_alliance.add_theme_stylebox_override("hover", hov)
+	btn_alliance.add_theme_stylebox_override("pressed", hov)
+	btn_alliance.add_theme_color_override("font_color", Color(0.98, 0.93, 0.72))
 	btn_alliance.add_theme_color_override("font_hover_color", Color(1.0, 0.98, 0.88))
-	btn_alliance.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.95))
+	btn_alliance.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.85))
 	btn_alliance.add_theme_constant_override("shadow_offset_y", 2)
 
 

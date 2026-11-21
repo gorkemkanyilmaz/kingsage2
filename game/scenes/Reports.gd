@@ -8,6 +8,9 @@ const IconWood := preload("res://assets/sprites/ui/nano_banana/sharp_icon_wood.t
 const IconStone := preload("res://assets/sprites/ui/nano_banana/sharp_icon_stone.tres")
 const IconIron := preload("res://assets/sprites/ui/nano_banana/sharp_icon_iron.tres")
 const IconReportSeal := preload("res://assets/sprites/ui/nano_banana/sharp_icon_report_seal.tres")
+const IconScrollMarch := preload("res://assets/sprites/ui/nano_banana/sharp_scroll_march.tres")
+const IconScrollResearch := preload("res://assets/sprites/ui/nano_banana/sharp_scroll_research.tres")
+const IconResourceCaravan := preload("res://assets/sprites/ui/nano_banana/sharp_pack_resource_caravan.tres")
 const TexRoyalBtnBg := preload("res://assets/sprites/ui/nano_banana/sharp_ui_royal_btn_bg.tres")
 
 const ICON_BATTLE := "res://assets/sprites/icons/cartography/2x/skull.png"
@@ -63,7 +66,7 @@ var send_btn: Button = null
 static var initial_tab: String = "reports"
 var _current_tab: String = "reports"
 var _report_filter: String = "all"
-var _toolbar: HBoxContainer = null
+var _toolbar: VBoxContainer = null
 var _filter_buttons: Dictionary = {}
 
 
@@ -176,27 +179,27 @@ func _select_tab(tab_name: String) -> void:
 	_current_tab = tab_name
 	var title_lbl = find_child("Title", true, false) as Label
 	var subtitle_lbl = find_child("Subtitle", true, false) as Label
+	var tab_bar := find_child("TabBar", true, false) as Control
 
 	if tab_name == "reports":
-		if title_lbl != null: title_lbl.text = " Savaş & İstihbarat Raporları"
+		if title_lbl != null: title_lbl.text = "Savaş & İstihbarat Raporları"
 		if subtitle_lbl != null: subtitle_lbl.text = "Muharebeler, casusluk ve ticaret"
-		if btn_tab_reports != null:
-			btn_tab_reports.visible = true
-			btn_tab_reports.text = " Tüm Raporlar"
+		if tab_bar != null: tab_bar.visible = false
+		if btn_tab_reports != null: btn_tab_reports.visible = false
 		if btn_tab_messages != null: btn_tab_messages.visible = false
 		if btn_tab_new_message != null: btn_tab_new_message.visible = false
-		_style_tab_btn(btn_tab_reports, true)
 	else:
-		if title_lbl != null: title_lbl.text = " Lord Mektupları & Mesajlar"
+		if title_lbl != null: title_lbl.text = "Lord Mektupları & Mesajlar"
 		if subtitle_lbl != null: subtitle_lbl.text = "Krallıklar arası diplomasi"
+		if tab_bar != null: tab_bar.visible = true
 		if btn_tab_reports != null: btn_tab_reports.visible = false
 		if btn_tab_messages != null:
 			btn_tab_messages.visible = true
-			btn_tab_messages.text = " Gelen Kutusu"
+			btn_tab_messages.text = "Gelen Kutusu"
 			_style_tab_btn(btn_tab_messages, tab_name == "messages")
 		if btn_tab_new_message != null:
 			btn_tab_new_message.visible = true
-			btn_tab_new_message.text = " Yeni Mektup Yaz"
+			btn_tab_new_message.text = "Yeni Mektup Yaz"
 			_style_tab_btn(btn_tab_new_message, tab_name == "new_message")
 
 	if tab_name == "new_message":
@@ -529,12 +532,16 @@ func _ensure_report_toolbar() -> void:
 	var main_vb := find_child("MainVBox", true, false) as VBoxContainer
 	if main_vb == null:
 		return
-	_toolbar = HBoxContainer.new()
+	_toolbar = VBoxContainer.new()
 	_toolbar.name = "ReportToolbar"
 	_toolbar.add_theme_constant_override("separation", 8)
 	main_vb.add_child(_toolbar)
 	var scroll_idx := scroll_container.get_index() if scroll_container != null else main_vb.get_child_count()
 	main_vb.move_child(_toolbar, clampi(scroll_idx, 0, main_vb.get_child_count() - 1))
+
+	var filter_row := HBoxContainer.new()
+	filter_row.add_theme_constant_override("separation", 8)
+	_toolbar.add_child(filter_row)
 
 	var filters := [
 		["all", "Tümü"],
@@ -551,50 +558,56 @@ func _ensure_report_toolbar() -> void:
 		f_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		f_btn.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 		f_btn.add_theme_font_override("font", FontNunitoBold)
-		f_btn.add_theme_font_size_override("font_size", 17)
+		f_btn.add_theme_font_size_override("font_size", 18)
 		f_btn.pressed.connect(func():
 			_report_filter = f_key
 			_refresh_filter_styles()
 			_populate_reports()
 		)
-		_toolbar.add_child(f_btn)
+		filter_row.add_child(f_btn)
 		_filter_buttons[f_key] = f_btn
+
+	var act_row := HBoxContainer.new()
+	act_row.add_theme_constant_override("separation", 10)
+	_toolbar.add_child(act_row)
 
 	var mark_btn := Button.new()
 	mark_btn.name = "BtnMarkAllRead"
-	mark_btn.text = "✓ Tümünü Oku"
-	mark_btn.custom_minimum_size = Vector2(150, 44)
+	mark_btn.text = "✓ Tümünü Okundu İşaretle"
+	mark_btn.custom_minimum_size = Vector2(0, 40)
+	mark_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	mark_btn.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 	mark_btn.add_theme_font_override("font", FontNunitoBold)
-	mark_btn.add_theme_font_size_override("font_size", 16)
+	mark_btn.add_theme_font_size_override("font_size", 17)
 	var m_sb := StyleBoxFlat.new()
-	m_sb.bg_color = Color(0.14, 0.28, 0.18, 0.96)
-	m_sb.border_color = Color(0.45, 0.85, 0.52, 0.90)
+	m_sb.bg_color = Color(0.13, 0.25, 0.17, 0.96)
+	m_sb.border_color = Color(0.45, 0.85, 0.52, 0.85)
 	m_sb.set_border_width_all(1)
 	m_sb.set_corner_radius_all(10)
 	mark_btn.add_theme_stylebox_override("normal", m_sb)
 	mark_btn.add_theme_stylebox_override("hover", m_sb)
 	mark_btn.add_theme_color_override("font_color", Color(0.84, 0.98, 0.86))
 	mark_btn.pressed.connect(_mark_all_reports_read)
-	_toolbar.add_child(mark_btn)
+	act_row.add_child(mark_btn)
 
 	var del_btn := Button.new()
 	del_btn.name = "BtnDeleteReadReports"
 	del_btn.text = "🗑️ Okunanları Sil"
-	del_btn.custom_minimum_size = Vector2(170, 44)
+	del_btn.custom_minimum_size = Vector2(0, 40)
+	del_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	del_btn.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 	del_btn.add_theme_font_override("font", FontNunitoBold)
-	del_btn.add_theme_font_size_override("font_size", 16)
+	del_btn.add_theme_font_size_override("font_size", 17)
 	var d_sb := StyleBoxFlat.new()
-	d_sb.bg_color = Color(0.32, 0.12, 0.14, 0.96)
-	d_sb.border_color = Color(0.86, 0.40, 0.36, 0.90)
+	d_sb.bg_color = Color(0.28, 0.12, 0.14, 0.96)
+	d_sb.border_color = Color(0.86, 0.40, 0.36, 0.85)
 	d_sb.set_border_width_all(1)
 	d_sb.set_corner_radius_all(10)
 	del_btn.add_theme_stylebox_override("normal", d_sb)
 	del_btn.add_theme_stylebox_override("hover", d_sb)
 	del_btn.add_theme_color_override("font_color", Color(1.0, 0.86, 0.84))
 	del_btn.pressed.connect(_delete_read_reports)
-	_toolbar.add_child(del_btn)
+	act_row.add_child(del_btn)
 	_refresh_filter_styles()
 
 
@@ -695,7 +708,7 @@ func _persist_report_changes() -> void:
 
 
 func _set_report_read(rep: Dictionary, make_read: bool) -> void:
-	var gs := Engine.get_main_loop().root.get_node_or_null("GameState") if Engine.get_main_loop() is SceneTree else null
+	var gs: Node = Engine.get_main_loop().root.get_node_or_null("GameState") if Engine.get_main_loop() is SceneTree else null
 	var sig := _report_sig(rep)
 	rep["unread"] = not make_read
 	_update_sig_list(gs, "read_report_sigs", sig, make_read)
@@ -703,7 +716,7 @@ func _set_report_read(rep: Dictionary, make_read: bool) -> void:
 
 
 func _delete_report(rep: Dictionary) -> void:
-	var gs := Engine.get_main_loop().root.get_node_or_null("GameState") if Engine.get_main_loop() is SceneTree else null
+	var gs: Node = Engine.get_main_loop().root.get_node_or_null("GameState") if Engine.get_main_loop() is SceneTree else null
 	var sig := _report_sig(rep)
 	_update_sig_list(gs, "deleted_report_sigs", sig, true)
 	if gs != null and "reports" in gs and typeof(gs.reports) == TYPE_ARRAY:
@@ -722,7 +735,7 @@ func _delete_report(rep: Dictionary) -> void:
 
 
 func _mark_all_reports_read() -> void:
-	var gs := Engine.get_main_loop().root.get_node_or_null("GameState") if Engine.get_main_loop() is SceneTree else null
+	var gs: Node = Engine.get_main_loop().root.get_node_or_null("GameState") if Engine.get_main_loop() is SceneTree else null
 	if gs == null or not ("reports" in gs):
 		return
 	var player_name := str(gs.player.get("name", "Kral"))
@@ -746,7 +759,7 @@ func _mark_all_reports_read() -> void:
 
 
 func _delete_read_reports() -> void:
-	var gs := Engine.get_main_loop().root.get_node_or_null("GameState") if Engine.get_main_loop() is SceneTree else null
+	var gs: Node = Engine.get_main_loop().root.get_node_or_null("GameState") if Engine.get_main_loop() is SceneTree else null
 	if gs == null or not ("reports" in gs):
 		return
 	var player_name := str(gs.player.get("name", "Kral"))
@@ -919,11 +932,23 @@ func _make_card(icon_path: String, title: String, subtitle: String, accent: Colo
 	iw_sb.set_content_margin_all(6)
 	icon_wrap.add_theme_stylebox_override("panel", iw_sb)
 	var icon := TextureRect.new()
-	icon.texture = load(icon_path) if ResourceLoader.exists(icon_path) else IconReportSeal
+	if icon_path == ICON_BATTLE:
+		icon.texture = IconScrollMarch
+	elif icon_path == ICON_SPY:
+		icon.texture = IconScrollResearch
+	elif icon_path == ICON_TRADE:
+		icon.texture = IconReportSeal if title.contains(":") or title.contains("Mektup") or title.contains("Kime:") else IconResourceCaravan
+	elif ResourceLoader.exists(icon_path):
+		icon.texture = load(icon_path)
+	else:
+		icon.texture = IconReportSeal
+	icon.custom_minimum_size = Vector2(46, 46)
+	icon.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	icon.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	icon.modulate = Color(1.0, 0.94, 0.80, 0.96)
+	icon.modulate = Color(1.0, 1.0, 1.0, 0.98)
 	icon_wrap.add_child(icon)
 	row.add_child(icon_wrap)
 

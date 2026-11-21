@@ -565,32 +565,20 @@ func _refresh_tabs() -> void:
 			continue
 		var active := (str(k) == _current_tab)
 		var accent := _scroll_accent_for_cat(str(k))
-		if active and TexRoyalBtnBg != null:
-			var tsb := StyleBoxTexture.new()
-			tsb.texture = TexRoyalBtnBg
-			tsb.texture_margin_left = 18
-			tsb.texture_margin_right = 18
-			tsb.texture_margin_top = 8
-			tsb.texture_margin_bottom = 8
-			tsb.content_margin_left = 8
-			tsb.content_margin_right = 8
-			tsb.modulate_color = Color(1.08, 1.02, 0.88, 1.0)
-			btn.add_theme_stylebox_override("normal", tsb)
-			btn.add_theme_stylebox_override("hover", tsb)
-			btn.add_theme_stylebox_override("pressed", tsb)
-		else:
-			var sb := StyleBoxFlat.new()
-			sb.bg_color = Color(0.12, 0.10, 0.17, 0.96)
-			sb.border_color = Color(accent.r * 0.65, accent.g * 0.65, accent.b * 0.65, 0.72)
-			sb.set_border_width_all(2)
-			sb.set_corner_radius_all(12)
-			sb.content_margin_left = 8
-			sb.content_margin_right = 8
-			btn.add_theme_stylebox_override("normal", sb)
-			var hov := sb.duplicate() as StyleBoxFlat
-			hov.bg_color = sb.bg_color.lightened(0.12)
-			btn.add_theme_stylebox_override("hover", hov)
-			btn.add_theme_stylebox_override("pressed", hov)
+		var sb := StyleBoxFlat.new()
+		sb.bg_color = Color(0.24, 0.18, 0.08, 0.98) if active else Color(0.12, 0.10, 0.17, 0.96)
+		sb.border_color = Color(1.0, 0.84, 0.36, 1.0) if active else Color(accent.r * 0.65, accent.g * 0.65, accent.b * 0.65, 0.72)
+		sb.set_border_width_all(2)
+		if active:
+			sb.border_width_bottom = 3
+		sb.set_corner_radius_all(12)
+		sb.content_margin_left = 8
+		sb.content_margin_right = 8
+		btn.add_theme_stylebox_override("normal", sb)
+		var hov := sb.duplicate() as StyleBoxFlat
+		hov.bg_color = sb.bg_color.lightened(0.12)
+		btn.add_theme_stylebox_override("hover", hov)
+		btn.add_theme_stylebox_override("pressed", hov)
 		btn.add_theme_color_override("font_color", Color(1.0, 0.95, 0.72) if active else Color(0.84, 0.82, 0.78))
 		btn.add_theme_color_override("font_hover_color", Color(1.0, 1.0, 1.0))
 
