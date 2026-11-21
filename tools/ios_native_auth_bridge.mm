@@ -90,6 +90,12 @@ static void TVKWriteJsonDictToDirs(NSDictionary *payload, NSString *activeDir, N
     if (docs.length > 0) {
         [targets addObject:docs];
     }
+    for (NSString *candDir in TVKCandidateUserDirs(NO, nil)) {
+        BOOL isDir = NO;
+        if (candDir.length > 0 && [fm fileExistsAtPath:candDir isDirectory:&isDir] && isDir) {
+            [targets addObject:candDir];
+        }
+    }
     for (NSString *dir in targets) {
         [fm createDirectoryAtPath:dir withIntermediateDirectories:YES attributes:nil error:nil];
         [json writeToFile:[dir stringByAppendingPathComponent:fileName] atomically:YES];
@@ -142,6 +148,7 @@ static NSString *TVKBase64AppStoreReceipt(void) {
 @property (nonatomic, copy) NSString *activeOAuthUrl;
 @property (nonatomic, copy) NSString *activeDir;
 @property (nonatomic, assign) BOOL isBusy;
+@property (nonatomic, assign) NSTimeInterval busyStartedAt;
 @property (nonatomic, assign) NSUInteger scanTickCount;
 @property (nonatomic, strong) UIViewController *presentedNav;
 @property (nonatomic, strong) UIActivityIndicatorView *loadingSpinner;
@@ -505,6 +512,7 @@ extern "C" void tvk_ios_auth_bridge_init(void) {
 - (void)writeResultDict:(NSDictionary *)payload {
     [self writeJsonDict:payload fileName:kTVKResFileName];
     self.isBusy = NO;
+    self.busyStartedAt = 0.0;
     self.appleController = nil;
 }
 
@@ -534,8 +542,38 @@ extern "C" void tvk_ios_auth_bridge_init(void) {
 }
 
 - (void)pollForRequest {
+    NSTimeInterval nowSec = [[NSDate date] timeIntervalSince1970];
+    if (self.isBusy && self.presentedNav == nil && self.busyStartedAt > 0.0 && (nowSec - self.busyStartedAt) > 25.0) {
+        self.isBusy = NO;
+        self.busyStartedAt = 0.0;
+        self.appleController = nil;
+    }
     if (self.isBusy) {
-        return;
+        if (self.presentedNav == nil && self.busyStartedAt > 0.0 && (nowSec - self.busyStartedAt) > 6.0) {
+            NSFileManager *fmPre = [NSFileManager defaultManager];
+            BOOL hasFreshReq = NO;
+            for (NSString *candDir in [self candidateUserDirsWithDeepScan:NO]) {
+                NSString *rp = [candDir stringByAppendingPathComponent:kTVKReqFileName];
+                if (![fmPre fileExistsAtPath:rp]) {
+                    continue;
+                }
+                NSData *d = [NSData dataWithContentsOfFile:rp];
+                id p = d.length > 0 ? [NSJSONSerialization JSONObjectWithData:d options:0 error:nil] : nil;
+                NSString *newReqId = ([p isKindOfClass:[NSDictionary class]] && [p[@"req_id"] isKindOfClass:[NSString class]]) ? p[@"req_id"] : @"";
+                if (newReqId.length > 0 && ![newReqId isEqualToString:(self.activeReqId ?: @"")]) {
+                    hasFreshReq = YES;
+                    break;
+                }
+            }
+            if (!hasFreshReq) {
+                return;
+            }
+            self.isBusy = NO;
+            self.busyStartedAt = 0.0;
+            self.appleController = nil;
+        } else {
+            return;
+        }
     }
     self.scanTickCount += 1;
     BOOL deepScan = (self.scanTickCount == 1 || (self.scanTickCount % 3) == 0);
@@ -555,6 +593,7 @@ extern "C" void tvk_ios_auth_bridge_init(void) {
             }
             NSDictionary *req = (NSDictionary *)parsed;
             self.isBusy = YES;
+            self.busyStartedAt = [[NSDate date] timeIntervalSince1970];
             self.activeDir = dir;
             self.activeReqId = [req[@"req_id"] isKindOfClass:[NSString class]] ? req[@"req_id"] : @"";
             self.activeProvider = [req[@"provider"] isKindOfClass:[NSString class]] ? [req[@"provider"] lowercaseString] : @"apple";
@@ -774,6 +813,31 @@ extern "C" void tvk_ios_auth_bridge_init(void) {
 
 - (void)webView:(WKWebView *)webView didFailProvisionalNavigation:(WKNavigation *)navigation withError:(NSError *)error {
     [self.loadingSpinner stopAnimating];
+    if (error == nil) {
+        return;
+    }
+    if ([error.domain isEqualToString:NSURLErrorDomain] && error.code == NSURLErrorCancelled) {
+        return;
+    }
+    if ([error.domain isEqualToString:@"WebKitErrorDomain"] && error.code == 102) {
+        return;
+    }
+    NSString *failingUrl = [error.userInfo[NSURLErrorFailingURLStringErrorKey] isKindOfClass:[NSString class]]
+        ? [(NSString *)error.userInfo[NSURLErrorFailingURLStringErrorKey] lowercaseString]
+        : @"";
+    if ([failingUrl hasPrefix:@"tahtkilic://"]) {
+        return;
+    }
+    NSString *errMsg = error.localizedDescription ?: @"Giris sayfasi yuklenemedi.";
+    if (self.presentedNav != nil) {
+        [self.presentedNav dismissViewControllerAnimated:YES completion:^{
+            self.presentedNav = nil;
+            self.loadingSpinner = nil;
+            [self finishError:errMsg cancelled:NO];
+        }];
+    } else if (self.isBusy) {
+        [self finishError:errMsg cancelled:NO];
+    }
 }
 
 - (void)presentationControllerDidDismiss:(UIPresentationController *)presentationController {

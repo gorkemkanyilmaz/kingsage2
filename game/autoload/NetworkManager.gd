@@ -70,7 +70,7 @@ func check_server(callback: Callable = Callable()) -> void:
 func check_account_online(provider: String, email: String, provider_uid: String, callback: Callable = Callable(), _retry_count: int = 0, identity_token: String = "") -> void:
 	var req := HTTPRequest.new()
 	add_child(req)
-	req.timeout = 18.0
+	req.timeout = 10.0
 	var payload_dict := {
 		"provider": provider,
 		"email": email.strip_edges(),
@@ -107,7 +107,7 @@ func check_account_online(provider: String, email: String, provider_uid: String,
 func login_online(provider: String, display_name: String, callback: Callable = Callable(), _retry_count: int = 0, explicit_email: String = "", explicit_uid: String = "") -> void:
 	var req := HTTPRequest.new()
 	add_child(req)
-	req.timeout = 20.0
+	req.timeout = 10.0
 
 	var auth_email := explicit_email.strip_edges()
 	var auth_uid := explicit_uid.strip_edges()

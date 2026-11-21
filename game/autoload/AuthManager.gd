@@ -215,6 +215,7 @@ func load_session() -> bool:
 
 
 var _auth_sheet: CanvasLayer = null
+var _auth_status_lbl: Label = null
 var _auth_poll_timer: Timer = null
 var _name_modal: CanvasLayer = null
 
@@ -230,6 +231,7 @@ func _dismiss_auth_sheet() -> void:
 		_auth_poll_timer.stop()
 		_auth_poll_timer.queue_free()
 	_auth_poll_timer = null
+	_auth_status_lbl = null
 	if _auth_sheet != null and is_instance_valid(_auth_sheet):
 		_auth_sheet.queue_free()
 	_auth_sheet = null
@@ -333,6 +335,7 @@ func _show_waiting_sheet(parent_node: Node, title_text: String, status_text: Str
 	elif parent_node != null:
 		parent_node.add_child(_auth_sheet)
 
+	_auth_status_lbl = status_lbl
 	return status_lbl
 
 
@@ -375,9 +378,12 @@ func _start_ios_native_auth(prov: String, is_apple: bool, req_id: String, base_u
 	var docs_res_path := docs_dir.path_join("native_auth_res.json") if not docs_dir.is_empty() else ""
 	var docs_ack_path := docs_dir.path_join("native_auth_ack.json") if not docs_dir.is_empty() else ""
 
-	for p in [req_path, res_path, ack_path, docs_req_path, docs_res_path, docs_ack_path]:
-		if not p.is_empty() and FileAccess.file_exists(p):
-			DirAccess.remove_absolute(p)
+	var cleanup_native_files := func():
+		for p in [req_path, res_path, ack_path, docs_req_path, docs_res_path, docs_ack_path]:
+			if not p.is_empty() and FileAccess.file_exists(p):
+				DirAccess.remove_absolute(p)
+
+	cleanup_native_files.call()
 
 	var oauth_url := "%s/api/auth/oauth_page?provider=%s&session=%s&platform=ios" % [base_url, prov, req_id]
 	var web_fallback_url := "%s/api/auth/oauth_page?provider=%s&session=%s&platform=web" % [base_url, prov, req_id]
@@ -402,7 +408,7 @@ func _start_ios_native_auth(prov: String, is_apple: bool, req_id: String, base_u
 		if is_apple
 		else "Google hesabınızı seçmek için güvenli pencere açılıyor..."
 	)
-	var status_lbl := _show_waiting_sheet(parent_node, title, wait_msg, is_apple)
+	var status_lbl := _show_waiting_sheet(parent_node, title, wait_msg, is_apple, cleanup_native_files)
 
 	_auth_poll_timer = Timer.new()
 	_auth_poll_timer.wait_time = 0.15
@@ -412,8 +418,30 @@ func _start_ios_native_auth(prov: String, is_apple: bool, req_id: String, base_u
 	var remote_busy := [false]
 	_auth_poll_timer.timeout.connect(func():
 		ticks[0] += 1
-		if ticks[0] > 1200:
-			_dismiss_auth_sheet()
+		if ticks[0] > 300:
+			if _auth_poll_timer != null and is_instance_valid(_auth_poll_timer):
+				_auth_poll_timer.stop()
+			cleanup_native_files.call()
+			if is_instance_valid(status_lbl):
+				status_lbl.text = "Apple / tarayıcı doğrulaması zaman aşımına uğradı. Lütfen tekrar deneyin."
+			if _auth_sheet != null and is_instance_valid(_auth_sheet):
+				var vb := _auth_sheet.find_child("VBoxContainer", true, false) as VBoxContainer
+				if vb != null and vb.find_child("NativeRetryBtn", false, false) == null:
+					var retry_btn := Button.new()
+					retry_btn.name = "NativeRetryBtn"
+					retry_btn.text = "🔄 Tekrar Dene"
+					retry_btn.custom_minimum_size = Vector2(220, 54)
+					retry_btn.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+					var FontNunitoBold = load("res://assets/fonts/Nunito-Bold.ttf")
+					if FontNunitoBold != null:
+						retry_btn.add_theme_font_override("font", FontNunitoBold)
+					retry_btn.add_theme_font_size_override("font_size", 23)
+					retry_btn.pressed.connect(func():
+						var next_req_id := "%d_%s" % [int(Time.get_unix_time_from_system()), str(randi() % 999999)]
+						_start_ios_native_auth(prov, is_apple, next_req_id, base_url, parent_node, on_complete)
+					)
+					vb.add_child(retry_btn)
+					vb.move_child(retry_btn, maxi(0, vb.get_child_count() - 2))
 			return
 
 		if not ack_seen[0]:
@@ -461,7 +489,7 @@ func _start_ios_native_auth(prov: String, is_apple: bool, req_id: String, base_u
 			if _auth_poll_timer != null and is_instance_valid(_auth_poll_timer):
 				_auth_poll_timer.stop()
 			if is_instance_valid(status_lbl):
-				status_lbl.text = "Hesap bilgileri doğrulanıyor..."
+				status_lbl.text = "Apple doğrulandı — hesabınız yükleniyor..."
 			_handle_verified_identity(res_prov, res_email, res_uid, parent_node, on_complete, res_id_tok)
 		else:
 			if is_instance_valid(status_lbl):
@@ -688,10 +716,11 @@ func _handle_verified_identity(prov: String, raw_email: String, raw_uid: String,
 
 	var loop = Engine.get_main_loop()
 	var net = loop.root.get_node_or_null("NetworkManager") if loop is SceneTree else null
+	if _auth_status_lbl != null and is_instance_valid(_auth_status_lbl):
+		_auth_status_lbl.text = "Sunucudan köy verileriniz alınıyor..."
 	if net != null and net.has_method("check_account_online"):
 		net.check_account_online(clean_prov, clean_email, clean_uid, func(success: bool, res_data: Dictionary):
 			if success and bool(res_data.get("exists", false)):
-				_dismiss_auth_sheet()
 				var existing_name := str(res_data.get("display_name", "")).strip_edges()
 				var resolved_email := str(res_data.get("email", clean_email))
 				var resolved_uid := str(res_data.get("user_id", clean_uid))
@@ -703,6 +732,7 @@ func _handle_verified_identity(prov: String, raw_email: String, raw_uid: String,
 				_cache_known_account(clean_prov, clean_uid, resolved_email, display_name, resolved_uid)
 
 				if not srv_token.is_empty():
+					_dismiss_auth_sheet()
 					# check_account zaten geçerli token + cloud_state + server_village döndürdü; ikinci round-trip gerekmez!
 					net.auth_token = srv_token
 					net.is_server_reachable = true
@@ -722,6 +752,7 @@ func _handle_verified_identity(prov: String, raw_email: String, raw_uid: String,
 					return
 
 				net.login_online(clean_prov, existing_name, func(l_ok: bool, _l_data: Dictionary):
+					_dismiss_auth_sheet()
 					if not l_ok:
 						complete_external_login(clean_prov, existing_name, resolved_email, resolved_uid)
 					var prof := get_profile()

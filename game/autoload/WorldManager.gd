@@ -428,7 +428,7 @@ func has_player_village(world_id: int, player_name: String) -> bool:
 		return false
 
 	var gs = _find_game_state()
-	if gs != null and current_world_id == world_id and int(gs.world.get("world_id", -1)) == world_id and _matches_player(str(gs.player.get("name", "")), player_name) and gs.villages != null and not gs.villages.is_empty():
+	if gs != null and gs.has_active_village() and current_world_id == world_id and int(gs.world.get("world_id", -1)) == world_id and _matches_player(str(gs.player.get("name", "")), player_name) and gs.villages != null and not gs.villages.is_empty():
 		for v in gs.villages:
 			if typeof(v) != TYPE_DICTIONARY:
 				continue
@@ -437,7 +437,6 @@ func has_player_village(world_id: int, player_name: String) -> bool:
 				continue
 			if _matches_player(str(v_dict.get("owner", "")), player_name):
 				return true
-		return false
 
 	var w_data := load_world_dict(world_id)
 	if w_data.is_empty():
@@ -503,8 +502,12 @@ func _world_has_conquest_defeat_in_dict(w_data: Dictionary, p_name: String) -> b
 ## Oyuncunun en son hangi koordinatta ve kim tarafından fethedildiğini döndürür.
 func get_last_defeat_info(world_id: int, player_name: String) -> Dictionary:
 	var norm_p := _norm_name(player_name)
+	if norm_p.is_empty():
+		return {}
+	if has_player_village(world_id, norm_p):
+		return {}
 	var w_data := load_world_dict(world_id)
-	if w_data.is_empty() or norm_p.is_empty():
+	if w_data.is_empty():
 		return {}
 	var state: Dictionary = w_data.get("state", {}) if typeof(w_data.get("state")) == TYPE_DICTIONARY else {}
 	var w_dict: Dictionary = state.get("world", {}) if typeof(state.get("world")) == TYPE_DICTIONARY else {}
@@ -513,7 +516,9 @@ func get_last_defeat_info(world_id: int, player_name: String) -> Dictionary:
 		if _matches_player(str(pk), norm_p) and typeof(profiles[pk]) == TYPE_DICTIONARY:
 			var di = (profiles[pk] as Dictionary).get("defeated_info", {})
 			if typeof(di) == TYPE_DICTIONARY and not (di as Dictionary).is_empty():
-				return (di as Dictionary).duplicate(true)
+				var conq_str := str((di as Dictionary).get("conqueror", "")).strip_edges()
+				if not conq_str.is_empty() and not _matches_player(conq_str, norm_p):
+					return (di as Dictionary).duplicate(true)
 
 	# Yedek: sunucu/dünya savaş raporlarından son fetih raporunu tara
 	var reps: Array = state.get("reports", []) if typeof(state.get("reports")) == TYPE_ARRAY else []
@@ -528,7 +533,8 @@ func get_last_defeat_info(world_id: int, player_name: String) -> Dictionary:
 		var data: Dictionary = rd.get("data", {}) if typeof(rd.get("data")) == TYPE_DICTIONARY else {}
 		if not bool(data.get("conquered", false)):
 			continue
-		if _matches_player(str(data.get("defender_name", "")), norm_p):
+		var atk_name := str(data.get("attacker_name", "")).strip_edges()
+		if _matches_player(str(data.get("defender_name", "")), norm_p) and not atk_name.is_empty() and not _matches_player(atk_name, norm_p):
 			var r_ts := int(rd.get("unix", rd.get("created_unix", 0)))
 			if r_ts >= latest_ts:
 				latest_ts = r_ts
@@ -541,7 +547,7 @@ func get_last_defeat_info(world_id: int, player_name: String) -> Dictionary:
 						vy = int((v as Dictionary).get("y", -1))
 						break
 				latest_info = {
-					"conqueror": str(data.get("attacker_name", "")),
+					"conqueror": atk_name,
 					"village_id": t_vid,
 					"x": vx,
 					"y": vy,
@@ -1829,12 +1835,22 @@ func _live_sync_game_state_from_world(merged_w: Dictionary, p_name: String) -> v
 	_is_applying_cloud_sync = true
 	var remote_villages: Array = st.get("villages", []) if typeof(st.get("villages")) == TYPE_ARRAY else []
 	var prev_owned := false
+	var prev_own_villages: Array = []
 	for pv in gs.villages:
 		if _is_real_player_village_dict(pv) and _matches_player(str((pv as Dictionary).get("owner", "")), p_name):
 			prev_owned = true
-			break
+			prev_own_villages.append((pv as Dictionary).duplicate(true))
 	if not remote_villages.is_empty():
-		gs.villages = remote_villages.duplicate(true)
+		var next_villages := remote_villages.duplicate(true)
+		var remote_has_own := false
+		for rv in next_villages:
+			if _is_real_player_village_dict(rv) and _matches_player(str((rv as Dictionary).get("owner", "")), p_name):
+				remote_has_own = true
+				break
+		if prev_owned and not remote_has_own and not is_player_conquered(w_id, p_name):
+			for pvv in prev_own_villages:
+				next_villages.append(pvv)
+		gs.villages = next_villages
 	var owns_active := false
 	var first_owned_vid := -1
 	var total_pts := 0
@@ -1848,7 +1864,7 @@ func _live_sync_game_state_from_world(merged_w: Dictionary, p_name: String) -> v
 			total_pts += int((v as Dictionary).get("points", 110))
 	if not owns_active and first_owned_vid > 0:
 		gs.active_village_id = first_owned_vid
-	elif first_owned_vid < 0 and (prev_owned or is_player_conquered(w_id, p_name)):
+	elif first_owned_vid < 0 and is_player_conquered(w_id, p_name):
 		gs.active_village_id = -1
 	gs.player["points"] = total_pts
 	var now_sync := int(Time.get_unix_time_from_system())
@@ -1941,11 +1957,93 @@ func _live_sync_game_state_from_world(merged_w: Dictionary, p_name: String) -> v
 		maybe_show_conquered_modal_for_current_scene(w_id, p_name)
 
 
+func _clear_defeated_info_for_player(w_data: Dictionary, p_name: String) -> bool:
+	var norm_p := _norm_name(p_name)
+	if w_data.is_empty() or norm_p.is_empty():
+		return false
+	var st: Dictionary = w_data.get("state", {}) if typeof(w_data.get("state")) == TYPE_DICTIONARY else {}
+	var wd: Dictionary = st.get("world", {}) if typeof(st.get("world")) == TYPE_DICTIONARY else {}
+	var profs: Dictionary = wd.get("player_profiles", {}) if typeof(wd.get("player_profiles")) == TYPE_DICTIONARY else {}
+	var changed := false
+	for pk in profs.keys():
+		if _matches_player(str(pk), norm_p) and typeof(profs[pk]) == TYPE_DICTIONARY:
+			if (profs[pk] as Dictionary).has("defeated_info"):
+				(profs[pk] as Dictionary).erase("defeated_info")
+				changed = true
+	return changed
+
+
+func _inject_server_village_into_world(w_data: Dictionary, sv_dict: Dictionary, p_name: String, res_data: Dictionary = {}) -> bool:
+	if w_data.is_empty() or sv_dict.is_empty():
+		return false
+	var w_id := int(w_data.get("world_id", sv_dict.get("world_id", 1)))
+	if w_id < 1 or w_id > WORLDS_COUNT:
+		w_id = 1
+	var state: Dictionary = w_data.get("state", {}) if typeof(w_data.get("state")) == TYPE_DICTIONARY else {}
+	var world_dict: Dictionary = state.get("world", {}) if typeof(state.get("world")) == TYPE_DICTIONARY else {}
+	var tiles: Dictionary = world_dict.get("tiles", {}) if typeof(world_dict.get("tiles")) == TYPE_DICTIONARY else {}
+	var villages_list: Array = state.get("villages", []) if typeof(state.get("villages")) == TYPE_ARRAY else []
+
+	var sv_id := int(sv_dict.get("id", 51))
+	var vx := int(sv_dict.get("x", 100))
+	var vy := int(sv_dict.get("y", 100))
+	var v_name := str(sv_dict.get("name", "Başkent"))
+	var player_v := VillageModelScript.create(sv_id, v_name, vx, vy, p_name, false)
+	player_v["is_bot"] = false
+	player_v["is_barbarian"] = false
+	if typeof(sv_dict.get("buildings")) == TYPE_DICTIONARY and not (sv_dict["buildings"] as Dictionary).is_empty():
+		player_v["buildings"] = (sv_dict["buildings"] as Dictionary).duplicate(true)
+	if typeof(sv_dict.get("resources")) == TYPE_DICTIONARY and not (sv_dict["resources"] as Dictionary).is_empty():
+		player_v["resources"] = (sv_dict["resources"] as Dictionary).duplicate(true)
+	if typeof(sv_dict.get("units")) == TYPE_DICTIONARY and not (sv_dict["units"] as Dictionary).is_empty():
+		player_v["units"] = (sv_dict["units"] as Dictionary).duplicate(true)
+	player_v["points"] = int(sv_dict.get("points", player_v.get("points", 110)))
+	var prot_u := int(sv_dict.get("protection_until_unix", 0))
+	player_v["protection_until_unix"] = prot_u
+	player_v["conquest_protection_until_unix"] = int(sv_dict.get("conquest_protection_until_unix", 0))
+	var sv_created := int(sv_dict.get("created_unix", res_data.get("created_unix", 0)))
+	if sv_created <= 0 and prot_u > (15 * 86400):
+		sv_created = prot_u - (15 * 86400)
+	var sv_boost_until := int(sv_dict.get("starter_boost_until_unix", res_data.get("starter_boost_until_unix", 0)))
+	if sv_boost_until <= 0 and sv_created > 0:
+		sv_boost_until = sv_created + (7 * 86400)
+	if sv_created > 0:
+		player_v["created_unix"] = sv_created
+	if sv_boost_until > 0:
+		player_v["starter_boost_until_unix"] = sv_boost_until
+
+	var cleaned_vills: Array = []
+	for existing_v in villages_list:
+		if typeof(existing_v) == TYPE_DICTIONARY and int((existing_v as Dictionary).get("id", -1)) == sv_id:
+			continue
+		cleaned_vills.append(existing_v)
+	cleaned_vills.append(player_v)
+
+	tiles[WorldGeneratorScript.tile_key(vx, vy)] = sv_id
+	world_dict["tiles"] = tiles
+	world_dict["villages"] = cleaned_vills
+	state["villages"] = cleaned_vills
+	state["world"] = world_dict
+	state["active_village_id"] = sv_id
+	_ensure_starter_boost(state, sv_created, int(Time.get_unix_time_from_system()), p_name)
+	w_data["state"] = state
+	_clear_defeated_info_for_player(w_data, p_name)
+	_enforce_min_village_distance(w_data, sv_id)
+	var reg_list: Array = w_data.get("registered_real_players", []) if typeof(w_data.get("registered_real_players")) == TYPE_ARRAY else []
+	if not (p_name in reg_list):
+		reg_list.append(p_name)
+		w_data["registered_real_players"] = reg_list
+	w_data["last_saved_unix"] = maxi(int(w_data.get("last_saved_unix", 0)), int(sv_dict.get("last_calc_unix", Time.get_unix_time_from_system())))
+	return true
+
+
 func apply_cloud_sync(res_data: Dictionary, from_save_response: bool = false, req_seq: int = -1) -> bool:
 	if _suppress_reset_save:
 		return false
 	var loop = Engine.get_main_loop()
 	var auth = loop.root.get_node_or_null("AuthManager") if loop is SceneTree else null
+	if from_save_response and auth != null and not bool(auth.is_logged_in):
+		return false
 	var raw_name: String = str(auth.display_name) if (auth != null and not str(auth.display_name).is_empty()) else str(res_data.get("display_name", "Lord Gorkem"))
 	var p_name := _norm_name(raw_name)
 	if p_name.is_empty():
@@ -2009,6 +2107,13 @@ func apply_cloud_sync(res_data: Dictionary, from_save_response: bool = false, re
 			effective_local_ts = maxi(local_ts, _last_local_mutation_unix)
 
 		var merged_w := _merge_shared_world_data(effective_local_w, cloud_w, p_name, effective_local_ts, cloud_ts, from_save_response, req_seq)
+		var cloud_had_player_v := _world_has_player_village_in_dict(cloud_w, p_name)
+		var sv_fallback = res_data.get("server_village", null)
+		if not _world_has_player_village_in_dict(merged_w, p_name) and typeof(sv_fallback) == TYPE_DICTIONARY and not (sv_fallback as Dictionary).is_empty() and not _world_has_conquest_defeat_in_dict(merged_w, p_name):
+			_inject_server_village_into_world(merged_w, sv_fallback as Dictionary, p_name, res_data)
+		if _world_has_player_village_in_dict(merged_w, p_name):
+			_clear_defeated_info_for_player(merged_w, p_name)
+
 		_deduplicate_player_starter_villages(merged_w)
 		_enforce_min_village_distance(merged_w)
 		save_world_dict(w_id, merged_w)
@@ -2030,8 +2135,8 @@ func apply_cloud_sync(res_data: Dictionary, from_save_response: bool = false, re
 				gs_sync._emit_state_changed()
 
 		var has_newer_mut := (req_seq >= 0 and _local_mutation_seq > req_seq)
-		var cloud_had_player_v := _world_has_player_village_in_dict(cloud_w, p_name)
-		var needs_cloud_recover := (local_has and not cloud_had_player_v and not _world_has_conquest_defeat_in_dict(cloud_w, p_name))
+		var merged_has_player_v := _world_has_player_village_in_dict(merged_w, p_name)
+		var needs_cloud_recover := ((local_has or merged_has_player_v) and not cloud_had_player_v and not _world_has_conquest_defeat_in_dict(cloud_w, p_name))
 		if ((not from_save_response or has_newer_mut) and local_has and (effective_local_ts > cloud_ts or has_newer_mut)) or needs_cloud_recover:
 			if _cloud_enabled() and loop is SceneTree:
 				var net = loop.root.get_node_or_null("NetworkManager")
@@ -2052,54 +2157,7 @@ func apply_cloud_sync(res_data: Dictionary, from_save_response: bool = false, re
 		var w_data := load_world_dict(w_id)
 		if w_data.is_empty():
 			w_data = _create_and_save_world(w_id, BASE_SEED + w_id, BOTS_PER_WORLD)
-		var state: Dictionary = w_data.get("state", {})
-		var world_dict: Dictionary = state.get("world", {})
-		var tiles: Dictionary = world_dict.get("tiles", {})
-		var villages_list: Array = state.get("villages", [])
-
-		var sv_id := int(sv_dict.get("id", 51))
-		var vx := int(sv_dict.get("x", 100))
-		var vy := int(sv_dict.get("y", 100))
-		var v_name := str(sv_dict.get("name", "Başkent"))
-		var player_v := VillageModelScript.create(sv_id, v_name, vx, vy, p_name, false)
-		player_v["is_bot"] = false
-		player_v["is_barbarian"] = false
-		if typeof(sv_dict.get("buildings")) == TYPE_DICTIONARY and not (sv_dict["buildings"] as Dictionary).is_empty():
-			player_v["buildings"] = (sv_dict["buildings"] as Dictionary).duplicate(true)
-		if typeof(sv_dict.get("resources")) == TYPE_DICTIONARY and not (sv_dict["resources"] as Dictionary).is_empty():
-			player_v["resources"] = (sv_dict["resources"] as Dictionary).duplicate(true)
-		if typeof(sv_dict.get("units")) == TYPE_DICTIONARY and not (sv_dict["units"] as Dictionary).is_empty():
-			player_v["units"] = (sv_dict["units"] as Dictionary).duplicate(true)
-		player_v["points"] = int(sv_dict.get("points", player_v.get("points", 110)))
-		var prot_u := int(sv_dict.get("protection_until_unix", 0))
-		player_v["protection_until_unix"] = prot_u
-		player_v["conquest_protection_until_unix"] = int(sv_dict.get("conquest_protection_until_unix", 0))
-		var sv_created := int(sv_dict.get("created_unix", res_data.get("created_unix", 0)))
-		if sv_created <= 0 and prot_u > (15 * 86400):
-			sv_created = prot_u - (15 * 86400)
-		var sv_boost_until := int(sv_dict.get("starter_boost_until_unix", res_data.get("starter_boost_until_unix", 0)))
-		if sv_boost_until <= 0 and sv_created > 0:
-			sv_boost_until = sv_created + (7 * 86400)
-		if sv_created > 0:
-			player_v["created_unix"] = sv_created
-		if sv_boost_until > 0:
-			player_v["starter_boost_until_unix"] = sv_boost_until
-
-		villages_list.append(player_v)
-		tiles[WorldGeneratorScript.tile_key(vx, vy)] = sv_id
-		world_dict["tiles"] = tiles
-		world_dict["villages"] = villages_list
-		state["villages"] = villages_list
-		state["world"] = world_dict
-		state["active_village_id"] = sv_id
-		_ensure_starter_boost(state, sv_created, int(Time.get_unix_time_from_system()), p_name)
-		w_data["state"] = state
-		_enforce_min_village_distance(w_data, sv_id)
-		var reg_list: Array = w_data.get("registered_real_players", [])
-		if not (p_name in reg_list):
-			reg_list.append(p_name)
-			w_data["registered_real_players"] = reg_list
-		w_data["last_saved_unix"] = int(sv_dict.get("last_calc_unix", Time.get_unix_time_from_system()))
+		_inject_server_village_into_world(w_data, sv_dict, p_name, res_data)
 		save_world_dict(w_id, w_data)
 		current_world_id = w_id
 		_save_meta()

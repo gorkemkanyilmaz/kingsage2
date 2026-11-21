@@ -1238,6 +1238,20 @@ def _prepare_world_for_player(
             owned_vids.append(vid)
             total_points += int(v.get("points", 110))
 
+    # Yaşayan köyü olan oyuncuda veya geçersiz/boş fatih kaydında bayat defeated_info'yu temizle
+    if owned_vids:
+        found_prof.pop("defeated_info", None)
+        for pk, pv in profiles.items():
+            if _matches_player(pk, norm_p) and isinstance(pv, dict):
+                pv.pop("defeated_info", None)
+    else:
+        for prof_obj in ([found_prof] + [pv for pk, pv in profiles.items() if _matches_player(pk, norm_p) and isinstance(pv, dict)]):
+            di = prof_obj.get("defeated_info")
+            if di is not None:
+                conq_name = str(di.get("conqueror", "")).strip() if isinstance(di, dict) else ""
+                if not isinstance(di, dict) or not conq_name or _matches_player(conq_name, norm_p):
+                    prof_obj.pop("defeated_info", None)
+
     prof_active = int(found_prof.get("active_village_id", -1) or -1)
     if prof_active in owned_vids:
         active_vid = prof_active
@@ -2423,6 +2437,67 @@ def _fetch_cloud_and_village_with_worlds(cursor, user_id: str, display_name: str
         except Exception:
             pass
 
+    cursor.execute("SELECT * FROM villages WHERE LOWER(owner) = LOWER(?) AND is_bot = 0 ORDER BY id ASC LIMIT 1", (display_name,))
+    v_row = cursor.fetchone()
+    server_village = _serialize_server_village(v_row)
+
+    # SQL villages tablosunda köyü olup world_states JSON'ından düşmüşse ortak dünyayı kendi kendine iyileştir
+    if server_village is not None:
+        sv_wid = int(server_village.get("world_id", 1) or 1)
+        if chosen_w is None or int(chosen_w.get("world_id", 1) or 1) != sv_wid:
+            for row in ws_rows:
+                if int(row["world_id"]) == sv_wid:
+                    try:
+                        chosen_w = json.loads(row["state_json"])
+                        chosen_updated = int(row["updated_unix"] or 0)
+                    except Exception:
+                        pass
+                    break
+        if chosen_w is not None and not _player_has_village_in_world(chosen_w, display_name):
+            st_heal = chosen_w.setdefault("state", {})
+            wd_heal = st_heal.setdefault("world", {})
+            vills_heal = st_heal.setdefault("villages", [])
+            sv_id = int(server_village.get("id", 51) or 51)
+            sv_x = int(server_village.get("x", 100) or 100)
+            sv_y = int(server_village.get("y", 100) or 100)
+            healed_v = {
+                "id": sv_id,
+                "name": str(server_village.get("name") or "Başkent"),
+                "x": sv_x,
+                "y": sv_y,
+                "owner": display_name,
+                "points": int(server_village.get("points", 110) or 110),
+                "is_bot": False,
+                "is_barbarian": False,
+                "buildings": copy.deepcopy(server_village.get("buildings") or {"main": 1, "farm": 1, "wood": 1, "stone": 1, "iron": 1, "storage": 1, "wall": 0, "hide": 1}),
+                "resources": copy.deepcopy(server_village.get("resources") or {"wood": 500, "stone": 500, "iron": 500}),
+                "units": copy.deepcopy(server_village.get("units") or {"spear": 0, "sword": 0}),
+                "protection_until_unix": int(server_village.get("protection_until_unix", 0) or 0),
+                "conquest_protection_until_unix": int(server_village.get("conquest_protection_until_unix", 0) or 0),
+                "realm_of_power": 100,
+                "loyalty": 100,
+            }
+            vills_heal[:] = [vv for vv in vills_heal if not (isinstance(vv, dict) and int(vv.get("id", -1) or -1) == sv_id)]
+            vills_heal.append(healed_v)
+            profs_heal = wd_heal.get("player_profiles")
+            if isinstance(profs_heal, dict):
+                for pk, pv in profs_heal.items():
+                    if _matches_player(pk, display_name) and isinstance(pv, dict):
+                        pv.pop("defeated_info", None)
+                        pv["active_village_id"] = sv_id
+            _rebuild_tiles(st_heal)
+            chosen_w["registered_real_players"] = _collect_real_players(chosen_w)
+            chosen_w["last_saved_unix"] = now
+            chosen_updated = now
+            try:
+                cursor.execute(
+                    "UPDATE world_states SET state_json = ?, updated_unix = ? WHERE world_id = ?",
+                    (json.dumps(chosen_w, ensure_ascii=False), now, sv_wid)
+                )
+                worlds_meta = _sync_worlds_table_from_states(cursor, now)
+            except Exception:
+                pass
+
     cursor.execute("SELECT diamonds, scrolls_json FROM users WHERE id = ?", (user_id,))
     u_wallet_row = cursor.fetchone()
     u_diamonds, u_scrolls = _parse_user_wallet(u_wallet_row)
@@ -2439,9 +2514,6 @@ def _fetch_cloud_and_village_with_worlds(cursor, user_id: str, display_name: str
             except Exception:
                 cloud_state = None
 
-    cursor.execute("SELECT * FROM villages WHERE owner = ? AND is_bot = 0 ORDER BY id ASC LIMIT 1", (display_name,))
-    v_row = cursor.fetchone()
-    server_village = _serialize_server_village(v_row)
     return cloud_state, chosen_updated, server_village, worlds_meta
 
 
@@ -2764,7 +2836,7 @@ def join_world(req: JoinWorldRequest, user: Dict[str, Any] = Depends(get_current
         cursor = conn.cursor()
 
         # Zaten köyü var mı?
-        cursor.execute("SELECT * FROM villages WHERE world_id = ? AND owner = ?", (req.world_id, p_name))
+        cursor.execute("SELECT * FROM villages WHERE world_id = ? AND LOWER(owner) = LOWER(?) AND is_bot = 0", (req.world_id, p_name))
         existing = cursor.fetchone()
         if existing:
             return {"ok": True, "message": "Zaten köyünüz mevcut.", "village_id": existing["id"]}
@@ -3206,12 +3278,50 @@ def post_cloud_save(payload: Dict[str, Any], user: Dict[str, Any] = Depends(get_
                 (user["id"], player_save_json, now)
             )
 
+        # Oyuncunun birincil köyünü SQL villages tablosu ile senkron tut ki world_states ve villages asla ayrışmasın
+        m_vills = (merged_w.get("state") or {}).get("villages") or []
+        act_primary_v = None
+        for mv in m_vills:
+            if _is_real_player_village(mv) and _matches_player(str(mv.get("owner", "")), user["display_name"]):
+                act_primary_v = mv
+                break
+        if isinstance(act_primary_v, dict) and int(act_primary_v.get("id", 0) or 0) > 0:
+            pv_id = int(act_primary_v["id"])
+            pv_name = str(act_primary_v.get("name") or "Başkent")[:40]
+            pv_x = int(act_primary_v.get("x", 100) or 100)
+            pv_y = int(act_primary_v.get("y", 100) or 100)
+            pv_pts = int(act_primary_v.get("points", 110) or 110)
+            pv_blds = json.dumps(act_primary_v.get("buildings") or {}, ensure_ascii=False)
+            pv_res = json.dumps(act_primary_v.get("resources") or {}, ensure_ascii=False)
+            pv_units = json.dumps(act_primary_v.get("units") or {}, ensure_ascii=False)
+            pv_prot = int(act_primary_v.get("protection_until_unix", 0) or 0)
+            pv_cprot = int(act_primary_v.get("conquest_protection_until_unix", 0) or 0)
+            cursor.execute("SELECT id, is_bot FROM villages WHERE id = ?", (pv_id,))
+            v_exist = cursor.fetchone()
+            if v_exist and int(v_exist["is_bot"] or 0) == 0:
+                cursor.execute("""
+                    UPDATE villages
+                    SET world_id = ?, user_id = ?, name = ?, x = ?, y = ?, owner = ?, points = ?,
+                        buildings_json = ?, resources_json = ?, units_json = ?, last_calc_unix = ?,
+                        protection_until_unix = ?, conquest_protection_until_unix = ?
+                    WHERE id = ? AND is_bot = 0
+                """, (w_id, user["id"], pv_name, pv_x, pv_y, user["display_name"], pv_pts, pv_blds, pv_res, pv_units, now, pv_prot, pv_cprot, pv_id))
+            elif not v_exist:
+                cursor.execute("""
+                    INSERT INTO villages (
+                        id, world_id, user_id, name, x, y, owner, points, is_bot, is_barbarian,
+                        buildings_json, resources_json, units_json, last_calc_unix,
+                        protection_until_unix, conquest_protection_until_unix
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, 0, ?, ?, ?, ?, ?, ?)
+                """, (pv_id, w_id, user["id"], pv_name, pv_x, pv_y, user["display_name"], pv_pts, pv_blds, pv_res, pv_units, now, pv_prot, pv_cprot))
+
         worlds_meta = _sync_worlds_table_from_states(cursor, now)
 
     return {
         "ok": True,
         "updated_unix": now,
         "world_id": w_id,
+        "display_name": user["display_name"],
         "cloud_state": merged_for_player,
         "worlds_meta": worlds_meta,
     }

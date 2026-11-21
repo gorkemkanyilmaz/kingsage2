@@ -468,9 +468,20 @@ func _deferred_enter_existing_world() -> void:
 	var root = Engine.get_main_loop().root if Engine.get_main_loop() is SceneTree else null
 	var wm = root.get_node_or_null("WorldManager") if root != null else null
 	var p_name := _get_player_name()
-	if wm != null and wm.has_method("has_player_village") and wm.has_player_village(wm.current_world_id, p_name):
-		var is_conq := bool(wm.has_method("is_player_conquered") and wm.is_player_conquered(wm.current_world_id, p_name))
-		if not is_conq and wm.enter_world(wm.current_world_id, p_name):
+	if wm == null or not wm.has_method("has_player_village"):
+		return
+	var target_wid := -1
+	if wm.has_player_village(wm.current_world_id, p_name):
+		target_wid = wm.current_world_id
+	else:
+		for wid in range(1, 11):
+			if wm.has_player_village(wid, p_name):
+				target_wid = wid
+				break
+	if target_wid > 0:
+		wm.current_world_id = target_wid
+		var is_conq := bool(wm.has_method("is_player_conquered") and wm.is_player_conquered(target_wid, p_name))
+		if not is_conq and wm.enter_world(target_wid, p_name):
 			var co = root.get_node_or_null("ConqueredOverlay") if root != null else null
 			if co != null and is_instance_valid(co):
 				co.queue_free()
