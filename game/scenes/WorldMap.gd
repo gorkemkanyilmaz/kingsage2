@@ -336,7 +336,9 @@ func _style_header() -> void:
 	for sb in [coord_x_input, coord_y_input]:
 		if sb != null:
 			sb.custom_minimum_size = Vector2(130, 52)
-			preload("res://autoload/GameConfig.gd").attach_mobile_keyboard_dismiss(sb, Callable(), true)
+			var gc_sb: Node = Engine.get_main_loop().root.get_node_or_null("GameConfig") if Engine.get_main_loop() is SceneTree else null
+			if gc_sb != null and gc_sb.has_method("bind_keyboard_dismiss"):
+				gc_sb.call("bind_keyboard_dismiss", sb, Callable(), true)
 			var le: LineEdit = sb.get_line_edit()
 			if le != null:
 				le.alignment = HORIZONTAL_ALIGNMENT_CENTER

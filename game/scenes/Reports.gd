@@ -102,10 +102,11 @@ func _ready() -> void:
 	_ensure_report_toolbar()
 	_setup_tabs()
 	_setup_composer()
-	var gc_util := preload("res://autoload/GameConfig.gd")
-	gc_util.attach_mobile_keyboard_dismiss(recipient_input)
-	gc_util.attach_mobile_keyboard_dismiss(subject_input)
-	gc_util.attach_mobile_keyboard_dismiss(body_input)
+	var gc_util = Engine.get_main_loop().root.get_node_or_null("GameConfig") if Engine.get_main_loop() is SceneTree else null
+	if gc_util != null and gc_util.has_method("bind_keyboard_dismiss"):
+		gc_util.call("bind_keyboard_dismiss", recipient_input)
+		gc_util.call("bind_keyboard_dismiss", subject_input)
+		gc_util.call("bind_keyboard_dismiss", body_input)
 
 	if detail_panel != null:
 		detail_panel.hide()

@@ -98,7 +98,9 @@ func _style_spinbox(spin: SpinBox) -> void:
 		sb_box.set_corner_radius_all(10)
 		le.add_theme_stylebox_override("normal", sb_box)
 		le.add_theme_stylebox_override("focus", sb_box)
-	preload("res://autoload/GameConfig.gd").attach_mobile_keyboard_dismiss(spin, Callable(), true)
+	var gc_sp: Node = Engine.get_main_loop().root.get_node_or_null("GameConfig") if Engine.get_main_loop() is SceneTree else null
+	if gc_sp != null and gc_sp.has_method("bind_keyboard_dismiss"):
+		gc_sp.call("bind_keyboard_dismiss", spin, Callable(), true)
 
 
 func _style_all_button(btn: Button) -> void:

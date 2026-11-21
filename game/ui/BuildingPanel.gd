@@ -2078,7 +2078,9 @@ func _populate_train_list() -> void:
 				s_line.add_theme_font_size_override("font_size", 24)
 				s_line.add_theme_constant_override("outline_size", 2)
 				s_line.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.95))
-			preload("res://autoload/GameConfig.gd").attach_mobile_keyboard_dismiss(spin, Callable(), true)
+			var gc_sp: Node = Engine.get_main_loop().root.get_node_or_null("GameConfig") if Engine.get_main_loop() is SceneTree else null
+			if gc_sp != null and gc_sp.has_method("bind_keyboard_dismiss"):
+				gc_sp.call("bind_keyboard_dismiss", spin, Callable(), true)
 			input_row.add_child(spin)
 
 			var train_btn := Button.new()
@@ -2176,7 +2178,9 @@ func _populate_train_list() -> void:
 
 			train_btn.pressed.connect(func():
 				spin.apply()
-				preload("res://autoload/GameConfig.gd").dismiss_virtual_keyboard(spin)
+				var gc_tr: Node = Engine.get_main_loop().root.get_node_or_null("GameConfig") if Engine.get_main_loop() is SceneTree else null
+				if gc_tr != null and gc_tr.has_method("dismiss_keyboard_for"):
+					gc_tr.call("dismiss_keyboard_for", spin)
 				var c := int(spin.value)
 				if c > 0:
 					_on_start_train_pressed(u_key, c)

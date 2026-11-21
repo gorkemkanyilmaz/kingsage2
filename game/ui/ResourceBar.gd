@@ -1,7 +1,6 @@
 extends PanelContainer
 
 const DESKTOP_BAR_HEIGHT := 146.0
-const GameConfigUtil := preload("res://autoload/GameConfig.gd")
 const EconomyAPI := preload("res://scripts/sim/economy/EconomyAPI.gd")
 const RulesEngine := preload("res://scripts/rules/RulesEngine.gd")
 const ICON_WOOD: Texture2D = preload("res://assets/sprites/ui/nano_banana/sharp_icon_wood.tres")
@@ -68,6 +67,9 @@ var _tooltip_title: Label = null
 var _tooltip_body: Label = null
 var _tooltip_hide_timer: Timer = null
 var _last_tooltip_key: String = ""
+var _wing_styles_done: bool = false
+var _res_cards_styled: bool = false
+var _applying_layout: bool = false
 
 
 func _ensure_nodes() -> void:
@@ -231,11 +233,15 @@ func _on_self_resized() -> void:
 
 
 func get_bar_height() -> float:
-	_apply_responsive_layout()
+	if not _applying_layout:
+		_apply_responsive_layout()
 	return _last_bar_height
 
 
 func _apply_responsive_layout() -> void:
+	if _applying_layout:
+		return
+	_applying_layout = true
 	_ensure_nodes()
 	var gc := _autoload("GameConfig")
 	var safe_top := 0.0
@@ -352,9 +358,12 @@ func _apply_responsive_layout() -> void:
 		if vl != null:
 			vl.add_theme_font_size_override("font_size", 19 if has_island else 22)
 
-	custom_minimum_size.y = total_h
+	if absf(custom_minimum_size.y - total_h) > 0.5:
+		custom_minimum_size.y = total_h
 	offset_top = 0.0
-	offset_bottom = total_h
+	if absf(offset_bottom - total_h) > 0.5:
+		offset_bottom = total_h
+	_applying_layout = false
 
 
 func _is_tap_event(event: InputEvent) -> bool:
@@ -375,6 +384,9 @@ func _on_village_name_gui_input(event: InputEvent) -> void:
 
 func _ensure_royal_wing_frames() -> void:
 	_village_info_sb = null
+	if _wing_styles_done:
+		return
+	_wing_styles_done = true
 	if points_box is PanelContainer:
 		var psb := StyleBoxFlat.new()
 		psb.bg_color = Color(0.18, 0.13, 0.06, 0.96)
@@ -462,6 +474,9 @@ func _fmt_num(val: int) -> String:
 
 
 func _ensure_resource_box_titles() -> void:
+	if _res_cards_styled:
+		return
+	_res_cards_styled = true
 	var defs := [
 		[wood_box, wood_label, wood_bar, "WoodTitle", "ODUN", Color(0.58, 0.92, 0.46), Color(0.32, 0.54, 0.24, 0.82)],
 		[stone_box, stone_label, stone_bar, "StoneTitle", "TAŞ", Color(0.84, 0.86, 0.94), Color(0.46, 0.48, 0.56, 0.82)],
@@ -520,6 +535,7 @@ func _ensure_resource_box_titles() -> void:
 			t.add_theme_color_override("font_outline_color", Color(0.03, 0.03, 0.06, 0.96))
 			stack.add_child(t)
 		if val_lbl != null and val_lbl.get_parent() != stack:
+			val_lbl.owner = null
 			if val_lbl.get_parent() != null:
 				val_lbl.get_parent().remove_child(val_lbl)
 			stack.add_child(val_lbl)
@@ -1399,7 +1415,9 @@ func _show_rename_modal(target_vid: int = -1) -> void:
 	cancel_btn.custom_minimum_size = Vector2(130, 48)
 	_style_modal_btn(cancel_btn, Color(0.22, 0.19, 0.24, 0.95), Color(0.62, 0.56, 0.44, 0.85))
 	cancel_btn.pressed.connect(func():
-		GameConfigUtil.dismiss_virtual_keyboard(line)
+		var gc_r := _autoload("GameConfig")
+		if gc_r != null and gc_r.has_method("dismiss_keyboard_for"):
+			gc_r.call("dismiss_keyboard_for", line)
 		layer.queue_free()
 	)
 	hb.add_child(cancel_btn)
@@ -1409,7 +1427,9 @@ func _show_rename_modal(target_vid: int = -1) -> void:
 	save_btn.custom_minimum_size = Vector2(150, 48)
 	_style_modal_btn(save_btn, Color(0.18, 0.44, 0.24, 0.96), Color(0.45, 0.86, 0.52, 0.95))
 	var apply_rename_fn := func():
-		GameConfigUtil.dismiss_virtual_keyboard(line)
+		var gc_r := _autoload("GameConfig")
+		if gc_r != null and gc_r.has_method("dismiss_keyboard_for"):
+			gc_r.call("dismiss_keyboard_for", line)
 		var new_name := line.text.strip_edges()
 		if not new_name.is_empty():
 			var vid_r := int(v.get("id", -1))
@@ -1424,5 +1444,7 @@ func _show_rename_modal(target_vid: int = -1) -> void:
 		layer.queue_free()
 	save_btn.pressed.connect(apply_rename_fn)
 	hb.add_child(save_btn)
-	GameConfigUtil.attach_mobile_keyboard_dismiss(line, func(_txt: String): apply_rename_fn.call())
+	var gc_bind := _autoload("GameConfig")
+	if gc_bind != null and gc_bind.has_method("bind_keyboard_dismiss"):
+		gc_bind.call("bind_keyboard_dismiss", line, func(_txt: String): apply_rename_fn.call())
 	line.grab_focus()

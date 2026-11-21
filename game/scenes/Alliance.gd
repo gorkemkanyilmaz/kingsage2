@@ -149,7 +149,9 @@ func _build_create_alliance_form(parent: Control, gs: Node, player_name: String)
 	name_input.custom_minimum_size = Vector2(0, 52)
 	name_input.add_theme_font_size_override("font_size", 22)
 	_style_input(name_input)
-	preload("res://autoload/GameConfig.gd").attach_mobile_keyboard_dismiss(name_input)
+	var gc_a: Node = Engine.get_main_loop().root.get_node_or_null("GameConfig") if Engine.get_main_loop() is SceneTree else null
+	if gc_a != null and gc_a.has_method("bind_keyboard_dismiss"):
+		gc_a.call("bind_keyboard_dismiss", name_input)
 	card_vbox.add_child(name_input)
 
 	# Etiket (Tag - max 6 char)
@@ -165,7 +167,8 @@ func _build_create_alliance_form(parent: Control, gs: Node, player_name: String)
 	tag_input.custom_minimum_size = Vector2(0, 52)
 	tag_input.add_theme_font_size_override("font_size", 22)
 	_style_input(tag_input)
-	preload("res://autoload/GameConfig.gd").attach_mobile_keyboard_dismiss(tag_input)
+	if gc_a != null and gc_a.has_method("bind_keyboard_dismiss"):
+		gc_a.call("bind_keyboard_dismiss", tag_input)
 	card_vbox.add_child(tag_input)
 
 	# Açıklama
@@ -180,7 +183,8 @@ func _build_create_alliance_form(parent: Control, gs: Node, player_name: String)
 	desc_input.placeholder_text = "Krallığımızın onurlu kılıçları..."
 	desc_input.add_theme_font_size_override("font_size", 20)
 	_style_input(desc_input)
-	preload("res://autoload/GameConfig.gd").attach_mobile_keyboard_dismiss(desc_input)
+	if gc_a != null and gc_a.has_method("bind_keyboard_dismiss"):
+		gc_a.call("bind_keyboard_dismiss", desc_input)
 	card_vbox.add_child(desc_input)
 
 	var err_label := Label.new()
@@ -521,7 +525,9 @@ func _build_chat_tab(parent: Control, gs: Node, alliance: Dictionary, player_nam
 	chat_input.placeholder_text = "İttifak arkadaşlarına mesaj yaz..."
 	chat_input.add_theme_font_size_override("font_size", 22)
 	_style_input(chat_input)
-	preload("res://autoload/GameConfig.gd").attach_mobile_keyboard_dismiss(chat_input)
+	var gc_c: Node = Engine.get_main_loop().root.get_node_or_null("GameConfig") if Engine.get_main_loop() is SceneTree else null
+	if gc_c != null and gc_c.has_method("bind_keyboard_dismiss"):
+		gc_c.call("bind_keyboard_dismiss", chat_input)
 	send_box.add_child(chat_input)
 
 	var send_btn := Button.new()
@@ -644,7 +650,9 @@ func _build_invite_tab(parent: Control, gs: Node, alliance: Dictionary, player_n
 	input.custom_minimum_size = Vector2(0, 52)
 	input.add_theme_font_size_override("font_size", 22)
 	_style_input(input)
-	preload("res://autoload/GameConfig.gd").attach_mobile_keyboard_dismiss(input)
+	var gc_i: Node = Engine.get_main_loop().root.get_node_or_null("GameConfig") if Engine.get_main_loop() is SceneTree else null
+	if gc_i != null and gc_i.has_method("bind_keyboard_dismiss"):
+		gc_i.call("bind_keyboard_dismiss", input)
 	c_vbox.add_child(input)
 
 	var msg_lbl := Label.new()

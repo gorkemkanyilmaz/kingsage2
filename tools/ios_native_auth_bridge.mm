@@ -228,42 +228,51 @@ static NSString *TVKExtractEmailFromJWT(NSString *jwt) {
                                                                  target:nil
                                                                  action:nil];
     titleHint.enabled = NO;
-    [titleHint setTitleTextAttributes:@{
-        NSForegroundColorAttributeName: [UIColor colorWithRed:0.78 green:0.74 blue:0.64 alpha:0.85],
-        NSFontAttributeName: [UIFont systemFontOfSize:13 weight:UIFontWeightMedium]
-    } forState:UIControlStateDisabled];
 
     UIBarButtonItem *flex = [[UIBarButtonItem alloc] initWithBarButtonSystemItem:UIBarButtonSystemItemFlexibleSpace
                                                                           target:nil
                                                                           action:nil];
-    UIBarButtonItem *doneBtn = [[UIBarButtonItem alloc] initWithTitle:@"✓ Tamam"
+    UIBarButtonItem *doneBtn = [[UIBarButtonItem alloc] initWithTitle:@"Tamam"
                                                                 style:UIBarButtonItemStyleDone
                                                                target:self
                                                                action:@selector(dismissKeyboard:)];
-    [doneBtn setTitleTextAttributes:@{
-        NSForegroundColorAttributeName: [UIColor colorWithRed:1.0 green:0.89 blue:0.46 alpha:1.0],
-        NSFontAttributeName: [UIFont boldSystemFontOfSize:16]
-    } forState:UIControlStateNormal];
     tb.items = @[titleHint, flex, doneBtn];
-    [tb sizeToFit];
     return tb;
 }
 
 - (void)onTextBeginEditing:(NSNotification *)note {
     id obj = note.object;
-    if ([obj isKindOfClass:[UITextField class]]) {
-        UITextField *tf = (UITextField *)obj;
-        if (tf.inputAccessoryView == nil || tf.inputAccessoryView.tag != kTVKKeyboardToolbarTag) {
-            tf.inputAccessoryView = [self buildDoneToolbar];
-            [tf reloadInputViews];
-        }
-    } else if ([obj isKindOfClass:[UITextView class]]) {
-        UITextView *tv = (UITextView *)obj;
-        if (tv.inputAccessoryView == nil || tv.inputAccessoryView.tag != kTVKKeyboardToolbarTag) {
-            tv.inputAccessoryView = [self buildDoneToolbar];
-            [tv reloadInputViews];
-        }
+    if (![obj isKindOfClass:[UIView class]]) {
+        return;
     }
+    NSString *cls = NSStringFromClass([obj class]) ?: @"";
+    if ([cls hasPrefix:@"WK"] || [cls hasPrefix:@"_WK"]) {
+        return;
+    }
+    __weak UIView *weakView = (UIView *)obj;
+    dispatch_async(dispatch_get_main_queue(), ^{
+        @try {
+            UIView *v = weakView;
+            if (v == nil || v.window == nil || ![v isFirstResponder]) {
+                return;
+            }
+            if ([v isKindOfClass:[UITextField class]]) {
+                UITextField *tf = (UITextField *)v;
+                if (tf.inputAccessoryView == nil || tf.inputAccessoryView.tag != kTVKKeyboardToolbarTag) {
+                    tf.inputAccessoryView = [self buildDoneToolbar];
+                    [tf reloadInputViews];
+                }
+            } else if ([v isKindOfClass:[UITextView class]]) {
+                UITextView *tv = (UITextView *)v;
+                if (tv.inputAccessoryView == nil || tv.inputAccessoryView.tag != kTVKKeyboardToolbarTag) {
+                    tv.inputAccessoryView = [self buildDoneToolbar];
+                    [tv reloadInputViews];
+                }
+            }
+        } @catch (NSException *ex) {
+            NSLog(@"[TVKKeyboard] toolbar attach skipped: %@", ex);
+        }
+    });
 }
 
 - (void)dismissKeyboard:(id)sender {

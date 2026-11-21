@@ -567,9 +567,26 @@ func _poll_oauth_endpoint(base_url: String, req_id: String, prov: String, remote
 	req.request("%s/api/auth/oauth_poll?session=%s" % [base_url, req_id])
 
 
-const GameConfigUtil := preload("res://autoload/GameConfig.gd")
 var identity_token: String = ""
 const KNOWN_ACCOUNTS_FILE := "user://account_profiles.json"
+
+
+func _kb_dismiss(target: Control = null) -> void:
+	var loop := Engine.get_main_loop()
+	var gc = loop.root.get_node_or_null("GameConfig") if loop is SceneTree else null
+	if gc != null and gc.has_method("dismiss_keyboard_for"):
+		gc.call("dismiss_keyboard_for", target)
+	elif target != null and is_instance_valid(target) and target.has_focus():
+		target.release_focus()
+
+
+func _kb_bind(ctrl: Control, on_submit: Callable = Callable()) -> void:
+	var loop := Engine.get_main_loop()
+	var gc = loop.root.get_node_or_null("GameConfig") if loop is SceneTree else null
+	if gc != null and gc.has_method("bind_keyboard_dismiss"):
+		gc.call("bind_keyboard_dismiss", ctrl, on_submit)
+	elif ctrl is LineEdit and on_submit.is_valid():
+		(ctrl as LineEdit).text_submitted.connect(on_submit)
 
 
 func _cache_known_account(prov: String, raw_uid: String, raw_email: String, disp_name: String, srv_uid: String) -> void:
@@ -839,7 +856,7 @@ func _show_lord_name_prompt_modal(prov: String, clean_email: String, clean_uid: 
 		btn_cancel.add_theme_font_override("font", FontNunitoBold)
 	btn_cancel.add_theme_font_size_override("font_size", 19)
 	btn_cancel.pressed.connect(func():
-		GameConfigUtil.dismiss_virtual_keyboard(name_edit)
+		_kb_dismiss(name_edit)
 		_dismiss_name_modal()
 	)
 	vb.add_child(btn_cancel)
@@ -847,11 +864,11 @@ func _show_lord_name_prompt_modal(prov: String, clean_email: String, clean_uid: 
 	dim.gui_input.connect(func(ev: InputEvent):
 		var tapped := (ev is InputEventMouseButton and (ev as InputEventMouseButton).pressed) or (ev is InputEventScreenTouch and (ev as InputEventScreenTouch).pressed)
 		if tapped:
-			GameConfigUtil.dismiss_virtual_keyboard(name_edit)
+			_kb_dismiss(name_edit)
 	)
 
 	var submit_fn := func():
-		GameConfigUtil.dismiss_virtual_keyboard(name_edit)
+		_kb_dismiss(name_edit)
 		var chosen := name_edit.text.strip_edges()
 		if chosen.length() < 2:
 			err_lbl.text = "⚠️ Lütfen en az 2 karakterli bir Hükümdar ismi girin."
@@ -896,7 +913,7 @@ func _show_lord_name_prompt_modal(prov: String, clean_email: String, clean_uid: 
 				on_complete.call(prof)
 
 	btn_confirm.pressed.connect(submit_fn)
-	GameConfigUtil.attach_mobile_keyboard_dismiss(name_edit, func(_txt: String): submit_fn.call())
+	_kb_bind(name_edit, func(_txt: String): submit_fn.call())
 
 	var host := parent_node.get_tree().root if (parent_node != null and parent_node.get_tree() != null) else get_tree().root
 	if host != null:

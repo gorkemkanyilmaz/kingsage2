@@ -486,6 +486,19 @@ func save_to_file(path: String = CONFIG_PATH) -> bool:
 
 # --- Mobil Sanal Klavye & Odak Kapatma Yardımcıları ---------------------------
 
+func _deferred_hide_virtual_keyboard() -> void:
+	if DisplayServer.get_name() != "headless":
+		DisplayServer.virtual_keyboard_hide()
+
+
+func dismiss_keyboard_for(target: Control = null) -> void:
+	dismiss_virtual_keyboard(target)
+
+
+func bind_keyboard_dismiss(ctrl: Control, on_submit: Callable = Callable(), numeric: bool = false) -> void:
+	attach_mobile_keyboard_dismiss(ctrl, on_submit, numeric)
+
+
 static func dismiss_virtual_keyboard(target: Control = null) -> void:
 	if target != null and is_instance_valid(target):
 		var par: Node = target.get_parent()
@@ -499,6 +512,12 @@ static func dismiss_virtual_keyboard(target: Control = null) -> void:
 		elif target.has_focus():
 			target.release_focus()
 	if DisplayServer.get_name() != "headless":
+		var loop := Engine.get_main_loop()
+		if loop is SceneTree:
+			var gc = loop.root.get_node_or_null("GameConfig")
+			if gc != null and gc.has_method("_deferred_hide_virtual_keyboard"):
+				gc.call_deferred("_deferred_hide_virtual_keyboard")
+				return
 		DisplayServer.virtual_keyboard_hide()
 
 
@@ -514,15 +533,13 @@ static func attach_mobile_keyboard_dismiss(ctrl: Control, on_submit: Callable = 
 			le.text_submitted.connect(func(_txt: String):
 				sp.apply()
 				le.release_focus()
-				if DisplayServer.get_name() != "headless":
-					DisplayServer.virtual_keyboard_hide()
+				dismiss_virtual_keyboard()
 				if on_submit.is_valid():
 					on_submit.call()
 			)
 			le.focus_exited.connect(func():
 				sp.apply()
-				if DisplayServer.get_name() != "headless":
-					DisplayServer.virtual_keyboard_hide()
+				dismiss_virtual_keyboard()
 			)
 	elif ctrl is LineEdit:
 		var le2 := ctrl as LineEdit
@@ -530,20 +547,17 @@ static func attach_mobile_keyboard_dismiss(ctrl: Control, on_submit: Callable = 
 			le2.virtual_keyboard_type = LineEdit.KEYBOARD_TYPE_NUMBER
 		le2.text_submitted.connect(func(txt: String):
 			le2.release_focus()
-			if DisplayServer.get_name() != "headless":
-				DisplayServer.virtual_keyboard_hide()
+			dismiss_virtual_keyboard()
 			if on_submit.is_valid():
 				on_submit.call(txt)
 		)
 		le2.focus_exited.connect(func():
-			if DisplayServer.get_name() != "headless":
-				DisplayServer.virtual_keyboard_hide()
+			dismiss_virtual_keyboard()
 		)
 	elif ctrl is TextEdit:
 		var te := ctrl as TextEdit
 		te.focus_exited.connect(func():
-			if DisplayServer.get_name() != "headless":
-				DisplayServer.virtual_keyboard_hide()
+			dismiss_virtual_keyboard()
 		)
 
 
@@ -581,4 +595,4 @@ func _input(event: InputEvent) -> void:
 			return
 		sp.apply()
 	focus_owner.release_focus()
-	DisplayServer.virtual_keyboard_hide()
+	call_deferred("_deferred_hide_virtual_keyboard")
