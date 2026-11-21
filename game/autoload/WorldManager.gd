@@ -249,14 +249,14 @@ func _web_get(key: String) -> String:
 
 func _norm_name(raw_name: String) -> String:
 	var n := raw_name.strip_edges()
-	while n.begins_with("Lord Lord "):
-		n = n.substr(5)
+	while n.length() >= 10 and n.substr(0, 10).to_lower() == "lord lord ":
+		n = n.substr(5).strip_edges()
 	return n
 
 
 func _matches_player(owner: String, target: String) -> bool:
-	var a := _norm_name(owner)
-	var b := _norm_name(target)
+	var a := _norm_name(owner).to_lower()
+	var b := _norm_name(target).to_lower()
 	return not b.is_empty() and a == b
 
 
@@ -458,16 +458,45 @@ func has_player_village(world_id: int, player_name: String) -> bool:
 	return false
 
 
-## Oyuncu dünyada daha önce kayıt olmuş ama tüm köyleri fethedilmiş mi?
+## Oyuncu dünyada daha önce kayıt olmuş ama tüm köyleri gerçek bir fetihle kaybedilmiş mi?
 func is_player_conquered(world_id: int, player_name: String) -> bool:
-	var w_data := load_world_dict(world_id)
+	var norm_p := _norm_name(player_name)
+	if norm_p.is_empty():
+		return false
+	if has_player_village(world_id, norm_p):
+		return false
+	return not get_last_defeat_info(world_id, norm_p).is_empty()
+
+
+func _world_has_player_village_in_dict(w_data: Dictionary, p_name: String) -> bool:
 	if w_data.is_empty():
 		return false
-	var norm_p := _norm_name(player_name)
-	var reg_list: Array = w_data.get("registered_real_players", [])
-	for reg_name in reg_list:
-		if _norm_name(str(reg_name)) == norm_p:
-			return not has_player_village(world_id, norm_p)
+	var st: Dictionary = w_data.get("state", {}) if typeof(w_data.get("state")) == TYPE_DICTIONARY else {}
+	var vills: Array = st.get("villages", []) if typeof(st.get("villages")) == TYPE_ARRAY else []
+	for v in vills:
+		if _is_real_player_village_dict(v) and _matches_player(str((v as Dictionary).get("owner", "")), p_name):
+			return true
+	return false
+
+
+func _world_has_conquest_defeat_in_dict(w_data: Dictionary, p_name: String) -> bool:
+	if w_data.is_empty() or _norm_name(p_name).is_empty():
+		return false
+	var st: Dictionary = w_data.get("state", {}) if typeof(w_data.get("state")) == TYPE_DICTIONARY else {}
+	var wd: Dictionary = st.get("world", {}) if typeof(st.get("world")) == TYPE_DICTIONARY else {}
+	var profs: Dictionary = wd.get("player_profiles", {}) if typeof(wd.get("player_profiles")) == TYPE_DICTIONARY else {}
+	for pk in profs.keys():
+		if _matches_player(str(pk), p_name) and typeof(profs[pk]) == TYPE_DICTIONARY:
+			var di = (profs[pk] as Dictionary).get("defeated_info", {})
+			if typeof(di) == TYPE_DICTIONARY and not (di as Dictionary).is_empty():
+				return true
+	var reps: Array = st.get("reports", []) if typeof(st.get("reports")) == TYPE_ARRAY else []
+	for r in reps:
+		if typeof(r) != TYPE_DICTIONARY or str((r as Dictionary).get("type", "")) != "battle":
+			continue
+		var data: Dictionary = (r as Dictionary).get("data", {}) if typeof((r as Dictionary).get("data")) == TYPE_DICTIONARY else {}
+		if bool(data.get("conquered", false)) and _matches_player(str(data.get("defender_name", "")), p_name):
+			return true
 	return false
 
 
@@ -549,7 +578,7 @@ func restart_after_conquest(world_id: int, player_name: String, target_x: int = 
 			chosen_x = pick.x
 			chosen_y = pick.y
 
-	var ok := join_world(world_id, norm_p, chosen_x, chosen_y, prev_spot)
+	var ok := join_world(world_id, norm_p, chosen_x, chosen_y, prev_spot, true)
 	if ok:
 		suppress_auto_conquered_prompt = false
 		var now := int(Time.get_unix_time_from_system())
@@ -582,13 +611,21 @@ func restart_after_conquest(world_id: int, player_name: String, target_x: int = 
 	return ok
 
 
-## Oyuncunun bir dünyaya katılması (yeni köy açılması).
-func join_world(world_id: int, player_name: String, target_x: int = 100, target_y: int = 100, avoid_spot: Vector2i = Vector2i(-1, -1)) -> bool:
+## Oyuncunun bir dünyaya katılması (yeni köy açılması). Mevcut köyü varsa sıfırdan üzerine yazmaz!
+func join_world(world_id: int, player_name: String, target_x: int = 100, target_y: int = 100, avoid_spot: Vector2i = Vector2i(-1, -1), allow_replace_existing: bool = false) -> bool:
 	player_name = _norm_name(player_name)
 	if player_name.is_empty():
 		player_name = "Lord Gorkem"
 
+	if not allow_replace_existing and has_player_village(world_id, player_name):
+		return enter_world(world_id, player_name)
+
 	var w_meta := get_world_meta(world_id)
+	if w_meta.is_empty() and world_id == 1:
+		_load_meta()
+		w_meta = get_world_meta(world_id)
+	if not bool(w_meta.get("is_active", false)) and world_id == 1:
+		w_meta["is_active"] = true
 	if not bool(w_meta.get("is_active", false)):
 		push_error("WorldManager: Dünya %d şu an aktif değil!" % world_id)
 		return false
@@ -1572,29 +1609,26 @@ func _preserve_own_village_progress_from_local(target_w: Dictionary, local_w: Di
 
 func _merge_shared_world_data(local_w: Dictionary, cloud_w: Dictionary, p_name: String, local_ts: int, cloud_ts: int, from_save_response: bool, req_seq: int = -1) -> Dictionary:
 	var has_newer_local_mutation := (req_seq >= 0 and _local_mutation_seq > req_seq)
-	var local_has_v := false
-	var l_chk_villages: Variant = local_w.get("state", {}).get("villages", []) if typeof(local_w.get("state")) == TYPE_DICTIONARY else []
-	if typeof(l_chk_villages) == TYPE_ARRAY:
-		for lv_chk in (l_chk_villages as Array):
-			if _is_real_player_village_dict(lv_chk) and _matches_player(str((lv_chk as Dictionary).get("owner", "")), p_name):
-				local_has_v = true
-				break
+	var local_has_v := _world_has_player_village_in_dict(local_w, p_name) or has_player_village(int(cloud_w.get("world_id", 1)), p_name)
+	var cloud_has_v := _world_has_player_village_in_dict(cloud_w, p_name)
+	var cloud_conquered := _world_has_conquest_defeat_in_dict(cloud_w, p_name)
+	var local_village_missing_in_cloud := (local_has_v and not cloud_has_v and not cloud_conquered)
 
-	if local_w.is_empty() or not (local_has_v or has_player_village(int(cloud_w.get("world_id", 1)), p_name)):
+	if local_w.is_empty() or not local_has_v:
 		var out_c := cloud_w.duplicate(true)
 		_preserve_monotonic_progress_from_local(out_c, local_w, p_name, true)
 		_preserve_own_village_progress_from_local(out_c, local_w, p_name)
 		return out_c
 
 	# Eğer sunucu bu kaydedişten hemen sonra döndüyse ve yerel ekstra mutasyon olmadıysa sunucunun ortak dünyası kanoniktir.
-	if from_save_response and not has_newer_local_mutation and _last_local_mutation_unix <= _last_cloud_save_unix:
+	if from_save_response and not has_newer_local_mutation and not local_village_missing_in_cloud and _last_local_mutation_unix <= _last_cloud_save_unix:
 		var out_s := cloud_w.duplicate(true)
 		_preserve_monotonic_progress_from_local(out_s, local_w, p_name, true)
 		_preserve_own_village_progress_from_local(out_s, local_w, p_name)
 		return out_s
 
-	# Yerel değişiklik sunucudan eskiyse veya eşitse doğrudan ortak dünyayı al (ama monotonik ilerlemeyi ve bina/isim/rapor sig'lerini koru).
-	if cloud_ts >= local_ts and not from_save_response and not has_newer_local_mutation:
+	# Yerel değişiklik sunucudan eskiyse veya eşitse doğrudan ortak dünyayı al (ama yerelde köy varken bulut boşsa köyü asla silme!).
+	if cloud_ts >= local_ts and not from_save_response and not has_newer_local_mutation and not local_village_missing_in_cloud:
 		var out_newer := cloud_w.duplicate(true)
 		_preserve_monotonic_progress_from_local(out_newer, local_w, p_name, true)
 		_preserve_own_village_progress_from_local(out_newer, local_w, p_name)
@@ -1900,7 +1934,7 @@ func _live_sync_game_state_from_world(merged_w: Dictionary, p_name: String) -> v
 	_sync_game_config_speed({"world": gs.world, "player": gs.player}, int(Time.get_unix_time_from_system()))
 	gs._emit_state_changed()
 	_is_applying_cloud_sync = false
-	if first_owned_vid < 0 and (prev_owned or is_player_conquered(w_id, p_name)):
+	if first_owned_vid < 0 and is_player_conquered(w_id, p_name):
 		var bus = _find_autoload("EventBus")
 		if bus != null and bus.has_signal("player_conquered"):
 			bus.player_conquered.emit(w_id, p_name)
@@ -1996,12 +2030,15 @@ func apply_cloud_sync(res_data: Dictionary, from_save_response: bool = false, re
 				gs_sync._emit_state_changed()
 
 		var has_newer_mut := (req_seq >= 0 and _local_mutation_seq > req_seq)
-		if (not from_save_response or has_newer_mut) and local_has and (effective_local_ts > cloud_ts or has_newer_mut) and _cloud_enabled() and loop is SceneTree:
-			var net = loop.root.get_node_or_null("NetworkManager")
-			if net != null and not str(net.auth_token).is_empty():
-				_last_cloud_save_unix = int(Time.get_unix_time_from_system())
-				_last_cloud_save_seq = _local_mutation_seq
-				net.save_state_to_cloud(net.auth_token, merged_w, Callable(), _local_mutation_seq)
+		var cloud_had_player_v := _world_has_player_village_in_dict(cloud_w, p_name)
+		var needs_cloud_recover := (local_has and not cloud_had_player_v and not _world_has_conquest_defeat_in_dict(cloud_w, p_name))
+		if ((not from_save_response or has_newer_mut) and local_has and (effective_local_ts > cloud_ts or has_newer_mut)) or needs_cloud_recover:
+			if _cloud_enabled() and loop is SceneTree:
+				var net = loop.root.get_node_or_null("NetworkManager")
+				if net != null and not str(net.auth_token).is_empty():
+					_last_cloud_save_unix = int(Time.get_unix_time_from_system())
+					_last_cloud_save_seq = _local_mutation_seq
+					net.save_state_to_cloud(net.auth_token, merged_w, Callable(), _local_mutation_seq)
 		return true
 
 	var sv = res_data.get("server_village", null)

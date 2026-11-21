@@ -134,7 +134,7 @@ def get_db() -> DBConnection:
     db_url = sanitize_db_url(raw_url)
     is_pg = bool(db_url and (db_url.startswith("postgres://") or db_url.startswith("postgresql://")))
     if is_pg and HAS_PSYCOPG2:
-        conn = psycopg2.connect(db_url)
+        conn = psycopg2.connect(db_url, connect_timeout=5)
         return DBConnection(conn, True)
     else:
         conn = sqlite3.connect(DB_PATH, check_same_thread=False)
@@ -359,10 +359,11 @@ def init_db():
 # -----------------------------------------------------------------------------
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    try:
-        init_db()
-    except Exception as e:
-        print(f"[UYARI] init_db başlatma hatası: {e}", file=sys.stderr)
+    if not IS_POSTGRES:
+        try:
+            init_db()
+        except Exception as e:
+            print(f"[UYARI] init_db başlatma hatası: {e}", file=sys.stderr)
     yield
 
 
@@ -462,10 +463,10 @@ def get_current_user(authorization: Optional[str] = Header(None)) -> Dict[str, A
     token = authorization.replace("Bearer ", "").strip()
 
     conn = get_db()
-    cursor = conn.cursor()
-    cursor.execute("SELECT * FROM users WHERE token = ?", (token,))
-    user = cursor.fetchone()
-    conn.close()
+    with conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM users WHERE token = ?", (token,))
+        user = cursor.fetchone()
 
     if not user:
         raise HTTPException(status_code=401, detail="Geçersiz veya süresi dolmuş oturum jetonu.")
@@ -615,26 +616,35 @@ def health():
     db_status = "ok"
     u_count = 0
     real_villages = 0
+    bot_villages = 0
     err_msg = None
+    conn = None
     try:
         now = int(time.time())
         conn = get_db()
-        cursor = conn.cursor()
-        ensure_cloud_saves_table(cursor, conn.is_pg)
-        _ensure_world_reset_epoch(cursor, now)
-        _ensure_world1_bots_seeded(cursor, now)
-        cursor.execute("SELECT COUNT(*) FROM users")
-        u_count = _row_first_int(cursor.fetchone())
-        cursor.execute("SELECT COUNT(*) FROM villages WHERE is_bot = 0")
-        real_villages = _row_first_int(cursor.fetchone())
-        cursor.execute("SELECT COUNT(*) FROM villages WHERE world_id = 1 AND is_bot = 1")
-        bot_villages = _row_first_int(cursor.fetchone())
-        conn.commit()
-        conn.close()
+        with conn:
+            cursor = conn.cursor()
+            if conn.is_pg:
+                cursor.execute("SET LOCAL statement_timeout = '4000'")
+            ensure_cloud_saves_table(cursor, conn.is_pg)
+            _ensure_world_reset_epoch(cursor, now)
+            _ensure_world1_bots_seeded(cursor, now)
+            cursor.execute("SELECT COUNT(*) FROM users")
+            u_count = _row_first_int(cursor.fetchone())
+            cursor.execute("SELECT COUNT(*) FROM villages WHERE is_bot = 0")
+            real_villages = _row_first_int(cursor.fetchone())
+            cursor.execute("SELECT COUNT(*) FROM villages WHERE world_id = 1 AND is_bot = 1")
+            bot_villages = _row_first_int(cursor.fetchone())
     except Exception as e:
         db_status = "error"
         err_msg = str(e)
         bot_villages = 0
+    finally:
+        if conn is not None:
+            try:
+                conn.close()
+            except Exception:
+                pass
 
     return {
         "status": "online",
@@ -697,13 +707,35 @@ RESOURCE_PACKS: List[Dict[str, Any]] = [
 
 _PG_SCHEMA_INITIALIZED = False
 _PG_EPOCH_VERIFIED = False
+_PG_BOTS_VERIFIED = False
 
 
 def _ensure_users_store_columns(cursor, is_pg: bool) -> None:
     if is_pg:
-        cursor.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS diamonds INTEGER DEFAULT 35")
-        cursor.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS scrolls_json TEXT DEFAULT '{}'")
-        cursor.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS provider_uid TEXT DEFAULT ''")
+        cursor.execute(
+            "SELECT column_name FROM information_schema.columns WHERE table_name = 'users' AND column_name IN ('diamonds', 'scrolls_json', 'provider_uid')"
+        )
+        existing_cols = {
+            str((r["column_name"] if isinstance(r, dict) else r[0])).lower()
+            for r in cursor.fetchall()
+        }
+        missing = [
+            col for col, _ddl in (
+                ("diamonds", "ALTER TABLE users ADD COLUMN IF NOT EXISTS diamonds INTEGER DEFAULT 35"),
+                ("scrolls_json", "ALTER TABLE users ADD COLUMN IF NOT EXISTS scrolls_json TEXT DEFAULT '{}'"),
+                ("provider_uid", "ALTER TABLE users ADD COLUMN IF NOT EXISTS provider_uid TEXT DEFAULT ''"),
+            ) if col not in existing_cols
+        ]
+        if not missing:
+            return
+        cursor.execute("SET LOCAL lock_timeout = '2000'")
+        for col, ddl in (
+            ("diamonds", "ALTER TABLE users ADD COLUMN IF NOT EXISTS diamonds INTEGER DEFAULT 35"),
+            ("scrolls_json", "ALTER TABLE users ADD COLUMN IF NOT EXISTS scrolls_json TEXT DEFAULT '{}'"),
+            ("provider_uid", "ALTER TABLE users ADD COLUMN IF NOT EXISTS provider_uid TEXT DEFAULT ''"),
+        ):
+            if col in missing:
+                cursor.execute(ddl)
         return
     cursor.execute("PRAGMA table_info(users)")
     cols = set()
@@ -852,6 +884,9 @@ def _build_world1_bot_villages(now: int) -> List[Dict[str, Any]]:
 
 
 def _ensure_world1_bots_seeded(cursor, now: int) -> None:
+    global _PG_BOTS_VERIFIED
+    if getattr(cursor, "is_pg", False) and _PG_BOTS_VERIFIED:
+        return
     cursor.execute("SELECT COUNT(*) FROM villages WHERE world_id = 1 AND is_bot = 1")
     bot_cnt_row = cursor.fetchone()
     bot_cnt = int((list(bot_cnt_row.values())[0] if isinstance(bot_cnt_row, dict) else bot_cnt_row[0]) or 0) if bot_cnt_row else 0
@@ -940,6 +975,8 @@ def _ensure_world1_bots_seeded(cursor, now: int) -> None:
                 )
         except Exception:
             pass
+    if getattr(cursor, "is_pg", False):
+        _PG_BOTS_VERIFIED = True
 
 
 def _simulate_server_bots(w_data: Dict[str, Any], cursor, now: int) -> bool:
@@ -948,7 +985,7 @@ def _simulate_server_bots(w_data: Dict[str, Any], cursor, now: int) -> bool:
         return False
     last_sim = int(w_data.get("last_bot_sim_unix", 0) or 0)
     elapsed = now - last_sim
-    if elapsed < 90:
+    if elapsed < 300:
         return False
     elapsed = min(elapsed, 86400)
     st = w_data.get("state")
@@ -1023,17 +1060,9 @@ def _simulate_server_bots(w_data: Dict[str, Any], cursor, now: int) -> bool:
             v["realm_of_power"] = pts
             v["last_sim_unix"] = now
             changed = True
-            try:
-                cursor.execute(
-                    "UPDATE villages SET points = ?, buildings_json = ?, resources_json = ?, units_json = ?, last_calc_unix = ? WHERE id = ? AND is_bot = 1",
-                    (pts, json.dumps(blds), json.dumps(res), json.dumps(units), now, int(v["id"])),
-                )
-            except Exception:
-                pass
 
     w_data["last_bot_sim_unix"] = now
-    w_data["last_saved_unix"] = max(int(w_data.get("last_saved_unix", 0) or 0), now)
-    return changed or True
+    return changed
 
 
 def _norm_p_name(raw_name: str) -> str:
@@ -2163,6 +2192,15 @@ def ensure_cloud_saves_table(cursor, is_pg: bool) -> None:
     global _PG_SCHEMA_INITIALIZED
     if is_pg and _PG_SCHEMA_INITIALIZED:
         return
+    if is_pg:
+        cursor.execute(
+            "SELECT to_regclass('public.world_states') AS ws, to_regclass('public.cloud_saves') AS cs, to_regclass('public.server_meta') AS sm, to_regclass('public.oauth_sessions') AS oa, to_regclass('public.iap_transactions') AS iap"
+        )
+        trow = cursor.fetchone()
+        if trow and all(trow.get(k) is not None for k in ("ws", "cs", "sm", "oa", "iap")):
+            _ensure_users_store_columns(cursor, True)
+            _PG_SCHEMA_INITIALIZED = True
+            return
     bigint_t = "BIGINT" if is_pg else "INTEGER"
     cursor.execute("""CREATE TABLE IF NOT EXISTS cloud_saves (
         user_id TEXT PRIMARY KEY,
@@ -2316,23 +2354,24 @@ def _serialize_server_village(v_row) -> Optional[Dict[str, Any]]:
     return v
 
 
-def _fetch_cloud_and_village_with_worlds(cursor, user_id: str, display_name: str):
+def _fetch_cloud_and_village_with_worlds(cursor, user_id: str, display_name: str, run_bot_sim: bool = False):
     now = int(time.time())
     _ensure_world1_bots_seeded(cursor, now)
     _migrate_legacy_cloud_saves_to_world_states(cursor, now)
 
     cursor.execute("SELECT world_id, state_json, updated_unix FROM world_states ORDER BY world_id ASC")
     ws_rows = cursor.fetchall()
-    for row in ws_rows:
-        if int(row["world_id"]) == 1:
-            try:
-                w1 = json.loads(row["state_json"])
-                if _simulate_server_bots(w1, cursor, now):
-                    new_js = json.dumps(w1, ensure_ascii=False)
-                    cursor.execute("UPDATE world_states SET state_json = ?, updated_unix = ? WHERE world_id = 1", (new_js, now))
-                    row["state_json"] = new_js
-            except Exception:
-                pass
+    if run_bot_sim:
+        for row in ws_rows:
+            if int(row["world_id"]) == 1:
+                try:
+                    w1 = json.loads(row["state_json"])
+                    if _simulate_server_bots(w1, cursor, now):
+                        new_js = json.dumps(w1, ensure_ascii=False)
+                        cursor.execute("UPDATE world_states SET state_json = ?, updated_unix = ? WHERE world_id = 1", (new_js, now))
+                        row["state_json"] = new_js
+                except Exception:
+                    pass
 
     worlds_meta = _sync_worlds_table_from_states(cursor, now)
 
@@ -2545,34 +2584,31 @@ def auth_check_account(req: CheckAccountRequest):
     raw_id_tok = (req.identity_token or "").strip()
 
     conn = get_db()
-    cursor = conn.cursor()
-    ensure_cloud_saves_table(cursor, conn.is_pg)
-    _ensure_world_reset_epoch(cursor, now)
+    with conn:
+        cursor = conn.cursor()
+        ensure_cloud_saves_table(cursor, conn.is_pg)
+        _ensure_world_reset_epoch(cursor, now)
 
-    existing, resolved_uid, resolved_email = _find_user_by_identity(cursor, provider, clean_email, clean_uid, raw_id_tok)
+        existing, resolved_uid, resolved_email = _find_user_by_identity(cursor, provider, clean_email, clean_uid, raw_id_tok)
 
-    if not existing:
-        conn.commit()
-        conn.close()
-        return {"ok": True, "exists": False}
+        if not existing:
+            return {"ok": True, "exists": False}
 
-    user_id = existing["id"]
-    display_name = existing["display_name"]
-    existing_d = dict(existing)
-    email = existing_d.get("email") or resolved_email or clean_email
-    stored_puid = str(existing_d.get("provider_uid") or "").strip() or resolved_uid
-    created_unix = int(existing["created_unix"] or now)
-    token = f"tk_tok_{secrets.token_hex(24)}"
-    cursor.execute(
-        "UPDATE users SET token = ?, last_login_unix = ?, provider_uid = ?, email = ? WHERE id = ?",
-        (token, now, stored_puid, email, user_id)
-    )
+        user_id = existing["id"]
+        display_name = existing["display_name"]
+        existing_d = dict(existing)
+        email = existing_d.get("email") or resolved_email or clean_email
+        stored_puid = str(existing_d.get("provider_uid") or "").strip() or resolved_uid
+        created_unix = int(existing["created_unix"] or now)
+        token = f"tk_tok_{secrets.token_hex(24)}"
+        cursor.execute(
+            "UPDATE users SET token = ?, last_login_unix = ?, provider_uid = ?, email = ? WHERE id = ?",
+            (token, now, stored_puid, email, user_id)
+        )
 
-    cloud_state, cloud_updated_unix, server_village, worlds_meta = _fetch_cloud_and_village_with_worlds(cursor, user_id, display_name)
-    has_village = bool(server_village is not None or _player_has_village_in_world(cloud_state, display_name))
-    u_diamonds, u_scrolls = _parse_user_wallet(existing_d)
-    conn.commit()
-    conn.close()
+        cloud_state, cloud_updated_unix, server_village, worlds_meta = _fetch_cloud_and_village_with_worlds(cursor, user_id, display_name, False)
+        has_village = bool(server_village is not None or _player_has_village_in_world(cloud_state, display_name))
+        u_diamonds, u_scrolls = _parse_user_wallet(existing_d)
 
     return {
         "ok": True,
@@ -2611,82 +2647,78 @@ def auth_login(req: AuthLoginRequest):
     raw_id_tok = (req.identity_token or "").strip()
 
     conn = get_db()
-    cursor = conn.cursor()
-    ensure_cloud_saves_table(cursor, conn.is_pg)
-    _ensure_world_reset_epoch(cursor, now)
+    with conn:
+        cursor = conn.cursor()
+        ensure_cloud_saves_table(cursor, conn.is_pg)
+        _ensure_world_reset_epoch(cursor, now)
 
-    existing, resolved_uid, resolved_email = _find_user_by_identity(cursor, provider, clean_email, clean_uid, raw_id_tok)
-    eff_uid = resolved_uid or clean_uid
-    eff_email = resolved_email or clean_email
-    has_explicit_identity = bool(eff_email or eff_uid)
+        existing, resolved_uid, resolved_email = _find_user_by_identity(cursor, provider, clean_email, clean_uid, raw_id_tok)
+        eff_uid = resolved_uid or clean_uid
+        eff_email = resolved_email or clean_email
+        has_explicit_identity = bool(eff_email or eff_uid)
 
-    uid_seed = f"{provider}:{eff_uid}" if eff_uid else (f"{provider}:{eff_email}" if eff_email else f"{provider}:{display_name.lower()}")
-    det_hash = hashlib.sha256(uid_seed.encode("utf-8")).hexdigest()[:12]
-    user_id = f"{provider}_{det_hash}"
-    token = f"tk_tok_{secrets.token_hex(24)}"
-    email = eff_email or f"{display_name.lower().replace(' ', '.')}@{provider}.com"
+        uid_seed = f"{provider}:{eff_uid}" if eff_uid else (f"{provider}:{eff_email}" if eff_email else f"{provider}:{display_name.lower()}")
+        det_hash = hashlib.sha256(uid_seed.encode("utf-8")).hexdigest()[:12]
+        user_id = f"{provider}_{det_hash}"
+        token = f"tk_tok_{secrets.token_hex(24)}"
+        email = eff_email or f"{display_name.lower().replace(' ', '.')}@{provider}.com"
 
-    bare_name = display_name[5:].strip() if display_name.startswith("Lord ") else display_name
-    candidates = [display_name]
-    if bare_name and bare_name != display_name:
-        candidates.append(bare_name)
+        bare_name = display_name[5:].strip() if display_name.startswith("Lord ") else display_name
+        candidates = [display_name]
+        if bare_name and bare_name != display_name:
+            candidates.append(bare_name)
 
-    if has_explicit_identity:
-        exclude_uid = existing["id"] if existing else user_id
-        if _is_display_name_taken(cursor, display_name, exclude_user_id=exclude_uid):
-            conn.commit()
-            conn.close()
-            return JSONResponse(
-                status_code=409,
-                content={
-                    "ok": False,
-                    "error_code": "NAME_TAKEN",
-                    "detail": "Bu Lord ismi daha önce alınmış! Lütfen başka bir Lord ismi seçin.",
-                },
-            )
-    else:
-        for cand in candidates:
-            cursor.execute("SELECT * FROM users WHERE LOWER(display_name) = LOWER(?) AND provider = ?", (cand, provider))
-            existing = cursor.fetchone()
-            if existing:
-                break
-        if not existing:
+        if has_explicit_identity:
+            exclude_uid = existing["id"] if existing else user_id
+            if _is_display_name_taken(cursor, display_name, exclude_user_id=exclude_uid):
+                return JSONResponse(
+                    status_code=409,
+                    content={
+                        "ok": False,
+                        "error_code": "NAME_TAKEN",
+                        "detail": "Bu Lord ismi daha önce alınmış! Lütfen başka bir Lord ismi seçin.",
+                    },
+                )
+        else:
             for cand in candidates:
-                cursor.execute("SELECT * FROM users WHERE LOWER(display_name) = LOWER(?)", (cand,))
+                cursor.execute("SELECT * FROM users WHERE LOWER(display_name) = LOWER(?) AND provider = ?", (cand, provider))
                 existing = cursor.fetchone()
                 if existing:
                     break
+            if not existing:
+                for cand in candidates:
+                    cursor.execute("SELECT * FROM users WHERE LOWER(display_name) = LOWER(?)", (cand,))
+                    existing = cursor.fetchone()
+                    if existing:
+                        break
 
-    created_unix = now
-    if existing:
-        existing_d = dict(existing)
-        user_id = existing["id"]
-        if not has_explicit_identity:
-            display_name = existing["display_name"]
-        elif existing["display_name"] != display_name:
-            cursor.execute("UPDATE users SET display_name = ? WHERE id = ?", (display_name, user_id))
-        email = existing_d.get("email") or email
-        stored_puid = str(existing_d.get("provider_uid") or "").strip() or eff_uid
-        created_unix = int(existing["created_unix"] or now)
-        cursor.execute(
-            "UPDATE users SET token = ?, last_login_unix = ?, provider = ?, provider_uid = ?, email = ? WHERE id = ?",
-            (token, now, provider, stored_puid, email, user_id)
-        )
-    else:
-        cursor.execute("""
-            INSERT INTO users (id, provider, email, provider_uid, display_name, token, created_unix, last_login_unix, diamonds, scrolls_json)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, (user_id, provider, email, eff_uid, display_name, token, now, now, STARTER_DIAMONDS, "{}"))
+        created_unix = now
+        if existing:
+            existing_d = dict(existing)
+            user_id = existing["id"]
+            if not has_explicit_identity:
+                display_name = existing["display_name"]
+            elif existing["display_name"] != display_name:
+                cursor.execute("UPDATE users SET display_name = ? WHERE id = ?", (display_name, user_id))
+            email = existing_d.get("email") or email
+            stored_puid = str(existing_d.get("provider_uid") or "").strip() or eff_uid
+            created_unix = int(existing["created_unix"] or now)
+            cursor.execute(
+                "UPDATE users SET token = ?, last_login_unix = ?, provider = ?, provider_uid = ?, email = ? WHERE id = ?",
+                (token, now, provider, stored_puid, email, user_id)
+            )
+        else:
+            cursor.execute("""
+                INSERT INTO users (id, provider, email, provider_uid, display_name, token, created_unix, last_login_unix, diamonds, scrolls_json)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (user_id, provider, email, eff_uid, display_name, token, now, now, STARTER_DIAMONDS, "{}"))
 
-    cursor.execute("SELECT diamonds, scrolls_json FROM users WHERE id = ?", (user_id,))
-    u_wallet_row = cursor.fetchone()
-    u_diamonds, u_scrolls = _parse_user_wallet(u_wallet_row)
+        cursor.execute("SELECT diamonds, scrolls_json FROM users WHERE id = ?", (user_id,))
+        u_wallet_row = cursor.fetchone()
+        u_diamonds, u_scrolls = _parse_user_wallet(u_wallet_row)
 
-    cloud_state, cloud_updated_unix, server_village, worlds_meta = _fetch_cloud_and_village_with_worlds(cursor, user_id, display_name)
-    has_village = bool(server_village is not None or _player_has_village_in_world(cloud_state, display_name))
-
-    conn.commit()
-    conn.close()
+        cloud_state, cloud_updated_unix, server_village, worlds_meta = _fetch_cloud_and_village_with_worlds(cursor, user_id, display_name, False)
+        has_village = bool(server_village is not None or _player_has_village_in_world(cloud_state, display_name))
 
     return {
         "ok": True,
@@ -2728,71 +2760,68 @@ def join_world(req: JoinWorldRequest, user: Dict[str, Any] = Depends(get_current
     now = int(time.time())
     p_name = user["display_name"]
     conn = get_db()
-    cursor = conn.cursor()
+    with conn:
+        cursor = conn.cursor()
 
-    # Zaten köyü var mı?
-    cursor.execute("SELECT * FROM villages WHERE world_id = ? AND owner = ?", (req.world_id, p_name))
-    existing = cursor.fetchone()
-    if existing:
-        conn.close()
-        return {"ok": True, "message": "Zaten köyünüz mevcut.", "village_id": existing["id"]}
+        # Zaten köyü var mı?
+        cursor.execute("SELECT * FROM villages WHERE world_id = ? AND owner = ?", (req.world_id, p_name))
+        existing = cursor.fetchone()
+        if existing:
+            return {"ok": True, "message": "Zaten köyünüz mevcut.", "village_id": existing["id"]}
 
-    # En yüksek ID'yi bul
-    cursor.execute("SELECT MAX(id) FROM villages")
-    max_id = cursor.fetchone()[0] or 0
-    new_vid = max_id + 1
+        # En yüksek ID'yi bul
+        cursor.execute("SELECT MAX(id) FROM villages")
+        max_id = cursor.fetchone()[0] or 0
+        new_vid = max_id + 1
 
-    # Hedef bölgede boş nokta bul (köyler arası en az 9 kare mesafe)
-    cursor.execute("SELECT x, y FROM villages WHERE world_id = ?", (req.world_id,))
-    taken = [(r["x"], r["y"]) for r in cursor.fetchall()]
+        # Hedef bölgede boş nokta bul (köyler arası en az 9 kare mesafe)
+        cursor.execute("SELECT x, y FROM villages WHERE world_id = ?", (req.world_id,))
+        taken = [(r["x"], r["y"]) for r in cursor.fetchall()]
 
-    tx, ty = req.target_x, req.target_y
-    min_dist = 9
-    spot = None
-    for r in range(0, 90):
-        for dx in range(-r, r + 1):
-            for dy in range(-r, r + 1):
-                if r > 0 and max(abs(dx), abs(dy)) != r:
-                    continue
-                cx, cy = max(5, min(195, tx + dx)), max(5, min(195, ty + dy))
-                if all(max(abs(cx - ox), abs(cy - oy)) >= min_dist for ox, oy in taken):
-                    spot = (cx, cy)
-                    break
+        tx, ty = req.target_x, req.target_y
+        min_dist = 9
+        spot = None
+        for r in range(0, 90):
+            for dx in range(-r, r + 1):
+                for dy in range(-r, r + 1):
+                    if r > 0 and max(abs(dx), abs(dy)) != r:
+                        continue
+                    cx, cy = max(5, min(195, tx + dx)), max(5, min(195, ty + dy))
+                    if all(max(abs(cx - ox), abs(cy - oy)) >= min_dist for ox, oy in taken):
+                        spot = (cx, cy)
+                        break
+                if spot: break
             if spot: break
-        if spot: break
-    if not spot:
-        spot = (tx, ty)
+        if not spot:
+            spot = (tx, ty)
 
-    # 15 günlük fetih koruması
-    prot_time = now + (15 * 86400)
-    init_blds = json.dumps({"main": 1, "farm": 1, "wood": 1, "stone": 1, "iron": 1, "storage": 1, "wall": 0, "hide": 1})
-    init_res = json.dumps({"wood": 500, "stone": 500, "iron": 500})
-    init_units = json.dumps({"spear": 0, "sword": 0})
+        # 15 günlük fetih koruması
+        prot_time = now + (15 * 86400)
+        init_blds = json.dumps({"main": 1, "farm": 1, "wood": 1, "stone": 1, "iron": 1, "storage": 1, "wall": 0, "hide": 1})
+        init_res = json.dumps({"wood": 500, "stone": 500, "iron": 500})
+        init_units = json.dumps({"spear": 0, "sword": 0})
 
-    cursor.execute("""
-        INSERT INTO villages (
-            id, world_id, user_id, name, x, y, owner, points, is_bot, is_barbarian,
-            buildings_json, resources_json, units_json, last_calc_unix,
-            protection_until_unix, conquest_protection_until_unix
-        ) VALUES (?, ?, ?, 'Başkent', ?, ?, ?, 110, 0, 0, ?, ?, ?, ?, ?, ?)
-    """, (new_vid, req.world_id, user["id"], spot[0], spot[1], p_name, init_blds, init_res, init_units, now, prot_time, prot_time))
+        cursor.execute("""
+            INSERT INTO villages (
+                id, world_id, user_id, name, x, y, owner, points, is_bot, is_barbarian,
+                buildings_json, resources_json, units_json, last_calc_unix,
+                protection_until_unix, conquest_protection_until_unix
+            ) VALUES (?, ?, ?, 'Başkent', ?, ?, ?, 110, 0, 0, ?, ?, ?, ?, ?, ?)
+        """, (new_vid, req.world_id, user["id"], spot[0], spot[1], p_name, init_blds, init_res, init_units, now, prot_time, prot_time))
 
-    cursor.execute("UPDATE worlds SET registered_players = registered_players + 1 WHERE id = ?", (req.world_id,))
+        cursor.execute("UPDATE worlds SET registered_players = registered_players + 1 WHERE id = ?", (req.world_id,))
 
-    # Karşılama mesajı (Yalnızca 1 kez, ittifak daveti olmadan Konsey tarafından)
-    cursor.execute("""
-        INSERT INTO messages (world_id, from_name, to_name, subject, body, created_unix, is_read)
-        VALUES (?, 'Taht ve Kılıç Konseyi', ?, ?, ?, ?, 0)
-    """, (
-        req.world_id,
-        p_name,
-        f"🛡️ Dünya {req.world_id}'ye Hoş Geldiniz, Sayın Lord",
-        f"Selamlar Sayın {p_name},\n\nDünya {req.world_id} topraklarına hoş geldiniz! 15 günlük fetih korumanız aktif durumdadır. Bu süre zarfında köylerinizi geliştirebilir ve ordunuzu kurabilirsiniz.\n\nKılıcınız keskin, krallığınız daim olsun.\n\nSaygılarımızla,\nTaht ve Kılıç Konseyi",
-        now
-    ))
-
-    conn.commit()
-    conn.close()
+        # Karşılama mesajı (Yalnızca 1 kez, ittifak daveti olmadan Konsey tarafından)
+        cursor.execute("""
+            INSERT INTO messages (world_id, from_name, to_name, subject, body, created_unix, is_read)
+            VALUES (?, 'Taht ve Kılıç Konseyi', ?, ?, ?, ?, 0)
+        """, (
+            req.world_id,
+            p_name,
+            f"🛡️ Dünya {req.world_id}'ye Hoş Geldiniz, Sayın Lord",
+            f"Selamlar Sayın {p_name},\n\nDünya {req.world_id} topraklarına hoş geldiniz! 15 günlük fetih korumanız aktif durumdadır. Bu süre zarfında köylerinizi geliştirebilir ve ordunuzu kurabilirsiniz.\n\nKılıcınız keskin, krallığınız daim olsun.\n\nSaygılarımızla,\nTaht ve Kılıç Konseyi",
+            now
+        ))
 
     return {"ok": True, "village_id": new_vid, "x": spot[0], "y": spot[1]}
 
@@ -2800,55 +2829,43 @@ def join_world(req: JoinWorldRequest, user: Dict[str, Any] = Depends(get_current
 def get_world_map(world_id: int):
     now = int(time.time())
     conn = get_db()
-    cursor = conn.cursor()
-    ensure_cloud_saves_table(cursor, conn.is_pg)
-    _ensure_world_reset_epoch(cursor, now)
-    if world_id == 1:
-        _ensure_world1_bots_seeded(cursor, now)
-        cursor.execute("SELECT state_json FROM world_states WHERE world_id = 1")
-        ws_row = cursor.fetchone()
-        if ws_row:
-            try:
-                w1 = json.loads(ws_row["state_json"])
-                if _simulate_server_bots(w1, cursor, now):
-                    cursor.execute("UPDATE world_states SET state_json = ?, updated_unix = ? WHERE world_id = 1", (json.dumps(w1, ensure_ascii=False), now))
-            except Exception:
-                pass
-    cursor.execute("""
-        SELECT v.id, v.name, v.x, v.y, v.owner, v.points, v.is_bot, v.is_barbarian,
-               v.protection_until_unix, a.tag as alliance_tag
-        FROM villages v
-        LEFT JOIN alliance_members m ON m.user_name = v.owner
-        LEFT JOIN alliances a ON a.id = m.alliance_id
-        WHERE v.world_id = ?
-    """, (world_id,))
-    rows = cursor.fetchall()
-    conn.commit()
-    conn.close()
+    with conn:
+        cursor = conn.cursor()
+        ensure_cloud_saves_table(cursor, conn.is_pg)
+        _ensure_world_reset_epoch(cursor, now)
+        if world_id == 1:
+            _ensure_world1_bots_seeded(cursor, now)
+        cursor.execute("""
+            SELECT v.id, v.name, v.x, v.y, v.owner, v.points, v.is_bot, v.is_barbarian,
+                   v.protection_until_unix, a.tag as alliance_tag
+            FROM villages v
+            LEFT JOIN alliance_members m ON m.user_name = v.owner
+            LEFT JOIN alliances a ON a.id = m.alliance_id
+            WHERE v.world_id = ?
+        """, (world_id,))
+        rows = cursor.fetchall()
     return {"ok": True, "villages": [dict(r) for r in rows]}
 
 @app.get("/api/villages/{village_id}")
 def get_village(village_id: int, user: Dict[str, Any] = Depends(get_current_user)):
     now = int(time.time())
     conn = get_db()
-    cursor = conn.cursor()
-    cursor.execute("SELECT * FROM villages WHERE id = ?", (village_id,))
-    row = cursor.fetchone()
-    if not row:
-        conn.close()
-        raise HTTPException(status_code=404, detail="Köy bulunamadı.")
+    with conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM villages WHERE id = ?", (village_id,))
+        row = cursor.fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="Köy bulunamadı.")
 
-    v_dict = dict(row)
-    # Lazy simülasyon
-    v_dict = simulate_village_lazy(v_dict, now, conn)
+        v_dict = dict(row)
+        # Lazy simülasyon
+        v_dict = simulate_village_lazy(v_dict, now, conn)
 
-    # Aktif kuyrukları getir
-    cursor.execute("SELECT * FROM queues WHERE village_id = ? ORDER BY finish_unix ASC", (village_id,))
-    q_rows = cursor.fetchall()
-    conn.commit()
-    conn.close()
+        # Aktif kuyrukları getir
+        cursor.execute("SELECT * FROM queues WHERE village_id = ? ORDER BY finish_unix ASC", (village_id,))
+        q_rows = cursor.fetchall()
 
-    v_dict["queues"] = [dict(q) for q in q_rows]
+        v_dict["queues"] = [dict(q) for q in q_rows]
     return {"ok": True, "village": v_dict}
 
 @app.post("/api/action/build")
@@ -3022,23 +3039,23 @@ def action_send_troops(req: SendTroopsRequest, user: Dict[str, Any] = Depends(ge
 @app.get("/api/messages/inbox")
 def get_inbox(user: Dict[str, Any] = Depends(get_current_user)):
     conn = get_db()
-    cursor = conn.cursor()
-    cursor.execute("""
-        SELECT * FROM messages WHERE to_name = ? ORDER BY created_unix DESC LIMIT 50
-    """, (user["display_name"],))
-    rows = cursor.fetchall()
-    conn.close()
+    with conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT * FROM messages WHERE to_name = ? ORDER BY created_unix DESC LIMIT 50
+        """, (user["display_name"],))
+        rows = cursor.fetchall()
     return {"ok": True, "messages": [dict(r) for r in rows]}
 
 @app.get("/api/messages/sent")
 def get_sent(user: Dict[str, Any] = Depends(get_current_user)):
     conn = get_db()
-    cursor = conn.cursor()
-    cursor.execute("""
-        SELECT * FROM messages WHERE from_name = ? ORDER BY created_unix DESC LIMIT 50
-    """, (user["display_name"],))
-    rows = cursor.fetchall()
-    conn.close()
+    with conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT * FROM messages WHERE from_name = ? ORDER BY created_unix DESC LIMIT 50
+        """, (user["display_name"],))
+        rows = cursor.fetchall()
     return {"ok": True, "messages": [dict(r) for r in rows]}
 
 @app.post("/api/messages/send")
@@ -3049,13 +3066,12 @@ def send_message(req: SendMessageRequest, user: Dict[str, Any] = Depends(get_cur
     clean_body = html.escape(req.body.strip())
 
     conn = get_db()
-    cursor = conn.cursor()
-    cursor.execute("""
-        INSERT INTO messages (world_id, from_name, to_name, subject, body, created_unix, is_read)
-        VALUES (1, ?, ?, ?, ?, ?, 0)
-    """, (user["display_name"], clean_to, clean_subj, clean_body, now))
-    conn.commit()
-    conn.close()
+    with conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT INTO messages (world_id, from_name, to_name, subject, body, created_unix, is_read)
+            VALUES (1, ?, ?, ?, ?, ?, 0)
+        """, (user["display_name"], clean_to, clean_subj, clean_body, now))
 
     return {"ok": True, "sent_unix": now}
 
@@ -3063,18 +3079,17 @@ def send_message(req: SendMessageRequest, user: Dict[str, Any] = Depends(get_cur
 def get_cloud_state(user: Dict[str, Any] = Depends(get_current_user)):
     now = int(time.time())
     conn = get_db()
-    cursor = conn.cursor()
-    ensure_cloud_saves_table(cursor, conn.is_pg)
-    _ensure_world_reset_epoch(cursor, now)
-    cloud_state, cloud_updated_unix, server_village = _fetch_cloud_and_village(
-        cursor, user["id"], user["display_name"]
-    )
-    worlds_meta = _sync_worlds_table_from_states(cursor, now)
-    cursor.execute("SELECT diamonds, scrolls_json FROM users WHERE id = ?", (user["id"],))
-    u_fresh = cursor.fetchone()
-    u_diamonds, u_scrolls = _parse_user_wallet(dict(u_fresh) if u_fresh else user)
-    conn.commit()
-    conn.close()
+    with conn:
+        cursor = conn.cursor()
+        ensure_cloud_saves_table(cursor, conn.is_pg)
+        _ensure_world_reset_epoch(cursor, now)
+        cloud_state, cloud_updated_unix, server_village = _fetch_cloud_and_village(
+            cursor, user["id"], user["display_name"]
+        )
+        worlds_meta = _sync_worlds_table_from_states(cursor, now)
+        cursor.execute("SELECT diamonds, scrolls_json FROM users WHERE id = ?", (user["id"],))
+        u_fresh = cursor.fetchone()
+        u_diamonds, u_scrolls = _parse_user_wallet(dict(u_fresh) if u_fresh else user)
     if cloud_state is not None:
         return {
             "ok": True,
@@ -3205,12 +3220,12 @@ def post_cloud_save(payload: Dict[str, Any], user: Dict[str, Any] = Depends(get_
 @app.get("/api/reports")
 def get_reports(user: Dict[str, Any] = Depends(get_current_user)):
     conn = get_db()
-    cursor = conn.cursor()
-    cursor.execute("""
-        SELECT * FROM reports WHERE user_name = ? ORDER BY created_unix DESC LIMIT 50
-    """, (user["display_name"],))
-    rows = cursor.fetchall()
-    conn.close()
+    with conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT * FROM reports WHERE user_name = ? ORDER BY created_unix DESC LIMIT 50
+        """, (user["display_name"],))
+        rows = cursor.fetchall()
     return {"ok": True, "reports": [dict(r) for r in rows]}
 
 # -----------------------------------------------------------------------------
@@ -3307,11 +3322,11 @@ def store_catalog(authorization: Optional[str] = Header(None)):
         token = authorization.replace("Bearer ", "").strip()
         if token:
             conn = get_db()
-            cursor = conn.cursor()
-            ensure_cloud_saves_table(cursor, conn.is_pg)
-            cursor.execute("SELECT diamonds, scrolls_json FROM users WHERE token = ?", (token,))
-            u_row = cursor.fetchone()
-            conn.close()
+            with conn:
+                cursor = conn.cursor()
+                ensure_cloud_saves_table(cursor, conn.is_pg)
+                cursor.execute("SELECT diamonds, scrolls_json FROM users WHERE token = ?", (token,))
+                u_row = cursor.fetchone()
             if u_row:
                 d, s = _parse_user_wallet(dict(u_row))
                 res["diamonds"] = d

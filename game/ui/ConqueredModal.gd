@@ -282,6 +282,11 @@ func _on_restart_pressed() -> void:
 
 	if _btn_restart != null:
 		_btn_restart.disabled = true
+	if wm.has_method("has_player_village") and bool(wm.has_player_village(_world_id, p_name)):
+		if wm.has_method("enter_world") and bool(wm.enter_world(_world_id, p_name)):
+			queue_free()
+			tree.change_scene_to_file("res://scenes/Village.tscn")
+			return
 	var ok := bool(wm.restart_after_conquest(_world_id, p_name, _selected_target.x, _selected_target.y))
 	if ok:
 		queue_free()

@@ -471,6 +471,9 @@ func _deferred_enter_existing_world() -> void:
 	if wm != null and wm.has_method("has_player_village") and wm.has_player_village(wm.current_world_id, p_name):
 		var is_conq := bool(wm.has_method("is_player_conquered") and wm.is_player_conquered(wm.current_world_id, p_name))
 		if not is_conq and wm.enter_world(wm.current_world_id, p_name):
+			var co = root.get_node_or_null("ConqueredOverlay") if root != null else null
+			if co != null and is_instance_valid(co):
+				co.queue_free()
 			get_tree().call_deferred("change_scene_to_file", "res://scenes/Village.tscn")
 
 
@@ -757,15 +760,27 @@ func _select_direction(target_x: int, target_y: int) -> void:
 	var auth = root.get_node_or_null("AuthManager") if root != null else null
 	var p_name := _get_player_name()
 
+	if wm != null and wm.has_player_village(_selected_world_id, p_name) and not (wm.has_method("is_player_conquered") and bool(wm.is_player_conquered(_selected_world_id, p_name))):
+		_complete_select_direction(target_x, target_y)
+		return
+
 	if net != null and net.get_script() != null and net.get_script().is_cloud_sync_enabled() and str(net.auth_token).is_empty() and auth != null and bool(auth.is_logged_in):
 		_joining_in_flight = true
 		if region_desc != null:
 			region_desc.text = "Sunucuya bağlanılıyor, lütfen bekleyin..."
-		var prov: String = str(auth.auth_provider) if not str(auth.auth_provider).is_empty() else "google"
-		net.login_online(prov, p_name, func(_ok: bool, _res: Dictionary):
+		var done_ref: Array = [false]
+		var finish_join := func():
+			if bool(done_ref[0]):
+				return
+			done_ref[0] = true
 			_joining_in_flight = false
 			if is_inside_tree():
 				_complete_select_direction(target_x, target_y)
+		if get_tree() != null:
+			get_tree().create_timer(6.0).timeout.connect(finish_join)
+		var prov: String = str(auth.auth_provider) if not str(auth.auth_provider).is_empty() else "google"
+		net.login_online(prov, p_name, func(_ok: bool, _res: Dictionary):
+			finish_join.call()
 		)
 		return
 
@@ -773,6 +788,7 @@ func _select_direction(target_x: int, target_y: int) -> void:
 
 
 func _complete_select_direction(target_x: int, target_y: int) -> void:
+	_joining_in_flight = false
 	var root = Engine.get_main_loop().root if Engine.get_main_loop() is SceneTree else null
 	var wm = root.get_node_or_null("WorldManager") if root != null else null
 	var p_name := _get_player_name()
@@ -788,7 +804,14 @@ func _complete_select_direction(target_x: int, target_y: int) -> void:
 		else:
 			success = wm.join_world(_selected_world_id, p_name, target_x, target_y)
 		if success:
+			var co = root.get_node_or_null("ConqueredOverlay") if root != null else null
+			if co != null and is_instance_valid(co):
+				co.queue_free()
+			if center_modal != null:
+				center_modal.hide()
 			get_tree().change_scene_to_file("res://scenes/Village.tscn")
+		elif region_desc != null:
+			region_desc.text = "⚠️ Bölgeye giriş tamamlanamadı, lütfen tekrar dokunun."
 	else:
 		push_error("WorldManager bulunamadı!")
 

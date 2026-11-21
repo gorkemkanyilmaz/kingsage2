@@ -115,10 +115,16 @@ func clear_all_account_data() -> void:
 func logout() -> void:
 	var loop = Engine.get_main_loop()
 	if loop is SceneTree:
+		var co = loop.root.get_node_or_null("ConqueredOverlay")
+		if co != null and is_instance_valid(co):
+			co.queue_free()
 		var wm = loop.root.get_node_or_null("WorldManager")
 		var gs_pre = loop.root.get_node_or_null("GameState")
-		if is_logged_in and wm != null and gs_pre != null and gs_pre.has_active_village() and wm.has_method("save_active_world"):
-			wm.save_active_world(true)
+		if is_logged_in and wm != null and gs_pre != null and gs_pre.has_active_village():
+			if wm.has_method("notify_local_mutation"):
+				wm.call("notify_local_mutation")
+			if wm.has_method("save_active_world"):
+				wm.save_active_world(true)
 		var sm_pre = loop.root.get_node_or_null("SaveManager")
 		if is_logged_in and gs_pre != null and gs_pre.has_active_village() and sm_pre != null and sm_pre.has_method("save_game"):
 			sm_pre.save_game()
