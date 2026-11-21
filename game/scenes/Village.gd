@@ -192,7 +192,7 @@ func _style_alliance_btn() -> void:
 	btn_alliance.expand_icon = true
 	btn_alliance.add_theme_constant_override("icon_max_width", 30)
 	btn_alliance.add_theme_font_override("font", FontCinzelBold)
-	btn_alliance.add_theme_font_size_override("font_size", 19)
+	btn_alliance.add_theme_font_size_override("font_size", 21)
 	var sb := StyleBoxFlat.new()
 	sb.bg_color = Color(0.10, 0.16, 0.27, 0.94)
 	sb.border_color = Color(0.86, 0.70, 0.34, 0.88)
@@ -839,7 +839,7 @@ func _create_queue_row() -> HBoxContainer:
 	speedup_btn.name = "SpeedupButton"
 	speedup_btn.text = "⚡ Hızlandır"
 	speedup_btn.custom_minimum_size = Vector2(154, 42)
-	speedup_btn.add_theme_font_size_override("font_size", 18)
+	speedup_btn.add_theme_font_size_override("font_size", 20)
 	speedup_btn.add_theme_stylebox_override("normal", _q_speedup_have_sb)
 	speedup_btn.add_theme_stylebox_override("hover", _q_speedup_have_hover)
 	speedup_btn.add_theme_stylebox_override("pressed", _q_speedup_have_hover)
@@ -854,7 +854,7 @@ func _create_queue_row() -> HBoxContainer:
 	cancel_btn.name = "CancelButton"
 	cancel_btn.text = "X İptal"
 	cancel_btn.custom_minimum_size = Vector2(90, 42)
-	cancel_btn.add_theme_font_size_override("font_size", 18)
+	cancel_btn.add_theme_font_size_override("font_size", 20)
 	cancel_btn.add_theme_stylebox_override("normal", _q_cancel_norm)
 	cancel_btn.add_theme_stylebox_override("hover", _q_cancel_hover)
 	cancel_btn.add_theme_stylebox_override("pressed", _q_cancel_pressed)

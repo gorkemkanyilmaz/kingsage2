@@ -523,7 +523,7 @@ func _populate_rows() -> void:
 		ic_pill.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		ic_pill.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 		ic_pill.add_theme_font_override("font", FontNunitoBold)
-		ic_pill.add_theme_font_size_override("font_size", 11)
+		ic_pill.add_theme_font_size_override("font_size", 14)
 		ic_pill.add_theme_color_override("font_color", tier_col)
 		ic_pill_box.add_child(ic_pill)
 		ic_ov.add_child(ic_pill_box)
@@ -546,7 +546,7 @@ func _populate_rows() -> void:
 		var o_lbl := Label.new()
 		o_lbl.text = "Sahip: %d" % owned
 		o_lbl.add_theme_font_override("font", FontNunitoBold)
-		o_lbl.add_theme_font_size_override("font_size", 18)
+		o_lbl.add_theme_font_size_override("font_size", 21)
 		o_lbl.add_theme_color_override("font_color", Color(0.48, 0.95, 0.58) if owned > 0 else Color(0.75, 0.74, 0.82))
 		o_lbl.add_theme_constant_override("outline_size", 0)
 		o_lbl.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0))
@@ -557,7 +557,7 @@ func _populate_rows() -> void:
 		action_btn.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		action_btn.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 		action_btn.add_theme_font_override("font", FontNunitoBold)
-		action_btn.add_theme_font_size_override("font_size", 20)
+		action_btn.add_theme_font_size_override("font_size", 22)
 		action_btn.add_theme_constant_override("outline_size", 0)
 		action_btn.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0))
 
@@ -585,7 +585,7 @@ func _populate_rows() -> void:
 			buy_more_btn.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 			buy_more_btn.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 			buy_more_btn.add_theme_font_override("font", FontNunitoBold)
-			buy_more_btn.add_theme_font_size_override("font_size", 18)
+			buy_more_btn.add_theme_font_size_override("font_size", 20)
 			var bm_sb := StyleBoxFlat.new()
 			bm_sb.bg_color = Color(0.14, 0.32, 0.54, 0.98)
 			bm_sb.border_color = Color(0.58, 0.88, 1.0, 0.95)

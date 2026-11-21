@@ -1292,7 +1292,7 @@ func _setup_movement_status_bar() -> void:
 	btn_track.text = " Takip Et"
 	btn_track.custom_minimum_size = Vector2(120, 42)
 	btn_track.add_theme_font_override("font", FontNunitoBold)
-	btn_track.add_theme_font_size_override("font_size", 18)
+	btn_track.add_theme_font_size_override("font_size", 20)
 	btn_track.pressed.connect(_on_track_movement_pressed)
 	hbox.add_child(btn_track)
 
@@ -1301,7 +1301,7 @@ func _setup_movement_status_bar() -> void:
 	btn_speed.text = "⚡ Hızlandır"
 	btn_speed.custom_minimum_size = Vector2(142, 42)
 	btn_speed.add_theme_font_override("font", FontNunitoBold)
-	btn_speed.add_theme_font_size_override("font_size", 18)
+	btn_speed.add_theme_font_size_override("font_size", 20)
 	btn_speed.pressed.connect(_on_bottom_march_speedup_pressed)
 	hbox.add_child(btn_speed)
 
@@ -1309,7 +1309,7 @@ func _setup_movement_status_bar() -> void:
 	btn_detail.text = " Detay & İptal"
 	btn_detail.custom_minimum_size = Vector2(150, 42)
 	btn_detail.add_theme_font_override("font", FontNunitoBold)
-	btn_detail.add_theme_font_size_override("font_size", 18)
+	btn_detail.add_theme_font_size_override("font_size", 20)
 	btn_detail.pressed.connect(_on_details_status_bar_pressed)
 	hbox.add_child(btn_detail)
 

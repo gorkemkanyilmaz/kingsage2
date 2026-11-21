@@ -1250,6 +1250,47 @@ def _prepare_world_for_player(
                 pv["diamonds"] = p_diamonds
                 pv["scrolls"] = copy.deepcopy(p_scrolls)
 
+    prof_del_sigs = [str(x) for x in (found_prof.get("deleted_report_sigs") or []) if str(x)]
+    prof_read_sigs = [str(x) for x in (found_prof.get("read_report_sigs") or []) if str(x)]
+    del_sig_set = set(prof_del_sigs)
+    read_sig_set = set(prof_read_sigs)
+
+    # Akıllı Tutorial tamamlanma koruması (çoklu köy / mezuniyet / ileri seviye binalar)
+    tut_completed = bool(found_prof.get("tutorial_completed", False))
+    tut_skipped = bool(found_prof.get("tutorial_skipped", False))
+    tut_step = int(found_prof.get("tutorial_step", 0) or 0)
+    tut_reward_claimed = bool(found_prof.get("tutorial_reward_claimed", False))
+    if not tut_completed:
+        if tut_skipped or tut_reward_claimed or tut_step >= 18 or len(owned_vids) > 1:
+            tut_completed = True
+        elif tut_step == 0:
+            for v in villages:
+                if _is_real_player_village(v) and _matches_player(str(v.get("owner", "")), norm_p):
+                    vb = v.get("buildings") if isinstance(v.get("buildings"), dict) else {}
+                    if (
+                        int(vb.get("main", 1) or 1) >= 4
+                        or int(vb.get("stable", 0) or 0) >= 1
+                        or int(vb.get("market", 0) or 0) >= 1
+                        or int(vb.get("garage", 0) or 0) >= 1
+                        or int(vb.get("snob", 0) or 0) >= 1
+                    ):
+                        tut_completed = True
+                        break
+
+    # Oyuncu için silinen raporları gizle ve okunanların unread bayrağını senkronize et
+    if isinstance(state.get("reports"), list):
+        filtered_reps = []
+        for rep in state["reports"]:
+            if not isinstance(rep, dict):
+                continue
+            rsig_str = _report_sig_str(rep)
+            if rsig_str in del_sig_set:
+                continue
+            if rsig_str in read_sig_set:
+                rep["unread"] = False
+            filtered_reps.append(rep)
+        state["reports"] = filtered_reps
+
     state["active_village_id"] = active_vid
     state["player"] = {
         "id": 1,
@@ -1261,14 +1302,18 @@ def _prepare_world_for_player(
         "starter_boost_until_unix": boost_u,
         "protection_until_unix": int(found_prof.get("protection_until_unix", 0) or 0),
         "conquest_protection_until_unix": int(found_prof.get("conquest_protection_until_unix", 0) or 0),
-        "tutorial_completed": bool(found_prof.get("tutorial_completed", False)),
-        "tutorial_skipped": bool(found_prof.get("tutorial_skipped", False)),
-        "tutorial_step": int(found_prof.get("tutorial_step", 0) or 0),
-        "tutorial_reward_claimed": bool(found_prof.get("tutorial_reward_claimed", False)),
+        "restarted_unix": int(found_prof.get("restarted_unix", 0) or 0),
+        "tutorial_completed": tut_completed,
+        "tutorial_skipped": tut_skipped,
+        "tutorial_step": tut_step,
+        "tutorial_reward_claimed": tut_reward_claimed,
         "quests": copy.deepcopy(q_dict),
         "gold_armour": int(found_prof.get("gold_armour", 0) or 0),
         "diamonds": p_diamonds,
         "scrolls": p_scrolls,
+        "read_report_sigs": prof_read_sigs[-400:],
+        "deleted_report_sigs": prof_del_sigs[-400:],
+        "unread_toggled_sigs": [str(x) for x in (found_prof.get("unread_toggled_sigs") or []) if str(x)][-200:],
         "premium": False,
     }
     w["registered_real_players"] = _collect_real_players(w)
@@ -1395,6 +1440,89 @@ def _report_sig(rep: Any) -> tuple:
     )
 
 
+def _report_sig_str(rep: Any) -> str:
+    t = _report_sig(rep)
+    if len(t) < 5:
+        return ""
+    return f"{t[0]}:{t[1]}:{t[2]}:{t[3]}:{t[4]}"
+
+
+def _merge_quests_dict(base_q: Any, inc_q: Any) -> Dict[str, Any]:
+    bq = base_q if isinstance(base_q, dict) else {}
+    iq = inc_q if isinstance(inc_q, dict) else {}
+    b_claimed = [str(x) for x in (bq.get("claimed") or []) if str(x)]
+    i_claimed = [str(x) for x in (iq.get("claimed") or []) if str(x)]
+    claimed = list(dict.fromkeys(b_claimed + i_claimed))
+
+    b_stats = bq.get("stats") if isinstance(bq.get("stats"), dict) else {}
+    i_stats = iq.get("stats") if isinstance(iq.get("stats"), dict) else {}
+    merged_stats: Dict[str, Any] = copy.deepcopy(b_stats)
+    for sk, sv in i_stats.items():
+        if sk == "counted_movement_ids":
+            b_arr = [str(x) for x in (b_stats.get(sk) or []) if str(x)] if isinstance(b_stats.get(sk), list) else []
+            i_arr = [str(x) for x in sv if str(x)] if isinstance(sv, list) else []
+            merged_stats[sk] = list(dict.fromkeys(b_arr + i_arr))[-200:]
+        elif isinstance(sv, (int, float)) and not isinstance(sv, bool):
+            prev_v = b_stats.get(sk, 0)
+            prev_num = int(prev_v or 0) if isinstance(prev_v, (int, float)) else 0
+            merged_stats[sk] = max(prev_num, int(sv))
+        elif sk not in merged_stats:
+            merged_stats[sk] = copy.deepcopy(sv)
+    return {"claimed": claimed, "stats": merged_stats}
+
+
+def _merge_player_profile_dicts(base_prof: Any, inc_prof: Any, c_is_newer: bool = True) -> Dict[str, Any]:
+    bp = base_prof if isinstance(base_prof, dict) else {}
+    ip = inc_prof if isinstance(inc_prof, dict) else {}
+    b_restart = int(bp.get("restarted_unix", 0) or 0)
+    i_restart = int(ip.get("restarted_unix", 0) or 0)
+    if i_restart > b_restart and i_restart > 0:
+        res = copy.deepcopy(ip)
+        b_del = [str(x) for x in (bp.get("deleted_report_sigs") or []) if str(x)]
+        i_del = [str(x) for x in (ip.get("deleted_report_sigs") or []) if str(x)]
+        res["deleted_report_sigs"] = list(dict.fromkeys(b_del + i_del))[-400:]
+        return res
+
+    tut_done = bool(bp.get("tutorial_completed", False)) or bool(ip.get("tutorial_completed", False))
+    tut_skip = bool(bp.get("tutorial_skipped", False)) or bool(ip.get("tutorial_skipped", False))
+    tut_rew = bool(bp.get("tutorial_reward_claimed", False)) or bool(ip.get("tutorial_reward_claimed", False))
+    tut_step = max(int(bp.get("tutorial_step", 0) or 0), int(ip.get("tutorial_step", 0) or 0))
+    quests = _merge_quests_dict(bp.get("quests"), ip.get("quests"))
+
+    b_del = [str(x) for x in (bp.get("deleted_report_sigs") or []) if str(x)]
+    i_del = [str(x) for x in (ip.get("deleted_report_sigs") or []) if str(x)]
+    del_sigs = list(dict.fromkeys(b_del + i_del))[-400:]
+
+    b_read = [str(x) for x in (bp.get("read_report_sigs") or []) if str(x)]
+    i_read = [str(x) for x in (ip.get("read_report_sigs") or []) if str(x)]
+    i_unreads = {str(x) for x in (ip.get("unread_toggled_sigs") or []) if str(x)}
+    b_unreads = {str(x) for x in (bp.get("unread_toggled_sigs") or []) if str(x)}
+    if c_is_newer:
+        # Yeni istemcide özellikle okunmadı işaretlenenler hariç her iki tarafın okunanlarını birleştir (bayat [] istemci sıfırlamasın)
+        effective_unreads = i_unreads - set(i_read)
+        read_sigs = [x for x in dict.fromkeys(b_read + i_read) if x not in effective_unreads][-400:]
+        merged_unreads = [x for x in dict.fromkeys(list(b_unreads | i_unreads)) if x not in set(i_read)][-200:]
+    else:
+        effective_unreads = b_unreads - set(b_read)
+        read_sigs = [x for x in dict.fromkeys(b_read + i_read) if x not in effective_unreads][-400:]
+        merged_unreads = [x for x in dict.fromkeys(list(b_unreads | i_unreads)) if x not in set(b_read)][-200:]
+
+    out = copy.deepcopy(bp)
+    for k, v in ip.items():
+        if v not in (None, "") or k not in out:
+            out[k] = copy.deepcopy(v)
+    out["restarted_unix"] = max(b_restart, i_restart)
+    out["tutorial_completed"] = tut_done
+    out["tutorial_skipped"] = tut_skip
+    out["tutorial_reward_claimed"] = tut_rew
+    out["tutorial_step"] = tut_step
+    out["quests"] = quests
+    out["read_report_sigs"] = read_sigs
+    out["deleted_report_sigs"] = del_sigs
+    out["unread_toggled_sigs"] = merged_unreads
+    return out
+
+
 def _message_sig(msg: Any) -> tuple:
     if not isinstance(msg, dict):
         return ("",)
@@ -1425,37 +1553,61 @@ def merge_world_state(server_w: Optional[Dict[str, Any]], client_raw: Dict[str, 
     c_state = c_w.setdefault("state", {})
     c_w_dict = c_state.setdefault("world", {})
 
-    # Güncel oyuncu profilini client'ın state.player'ından player_profiles içine yansıt
+    # Güncel oyuncu profilini client'ın state.player'ından player_profiles içine yansıt (monotonik korumalı)
     c_player = c_state.get("player")
+    s_profs_src = ((server_w or {}).get("state", {}).get("world", {}).get("player_profiles", {}) or {})
+    s_existing_prof: Dict[str, Any] = {}
+    if act_name and isinstance(s_profs_src, dict):
+        for spk, spv in s_profs_src.items():
+            if _matches_player(str(spk), act_name) and isinstance(spv, dict):
+                s_existing_prof = spv
+                break
+    s_last_raw = int((server_w or {}).get("last_saved_unix", 0) or 0)
+    c_last_raw = int(c_w.get("last_saved_unix", now) or now)
+    c_has_act_village = any(
+        _is_real_player_village(v) and _matches_player(str(v.get("owner", "")), act_name)
+        for v in (c_state.get("villages") or [])
+    )
     if isinstance(c_player, dict) and act_name:
         c_profs = c_w_dict.setdefault("player_profiles", {})
-        s_existing_prof = ((server_w or {}).get("state", {}).get("world", {}).get("player_profiles", {}) or {}).get(act_name, {})
-        if not isinstance(s_existing_prof, dict):
-            s_existing_prof = {}
-        raw_cd = c_player.get("diamonds")
-        c_diamonds = max(0, int(raw_cd)) if raw_cd is not None else max(0, int(s_existing_prof.get("diamonds", STARTER_DIAMONDS)))
-        c_scrolls = copy.deepcopy(c_player["scrolls"]) if isinstance(c_player.get("scrolls"), dict) else copy.deepcopy(s_existing_prof.get("scrolls") if isinstance(s_existing_prof.get("scrolls"), dict) else {})
-        c_profs[act_name] = {
-            "name": act_name,
-            "provider": str(c_player.get("provider", "")),
-            "auth_id": str(c_player.get("auth_id", "")),
-            "points": int(c_player.get("points", 0) or 0),
-            "created_unix": int(c_player.get("created_unix", 0) or 0),
-            "starter_boost_until_unix": int(c_player.get("starter_boost_until_unix", 0) or 0),
-            "protection_until_unix": int(c_player.get("protection_until_unix", 0) or 0),
-            "conquest_protection_until_unix": int(c_player.get("conquest_protection_until_unix", 0) or 0),
-            "tutorial_completed": bool(c_player.get("tutorial_completed", False)),
-            "tutorial_skipped": bool(c_player.get("tutorial_skipped", False)),
-            "tutorial_step": int(c_player.get("tutorial_step", 0) or 0),
-            "tutorial_reward_claimed": bool(c_player.get("tutorial_reward_claimed", False)),
-            "quests": copy.deepcopy(c_player.get("quests") if isinstance(c_player.get("quests"), dict) else {"claimed": [], "stats": {}}),
-            "gold_armour": int(c_player.get("gold_armour", 0) or 0),
-            "diamonds": c_diamonds,
-            "scrolls": c_scrolls,
-            "read_report_sigs": list(dict.fromkeys([str(x) for x in (c_player.get("read_report_sigs") if isinstance(c_player.get("read_report_sigs"), list) else (s_existing_prof.get("read_report_sigs") or []))]))[-400:],
-            "deleted_report_sigs": list(dict.fromkeys([str(x) for x in (c_player.get("deleted_report_sigs") if isinstance(c_player.get("deleted_report_sigs"), list) else (s_existing_prof.get("deleted_report_sigs") or []))]))[-400:],
-            "active_village_id": int(c_state.get("active_village_id", -1) or -1),
-        }
+        c_name_matches = _matches_player(str(c_player.get("name", "")), act_name)
+        if not c_name_matches and s_existing_prof:
+            c_profs[act_name] = copy.deepcopy(s_existing_prof)
+        else:
+            raw_cd = c_player.get("diamonds")
+            c_diamonds = max(0, int(raw_cd)) if raw_cd is not None else max(0, int(s_existing_prof.get("diamonds", STARTER_DIAMONDS)))
+            c_scrolls = copy.deepcopy(c_player["scrolls"]) if isinstance(c_player.get("scrolls"), dict) else copy.deepcopy(s_existing_prof.get("scrolls") if isinstance(s_existing_prof.get("scrolls"), dict) else {})
+            incoming_prof = {
+                "name": act_name,
+                "provider": str(c_player.get("provider", s_existing_prof.get("provider", ""))),
+                "auth_id": str(c_player.get("auth_id", s_existing_prof.get("auth_id", ""))),
+                "points": int(c_player.get("points", s_existing_prof.get("points", 0)) or 0),
+                "created_unix": int(c_player.get("created_unix", s_existing_prof.get("created_unix", 0)) or 0),
+                "starter_boost_until_unix": int(c_player.get("starter_boost_until_unix", s_existing_prof.get("starter_boost_until_unix", 0)) or 0),
+                "protection_until_unix": int(c_player.get("protection_until_unix", s_existing_prof.get("protection_until_unix", 0)) or 0),
+                "conquest_protection_until_unix": int(c_player.get("conquest_protection_until_unix", s_existing_prof.get("conquest_protection_until_unix", 0)) or 0),
+                "restarted_unix": int(c_player.get("restarted_unix", s_existing_prof.get("restarted_unix", 0)) or 0),
+                "tutorial_completed": bool(c_player.get("tutorial_completed", False)),
+                "tutorial_skipped": bool(c_player.get("tutorial_skipped", False)),
+                "tutorial_step": int(c_player.get("tutorial_step", 0) or 0),
+                "tutorial_reward_claimed": bool(c_player.get("tutorial_reward_claimed", False)),
+                "quests": copy.deepcopy(c_player.get("quests") if isinstance(c_player.get("quests"), dict) else {"claimed": [], "stats": {}}),
+                "gold_armour": int(c_player.get("gold_armour", s_existing_prof.get("gold_armour", 0)) or 0),
+                "diamonds": c_diamonds,
+                "scrolls": c_scrolls,
+                "active_village_id": int(c_state.get("active_village_id", s_existing_prof.get("active_village_id", -1)) or -1),
+            }
+            if isinstance(c_player.get("read_report_sigs"), list):
+                incoming_prof["read_report_sigs"] = [str(x) for x in c_player["read_report_sigs"] if str(x)]
+            if isinstance(c_player.get("deleted_report_sigs"), list):
+                incoming_prof["deleted_report_sigs"] = [str(x) for x in c_player["deleted_report_sigs"] if str(x)]
+            if isinstance(c_player.get("unread_toggled_sigs"), list):
+                incoming_prof["unread_toggled_sigs"] = [str(x) for x in c_player["unread_toggled_sigs"] if str(x)]
+            c_profs[act_name] = _merge_player_profile_dicts(
+                s_existing_prof,
+                incoming_prof,
+                c_is_newer=(c_has_act_village and c_last_raw >= s_last_raw),
+            )
 
     if not server_w or not isinstance(server_w.get("state"), dict) or not (server_w["state"].get("villages")):
         merged = copy.deepcopy(c_w)
@@ -1472,12 +1624,16 @@ def merge_world_state(server_w: Optional[Dict[str, Any]], client_raw: Dict[str, 
     s_last = int(merged.get("last_saved_unix", 0) or 0)
     c_last = int(c_w.get("last_saved_unix", now) or now)
 
-    # 1. Profiller ve başlangıç bonusları (her oyuncunun verisi ayrı korunur)
+    # 1. Profiller ve başlangıç bonusları (her oyuncunun verisi monotonik şekilde korunur)
     s_profs = s_w_dict.setdefault("player_profiles", {})
     c_profs = c_w_dict.get("player_profiles") if isinstance(c_w_dict.get("player_profiles"), dict) else {}
     for pk, pv in c_profs.items():
         if isinstance(pv, dict) and (_matches_player(pk, act_name) or pk not in s_profs):
-            s_profs[pk] = copy.deepcopy(pv)
+            s_profs[pk] = _merge_player_profile_dicts(
+                s_profs.get(pk),
+                pv,
+                c_is_newer=(c_has_act_village and c_last >= s_last),
+            )
 
     s_psb = s_w_dict.setdefault("player_starter_boost", {})
     c_psb = c_w_dict.get("player_starter_boost") if isinstance(c_w_dict.get("player_starter_boost"), dict) else {}
@@ -1910,8 +2066,19 @@ def merge_world_state(server_w: Optional[Dict[str, Any]], client_raw: Dict[str, 
             s_msgs[msg_idx[msig]]["read"] = True
     s_state["messages"] = s_msgs[-250:]
 
+    act_prof_final: Dict[str, Any] = {}
+    for pk, pv in s_profs.items():
+        if _matches_player(str(pk), act_name) and isinstance(pv, dict):
+            act_prof_final = pv
+            break
+    act_read_sigs = {str(x) for x in (act_prof_final.get("read_report_sigs") or []) if str(x)}
+    act_del_sigs = {str(x) for x in (act_prof_final.get("deleted_report_sigs") or []) if str(x)}
+
     s_reps = list(s_state.get("reports") or [])
-    seen_reps = {_report_sig(r) for r in s_reps if isinstance(r, dict)}
+    rep_idx_by_sig: Dict[tuple, int] = {}
+    for idx, sr in enumerate(s_reps):
+        if isinstance(sr, dict):
+            rep_idx_by_sig[_report_sig(sr)] = idx
     for r in (c_state.get("reports") or []):
         if not isinstance(r, dict):
             continue
@@ -1924,10 +2091,42 @@ def merge_world_state(server_w: Optional[Dict[str, Any]], client_raw: Dict[str, 
             if fv in vid_remap:
                 rc["data"]["from_village_id"] = vid_remap[fv]
         rsig = _report_sig(rc)
-        if rsig not in seen_reps:
-            seen_reps.add(rsig)
+        rsig_str = _report_sig_str(rc)
+        if rsig not in rep_idx_by_sig:
+            rep_idx_by_sig[rsig] = len(s_reps)
+            if rsig_str in act_read_sigs:
+                rc["unread"] = False
             s_reps.append(rc)
-    s_state["reports"] = s_reps[-250:]
+        else:
+            existing_rep = s_reps[rep_idx_by_sig[rsig]]
+            rep_vid = int(existing_rep.get("village_id", 0) or 0)
+            if rep_vid in acting_vids_now or rsig_str in act_read_sigs:
+                if rsig_str in act_read_sigs:
+                    existing_rep["unread"] = False
+                elif c_has_act_village and c_last >= s_last and "unread" in rc:
+                    existing_rep["unread"] = bool(rc.get("unread", False))
+    for rep in s_reps:
+        if isinstance(rep, dict) and _report_sig_str(rep) in act_read_sigs:
+            rep["unread"] = False
+    # Yalnızca aktif oyuncuya ait olup silinmiş raporları kanonik listeden de temizle (ortak çoklu oyuncu raporları diğer oyuncuda kalır, _prepare_world_for_player gizler)
+    cleaned_reps: List[Dict[str, Any]] = []
+    for rep in s_reps:
+        if not isinstance(rep, dict):
+            continue
+        if _report_sig_str(rep) in act_del_sigs:
+            rep_vid = int(rep.get("village_id", 0) or 0)
+            rdata = rep.get("data") if isinstance(rep.get("data"), dict) else {}
+            t_vid = int(rdata.get("target_village_id", 0) or 0)
+            t_v = s_by_id.get(t_vid) if t_vid > 0 else None
+            shared_with_other_human = (
+                t_v is not None
+                and _is_real_player_village(t_v)
+                and not _matches_player(str(t_v.get("owner", "")), act_name)
+            )
+            if rep_vid in acting_vids_now and not shared_with_other_human:
+                continue
+        cleaned_reps.append(rep)
+    s_state["reports"] = cleaned_reps[-250:]
 
     # 7. Dünya meta & kayıtlı oyuncular & tek başlangıç köyü denetimi
     _deduplicate_world_villages(merged, act_name)

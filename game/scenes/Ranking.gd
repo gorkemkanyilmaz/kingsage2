@@ -103,7 +103,7 @@ func _style_header_alliance_btn() -> void:
 	btn_alliance.expand_icon = true
 	btn_alliance.add_theme_constant_override("icon_max_width", 28)
 	btn_alliance.add_theme_font_override("font", FontCinzelBold)
-	btn_alliance.add_theme_font_size_override("font_size", 18)
+	btn_alliance.add_theme_font_size_override("font_size", 20)
 	btn_alliance.add_theme_color_override("font_color", Color(0.98, 0.93, 0.72))
 	if not btn_alliance.pressed.is_connected(_on_header_alliance_pressed):
 		btn_alliance.pressed.connect(_on_header_alliance_pressed)
@@ -462,7 +462,7 @@ func _make_player_row(rank: int, entry: Dictionary, is_player: bool) -> PanelCon
 		v_count
 	]
 	sub_lbl.add_theme_font_override("font", FontNunitoBold)
-	sub_lbl.add_theme_font_size_override("font_size", 18)
+	sub_lbl.add_theme_font_size_override("font_size", 21)
 	sub_lbl.add_theme_color_override("font_color", Color(0.74, 0.70, 0.62))
 	info.add_child(sub_lbl)
 	row.add_child(info)
@@ -484,7 +484,7 @@ func _make_player_row(rank: int, entry: Dictionary, is_player: bool) -> PanelCon
 		you.text = "SENİN KRALLIĞIN"
 		you.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 		you.add_theme_font_override("font", FontNunitoBold)
-		you.add_theme_font_size_override("font_size", 14)
+		you.add_theme_font_size_override("font_size", 18)
 		you.add_theme_color_override("font_color", Color(0.55, 0.95, 0.65))
 		pts_box.add_child(you)
 	row.add_child(pts_box)
@@ -521,7 +521,7 @@ func _make_alliance_row(rank: int, a_row: Dictionary, is_mine: bool) -> PanelCon
 		str(a_row.get("leader", "-"))
 	]
 	sub_lbl.add_theme_font_override("font", FontNunitoBold)
-	sub_lbl.add_theme_font_size_override("font_size", 18)
+	sub_lbl.add_theme_font_size_override("font_size", 21)
 	sub_lbl.add_theme_color_override("font_color", Color(0.74, 0.70, 0.62))
 	info.add_child(sub_lbl)
 	row.add_child(info)
@@ -543,7 +543,7 @@ func _make_alliance_row(rank: int, a_row: Dictionary, is_mine: bool) -> PanelCon
 	sub_pow.text = "TOPLAM GÜÇ"
 	sub_pow.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	sub_pow.add_theme_font_override("font", FontNunitoBold)
-	sub_pow.add_theme_font_size_override("font_size", 14)
+	sub_pow.add_theme_font_size_override("font_size", 18)
 	sub_pow.add_theme_color_override("font_color", Color(0.75, 0.68, 0.52))
 	pts_box.add_child(sub_pow)
 	row.add_child(pts_box)

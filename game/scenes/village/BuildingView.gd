@@ -163,7 +163,7 @@ func _build_ui() -> void:
 	var nunito_bold: Font = ResourceLoader.load("res://assets/fonts/Nunito-Bold.ttf") as Font
 	if nunito_bold != null:
 		_countdown_label.add_theme_font_override("font", nunito_bold)
-	_countdown_label.add_theme_font_size_override("font_size", 17)
+	_countdown_label.add_theme_font_size_override("font_size", 19)
 	_countdown_label.add_theme_color_override("font_color", Color(1.0, 0.93, 0.56))
 	_countdown_label.add_theme_color_override("font_outline_color", Color(0.04, 0.03, 0.05, 0.98))
 	_countdown_label.add_theme_constant_override("outline_size", 2)
@@ -180,7 +180,7 @@ func _build_ui() -> void:
 	_badge_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_badge_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	_badge_label.add_theme_font_override("font", preload("res://assets/fonts/Nunito-Bold.ttf"))
-	_badge_label.add_theme_font_size_override("font_size", 18)
+	_badge_label.add_theme_font_size_override("font_size", 20)
 	_badge_label.text = "Sv. 1"
 	_level_badge.add_child(_badge_label)
 	add_child(_level_badge)

@@ -39,6 +39,7 @@ var _cloud_poll_in_flight: bool = false
 var _last_local_mutation_unix: int = 0
 var _wallet_lock_until_unix: int = 0
 var _is_applying_cloud_sync: bool = false
+var _suppress_reset_save: bool = false
 var suppress_auto_conquered_prompt: bool = false
 
 
@@ -132,7 +133,7 @@ func _notification(what: int) -> void:
 
 
 func _on_state_changed_autosave() -> void:
-	if _is_applying_cloud_sync:
+	if _is_applying_cloud_sync or _suppress_reset_save:
 		return
 	var now := int(Time.get_unix_time_from_system())
 	_last_local_mutation_unix = now
@@ -958,6 +959,136 @@ func _sync_game_config_speed(state: Dictionary, now_unix: int = 0) -> void:
 		gc.sync_from_world(w_dict, now_unix)
 
 
+static func _report_sig_str(r: Dictionary) -> String:
+	var rdata: Dictionary = r.get("data", {}) if typeof(r.get("data")) == TYPE_DICTIONARY else {}
+	return "%s:%d:%d:%d:%d" % [
+		str(r.get("type", "")),
+		int(r.get("village_id", 0)),
+		int(r.get("unix", r.get("created_unix", 0))),
+		int(rdata.get("target_village_id", 0)),
+		int(rdata.get("from_village_id", 0)),
+	]
+
+
+func _merge_string_sig_arrays(a_val, b_val, max_len: int = 400) -> Array:
+	var seen: Dictionary = {}
+	var out: Array = []
+	for src in [a_val, b_val]:
+		if typeof(src) == TYPE_ARRAY:
+			for item in (src as Array):
+				var s := str(item)
+				if not s.is_empty() and not seen.has(s):
+					seen[s] = true
+					out.append(s)
+	if out.size() > max_len:
+		out = out.slice(out.size() - max_len)
+	return out
+
+
+func _merge_quests_dict(base_q: Dictionary, inc_q: Dictionary) -> Dictionary:
+	var claimed := _merge_string_sig_arrays(base_q.get("claimed", []), inc_q.get("claimed", []), 200)
+	var b_stats: Dictionary = base_q.get("stats", {}) if typeof(base_q.get("stats")) == TYPE_DICTIONARY else {}
+	var i_stats: Dictionary = inc_q.get("stats", {}) if typeof(inc_q.get("stats")) == TYPE_DICTIONARY else {}
+	var merged_stats: Dictionary = b_stats.duplicate(true)
+	for sk in i_stats.keys():
+		if str(sk) == "counted_movement_ids":
+			merged_stats[sk] = _merge_string_sig_arrays(b_stats.get(sk, []), i_stats.get(sk, []), 200)
+		else:
+			var iv = i_stats[sk]
+			if typeof(iv) == TYPE_INT or typeof(iv) == TYPE_FLOAT:
+				var bv = b_stats.get(sk, 0)
+				var bnum: int = int(bv) if (typeof(bv) == TYPE_INT or typeof(bv) == TYPE_FLOAT) else 0
+				merged_stats[sk] = maxi(bnum, int(iv))
+			elif not merged_stats.has(sk):
+				merged_stats[sk] = iv.duplicate(true) if (typeof(iv) == TYPE_DICTIONARY or typeof(iv) == TYPE_ARRAY) else iv
+	return {"claimed": claimed, "stats": merged_stats}
+
+
+func _merge_profile_dicts(base_p: Dictionary, inc_p: Dictionary, prefer_inc_read: bool = true) -> Dictionary:
+	if base_p.is_empty():
+		return inc_p.duplicate(true)
+	if inc_p.is_empty():
+		return base_p.duplicate(true)
+	var b_restart := int(base_p.get("restarted_unix", 0))
+	var i_restart := int(inc_p.get("restarted_unix", 0))
+	if i_restart > b_restart and i_restart > 0:
+		var r_out := inc_p.duplicate(true)
+		r_out["deleted_report_sigs"] = _merge_string_sig_arrays(base_p.get("deleted_report_sigs", []), inc_p.get("deleted_report_sigs", []))
+		return r_out
+
+	var out := base_p.duplicate(true)
+	for k in inc_p.keys():
+		var v = inc_p[k]
+		if typeof(v) == TYPE_STRING and (v as String).is_empty() and out.has(k):
+			continue
+		out[k] = v.duplicate(true) if (typeof(v) == TYPE_DICTIONARY or typeof(v) == TYPE_ARRAY) else v
+	out["restarted_unix"] = maxi(b_restart, i_restart)
+	out["tutorial_completed"] = bool(base_p.get("tutorial_completed", false)) or bool(inc_p.get("tutorial_completed", false))
+	out["tutorial_skipped"] = bool(base_p.get("tutorial_skipped", false)) or bool(inc_p.get("tutorial_skipped", false))
+	out["tutorial_reward_claimed"] = bool(base_p.get("tutorial_reward_claimed", false)) or bool(inc_p.get("tutorial_reward_claimed", false))
+	out["tutorial_step"] = maxi(int(base_p.get("tutorial_step", 0)), int(inc_p.get("tutorial_step", 0)))
+	var bq: Dictionary = base_p.get("quests", {}) if typeof(base_p.get("quests")) == TYPE_DICTIONARY else {}
+	var iq: Dictionary = inc_p.get("quests", {}) if typeof(inc_p.get("quests")) == TYPE_DICTIONARY else {}
+	out["quests"] = _merge_quests_dict(bq, iq)
+	out["deleted_report_sigs"] = _merge_string_sig_arrays(base_p.get("deleted_report_sigs", []), inc_p.get("deleted_report_sigs", []))
+	var merged_reads := _merge_string_sig_arrays(base_p.get("read_report_sigs", []), inc_p.get("read_report_sigs", []))
+	var unread_toggled := _merge_string_sig_arrays(base_p.get("unread_toggled_sigs", []), inc_p.get("unread_toggled_sigs", []), 200)
+	var ut_set: Dictionary = {}
+	var active_reads: Variant = inc_p.get("read_report_sigs", []) if prefer_inc_read else base_p.get("read_report_sigs", [])
+	var ar_set: Dictionary = {}
+	if typeof(active_reads) == TYPE_ARRAY:
+		for rs in (active_reads as Array):
+			ar_set[str(rs)] = true
+	for us in unread_toggled:
+		if not ar_set.has(str(us)):
+			ut_set[str(us)] = true
+	var final_reads: Array = []
+	for rs2 in merged_reads:
+		if not ut_set.has(str(rs2)):
+			final_reads.append(str(rs2))
+	var final_unreads: Array = []
+	for us2 in unread_toggled:
+		if not ar_set.has(str(us2)):
+			final_unreads.append(str(us2))
+	out["read_report_sigs"] = final_reads
+	out["unread_toggled_sigs"] = final_unreads
+	return out
+
+
+func _apply_report_sigs_to_state(state_dict: Dictionary, player_name: String) -> void:
+	if typeof(state_dict) != TYPE_DICTIONARY:
+		return
+	var p_dict: Dictionary = state_dict.get("player", {}) if typeof(state_dict.get("player")) == TYPE_DICTIONARY else {}
+	var w_dict: Dictionary = state_dict.get("world", {}) if typeof(state_dict.get("world")) == TYPE_DICTIONARY else {}
+	var profs: Dictionary = w_dict.get("player_profiles", {}) if typeof(w_dict.get("player_profiles")) == TYPE_DICTIONARY else {}
+	var match_prof: Dictionary = {}
+	for k in profs.keys():
+		if _matches_player(str(k), player_name) and typeof(profs[k]) == TYPE_DICTIONARY:
+			match_prof = profs[k] as Dictionary
+			break
+	var del_arr := _merge_string_sig_arrays(match_prof.get("deleted_report_sigs", []), p_dict.get("deleted_report_sigs", []))
+	var read_arr := _merge_string_sig_arrays(match_prof.get("read_report_sigs", []), p_dict.get("read_report_sigs", []))
+	var del_set: Dictionary = {}
+	for ds in del_arr:
+		del_set[str(ds)] = true
+	var read_set: Dictionary = {}
+	for rs in read_arr:
+		read_set[str(rs)] = true
+	if typeof(state_dict.get("reports")) == TYPE_ARRAY:
+		var kept: Array = []
+		for r in (state_dict["reports"] as Array):
+			if typeof(r) != TYPE_DICTIONARY:
+				continue
+			var rd := r as Dictionary
+			var rsig := _report_sig_str(rd)
+			if del_set.has(rsig):
+				continue
+			if read_set.has(rsig):
+				rd["unread"] = false
+			kept.append(rd)
+		state_dict["reports"] = kept
+
+
 ## Oyuncu profilini (tutorial, görevler, altın zırh, seçili köy vb.) dünya haritasına yazar.
 func _sync_player_profile_to_world(state_dict: Dictionary) -> void:
 	if typeof(state_dict) != TYPE_DICTIONARY:
@@ -975,22 +1106,32 @@ func _sync_player_profile_to_world(state_dict: Dictionary) -> void:
 	if typeof(w_dict.get("player_profiles")) != TYPE_DICTIONARY:
 		w_dict["player_profiles"] = {}
 	var profiles: Dictionary = w_dict["player_profiles"]
+	var existing_prof: Dictionary = {}
+	for k in profiles.keys():
+		if _matches_player(str(k), p_name) and typeof(profiles[k]) == TYPE_DICTIONARY:
+			existing_prof = profiles[k] as Dictionary
+			break
 	var quests_copy: Dictionary = {"claimed": [], "stats": {}}
 	if typeof(p.get("quests")) == TYPE_DICTIONARY:
 		quests_copy = (p["quests"] as Dictionary).duplicate(true)
 	var scrolls_copy: Dictionary = {}
 	if typeof(p.get("scrolls")) == TYPE_DICTIONARY:
 		scrolls_copy = (p["scrolls"] as Dictionary).duplicate(true)
-	var p_diamonds := maxi(0, int(p.get("diamonds", 35))) if (p.has("diamonds") and p.get("diamonds") != null) else 35
-	var prof := {
+	elif typeof(existing_prof.get("scrolls")) == TYPE_DICTIONARY:
+		scrolls_copy = (existing_prof["scrolls"] as Dictionary).duplicate(true)
+	var p_diamonds := maxi(0, int(p.get("diamonds", 35))) if (p.has("diamonds") and p.get("diamonds") != null) else (maxi(0, int(existing_prof.get("diamonds", 35))) if existing_prof.has("diamonds") and existing_prof.get("diamonds") != null else 35)
+	var read_sigs := _merge_string_sig_arrays(p.get("read_report_sigs", []) if p.has("read_report_sigs") else existing_prof.get("read_report_sigs", []), [])
+	var del_sigs := _merge_string_sig_arrays(existing_prof.get("deleted_report_sigs", []), p.get("deleted_report_sigs", []))
+	var inc_prof := {
 		"name": p_name,
-		"provider": str(p.get("provider", "")),
-		"auth_id": str(p.get("auth_id", "")),
+		"provider": str(p.get("provider", existing_prof.get("provider", ""))),
+		"auth_id": str(p.get("auth_id", existing_prof.get("auth_id", ""))),
 		"points": int(p.get("points", 0)),
 		"created_unix": int(p.get("created_unix", 0)),
 		"starter_boost_until_unix": int(p.get("starter_boost_until_unix", 0)),
 		"protection_until_unix": int(p.get("protection_until_unix", 0)),
 		"conquest_protection_until_unix": int(p.get("conquest_protection_until_unix", 0)),
+		"restarted_unix": int(p.get("restarted_unix", existing_prof.get("restarted_unix", 0))),
 		"tutorial_completed": bool(p.get("tutorial_completed", false)),
 		"tutorial_skipped": bool(p.get("tutorial_skipped", false)),
 		"tutorial_step": int(p.get("tutorial_step", 0)),
@@ -999,9 +1140,21 @@ func _sync_player_profile_to_world(state_dict: Dictionary) -> void:
 		"gold_armour": int(p.get("gold_armour", 0)),
 		"diamonds": p_diamonds,
 		"scrolls": scrolls_copy,
+		"read_report_sigs": read_sigs,
+		"deleted_report_sigs": del_sigs,
+		"unread_toggled_sigs": _merge_string_sig_arrays(p.get("unread_toggled_sigs", []) if p.has("unread_toggled_sigs") else existing_prof.get("unread_toggled_sigs", []), [], 200),
 		"active_village_id": int(state_dict.get("active_village_id", -1)),
 	}
-	profiles[p_name] = prof
+	var merged_prof := _merge_profile_dicts(existing_prof, inc_prof, p.has("read_report_sigs"))
+	profiles[p_name] = merged_prof
+	p["tutorial_completed"] = bool(merged_prof.get("tutorial_completed", false))
+	p["tutorial_skipped"] = bool(merged_prof.get("tutorial_skipped", false))
+	p["tutorial_reward_claimed"] = bool(merged_prof.get("tutorial_reward_claimed", false))
+	p["tutorial_step"] = int(merged_prof.get("tutorial_step", 0))
+	p["quests"] = (merged_prof["quests"] as Dictionary).duplicate(true)
+	p["read_report_sigs"] = (merged_prof.get("read_report_sigs", []) as Array).duplicate(true)
+	p["deleted_report_sigs"] = (merged_prof.get("deleted_report_sigs", []) as Array).duplicate(true)
+	p["unread_toggled_sigs"] = (merged_prof.get("unread_toggled_sigs", []) as Array).duplicate(true)
 
 
 ## İlgili oyuncunun profilini dünya haritasından `state_dict["player"]` içine yükler.
@@ -1041,6 +1194,29 @@ func _restore_player_profile_from_world(state_dict: Dictionary, player_name: Str
 		r_diamonds = maxi(0, int(found.get("diamonds", 35)))
 	elif cur_same and cur_p.has("diamonds") and cur_p.get("diamonds") != null:
 		r_diamonds = maxi(0, int(cur_p.get("diamonds", 35)))
+	var r_read_sigs := _merge_string_sig_arrays(found.get("read_report_sigs", []), cur_p.get("read_report_sigs", []) if cur_same else [])
+	var r_del_sigs := _merge_string_sig_arrays(found.get("deleted_report_sigs", []), cur_p.get("deleted_report_sigs", []) if cur_same else [])
+
+	var tut_completed := bool(found.get("tutorial_completed", false)) or (cur_same and bool(cur_p.get("tutorial_completed", false)))
+	var tut_skipped := bool(found.get("tutorial_skipped", false)) or (cur_same and bool(cur_p.get("tutorial_skipped", false)))
+	var tut_reward_claimed := bool(found.get("tutorial_reward_claimed", false)) or (cur_same and bool(cur_p.get("tutorial_reward_claimed", false)))
+	var tut_step := maxi(int(found.get("tutorial_step", 0)), int(cur_p.get("tutorial_step", 0)) if cur_same else 0)
+	if not tut_completed:
+		if tut_skipped or tut_reward_claimed or tut_step >= 18:
+			tut_completed = true
+		else:
+			var owned_cnt := 0
+			var v_arr = state_dict.get("villages", [])
+			if typeof(v_arr) == TYPE_ARRAY:
+				for item_v in (v_arr as Array):
+					if _is_real_player_village_dict(item_v) and _matches_player(str((item_v as Dictionary).get("owner", "")), norm_p):
+						owned_cnt += 1
+						var vb: Dictionary = (item_v as Dictionary).get("buildings", {}) if typeof((item_v as Dictionary).get("buildings")) == TYPE_DICTIONARY else {}
+						if tut_step == 0 and (int(vb.get("main", 1)) >= 4 or int(vb.get("stable", 0)) >= 1 or int(vb.get("market", 0)) >= 1 or int(vb.get("garage", 0)) >= 1 or int(vb.get("snob", 0)) >= 1):
+							tut_completed = true
+			if owned_cnt > 1:
+				tut_completed = true
+
 	var restored := {
 		"id": 1,
 		"name": norm_p,
@@ -1051,17 +1227,22 @@ func _restore_player_profile_from_world(state_dict: Dictionary, player_name: Str
 		"starter_boost_until_unix": int(found.get("starter_boost_until_unix", boost_rec.get("starter_boost_until_unix", 0))),
 		"protection_until_unix": int(found.get("protection_until_unix", 0)),
 		"conquest_protection_until_unix": int(found.get("conquest_protection_until_unix", 0)),
-		"tutorial_completed": bool(found.get("tutorial_completed", false)),
-		"tutorial_skipped": bool(found.get("tutorial_skipped", false)),
-		"tutorial_step": int(found.get("tutorial_step", 0)),
-		"tutorial_reward_claimed": bool(found.get("tutorial_reward_claimed", false)),
+		"restarted_unix": maxi(int(found.get("restarted_unix", 0)), int(cur_p.get("restarted_unix", 0)) if cur_same else 0),
+		"tutorial_completed": tut_completed,
+		"tutorial_skipped": tut_skipped,
+		"tutorial_step": tut_step,
+		"tutorial_reward_claimed": tut_reward_claimed,
 		"quests": q_dict,
 		"gold_armour": int(found.get("gold_armour", 0)),
 		"diamonds": r_diamonds,
 		"scrolls": r_scrolls,
+		"read_report_sigs": r_read_sigs,
+		"deleted_report_sigs": r_del_sigs,
+		"unread_toggled_sigs": _merge_string_sig_arrays(found.get("unread_toggled_sigs", []), cur_p.get("unread_toggled_sigs", []) if cur_same else [], 200),
 		"premium": false,
 	}
 	state_dict["player"] = restored
+	_apply_report_sigs_to_state(state_dict, norm_p)
 
 
 ## Aktif dünya durumunu GameState'e aktarır.
@@ -1100,9 +1281,15 @@ func _apply_to_game_state(w_data: Dictionary, player_name: String, active_vid: i
 
 ## Anlık GameState'i aktif dünya dosyasına kaydeder (force_cloud: bulut kaydını throttle'sız hemen gönder).
 func save_active_world(force_cloud: bool = false) -> bool:
+	if _suppress_reset_save:
+		return false
 	var gs = _find_game_state()
 	if gs == null:
 		return false
+	if not gs.has_active_village() and gs.villages.is_empty():
+		var cur_pname := str(gs.player.get("name", ""))
+		if has_player_village(current_world_id, cur_pname):
+			return false
 
 	var w_data := load_world_dict(current_world_id)
 	if w_data.is_empty():
@@ -1217,17 +1404,61 @@ func _sync_worlds_meta_from_server(meta_list, target_wid: int = -1, reg_count: i
 		_save_meta()
 
 
+func _preserve_monotonic_progress_from_local(target_w: Dictionary, local_w: Dictionary, p_name: String, prefer_cloud_read: bool = false) -> void:
+	if local_w.is_empty() or target_w.is_empty():
+		return
+	var t_state: Dictionary = target_w.get("state", {}) if typeof(target_w.get("state")) == TYPE_DICTIONARY else {}
+	var l_state: Dictionary = local_w.get("state", {}) if typeof(local_w.get("state")) == TYPE_DICTIONARY else {}
+	if t_state.is_empty() or l_state.is_empty():
+		return
+	var t_world: Dictionary = t_state.get("world", {}) if typeof(t_state.get("world")) == TYPE_DICTIONARY else {}
+	var l_world: Dictionary = l_state.get("world", {}) if typeof(l_state.get("world")) == TYPE_DICTIONARY else {}
+	var t_profs: Dictionary = t_world.get("player_profiles", {}) if typeof(t_world.get("player_profiles")) == TYPE_DICTIONARY else {}
+	var l_profs: Dictionary = l_world.get("player_profiles", {}) if typeof(l_world.get("player_profiles")) == TYPE_DICTIONARY else {}
+	var l_prof: Dictionary = {}
+	for pk in l_profs.keys():
+		if _matches_player(str(pk), p_name) and typeof(l_profs[pk]) == TYPE_DICTIONARY:
+			l_prof = l_profs[pk] as Dictionary
+			break
+	if l_prof.is_empty() and typeof(l_state.get("player")) == TYPE_DICTIONARY and _matches_player(str((l_state["player"] as Dictionary).get("name", "")), p_name):
+		l_prof = l_state["player"] as Dictionary
+	var t_pk := _norm_name(p_name)
+	var t_prof: Dictionary = {}
+	for pk in t_profs.keys():
+		if _matches_player(str(pk), p_name) and typeof(t_profs[pk]) == TYPE_DICTIONARY:
+			t_pk = str(pk)
+			t_prof = t_profs[pk] as Dictionary
+			break
+	if t_prof.is_empty() and typeof(t_state.get("player")) == TYPE_DICTIONARY and _matches_player(str((t_state["player"] as Dictionary).get("name", "")), p_name):
+		t_prof = t_state["player"] as Dictionary
+	if not l_prof.is_empty() or not t_prof.is_empty():
+		var merged_prof := _merge_profile_dicts(l_prof, t_prof, prefer_cloud_read) if prefer_cloud_read else _merge_profile_dicts(t_prof, l_prof, not prefer_cloud_read)
+		if not t_pk.is_empty():
+			t_profs[t_pk] = merged_prof
+			t_world["player_profiles"] = t_profs
+			t_state["world"] = t_world
+		if typeof(t_state.get("player")) == TYPE_DICTIONARY and _matches_player(str((t_state["player"] as Dictionary).get("name", "")), p_name):
+			t_state["player"] = _merge_profile_dicts(t_state["player"] as Dictionary, merged_prof, true)
+	_apply_report_sigs_to_state(t_state, p_name)
+
+
 func _merge_shared_world_data(local_w: Dictionary, cloud_w: Dictionary, p_name: String, local_ts: int, cloud_ts: int, from_save_response: bool) -> Dictionary:
 	if local_w.is_empty() or not has_player_village(int(cloud_w.get("world_id", 1)), p_name):
-		return cloud_w.duplicate(true)
+		var out_c := cloud_w.duplicate(true)
+		_preserve_monotonic_progress_from_local(out_c, local_w, p_name, true)
+		return out_c
 
 	# Eğer sunucu bu kaydedişten hemen sonra döndüyse ve yerel ekstra mutasyon olmadıysa sunucunun ortak dünyası kanoniktir.
 	if from_save_response and _last_local_mutation_unix <= _last_cloud_save_unix:
-		return cloud_w.duplicate(true)
+		var out_s := cloud_w.duplicate(true)
+		_preserve_monotonic_progress_from_local(out_s, local_w, p_name, true)
+		return out_s
 
-	# Yerel değişiklik sunucudan eskiyse veya eşitse doğrudan ortak dünyayı al.
+	# Yerel değişiklik sunucudan eskiyse veya eşitse doğrudan ortak dünyayı al (ama monotonik ilerlemeyi ve rapor sig'lerini koru).
 	if cloud_ts >= local_ts and not from_save_response:
-		return cloud_w.duplicate(true)
+		var out_newer := cloud_w.duplicate(true)
+		_preserve_monotonic_progress_from_local(out_newer, local_w, p_name, true)
+		return out_newer
 
 	# Yerel durum sunucudan daha yeni ise: ortak dünyadaki diğer oyuncuları/ittifakları/mesajları al, kendi köylerimizi ve kuyruklarımızı koru!
 	var merged: Dictionary = cloud_w.duplicate(true)
@@ -1285,18 +1516,25 @@ func _merge_shared_world_data(local_w: Dictionary, cloud_w: Dictionary, p_name: 
 	var l_movements: Array = l_state.get("movements", []) if typeof(l_state.get("movements")) == TYPE_ARRAY else []
 	m_state["movements"] = _merge_player_and_remote_movements(l_movements, c_movements, p_name, local_vids)
 
-	# Yerel yeni raporları koru ve okunma durumlarını senkronize et
+	# Yerel yeni raporları koru, okunma & silinme durumlarını senkronize et
+	var l_p_dict: Dictionary = l_state.get("player", {}) if typeof(l_state.get("player")) == TYPE_DICTIONARY else {}
+	var m_p_dict: Dictionary = m_state.get("player", {}) if typeof(m_state.get("player")) == TYPE_DICTIONARY else {}
+	var merged_read_arr := _merge_string_sig_arrays(l_p_dict.get("read_report_sigs", []) if l_p_dict.has("read_report_sigs") else m_p_dict.get("read_report_sigs", []), [])
+	var merged_del_arr := _merge_string_sig_arrays(m_p_dict.get("deleted_report_sigs", []), l_p_dict.get("deleted_report_sigs", []))
 	var local_read_sigs: Dictionary = {}
-	if typeof(l_state.get("player")) == TYPE_DICTIONARY and typeof((l_state["player"] as Dictionary).get("read_report_sigs")) == TYPE_ARRAY:
-		for s in ((l_state["player"] as Dictionary)["read_report_sigs"] as Array):
-			local_read_sigs[str(s)] = true
+	for s in merged_read_arr:
+		local_read_sigs[str(s)] = true
+	var local_del_sigs: Dictionary = {}
+	for ds in merged_del_arr:
+		local_del_sigs[str(ds)] = true
 	if typeof(l_state.get("reports")) == TYPE_ARRAY and typeof(m_state.get("reports")) == TYPE_ARRAY:
 		var seen_r_ids: Dictionary = {}
 		var comb_reps: Array = []
 		for r in (m_state["reports"] as Array):
 			if typeof(r) == TYPE_DICTIONARY:
-				var rd: Dictionary = (r as Dictionary).get("data", {}) if typeof((r as Dictionary).get("data")) == TYPE_DICTIONARY else {}
-				var r_key := "%s:%d:%d:%d:%d" % [str((r as Dictionary).get("type", "")), int((r as Dictionary).get("village_id", 0)), int((r as Dictionary).get("unix", (r as Dictionary).get("created_unix", 0))), int(rd.get("target_village_id", 0)), int(rd.get("from_village_id", 0))]
+				var r_key := _report_sig_str(r as Dictionary)
+				if local_del_sigs.has(r_key):
+					continue
 				if not seen_r_ids.has(r_key):
 					seen_r_ids[r_key] = true
 					if local_read_sigs.has(r_key):
@@ -1304,22 +1542,27 @@ func _merge_shared_world_data(local_w: Dictionary, cloud_w: Dictionary, p_name: 
 					comb_reps.append(r)
 		for lr in (l_state["reports"] as Array):
 			if typeof(lr) == TYPE_DICTIONARY:
-				var lrd: Dictionary = (lr as Dictionary).get("data", {}) if typeof((lr as Dictionary).get("data")) == TYPE_DICTIONARY else {}
-				var lr_key := "%s:%d:%d:%d:%d" % [str((lr as Dictionary).get("type", "")), int((lr as Dictionary).get("village_id", 0)), int((lr as Dictionary).get("unix", (lr as Dictionary).get("created_unix", 0))), int(lrd.get("target_village_id", 0)), int(lrd.get("from_village_id", 0))]
+				var lr_key := _report_sig_str(lr as Dictionary)
+				if local_del_sigs.has(lr_key):
+					continue
 				if not seen_r_ids.has(lr_key):
 					seen_r_ids[lr_key] = true
+					if local_read_sigs.has(lr_key):
+						(lr as Dictionary)["unread"] = false
 					comb_reps.append((lr as Dictionary).duplicate(true))
 		m_state["reports"] = comb_reps
 
-	# Kendi yerel profilimizi koru, diğer profilleri sunucudan tut
+	# Kendi yerel profilimizi koru (monotonik birleştirme ile), diğer profilleri sunucudan tut
 	var m_world: Dictionary = m_state.get("world", {}) if typeof(m_state.get("world")) == TYPE_DICTIONARY else {}
 	var l_world: Dictionary = l_state.get("world", {}) if typeof(l_state.get("world")) == TYPE_DICTIONARY else {}
 	if typeof(l_world.get("player_profiles")) == TYPE_DICTIONARY and typeof(m_world.get("player_profiles")) == TYPE_DICTIONARY:
 		for pk in (l_world["player_profiles"] as Dictionary).keys():
-			if _matches_player(str(pk), p_name):
-				m_world["player_profiles"][pk] = (l_world["player_profiles"][pk] as Dictionary).duplicate(true)
+			if _matches_player(str(pk), p_name) and typeof(l_world["player_profiles"][pk]) == TYPE_DICTIONARY:
+				var m_cur_p: Dictionary = m_world["player_profiles"].get(pk, {}) if typeof(m_world["player_profiles"].get(pk)) == TYPE_DICTIONARY else {}
+				m_world["player_profiles"][pk] = _merge_profile_dicts(m_cur_p, l_world["player_profiles"][pk] as Dictionary, true)
 	if typeof(l_state.get("player")) == TYPE_DICTIONARY and not (l_state["player"] as Dictionary).is_empty():
-		m_state["player"] = (l_state["player"] as Dictionary).duplicate(true)
+		var cur_mp: Dictionary = m_state.get("player", {}) if typeof(m_state.get("player")) == TYPE_DICTIONARY else {}
+		m_state["player"] = _merge_profile_dicts(cur_mp, l_state["player"] as Dictionary, true)
 	if int(l_state.get("active_village_id", -1)) > 0:
 		m_state["active_village_id"] = int(l_state["active_village_id"])
 
@@ -1436,13 +1679,22 @@ func _live_sync_game_state_from_world(merged_w: Dictionary, p_name: String) -> v
 	gs.player["points"] = total_pts
 	var now_sync := int(Time.get_unix_time_from_system())
 	var wallet_locked := (now_sync < _wallet_lock_until_unix)
-	if typeof(st.get("player")) == TYPE_DICTIONARY and not wallet_locked:
+	if typeof(st.get("player")) == TYPE_DICTIONARY:
 		var rp: Dictionary = st["player"]
 		if _matches_player(str(rp.get("name", "")), p_name):
-			if rp.has("diamonds") and rp.get("diamonds") != null:
-				gs.player["diamonds"] = maxi(0, int(rp.get("diamonds", 35)))
-			if typeof(rp.get("scrolls")) == TYPE_DICTIONARY:
-				gs.player["scrolls"] = (rp["scrolls"] as Dictionary).duplicate(true)
+			if not wallet_locked:
+				if rp.has("diamonds") and rp.get("diamonds") != null:
+					gs.player["diamonds"] = maxi(0, int(rp.get("diamonds", 35)))
+				if typeof(rp.get("scrolls")) == TYPE_DICTIONARY:
+					gs.player["scrolls"] = (rp["scrolls"] as Dictionary).duplicate(true)
+			var merged_live_p := _merge_profile_dicts(gs.player, rp, false)
+			gs.player["tutorial_completed"] = bool(merged_live_p.get("tutorial_completed", false))
+			gs.player["tutorial_skipped"] = bool(merged_live_p.get("tutorial_skipped", false))
+			gs.player["tutorial_reward_claimed"] = bool(merged_live_p.get("tutorial_reward_claimed", false))
+			gs.player["tutorial_step"] = int(merged_live_p.get("tutorial_step", 0))
+			gs.player["quests"] = (merged_live_p["quests"] as Dictionary).duplicate(true)
+			gs.player["read_report_sigs"] = (merged_live_p.get("read_report_sigs", []) as Array).duplicate(true)
+			gs.player["deleted_report_sigs"] = (merged_live_p.get("deleted_report_sigs", []) as Array).duplicate(true)
 
 	var owned_vids: Dictionary = {}
 	for v in gs.villages:
@@ -1473,7 +1725,26 @@ func _live_sync_game_state_from_world(merged_w: Dictionary, p_name: String) -> v
 	if typeof(st.get("messages")) == TYPE_ARRAY:
 		gs.messages = (st["messages"] as Array).duplicate(true)
 	if typeof(st.get("reports")) == TYPE_ARRAY:
-		gs.reports = (st["reports"] as Array).duplicate(true)
+		var sync_del_set: Dictionary = {}
+		if typeof(gs.player.get("deleted_report_sigs")) == TYPE_ARRAY:
+			for ds in (gs.player["deleted_report_sigs"] as Array):
+				sync_del_set[str(ds)] = true
+		var sync_read_set: Dictionary = {}
+		if typeof(gs.player.get("read_report_sigs")) == TYPE_ARRAY:
+			for rs in (gs.player["read_report_sigs"] as Array):
+				sync_read_set[str(rs)] = true
+		var sync_reps: Array = []
+		for rr in (st["reports"] as Array):
+			if typeof(rr) != TYPE_DICTIONARY:
+				continue
+			var rrd := (rr as Dictionary).duplicate(true)
+			var rrsig := _report_sig_str(rrd)
+			if sync_del_set.has(rrsig):
+				continue
+			if sync_read_set.has(rrsig):
+				rrd["unread"] = false
+			sync_reps.append(rrd)
+		gs.reports = sync_reps
 	if typeof(st.get("world")) == TYPE_DICTIONARY:
 		var rw: Dictionary = st["world"]
 		if typeof(rw.get("tiles")) == TYPE_DICTIONARY:

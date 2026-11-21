@@ -676,11 +676,33 @@ def test_returning_apple_user_restoration(client):
     })
     assert r_dup.status_code == 409 and r_dup.json().get("error_code") == "NAME_TAKEN", r_dup.text
 
-    # Köyünü kurup kaydeder
+    # Köyünü kurup kaydeder (tutorial tamam, görevler alınmış, rapor okundu + silindi)
     now = int(time.time())
     w_state = make_player_world("Lord Seljuk", 130, 88, 92, now, tutorial_done=True)
+    w_state["state"]["player"]["tutorial_step"] = 18
+    w_state["state"]["player"]["tutorial_reward_claimed"] = True
+    w_state["state"]["player"]["quests"] = {"claimed": ["t1", "q_wood_3"], "stats": {"raids_sent": 2}}
+    w_state["state"]["player"]["read_report_sigs"] = [f"spy:130:{now}:10:130"]
+    w_state["state"]["player"]["deleted_report_sigs"] = [f"battle:130:{now + 5}:11:130"]
+    w_state["state"]["reports"] = [
+        {"id": 901, "type": "spy", "unix": now, "village_id": 130, "unread": False, "data": {"type": "spy", "target_village_id": 10, "from_village_id": 130}},
+        {"id": 902, "type": "battle", "unix": now + 5, "village_id": 130, "unread": True, "data": {"type": "battle", "target_village_id": 11, "from_village_id": 130}},
+        {"id": 903, "type": "battle", "unix": now + 10, "village_id": 130, "unread": True, "data": {"type": "battle", "target_village_id": 12, "from_village_id": 130}},
+    ]
     r_save = client.post("/api/game/save", headers={"Authorization": f"Bearer {tok}"}, json=w_state)
     assert r_save.status_code == 200, r_save.text
+
+    # Bayat/sıfırlanmış istemci kaydı gelse bile tutorial, görevler ve silinen raporlar ASLA sıfırlanmamalı
+    stale_reset = make_player_world("Lord Seljuk", 130, 88, 92, now + 15, tutorial_done=False)
+    stale_reset["state"]["player"]["quests"] = {"claimed": [], "stats": {}}
+    stale_reset["state"]["player"]["read_report_sigs"] = []
+    stale_reset["state"]["player"]["deleted_report_sigs"] = []
+    stale_reset["state"]["reports"] = [
+        {"id": 901, "type": "spy", "unix": now, "village_id": 130, "unread": True, "data": {"type": "spy", "target_village_id": 10, "from_village_id": 130}},
+        {"id": 902, "type": "battle", "unix": now + 5, "village_id": 130, "unread": True, "data": {"type": "battle", "target_village_id": 11, "from_village_id": 130}},
+    ]
+    r_stale = client.post("/api/game/save", headers={"Authorization": f"Bearer {tok}"}, json=stale_reset)
+    assert r_stale.status_code == 200, r_stale.text
 
     # 3. Kullanıcı çıkış yapar ve iOS FaceID tekrar giriş yapar (Apple artık email vermez, sadece uid veya id_token verir!)
     r_chk2 = client.post("/api/auth/check_account", json={
@@ -693,6 +715,16 @@ def test_returning_apple_user_restoration(client):
     assert j2["has_village"] is True, j2
     assert len(j2.get("token", "")) > 10, j2
     assert j2["email"] == first_email, j2
+    cs_p = j2["cloud_state"]["state"]["player"]
+    assert cs_p["tutorial_completed"] is True, f"Tutorial sıfırlanmamalıydı: {cs_p}"
+    assert "q_wood_3" in cs_p["quests"]["claimed"] and "t1" in cs_p["quests"]["claimed"], cs_p["quests"]
+    assert cs_p["quests"]["stats"].get("raids_sent", 0) >= 2, cs_p["quests"]
+    assert f"spy:130:{now}:10:130" in (cs_p.get("read_report_sigs") or []), cs_p
+    assert f"battle:130:{now + 5}:11:130" in (cs_p.get("deleted_report_sigs") or []), cs_p
+    cs_reps = j2["cloud_state"]["state"].get("reports") or []
+    assert not any(int(r.get("unix", 0)) == now + 5 for r in cs_reps), f"Silinen rapor geri gelmemeliydi: {cs_reps}"
+    spy_r = [r for r in cs_reps if r.get("type") == "spy"]
+    assert len(spy_r) == 1 and spy_r[0].get("unread") is False, f"Okunan rapor unread=False kalmalıydı: {spy_r}"
 
     # 4. JWT içindeki sub/email fallback doğrulaması
     hdr_b64 = base64.urlsafe_b64encode(b'{"alg":"RS256"}').decode().rstrip("=")

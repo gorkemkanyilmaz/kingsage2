@@ -130,7 +130,7 @@ func _make_medallion(tex: Texture2D, accent: Color, badge_txt: String = "", badg
 		bl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 		bl.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		bl.add_theme_font_override("font", FontNunitoBold)
-		bl.add_theme_font_size_override("font_size", 12)
+		bl.add_theme_font_size_override("font_size", 14)
 		bl.add_theme_color_override("font_color", badge_col)
 		pill.add_child(bl)
 		overlay.add_child(pill)
@@ -624,7 +624,7 @@ func _populate_scrolls_tab(cat: String) -> void:
 	intro_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	intro_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	intro_lbl.add_theme_font_override("font", FontNunitoSemiBold)
-	intro_lbl.add_theme_font_size_override("font_size", 19)
+	intro_lbl.add_theme_font_size_override("font_size", 21)
 	intro_lbl.add_theme_color_override("font_color", Color(0.90, 0.87, 0.78))
 	intro_lbl.add_theme_constant_override("outline_size", 0)
 	intro_lbl.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0))
@@ -691,7 +691,7 @@ func _populate_scrolls_tab(cat: String) -> void:
 		desc_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		desc_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		desc_lbl.add_theme_font_override("font", FontNunitoSemiBold)
-		desc_lbl.add_theme_font_size_override("font_size", 18)
+		desc_lbl.add_theme_font_size_override("font_size", 20)
 		desc_lbl.add_theme_color_override("font_color", Color(0.84, 0.82, 0.76))
 		desc_lbl.add_theme_constant_override("outline_size", 0)
 		desc_lbl.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0))
@@ -714,7 +714,7 @@ func _populate_scrolls_tab(cat: String) -> void:
 		inv_lbl.text = "Sahip: %d adet" % owned
 		inv_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		inv_lbl.add_theme_font_override("font", FontNunitoBold)
-		inv_lbl.add_theme_font_size_override("font_size", 17)
+		inv_lbl.add_theme_font_size_override("font_size", 19)
 		inv_lbl.add_theme_color_override("font_color", Color(0.55, 0.96, 0.62) if owned > 0 else Color(0.75, 0.75, 0.82))
 		inv_lbl.add_theme_constant_override("outline_size", 0)
 		inv_lbl.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0))
@@ -736,7 +736,7 @@ func _populate_scrolls_tab(cat: String) -> void:
 			use_btn.mouse_filter = Control.MOUSE_FILTER_PASS
 			use_btn.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 			use_btn.add_theme_font_override("font", FontNunitoBold)
-			use_btn.add_theme_font_size_override("font_size", 19)
+			use_btn.add_theme_font_size_override("font_size", 21)
 			var u_sb := StyleBoxFlat.new()
 			u_sb.bg_color = Color(0.18, 0.56, 0.30, 1.0)
 			u_sb.border_color = Color(0.56, 0.94, 0.66, 1.0)
@@ -759,7 +759,7 @@ func _populate_scrolls_tab(cat: String) -> void:
 		buy_btn.mouse_filter = Control.MOUSE_FILTER_PASS
 		buy_btn.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 		buy_btn.add_theme_font_override("font", FontNunitoBold)
-		buy_btn.add_theme_font_size_override("font_size", 19 if owned > 0 else 20)
+		buy_btn.add_theme_font_size_override("font_size", 21 if owned > 0 else 22)
 		buy_btn.add_theme_constant_override("outline_size", 0)
 		buy_btn.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0))
 		var can_buy := diamonds >= cost
@@ -908,7 +908,7 @@ func _populate_resources_tab() -> void:
 			var b_lbl := Label.new()
 			b_lbl.text = "[%s]" % rp_badge
 			b_lbl.add_theme_font_override("font", FontNunitoBold)
-			b_lbl.add_theme_font_size_override("font_size", 16)
+			b_lbl.add_theme_font_size_override("font_size", 18)
 			b_lbl.add_theme_color_override("font_color", Color(0.58, 0.90, 1.0))
 			top_line.add_child(b_lbl)
 
@@ -916,7 +916,7 @@ func _populate_resources_tab() -> void:
 		desc_lbl.text = "%s • Fiyat: 💎 %d Elmas" % [rp_desc, cost]
 		desc_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		desc_lbl.add_theme_font_override("font", FontNunitoSemiBold)
-		desc_lbl.add_theme_font_size_override("font_size", 18)
+		desc_lbl.add_theme_font_size_override("font_size", 20)
 		desc_lbl.add_theme_color_override("font_color", Color(0.84, 0.82, 0.76))
 		info_vb.add_child(desc_lbl)
 
@@ -928,7 +928,7 @@ func _populate_resources_tab() -> void:
 		buy_btn.mouse_filter = Control.MOUSE_FILTER_PASS
 		buy_btn.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 		buy_btn.add_theme_font_override("font", FontNunitoBold)
-		buy_btn.add_theme_font_size_override("font_size", 20)
+		buy_btn.add_theme_font_size_override("font_size", 22)
 		var can_buy := diamonds >= cost
 		var b_sb := StyleBoxFlat.new()
 		b_sb.bg_color = Color(0.18, 0.50, 0.28, 1.0) if can_buy else Color(0.24, 0.20, 0.26, 0.95)
@@ -1062,7 +1062,7 @@ func _populate_diamonds_tab() -> void:
 			b_lbl.text = badge
 			b_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
 			b_lbl.add_theme_font_override("font", FontNunitoBold)
-			b_lbl.add_theme_font_size_override("font_size", 15)
+			b_lbl.add_theme_font_size_override("font_size", 17)
 			b_lbl.add_theme_color_override("font_color", Color(0.10, 0.06, 0.02) if is_featured else Color(0.85, 0.93, 1.0))
 			b_lbl.add_theme_constant_override("outline_size", 0)
 			b_lbl.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0))
@@ -1074,7 +1074,7 @@ func _populate_diamonds_tab() -> void:
 		sub_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		sub_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		sub_lbl.add_theme_font_override("font", FontNunitoSemiBold)
-		sub_lbl.add_theme_font_size_override("font_size", 18)
+		sub_lbl.add_theme_font_size_override("font_size", 20)
 		sub_lbl.add_theme_color_override("font_color", Color(0.78, 0.84, 0.92))
 		sub_lbl.add_theme_constant_override("outline_size", 0)
 		sub_lbl.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0))

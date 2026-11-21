@@ -139,6 +139,12 @@ var _cached_train_pb_bg: StyleBoxFlat = null
 var _cached_train_pb_fg: StyleBoxFlat = null
 var _cached_train_cancel_sb: StyleBoxFlat = null
 var _cached_train_cancel_hover: StyleBoxFlat = null
+var _kb_preview_bar: PanelContainer = null
+var _kb_preview_label: Label = null
+var _focused_train_unit: String = ""
+var _focused_train_line: LineEdit = null
+var _focused_train_spin: SpinBox = null
+var _kb_scroll_done_for: String = ""
 
 
 func _ensure_nodes() -> void:
@@ -194,6 +200,109 @@ func _ensure_nodes() -> void:
 
 	_configure_scroll_containers()
 	_ensure_description_and_production_nodes()
+	_ensure_kb_preview_bar()
+
+
+func _ensure_kb_preview_bar() -> void:
+	if _kb_preview_bar != null or train_section == null:
+		return
+	_kb_preview_bar = PanelContainer.new()
+	_kb_preview_bar.name = "TrainKeyboardPreviewBar"
+	_kb_preview_bar.visible = false
+	_kb_preview_bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_kb_preview_bar.custom_minimum_size = Vector2(0, 60)
+	var ksb := StyleBoxFlat.new()
+	ksb.bg_color = Color(0.16, 0.13, 0.06, 0.98)
+	ksb.border_color = Color(1.0, 0.84, 0.34, 1.0)
+	ksb.set_border_width_all(2)
+	ksb.set_corner_radius_all(12)
+	ksb.content_margin_left = 18
+	ksb.content_margin_right = 18
+	ksb.content_margin_top = 10
+	ksb.content_margin_bottom = 10
+	ksb.shadow_color = Color(0, 0, 0, 0.55)
+	ksb.shadow_size = 8
+	_kb_preview_bar.add_theme_stylebox_override("panel", ksb)
+
+	_kb_preview_label = Label.new()
+	_kb_preview_label.name = "PreviewText"
+	_kb_preview_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_kb_preview_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	_kb_preview_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_kb_preview_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_kb_preview_label.add_theme_font_override("font", FontNunitoBold)
+	_kb_preview_label.add_theme_font_size_override("font_size", 25)
+	_kb_preview_label.add_theme_color_override("font_color", Color(1.0, 0.95, 0.72))
+	_kb_preview_bar.add_child(_kb_preview_label)
+
+	train_section.add_child(_kb_preview_bar)
+	var scroll_idx := train_section.get_node_or_null("TrainScroll").get_index() if train_section.has_node("TrainScroll") else train_section.get_child_count() - 1
+	train_section.move_child(_kb_preview_bar, clampi(scroll_idx, 0, train_section.get_child_count() - 1))
+
+
+func _update_kb_preview(override_txt: String = "") -> void:
+	_ensure_kb_preview_bar()
+	if _kb_preview_bar == null or _kb_preview_label == null:
+		return
+	if _focused_train_unit.is_empty() or _focused_train_line == null or not is_instance_valid(_focused_train_line):
+		_kb_preview_bar.hide()
+		return
+	var u_name: String = GameDataScript.get_singleton().get_unit_name(_focused_train_unit)
+	var u_icon: String = str(UNIT_ICONS.get(_focused_train_unit, "⚔️"))
+	var raw_txt := override_txt.strip_edges() if not override_txt.is_empty() else _focused_train_line.text.strip_edges()
+	var cnt := int(raw_txt) if raw_txt.is_valid_int() else (int(_focused_train_spin.value) if _focused_train_spin != null and is_instance_valid(_focused_train_spin) else 0)
+	cnt = clampi(cnt, 0, 99999)
+	if cnt > 0:
+		var barracks_lvl := int(_village.get("buildings", {}).get("barracks", 1))
+		var tot_sec := int(ceil(RulesEngineScript.training_seconds(_focused_train_unit, cnt, barracks_lvl)))
+		_kb_preview_label.text = "⌨️ Girilen Adet: %s %s — %s Adet   •   ⏱️ %s" % [u_icon, u_name, _format_number(cnt), _fmt_duration(tot_sec)]
+	else:
+		_kb_preview_label.text = "⌨️ Girilen Adet: %s %s — %s" % [u_icon, u_name, raw_txt if not raw_txt.is_empty() else "0"]
+	_kb_preview_bar.show()
+
+
+func _update_keyboard_lift() -> void:
+	if not visible or _current_tab != Tab.TRAIN:
+		_restore_keyboard_lift()
+		return
+	if _focused_train_line == null or not is_instance_valid(_focused_train_line) or not _focused_train_line.has_focus():
+		return
+	var vp := get_viewport()
+	var vp_h: float = vp.get_visible_rect().size.y if vp != null else 1920.0
+	if vp_h <= 10.0:
+		vp_h = 1920.0
+	var kb_px: int = DisplayServer.virtual_keyboard_get_height() if DisplayServer.get_name() != "headless" else 0
+	var win_h: float = float(DisplayServer.window_get_size().y) if DisplayServer.get_name() != "headless" else vp_h
+	var kb_vp_h: float = (float(kb_px) * vp_h / maxf(1.0, win_h)) if kb_px > 0 else 0.0
+	if kb_vp_h <= 10.0 and (OS.has_feature("ios") or OS.has_feature("android") or DisplayServer.is_touchscreen_available()):
+		kb_vp_h = vp_h * 0.45
+	if kb_vp_h <= 10.0:
+		kb_vp_h = 256.0
+	var top_limit: float = 150.0
+	var bottom_off: float = minf(-256.0, -kb_vp_h - 14.0)
+	var desired_h: float = minf(840.0, maxf(460.0, vp_h + bottom_off - top_limit))
+	offset_bottom = bottom_off
+	offset_top = bottom_off - desired_h
+	if _kb_scroll_done_for != _focused_train_unit and train_list != null:
+		_kb_scroll_done_for = _focused_train_unit
+		var target_u := _focused_train_unit
+		call_deferred("_deferred_scroll_to_train_card", target_u)
+
+
+func _deferred_scroll_to_train_card(u_key: String) -> void:
+	if not visible or _current_tab != Tab.TRAIN or train_list == null:
+		return
+	var scroll := get_node_or_null("VBox/TrainSection/TrainScroll") as ScrollContainer
+	var card := train_list.get_node_or_null("TrainCard_" + u_key) as Control
+	if scroll != null and card != null:
+		scroll.scroll_vertical = int(maxf(0.0, card.position.y - 8.0))
+
+
+func _restore_keyboard_lift() -> void:
+	if _kb_preview_bar != null:
+		_kb_preview_bar.hide()
+	if absf(offset_bottom - (-256.0)) > 0.5:
+		offset_bottom = -256.0
 
 
 func _ensure_description_and_production_nodes() -> void:
@@ -720,16 +829,30 @@ func _on_bus_state_changed() -> void:
 
 func _process(_delta: float) -> void:
 	if not visible:
+		if _focused_train_line != null or absf(offset_bottom - (-256.0)) > 0.5:
+			_focused_train_unit = ""
+			_focused_train_line = null
+			_focused_train_spin = null
+			_kb_scroll_done_for = ""
+			_restore_keyboard_lift()
 		return
 	if _current_tab == Tab.UPGRADE:
+		_restore_keyboard_lift()
 		_update_active_build_info()
 	elif _current_tab == Tab.RESEARCH:
+		_restore_keyboard_lift()
 		_update_active_research_info()
 	elif _current_tab == Tab.TRAIN:
+		_update_keyboard_lift()
 		_update_active_train_info()
 
 
 func _on_close_pressed() -> void:
+	_focused_train_unit = ""
+	_focused_train_line = null
+	_focused_train_spin = null
+	_kb_scroll_done_for = ""
+	_restore_keyboard_lift()
 	hide()
 	closed.emit()
 
@@ -919,9 +1042,12 @@ func refresh() -> void:
 		if _desc_box != null:
 			_desc_box.hide()
 		level_label.text = "Kışla Seviyesi: %d / %d" % [cur_lvl, max_lvl]
-		offset_top = -1150.0
+		if _focused_train_line == null or not is_instance_valid(_focused_train_line) or not _focused_train_line.has_focus():
+			_restore_keyboard_lift()
+			offset_top = -1150.0
 		_populate_train_list()
 		_update_active_train_info()
+		_update_keyboard_lift()
 
 
 func _set_upgrade_nodes_visible(p_visible: bool) -> void:
@@ -2074,13 +2200,44 @@ func _populate_train_list() -> void:
 			if s_line != null:
 				s_line.mouse_filter = Control.MOUSE_FILTER_PASS
 				s_line.alignment = HORIZONTAL_ALIGNMENT_CENTER
+				s_line.select_all_on_focus = true
 				s_line.add_theme_font_override("font", FontNunitoBold)
-				s_line.add_theme_font_size_override("font_size", 24)
+				s_line.add_theme_font_size_override("font_size", 26)
 				s_line.add_theme_constant_override("outline_size", 2)
 				s_line.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.95))
+				s_line.focus_entered.connect(func():
+					_focused_train_unit = u_key
+					_focused_train_spin = spin
+					_focused_train_line = s_line
+					_kb_scroll_done_for = ""
+					_update_kb_preview()
+					_update_keyboard_lift()
+				)
+				s_line.text_changed.connect(func(new_txt: String):
+					if _focused_train_unit == u_key:
+						_update_kb_preview(new_txt)
+				)
+				s_line.focus_exited.connect(func():
+					if _focused_train_line == s_line:
+						_focused_train_unit = ""
+						_focused_train_line = null
+						_focused_train_spin = null
+						_kb_scroll_done_for = ""
+						_restore_keyboard_lift()
+						if _current_tab == Tab.TRAIN:
+							offset_top = -1150.0
+				)
 			var gc_sp: Node = Engine.get_main_loop().root.get_node_or_null("GameConfig") if Engine.get_main_loop() is SceneTree else null
 			if gc_sp != null and gc_sp.has_method("bind_keyboard_dismiss"):
 				gc_sp.call("bind_keyboard_dismiss", spin, Callable(), true)
+			spin.value_changed.connect(func(v: float):
+				if _focused_train_unit == u_key:
+					if _focused_train_line != null and is_instance_valid(_focused_train_line) and _focused_train_line.has_focus():
+						var cur_t := _focused_train_line.text.strip_edges()
+						if cur_t.is_valid_int() and int(cur_t) != int(v):
+							return
+					_update_kb_preview(str(int(v)))
+			)
 			input_row.add_child(spin)
 
 			var train_btn := Button.new()

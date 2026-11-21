@@ -316,7 +316,7 @@ func _apply_responsive_layout() -> void:
 		points_box.visible = true
 	if points_label != null:
 		points_label.add_theme_font_override("font", FONT_BOLD)
-		points_label.add_theme_font_size_override("font_size", 17 if has_island else 20)
+		points_label.add_theme_font_size_override("font_size", 19 if has_island else 22)
 		points_label.add_theme_color_override("font_color", Color(1.0, 0.89, 0.44))
 		points_label.add_theme_constant_override("outline_size", 2)
 		points_label.add_theme_color_override("font_outline_color", Color(0.05, 0.04, 0.02, 0.95))
@@ -326,11 +326,11 @@ func _apply_responsive_layout() -> void:
 		btn_next.custom_minimum_size = Vector2(30, 34) if has_island else Vector2(36, 38)
 	if btn_rename_village != null:
 		btn_rename_village.custom_minimum_size = Vector2(34, 34) if has_island else Vector2(38, 38)
-		btn_rename_village.add_theme_font_size_override("font_size", 17 if has_island else 19)
+		btn_rename_village.add_theme_font_size_override("font_size", 19 if has_island else 21)
 	if btn_market != null:
 		btn_market.custom_minimum_size = Vector2(180, 44) if has_island else Vector2(222, 48)
 		btn_market.add_theme_font_override("font", FONT_BOLD)
-		btn_market.add_theme_font_size_override("font_size", 19 if has_island else 21)
+		btn_market.add_theme_font_size_override("font_size", 21 if has_island else 23)
 		btn_market.add_theme_color_override("font_color", Color(1.0, 0.96, 0.84))
 		btn_market.add_theme_constant_override("outline_size", 3)
 		btn_market.add_theme_color_override("font_outline_color", Color(0.04, 0.08, 0.16, 0.96))
@@ -339,7 +339,7 @@ func _apply_responsive_layout() -> void:
 		village_name_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS if has_island else TextServer.OVERRUN_NO_TRIMMING
 		village_name_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL if has_island else Control.SIZE_SHRINK_BEGIN
 		village_name_label.add_theme_font_override("font", FONT_BOLD)
-		village_name_label.add_theme_font_size_override("font_size", 19 if has_island else 22)
+		village_name_label.add_theme_font_size_override("font_size", 21 if has_island else 24)
 		village_name_label.add_theme_color_override("font_color", Color(1.0, 0.95, 0.82))
 		village_name_label.add_theme_constant_override("outline_size", 3)
 		village_name_label.add_theme_color_override("font_outline_color", Color(0.04, 0.04, 0.07, 0.95))
@@ -354,9 +354,9 @@ func _apply_responsive_layout() -> void:
 		var tl := pair_sz[0] as Label
 		var vl := pair_sz[1] as Label
 		if tl != null:
-			tl.add_theme_font_size_override("font_size", 13 if has_island else 14)
+			tl.add_theme_font_size_override("font_size", 16 if has_island else 17)
 		if vl != null:
-			vl.add_theme_font_size_override("font_size", 19 if has_island else 22)
+			vl.add_theme_font_size_override("font_size", 21 if has_island else 23)
 
 	if absf(custom_minimum_size.y - total_h) > 0.5:
 		custom_minimum_size.y = total_h
@@ -529,7 +529,7 @@ func _ensure_resource_box_titles() -> void:
 			t.mouse_filter = Control.MOUSE_FILTER_IGNORE
 			t.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 			t.add_theme_font_override("font", FONT_BOLD)
-			t.add_theme_font_size_override("font_size", 14)
+			t.add_theme_font_size_override("font_size", 17)
 			t.add_theme_color_override("font_color", d[5] as Color)
 			t.add_theme_constant_override("outline_size", 2)
 			t.add_theme_color_override("font_outline_color", Color(0.03, 0.03, 0.06, 0.96))

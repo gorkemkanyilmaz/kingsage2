@@ -329,7 +329,7 @@ func _build_vizier_card() -> void:
 	np_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	np_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	np_lbl.add_theme_font_override("font", FontCinzelBold)
-	np_lbl.add_theme_font_size_override("font_size", 17)
+	np_lbl.add_theme_font_size_override("font_size", 20)
 	np_lbl.add_theme_color_override("font_color", Color(1.0, 0.92, 0.62))
 	np_lbl.add_theme_constant_override("outline_size", 0)
 	np_lbl.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0))
@@ -366,7 +366,7 @@ func _build_vizier_card() -> void:
 	_chapter_label.text = "BÖLÜM 1/5 • KÖY DÜZENİ"
 	_chapter_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_chapter_label.add_theme_font_override("font", FontNunitoBold)
-	_chapter_label.add_theme_font_size_override("font_size", 17)
+	_chapter_label.add_theme_font_size_override("font_size", 20)
 	_chapter_label.add_theme_color_override("font_color", Color(1.0, 0.88, 0.48))
 	_chapter_label.add_theme_constant_override("outline_size", 0)
 	_chapter_label.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0))
@@ -378,7 +378,7 @@ func _build_vizier_card() -> void:
 	_step_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_step_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	_step_label.add_theme_font_override("font", FontNunitoBold)
-	_step_label.add_theme_font_size_override("font_size", 18)
+	_step_label.add_theme_font_size_override("font_size", 20)
 	_step_label.add_theme_color_override("font_color", Color(0.82, 0.80, 0.74))
 	_step_label.add_theme_constant_override("outline_size", 0)
 	_step_label.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0))
@@ -389,7 +389,7 @@ func _build_vizier_card() -> void:
 	_btn_skip.text = "Atla ✕"
 	_btn_skip.custom_minimum_size = Vector2(96, 36)
 	_btn_skip.add_theme_font_override("font", FontNunitoBold)
-	_btn_skip.add_theme_font_size_override("font_size", 17)
+	_btn_skip.add_theme_font_size_override("font_size", 20)
 	_btn_skip.add_theme_constant_override("outline_size", 0)
 	_btn_skip.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0))
 	_btn_skip.add_theme_color_override("font_color", Color(0.86, 0.78, 0.72))
@@ -935,6 +935,33 @@ func _process(delta: float) -> void:
 	if bool(gs.player.get("tutorial_completed", false)):
 		_active = false
 		_set_overlay_visible(false)
+		return
+
+	# Güvenlik: Oyuncu eğitimi daha önce bitirmiş/atlamış veya ileri köye sahipse tekrar başlatma
+	var tut_step_val := int(gs.player.get("tutorial_step", 0))
+	var v_chk: Dictionary = gs.get_active_village()
+	var vb_chk: Dictionary = v_chk.get("buildings", {}) if typeof(v_chk.get("buildings")) == TYPE_DICTIONARY else {}
+	var advanced_no_step := (
+		tut_step_val == 0
+		and (
+			int(vb_chk.get("main", 1)) >= 4
+			or int(vb_chk.get("stable", 0)) >= 1
+			or int(vb_chk.get("market", 0)) >= 1
+			or int(vb_chk.get("garage", 0)) >= 1
+			or int(vb_chk.get("snob", 0)) >= 1
+		)
+	)
+	if (
+		bool(gs.player.get("tutorial_skipped", false))
+		or bool(gs.player.get("tutorial_reward_claimed", false))
+		or tut_step_val >= Step.GRADUATION_MODAL
+		or gs.get_player_villages().size() > 1
+		or advanced_no_step
+	):
+		gs.player["tutorial_completed"] = true
+		_active = false
+		_set_overlay_visible(false)
+		_save_game()
 		return
 
 	if not _active or scene_name != _last_scene_path:

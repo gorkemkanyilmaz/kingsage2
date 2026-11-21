@@ -1202,7 +1202,7 @@ func _build_ui() -> void:
 	_header_badge.text = "0/%d" % QUEST_DEFS.size()
 	_header_badge.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	_header_badge.add_theme_font_override("font", FontNunitoBold)
-	_header_badge.add_theme_font_size_override("font_size", 19)
+	_header_badge.add_theme_font_size_override("font_size", 21)
 	_header_badge.add_theme_color_override("font_color", Color(0.85, 0.94, 1.0))
 	var b_sb := StyleBoxFlat.new()
 	b_sb.bg_color = Color(0.16, 0.24, 0.36, 0.95)
@@ -1331,7 +1331,7 @@ func _create_quest_slot(idx: int) -> Dictionary:
 	title_lbl.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	title_lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	title_lbl.add_theme_font_override("font", FontNunitoBold)
-	title_lbl.add_theme_font_size_override("font_size", 19)
+	title_lbl.add_theme_font_size_override("font_size", 21)
 	title_lbl.add_theme_color_override("font_color", Color(0.98, 0.94, 0.84))
 	title_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	top_hbox.add_child(title_lbl)
@@ -1341,7 +1341,7 @@ func _create_quest_slot(idx: int) -> Dictionary:
 	count_lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	count_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	count_lbl.add_theme_font_override("font", FontNunitoBold)
-	count_lbl.add_theme_font_size_override("font_size", 19)
+	count_lbl.add_theme_font_size_override("font_size", 21)
 	count_lbl.add_theme_color_override("font_color", Color(1.0, 0.84, 0.42))
 	count_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	top_hbox.add_child(count_lbl)
@@ -1369,7 +1369,7 @@ func _create_quest_slot(idx: int) -> Dictionary:
 	hint_btn.flat = true
 	hint_btn.alignment = HORIZONTAL_ALIGNMENT_LEFT
 	hint_btn.add_theme_font_override("font", FontNunitoSemiBold)
-	hint_btn.add_theme_font_size_override("font_size", 15)
+	hint_btn.add_theme_font_size_override("font_size", 18)
 	hint_btn.add_theme_color_override("font_color", Color(0.72, 0.82, 0.94))
 	vbox.add_child(hint_btn)
 
@@ -1378,7 +1378,7 @@ func _create_quest_slot(idx: int) -> Dictionary:
 	claim_btn.text = "🎁 Ödülünü Al"
 	claim_btn.custom_minimum_size = Vector2(0, 38)
 	claim_btn.add_theme_font_override("font", FontNunitoBold)
-	claim_btn.add_theme_font_size_override("font_size", 19)
+	claim_btn.add_theme_font_size_override("font_size", 21)
 	var csb := StyleBoxFlat.new()
 	csb.bg_color = Color(0.16, 0.56, 0.28, 1.0)
 	csb.border_color = Color(0.98, 0.84, 0.36, 1.0)
@@ -1460,7 +1460,7 @@ func _build_detail_modal() -> void:
 
 	_modal_category = Label.new()
 	_modal_category.add_theme_font_override("font", FontNunitoBold)
-	_modal_category.add_theme_font_size_override("font_size", 18)
+	_modal_category.add_theme_font_size_override("font_size", 20)
 	_modal_category.add_theme_color_override("font_color", Color(0.65, 0.85, 1.0))
 	t_vbox.add_child(_modal_category)
 
@@ -1523,7 +1523,7 @@ func _build_detail_modal() -> void:
 	var v_tag := Label.new()
 	v_tag.text = "BAŞ VEZİRİN REHBERLİĞİ"
 	v_tag.add_theme_font_override("font", FontNunitoBold)
-	v_tag.add_theme_font_size_override("font_size", 18)
+	v_tag.add_theme_font_size_override("font_size", 20)
 	v_tag.add_theme_color_override("font_color", Color(1.0, 0.84, 0.40))
 	v_col.add_child(v_tag)
 
@@ -1535,8 +1535,8 @@ func _build_detail_modal() -> void:
 	_modal_vizier_text.custom_minimum_size = Vector2(0, 110)
 	_modal_vizier_text.add_theme_font_override("normal_font", FontNunitoSemiBold)
 	_modal_vizier_text.add_theme_font_override("bold_font", FontNunitoBold)
-	_modal_vizier_text.add_theme_font_size_override("normal_font_size", 22)
-	_modal_vizier_text.add_theme_font_size_override("bold_font_size", 22)
+	_modal_vizier_text.add_theme_font_size_override("normal_font_size", 24)
+	_modal_vizier_text.add_theme_font_size_override("bold_font_size", 24)
 	_modal_vizier_text.add_theme_color_override("default_color", Color(0.95, 0.92, 0.86))
 	v_col.add_child(_modal_vizier_text)
 
@@ -1548,8 +1548,8 @@ func _build_detail_modal() -> void:
 	_modal_req_label.scroll_active = false
 	_modal_req_label.add_theme_font_override("normal_font", FontNunitoSemiBold)
 	_modal_req_label.add_theme_font_override("bold_font", FontNunitoBold)
-	_modal_req_label.add_theme_font_size_override("normal_font_size", 20)
-	_modal_req_label.add_theme_font_size_override("bold_font_size", 20)
+	_modal_req_label.add_theme_font_size_override("normal_font_size", 22)
+	_modal_req_label.add_theme_font_size_override("bold_font_size", 22)
 	_modal_req_label.add_theme_color_override("default_color", Color(0.86, 0.90, 0.98))
 	mv.add_child(_modal_req_label)
 

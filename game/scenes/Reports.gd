@@ -563,7 +563,7 @@ func _ensure_report_toolbar() -> void:
 		f_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		f_btn.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 		f_btn.add_theme_font_override("font", FontNunitoBold)
-		f_btn.add_theme_font_size_override("font_size", 18)
+		f_btn.add_theme_font_size_override("font_size", 21)
 		f_btn.pressed.connect(func():
 			_report_filter = f_key
 			_refresh_filter_styles()
@@ -583,7 +583,7 @@ func _ensure_report_toolbar() -> void:
 	mark_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	mark_btn.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 	mark_btn.add_theme_font_override("font", FontNunitoBold)
-	mark_btn.add_theme_font_size_override("font_size", 17)
+	mark_btn.add_theme_font_size_override("font_size", 20)
 	var m_sb := StyleBoxFlat.new()
 	m_sb.bg_color = Color(0.13, 0.25, 0.17, 0.96)
 	m_sb.border_color = Color(0.45, 0.85, 0.52, 0.85)
@@ -602,7 +602,7 @@ func _ensure_report_toolbar() -> void:
 	del_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	del_btn.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 	del_btn.add_theme_font_override("font", FontNunitoBold)
-	del_btn.add_theme_font_size_override("font_size", 17)
+	del_btn.add_theme_font_size_override("font_size", 20)
 	var d_sb := StyleBoxFlat.new()
 	d_sb.bg_color = Color(0.28, 0.12, 0.14, 0.96)
 	d_sb.border_color = Color(0.86, 0.40, 0.36, 0.85)
@@ -691,9 +691,16 @@ func _update_sig_list(gs: Node, key: String, sig: String, add: bool) -> void:
 	p[key] = arr
 	if "world" in gs and typeof(gs.world) == TYPE_DICTIONARY:
 		var profs = (gs.world as Dictionary).get("player_profiles")
-		var pname := str(p.get("name", ""))
-		if typeof(profs) == TYPE_DICTIONARY and (profs as Dictionary).has(pname) and typeof(profs[pname]) == TYPE_DICTIONARY:
-			profs[pname][key] = arr.duplicate()
+		var pname := str(p.get("name", "")).strip_edges().to_lower()
+		var p_bare := pname.substr(5).strip_edges() if pname.begins_with("lord ") else pname
+		if typeof(profs) == TYPE_DICTIONARY:
+			for k in (profs as Dictionary).keys():
+				if typeof(profs[k]) != TYPE_DICTIONARY:
+					continue
+				var kn := str(k).strip_edges().to_lower()
+				var kb := kn.substr(5).strip_edges() if kn.begins_with("lord ") else kn
+				if kn == pname or (not p_bare.is_empty() and kb == p_bare):
+					profs[k][key] = arr.duplicate()
 
 
 func _persist_report_changes() -> void:
@@ -709,7 +716,7 @@ func _persist_report_changes() -> void:
 		sm.call("save_game")
 	var wm := root.get_node_or_null("WorldManager")
 	if wm != null and wm.has_method("save_active_world"):
-		wm.call("save_active_world")
+		wm.call("save_active_world", true)
 
 
 func _set_report_read(rep: Dictionary, make_read: bool) -> void:
@@ -717,6 +724,7 @@ func _set_report_read(rep: Dictionary, make_read: bool) -> void:
 	var sig := _report_sig(rep)
 	rep["unread"] = not make_read
 	_update_sig_list(gs, "read_report_sigs", sig, make_read)
+	_update_sig_list(gs, "unread_toggled_sigs", sig, not make_read)
 	_persist_report_changes()
 
 
@@ -726,11 +734,14 @@ func _delete_report(rep: Dictionary) -> void:
 	_update_sig_list(gs, "deleted_report_sigs", sig, true)
 	if gs != null and "reports" in gs and typeof(gs.reports) == TYPE_ARRAY:
 		var pname := str(gs.player.get("name", "")).strip_edges().to_lower()
+		var p_bare := pname.substr(5).strip_edges() if pname.begins_with("lord ") else pname
 		var rdata: Dictionary = rep.get("data", {}) if typeof(rep.get("data")) == TYPE_DICTIONARY else {}
 		var rtype := str(rep.get("type", "battle"))
 		var a_owner := str(rdata.get("attacker_name", rdata.get("attacker_owner", ""))).strip_edges().to_lower()
 		var d_owner := str(rdata.get("defender_name", "")).strip_edges().to_lower()
-		var single_owner := (rtype == "spy" or rtype == "spy_incoming") or (a_owner == pname and (d_owner.is_empty() or d_owner == pname or d_owner.contains("barbar")))
+		var same_a := (a_owner == pname or (not p_bare.is_empty() and a_owner == p_bare))
+		var same_d := (d_owner == pname or (not p_bare.is_empty() and d_owner == p_bare))
+		var single_owner := (rtype == "spy" or rtype == "spy_incoming") or (same_a and (d_owner.is_empty() or same_d or d_owner.contains("barbar")))
 		if single_owner:
 			(gs.reports as Array).erase(rep)
 	if detail_panel != null and detail_panel.visible:
@@ -983,7 +994,7 @@ func _make_card(icon_path: String, title: String, subtitle: String, accent: Colo
 	var sub_lbl := Label.new()
 	sub_lbl.text = subtitle
 	sub_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	sub_lbl.add_theme_font_size_override("font_size", 18)
+	sub_lbl.add_theme_font_size_override("font_size", 21)
 	sub_lbl.add_theme_color_override("font_color", Color(0.76, 0.74, 0.68))
 	info.add_child(sub_lbl)
 	info_wrap.add_child(info)
@@ -1094,7 +1105,7 @@ func _show_detail(rep: Dictionary) -> void:
 	unread_btn.custom_minimum_size = Vector2(0, 44)
 	unread_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	unread_btn.add_theme_font_override("font", FontNunitoBold)
-	unread_btn.add_theme_font_size_override("font_size", 18)
+	unread_btn.add_theme_font_size_override("font_size", 21)
 	var u_sb := StyleBoxFlat.new()
 	u_sb.bg_color = Color(0.16, 0.14, 0.22, 0.96)
 	u_sb.border_color = Color(0.84, 0.68, 0.34, 0.90)
@@ -1114,7 +1125,7 @@ func _show_detail(rep: Dictionary) -> void:
 	del_detail_btn.text = "🗑️ Raporu Sil"
 	del_detail_btn.custom_minimum_size = Vector2(180, 44)
 	del_detail_btn.add_theme_font_override("font", FontNunitoBold)
-	del_detail_btn.add_theme_font_size_override("font_size", 18)
+	del_detail_btn.add_theme_font_size_override("font_size", 21)
 	var dd_sb := StyleBoxFlat.new()
 	dd_sb.bg_color = Color(0.36, 0.13, 0.14, 0.96)
 	dd_sb.border_color = Color(0.90, 0.42, 0.38, 0.95)
