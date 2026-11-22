@@ -234,6 +234,11 @@ func _process(delta: float) -> void:
 		)
 
 
+func cancel_pending_cloud_poll() -> void:
+	_cloud_poll_in_flight = false
+	_cloud_poll_accum = 0.0
+
+
 func _web_set(key: String, val: String) -> void:
 	if not OS.has_feature("web"):
 		return
@@ -1468,8 +1473,8 @@ func _apply_to_game_state(w_data: Dictionary, player_name: String, active_vid: i
 	gs.player["points"] = total_points
 
 
-## Anlık GameState'i aktif dünya dosyasına kaydeder (force_cloud: bulut kaydını throttle'sız hemen gönder).
-func save_active_world(force_cloud: bool = false) -> bool:
+## Anlık GameState'i aktif dünya dosyasına kaydeder (force_cloud: bulut kaydını throttle'sız hemen gönder; allow_cloud: bulut HTTP çağrısına izin ver).
+func save_active_world(force_cloud: bool = false, allow_cloud: bool = true) -> bool:
 	if _suppress_reset_save:
 		return false
 	var gs = _find_game_state()
@@ -1522,7 +1527,7 @@ func save_active_world(force_cloud: bool = false) -> bool:
 
 	w_data["last_saved_unix"] = now
 	w_data["state"] = next_state
-	if now < _wallet_lock_until_unix or force_cloud:
+	if now < _wallet_lock_until_unix:
 		w_data["wallet_authoritative"] = true
 
 	var p_name := str(gs.player.get("name", "Lord Gorkem"))
@@ -1532,7 +1537,7 @@ func save_active_world(force_cloud: bool = false) -> bool:
 		w_data["registered_real_players"] = reg_list
 
 	var ok := save_world_dict(current_world_id, w_data)
-	if ok and _cloud_enabled() and Engine.get_main_loop() is SceneTree:
+	if ok and allow_cloud and _cloud_enabled() and Engine.get_main_loop() is SceneTree:
 		var net = Engine.get_main_loop().root.get_node_or_null("NetworkManager")
 		if net != null and not str(net.auth_token).is_empty() and (force_cloud or (now - _last_cloud_save_unix) >= 2):
 			_last_cloud_save_unix = now

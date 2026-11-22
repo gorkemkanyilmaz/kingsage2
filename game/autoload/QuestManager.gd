@@ -52,6 +52,7 @@ var _empty_banner: Label
 
 # Modal Düğümleri (Baş Vezir Görev Detayı)
 var _modal_backdrop: ColorRect
+var _modal_center: CenterContainer
 var _detail_modal: PanelContainer
 var _modal_seal: TextureRect
 var _modal_category: Label
@@ -1419,9 +1420,18 @@ func _build_detail_modal() -> void:
 	_modal_backdrop.hide()
 	_root_ctrl.add_child(_modal_backdrop)
 
+	_modal_center = CenterContainer.new()
+	_modal_center.name = "QuestModalCenter"
+	_modal_center.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_modal_center.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_modal_center.hide()
+	_root_ctrl.add_child(_modal_center)
+
 	_detail_modal = PanelContainer.new()
 	_detail_modal.name = "QuestDetailModal"
-	_detail_modal.custom_minimum_size = Vector2(920, 620)
+	_detail_modal.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	_detail_modal.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	_detail_modal.custom_minimum_size = Vector2(900, 0)
 	var m_sb := StyleBoxFlat.new()
 	m_sb.bg_color = Color(0.09, 0.08, 0.11, 0.98)
 	m_sb.border_color = Color(0.95, 0.78, 0.34, 1.0)
@@ -1435,7 +1445,7 @@ func _build_detail_modal() -> void:
 	m_sb.shadow_size = 18
 	_detail_modal.add_theme_stylebox_override("panel", m_sb)
 	_detail_modal.hide()
-	_root_ctrl.add_child(_detail_modal)
+	_modal_center.add_child(_detail_modal)
 
 	var mv := VBoxContainer.new()
 	mv.add_theme_constant_override("separation", 14)
@@ -1449,6 +1459,7 @@ func _build_detail_modal() -> void:
 	_modal_seal = TextureRect.new()
 	_modal_seal.texture = TexRoyalSeal
 	_modal_seal.custom_minimum_size = Vector2(54, 54)
+	_modal_seal.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
 	_modal_seal.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	_modal_seal.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	hdr.add_child(_modal_seal)
@@ -1465,6 +1476,7 @@ func _build_detail_modal() -> void:
 	t_vbox.add_child(_modal_category)
 
 	_modal_title = Label.new()
+	_modal_title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_modal_title.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_modal_title.add_theme_font_override("font", FontNunitoBold)
 	_modal_title.add_theme_font_size_override("font_size", 32)
@@ -1475,6 +1487,7 @@ func _build_detail_modal() -> void:
 	_modal_close_top.name = "ModalCloseTopBtn"
 	_modal_close_top.text = "✕"
 	_modal_close_top.custom_minimum_size = Vector2(52, 52)
+	_modal_close_top.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
 	_modal_close_top.add_theme_font_override("font", FontNunitoBold)
 	_modal_close_top.add_theme_font_size_override("font_size", 28)
 	_modal_close_top.pressed.connect(close_quest_modal)
@@ -1500,6 +1513,7 @@ func _build_detail_modal() -> void:
 
 	var v_frame := PanelContainer.new()
 	v_frame.custom_minimum_size = Vector2(128, 128)
+	v_frame.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
 	var vf_sb := StyleBoxFlat.new()
 	vf_sb.bg_color = Color(0.08, 0.06, 0.10, 1.0)
 	vf_sb.border_color = Color(0.95, 0.78, 0.36, 1.0)
@@ -1532,6 +1546,7 @@ func _build_detail_modal() -> void:
 	_modal_vizier_text.bbcode_enabled = true
 	_modal_vizier_text.fit_content = true
 	_modal_vizier_text.scroll_active = false
+	_modal_vizier_text.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_modal_vizier_text.custom_minimum_size = Vector2(0, 110)
 	_modal_vizier_text.add_theme_font_override("normal_font", FontNunitoSemiBold)
 	_modal_vizier_text.add_theme_font_override("bold_font", FontNunitoBold)
@@ -1546,6 +1561,7 @@ func _build_detail_modal() -> void:
 	_modal_req_label.bbcode_enabled = true
 	_modal_req_label.fit_content = true
 	_modal_req_label.scroll_active = false
+	_modal_req_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_modal_req_label.add_theme_font_override("normal_font", FontNunitoSemiBold)
 	_modal_req_label.add_theme_font_override("bold_font", FontNunitoBold)
 	_modal_req_label.add_theme_font_size_override("normal_font_size", 24)
@@ -1657,6 +1673,36 @@ func _build_detail_modal() -> void:
 	_modal_btn_close.add_theme_font_size_override("font_size", 26)
 	_modal_btn_close.pressed.connect(close_quest_modal)
 	btn_row.add_child(_modal_btn_close)
+	_apply_detail_modal_widths()
+
+
+func _apply_detail_modal_widths() -> float:
+	var vp := get_viewport().get_visible_rect().size if get_viewport() != null else Vector2(1080, 1920)
+	if vp.x < 100.0:
+		vp = Vector2(1080, 1920)
+	var w := clampf(vp.x - 80.0, 720.0, 940.0)
+	var inner_w := w - 58.0
+	if _detail_modal != null:
+		_detail_modal.custom_minimum_size = Vector2(w, 0.0)
+	if _modal_title != null:
+		var tw := maxf(320.0, inner_w - 160.0)
+		_modal_title.custom_minimum_size = Vector2(tw, 0.0)
+		_modal_title.size.x = tw
+	if _modal_vizier_text != null:
+		var vw := maxf(360.0, inner_w - 196.0)
+		_modal_vizier_text.custom_minimum_size = Vector2(vw, 110.0)
+		_modal_vizier_text.size.x = vw
+	if _modal_req_label != null:
+		var rw := maxf(400.0, inner_w - 8.0)
+		_modal_req_label.custom_minimum_size = Vector2(rw, 0.0)
+		_modal_req_label.size.x = rw
+	return w
+
+
+func _finalize_detail_modal_layout() -> void:
+	if _detail_modal != null and _detail_modal.visible:
+		_apply_detail_modal_widths()
+		_detail_modal.reset_size()
 
 
 func refresh_quests(force: bool = false) -> void:
@@ -1765,6 +1811,7 @@ func open_quest_modal(quest_id: String) -> void:
 	var tgt := int(pr["target"])
 	var completed := bool(pr["completed"])
 
+	_apply_detail_modal_widths()
 	_modal_category.text = "%s  •  %s" % [str(q.get("icon", "📜")), str(q.get("category", "GÖREV"))]
 	_modal_title.text = str(q.get("title", ""))
 	_modal_vizier_text.text = str(q.get("vizier_desc", ""))
@@ -1858,16 +1905,11 @@ func open_quest_modal(quest_id: String) -> void:
 			_modal_goto_box.add_child(sub_btn)
 
 	_modal_backdrop.show()
+	if _modal_center != null:
+		_modal_center.show()
 	_detail_modal.show()
-
-	var vp := get_viewport().get_visible_rect().size
-	if vp.x < 100.0:
-		vp = Vector2(1080, 1920)
-	var ms := _detail_modal.get_combined_minimum_size()
-	var w := clampf(vp.x - 80.0, 720.0, 940.0)
-	var h := clampf(ms.y + 10.0, 560.0, vp.y - 180.0)
-	_detail_modal.size = Vector2(w, h)
-	_detail_modal.position = Vector2((vp.x - w) * 0.5, (vp.y - h) * 0.5)
+	_detail_modal.reset_size()
+	call_deferred("_finalize_detail_modal_layout")
 
 
 func _add_reward_pill(tex: Texture2D, amount: int) -> void:
@@ -1892,6 +1934,8 @@ func close_quest_modal() -> void:
 	_open_modal_quest_id = ""
 	if _modal_backdrop != null:
 		_modal_backdrop.hide()
+	if _modal_center != null:
+		_modal_center.hide()
 	if _detail_modal != null:
 		_detail_modal.hide()
 
@@ -2271,14 +2315,8 @@ func _sync_live_positions() -> void:
 			vp = Vector2(1080, 1920)
 		_toast_panel.position = Vector2(roundf((vp.x - _toast_panel.size.x) * 0.5), top_y)
 	if _detail_modal != null and _detail_modal.visible:
-		var vp2 := get_viewport().get_visible_rect().size
-		if vp2.x < 100.0:
-			vp2 = Vector2(1080, 1920)
-		var ms := _detail_modal.get_combined_minimum_size()
-		var w := clampf(vp2.x - 80.0, 720.0, 940.0)
-		var h := clampf(ms.y + 10.0, 560.0, vp2.y - 180.0)
-		_detail_modal.size = Vector2(w, h)
-		_detail_modal.position = Vector2(roundf((vp2.x - w) * 0.5), roundf((vp2.y - h) * 0.5))
+		_apply_detail_modal_widths()
+		_detail_modal.reset_size()
 
 
 func _gs() -> Node:

@@ -10,6 +10,18 @@ const FontCinzelBold := preload("res://assets/fonts/Cinzel-Bold.ttf")
 
 var _active_tab: String = "chat"
 var _non_member_tab: String = "create"
+var _last_rendered_alliance_id: int = -999
+var _is_member_view_rendered: bool = false
+var _create_name_input: LineEdit = null
+var _create_tag_input: LineEdit = null
+var _create_desc_input: TextEdit = null
+var _chat_input: LineEdit = null
+var _invite_input: LineEdit = null
+var _draft_create_name: String = ""
+var _draft_create_tag: String = ""
+var _draft_create_desc: String = ""
+var _draft_chat_text: String = ""
+var _draft_invite_text: String = ""
 
 
 func _ready() -> void:
@@ -24,8 +36,8 @@ func _ready() -> void:
 
 	var eb = Engine.get_main_loop().root.get_node_or_null("EventBus") if Engine.get_main_loop() is SceneTree else null
 	if eb != null:
-		if eb.has_signal("state_changed") and not eb.state_changed.is_connected(refresh_view):
-			eb.state_changed.connect(refresh_view)
+		if eb.has_signal("state_changed") and not eb.state_changed.is_connected(_on_state_changed):
+			eb.state_changed.connect(_on_state_changed)
 
 
 func _sync_top_bar_layout() -> void:
@@ -58,8 +70,57 @@ func _style_header() -> void:
 		h_panel.add_theme_stylebox_override("panel", sb)
 
 
+func _has_focused_text_input() -> bool:
+	var vp := get_viewport()
+	if vp == null or content_area == null:
+		return false
+	var fo := vp.gui_get_focus_owner()
+	if fo == null or not is_instance_valid(fo):
+		return false
+	if not (fo is LineEdit or fo is TextEdit):
+		return false
+	return content_area.is_ancestor_of(fo)
+
+
+func _capture_input_drafts() -> void:
+	if _create_name_input != null and is_instance_valid(_create_name_input):
+		_draft_create_name = _create_name_input.text
+	if _create_tag_input != null and is_instance_valid(_create_tag_input):
+		_draft_create_tag = _create_tag_input.text
+	if _create_desc_input != null and is_instance_valid(_create_desc_input):
+		_draft_create_desc = _create_desc_input.text
+	if _chat_input != null and is_instance_valid(_chat_input):
+		_draft_chat_text = _chat_input.text
+	if _invite_input != null and is_instance_valid(_invite_input):
+		_draft_invite_text = _invite_input.text
+
+
+func _on_state_changed() -> void:
+	var gs = Engine.get_main_loop().root.get_node_or_null("GameState") if Engine.get_main_loop() is SceneTree else null
+	if gs == null:
+		return
+	var p_name := str(gs.player.get("name", "Kral"))
+	var alliance: Dictionary = AllianceModelScript.get_player_alliance(gs.to_dict(), p_name)
+	var aid: int = int(alliance.get("id", -1)) if not alliance.is_empty() else -1
+	if aid == _last_rendered_alliance_id:
+		if _has_focused_text_input():
+			return
+		if not _is_member_view_rendered and _non_member_tab == "create":
+			return
+		if _is_member_view_rendered and _active_tab == "invite":
+			return
+	refresh_view()
+
+
 func refresh_view() -> void:
+	_capture_input_drafts()
+	_create_name_input = null
+	_create_tag_input = null
+	_create_desc_input = null
+	_chat_input = null
+	_invite_input = null
 	for child in content_area.get_children():
+		content_area.remove_child(child)
 		child.queue_free()
 
 	var gs = Engine.get_main_loop().root.get_node_or_null("GameState") if Engine.get_main_loop() is SceneTree else null
@@ -69,6 +130,8 @@ func refresh_view() -> void:
 	var p_name := str(gs.player.get("name", "Kral"))
 	var state: Dictionary = gs.to_dict()
 	var alliance: Dictionary = AllianceModelScript.get_player_alliance(state, p_name)
+	_last_rendered_alliance_id = int(alliance.get("id", -1)) if not alliance.is_empty() else -1
+	_is_member_view_rendered = not alliance.is_empty()
 
 	if alliance.is_empty():
 		header_title.text = " İTTİFAK MERKEZİ"
@@ -115,8 +178,18 @@ func _build_non_member_view(gs: Node, player_name: String) -> void:
 
 
 func _build_create_alliance_form(parent: Control, gs: Node, player_name: String) -> void:
+	var scroll := ScrollContainer.new()
+	scroll.size_flags_vertical = SIZE_EXPAND_FILL
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	scroll.scroll_deadzone = 12
+	parent.add_child(scroll)
+
+	var scroll_vb := VBoxContainer.new()
+	scroll_vb.size_flags_horizontal = SIZE_EXPAND_FILL
+	scroll.add_child(scroll_vb)
+
 	var card := _make_card()
-	parent.add_child(card)
+	scroll_vb.add_child(card)
 
 	var card_vbox := VBoxContainer.new()
 	card_vbox.add_theme_constant_override("separation", 14)
@@ -145,13 +218,16 @@ func _build_create_alliance_form(parent: Control, gs: Node, player_name: String)
 	card_vbox.add_child(name_lbl)
 
 	var name_input := LineEdit.new()
+	name_input.name = "AllianceNameInput"
 	name_input.placeholder_text = "Örn: Aslanlar Birliği"
+	name_input.text = _draft_create_name
 	name_input.custom_minimum_size = Vector2(0, 52)
 	name_input.add_theme_font_size_override("font_size", 24)
 	_style_input(name_input)
 	var gc_a: Node = Engine.get_main_loop().root.get_node_or_null("GameConfig") if Engine.get_main_loop() is SceneTree else null
 	if gc_a != null and gc_a.has_method("bind_keyboard_dismiss"):
 		gc_a.call("bind_keyboard_dismiss", name_input)
+	_create_name_input = name_input
 	card_vbox.add_child(name_input)
 
 	# Etiket (Tag - max 6 char)
@@ -162,13 +238,16 @@ func _build_create_alliance_form(parent: Control, gs: Node, player_name: String)
 	card_vbox.add_child(tag_lbl)
 
 	var tag_input := LineEdit.new()
+	tag_input.name = "AllianceTagInput"
 	tag_input.placeholder_text = "ASLAN"
+	tag_input.text = _draft_create_tag
 	tag_input.max_length = 6
 	tag_input.custom_minimum_size = Vector2(0, 52)
 	tag_input.add_theme_font_size_override("font_size", 24)
 	_style_input(tag_input)
 	if gc_a != null and gc_a.has_method("bind_keyboard_dismiss"):
 		gc_a.call("bind_keyboard_dismiss", tag_input)
+	_create_tag_input = tag_input
 	card_vbox.add_child(tag_input)
 
 	# Açıklama
@@ -179,12 +258,15 @@ func _build_create_alliance_form(parent: Control, gs: Node, player_name: String)
 	card_vbox.add_child(desc_field_lbl)
 
 	var desc_input := TextEdit.new()
+	desc_input.name = "AllianceDescInput"
 	desc_input.custom_minimum_size = Vector2(0, 100)
 	desc_input.placeholder_text = "Krallığımızın onurlu kılıçları..."
+	desc_input.text = _draft_create_desc
 	desc_input.add_theme_font_size_override("font_size", 22)
 	_style_input(desc_input)
 	if gc_a != null and gc_a.has_method("bind_keyboard_dismiss"):
 		gc_a.call("bind_keyboard_dismiss", desc_input)
+	_create_desc_input = desc_input
 	card_vbox.add_child(desc_input)
 
 	var err_label := Label.new()
@@ -199,6 +281,8 @@ func _build_create_alliance_form(parent: Control, gs: Node, player_name: String)
 	create_btn.add_theme_font_size_override("font_size", 26)
 	_style_gold_btn(create_btn)
 	create_btn.pressed.connect(func():
+		if gc_a != null and gc_a.has_method("dismiss_keyboard_for"):
+			gc_a.call("dismiss_keyboard_for", null)
 		var state: Dictionary = gs.to_dict()
 		var res := AllianceModelScript.create_alliance(
 			state,
@@ -208,6 +292,12 @@ func _build_create_alliance_form(parent: Control, gs: Node, player_name: String)
 			desc_input.text
 		)
 		if bool(res.get("ok", false)):
+			_draft_create_name = ""
+			_draft_create_tag = ""
+			_draft_create_desc = ""
+			name_input.text = ""
+			tag_input.text = ""
+			desc_input.text = ""
 			gs.from_dict(state)
 			_save_game()
 			_active_tab = "chat"
@@ -521,13 +611,16 @@ func _build_chat_tab(parent: Control, gs: Node, alliance: Dictionary, player_nam
 	chat_container.add_child(send_box)
 
 	var chat_input := LineEdit.new()
+	chat_input.name = "AllianceChatInput"
 	chat_input.size_flags_horizontal = SIZE_EXPAND_FILL
 	chat_input.placeholder_text = "İttifak arkadaşlarına mesaj yaz..."
+	chat_input.text = _draft_chat_text
 	chat_input.add_theme_font_size_override("font_size", 24)
 	_style_input(chat_input)
 	var gc_c: Node = Engine.get_main_loop().root.get_node_or_null("GameConfig") if Engine.get_main_loop() is SceneTree else null
 	if gc_c != null and gc_c.has_method("bind_keyboard_dismiss"):
 		gc_c.call("bind_keyboard_dismiss", chat_input)
+	_chat_input = chat_input
 	send_box.add_child(chat_input)
 
 	var send_btn := Button.new()
@@ -545,9 +638,10 @@ func _build_chat_tab(parent: Control, gs: Node, alliance: Dictionary, player_nam
 		var a_id = int(alliance.get("id", -1))
 		var res := AllianceModelScript.send_chat_message(state, a_id, player_name, text)
 		if bool(res.get("ok", false)):
+			_draft_chat_text = ""
+			chat_input.text = ""
 			gs.from_dict(state)
 			_save_game()
-			chat_input.text = ""
 			refresh_view()
 
 	send_btn.pressed.connect(on_send)
@@ -646,13 +740,16 @@ func _build_invite_tab(parent: Control, gs: Node, alliance: Dictionary, player_n
 	c_vbox.add_child(title)
 
 	var input := LineEdit.new()
+	input.name = "AllianceInviteInput"
 	input.placeholder_text = "Davet edilecek lordun adı (örn: Lord Edward)..."
+	input.text = _draft_invite_text
 	input.custom_minimum_size = Vector2(0, 52)
 	input.add_theme_font_size_override("font_size", 24)
 	_style_input(input)
 	var gc_i: Node = Engine.get_main_loop().root.get_node_or_null("GameConfig") if Engine.get_main_loop() is SceneTree else null
 	if gc_i != null and gc_i.has_method("bind_keyboard_dismiss"):
 		gc_i.call("bind_keyboard_dismiss", input)
+	_invite_input = input
 	c_vbox.add_child(input)
 
 	var msg_lbl := Label.new()
@@ -669,11 +766,12 @@ func _build_invite_tab(parent: Control, gs: Node, alliance: Dictionary, player_n
 		var a_id = int(alliance.get("id", -1))
 		var res := AllianceModelScript.invite_player(st, a_id, player_name, target)
 		if bool(res.get("ok", false)):
+			_draft_invite_text = ""
+			input.text = ""
 			gs.from_dict(st)
 			_save_game()
 			msg_lbl.text = " %s başarıyla davet edildi!" % target
 			msg_lbl.add_theme_color_override("font_color", Color(0.40, 0.90, 0.50))
-			input.text = ""
 		else:
 			msg_lbl.text = " " + str(res.get("message", "Hata"))
 			msg_lbl.add_theme_color_override("font_color", Color(1.0, 0.40, 0.40))

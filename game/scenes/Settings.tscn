@@ -195,13 +195,6 @@ layout_mode = 2
 theme_override_font_sizes/font_size = 24
 theme_override_fonts/font = ExtResource("7_nunito_bold")
 
-[node name="BtnTutorialReplay" type="Button" parent="Center/VBox"]
-custom_minimum_size = Vector2(0, 76)
-layout_mode = 2
-theme_override_font_sizes/font_size = 26
-theme_override_fonts/font = ExtResource("7_nunito_bold")
-text = "🎓 Başlangıç Rehberini Tekrarla"
-
 [node name="BtnBack" type="Button" parent="Center/VBox"]
 custom_minimum_size = Vector2(0, 76)
 layout_mode = 2

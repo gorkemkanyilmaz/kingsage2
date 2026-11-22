@@ -491,6 +491,11 @@ func save_to_file(path: String = CONFIG_PATH) -> bool:
 
 func _deferred_hide_virtual_keyboard() -> void:
 	if DisplayServer.get_name() != "headless":
+		var vp := get_viewport()
+		if vp != null:
+			var fo := vp.gui_get_focus_owner()
+			if fo != null and is_instance_valid(fo) and (fo is LineEdit or fo is TextEdit):
+				return
 		DisplayServer.virtual_keyboard_hide()
 
 
@@ -606,9 +611,30 @@ static func attach_mobile_keyboard_dismiss(ctrl: Control, on_submit: Callable = 
 		)
 	elif ctrl is TextEdit:
 		var te := ctrl as TextEdit
+		te.focus_entered.connect(func():
+			var gc_node: Node = get_singleton()
+			if gc_node != null and gc_node.has_method("mark_focus_guard"):
+				gc_node.call("mark_focus_guard", te, 450)
+		)
 		te.focus_exited.connect(func():
 			dismiss_virtual_keyboard()
 		)
+
+
+static func _has_visible_text_input_at(node: Node, pos: Vector2) -> bool:
+	if node == null or not is_instance_valid(node):
+		return false
+	if node is CanvasItem and not (node as CanvasItem).visible:
+		return false
+	if node is Control:
+		var c := node as Control
+		if c is LineEdit or c is TextEdit or c is SpinBox:
+			if c.is_visible_in_tree() and c.get_global_rect().has_point(pos):
+				return true
+	for child in node.get_children():
+		if _has_visible_text_input_at(child, pos):
+			return true
+	return false
 
 
 func _input(event: InputEvent) -> void:
@@ -645,6 +671,8 @@ func _input(event: InputEvent) -> void:
 	if focus_owner == _focus_guard_ctrl and now_ms <= _focus_guard_until_msec:
 		return
 	if focus_owner.get_global_rect().has_point(tap_pos):
+		return
+	if _has_visible_text_input_at(vp, tap_pos):
 		return
 	if focus_owner.has_meta("keep_focus_controls"):
 		var kf = focus_owner.get_meta("keep_focus_controls")

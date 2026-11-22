@@ -1,6 +1,6 @@
 extends PanelContainer
 
-const DESKTOP_BAR_HEIGHT := 146.0
+const DESKTOP_BAR_HEIGHT := 164.0
 const EconomyAPI := preload("res://scripts/sim/economy/EconomyAPI.gd")
 const RulesEngine := preload("res://scripts/rules/RulesEngine.gd")
 const ICON_WOOD: Texture2D = preload("res://assets/sprites/ui/nano_banana/sharp_icon_wood.tres")
@@ -18,7 +18,9 @@ const FONT_SEMIBOLD: Font = preload("res://assets/fonts/Nunito-SemiBold.ttf")
 var top_row: HBoxContainer
 var resources_row: HBoxContainer
 var vbox_root: VBoxContainer
+var village_left_col: VBoxContainer
 var village_info_box: HBoxContainer
+var points_row: HBoxContainer
 var left_flex_spacer: Control
 var island_spacer: Control
 var right_wing: HBoxContainer
@@ -88,8 +90,12 @@ func _ensure_nodes() -> void:
 		top_row = find_child("TopRow", true, false) as HBoxContainer
 	if resources_row == null:
 		resources_row = find_child("ResourcesRow", true, false) as HBoxContainer
+	if village_left_col == null:
+		village_left_col = find_child("VillageLeftCol", true, false) as VBoxContainer
 	if village_info_box == null:
 		village_info_box = find_child("VillageInfo", true, false) as HBoxContainer
+	if points_row == null:
+		points_row = find_child("PointsRow", true, false) as HBoxContainer
 	if left_flex_spacer == null:
 		left_flex_spacer = find_child("LeftFlexSpacer", true, false) as Control
 	if island_spacer == null:
@@ -276,19 +282,19 @@ func _apply_responsive_layout() -> void:
 
 	var has_island := island_w > 0.0
 	var effective_island_w := minf(island_w, 336.0) if has_island else 0.0
-	var top_pad := 10.0
-	var bottom_pad := 10.0
-	var sep := 8
-	var top_row_h := 64.0
+	var top_pad := 8.0
+	var bottom_pad := 8.0
+	var sep := 6
+	var top_row_h := 74.0
 	var res_row_h := 68.0
 
 	if has_island:
 		top_pad = 6.0
 		bottom_pad = 9.0
-		sep = 6
-		top_row_h = maxf(68.0, safe_top)
+		sep = 5
+		top_row_h = maxf(80.0, safe_top)
 	elif safe_top > 0.0:
-		top_pad = maxf(10.0, safe_top + 2.0)
+		top_pad = maxf(8.0, safe_top + 2.0)
 
 	var total_h := top_pad + top_row_h + float(sep) + res_row_h + bottom_pad
 	_last_bar_height = total_h
@@ -316,11 +322,23 @@ func _apply_responsive_layout() -> void:
 		resources_row.custom_minimum_size.y = res_row_h
 		resources_row.add_theme_constant_override("separation", 8)
 
+	if village_left_col != null:
+		village_left_col.size_flags_horizontal = Control.SIZE_EXPAND_FILL if has_island else Control.SIZE_SHRINK_BEGIN
+		village_left_col.size_flags_stretch_ratio = 1.0
+		village_left_col.size_flags_vertical = Control.SIZE_EXPAND_FILL if has_island else Control.SIZE_SHRINK_CENTER
+		village_left_col.alignment = BoxContainer.ALIGNMENT_END if has_island else BoxContainer.ALIGNMENT_CENTER
+		village_left_col.clip_contents = has_island
+		village_left_col.add_theme_constant_override("separation", 4)
+
 	if village_info_box != null:
 		village_info_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL if has_island else Control.SIZE_SHRINK_BEGIN
 		village_info_box.size_flags_stretch_ratio = 1.0
 		village_info_box.clip_contents = has_island
-		village_info_box.add_theme_constant_override("separation", 6 if has_island else 8)
+		village_info_box.add_theme_constant_override("separation", 5 if has_island else 8)
+
+	if points_row != null:
+		points_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL if has_island else Control.SIZE_SHRINK_BEGIN
+		points_row.alignment = BoxContainer.ALIGNMENT_BEGIN
 
 	if left_flex_spacer != null:
 		left_flex_spacer.visible = not has_island
@@ -341,9 +359,10 @@ func _apply_responsive_layout() -> void:
 
 	if points_box != null:
 		points_box.visible = true
+		points_box.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
 	if points_label != null:
 		points_label.add_theme_font_override("font", FONT_BOLD)
-		points_label.add_theme_font_size_override("font_size", 21 if has_island else 24)
+		points_label.add_theme_font_size_override("font_size", 20 if has_island else 21)
 		points_label.add_theme_color_override("font_color", Color(1.0, 0.89, 0.44))
 		points_label.add_theme_constant_override("outline_size", 2)
 		points_label.add_theme_color_override("font_outline_color", Color(0.05, 0.04, 0.02, 0.95))
@@ -386,7 +405,7 @@ func _apply_responsive_layout() -> void:
 	if village_name_label != null:
 		village_name_label.clip_text = has_island
 		village_name_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS if has_island else TextServer.OVERRUN_NO_TRIMMING
-		village_name_label.custom_minimum_size.x = 60.0 if has_island else 0.0
+		village_name_label.custom_minimum_size.x = 120.0 if has_island else 0.0
 		village_name_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL if has_island else Control.SIZE_SHRINK_BEGIN
 		village_name_label.add_theme_font_override("font", FONT_BOLD)
 		village_name_label.add_theme_font_size_override("font_size", 23 if has_island else 26)
@@ -579,14 +598,15 @@ func _ensure_royal_wing_frames() -> void:
 		var psb := StyleBoxFlat.new()
 		psb.bg_color = Color(0.18, 0.13, 0.06, 0.96)
 		psb.border_color = Color(0.95, 0.78, 0.34, 0.95)
-		psb.set_border_width_all(2)
-		psb.set_corner_radius_all(12)
-		psb.content_margin_left = 12.0
-		psb.content_margin_right = 12.0
-		psb.content_margin_top = 5.0
-		psb.content_margin_bottom = 5.0
-		psb.shadow_color = Color(0, 0, 0, 0.45)
-		psb.shadow_size = 4
+		psb.set_border_width_all(1)
+		psb.border_width_bottom = 2
+		psb.set_corner_radius_all(9)
+		psb.content_margin_left = 10.0
+		psb.content_margin_right = 10.0
+		psb.content_margin_top = 2.0
+		psb.content_margin_bottom = 2.0
+		psb.shadow_color = Color(0, 0, 0, 0.40)
+		psb.shadow_size = 3
 		(points_box as PanelContainer).add_theme_stylebox_override("panel", psb)
 
 	if btn_rename_village != null:

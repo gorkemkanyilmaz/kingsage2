@@ -11,7 +11,6 @@ const FontNunitoSemiBold: Font = preload("res://assets/fonts/Nunito-SemiBold.ttf
 @onready var profile_option: OptionButton = find_child("Option", true, false) as OptionButton
 @onready var account_info_lbl: Label = find_child("AccountInfo", true, false) as Label
 @onready var btn_logout: Button = find_child("BtnLogout", true, false) as Button
-@onready var btn_tutorial: Button = find_child("BtnTutorialReplay", true, false) as Button
 @onready var btn_back: Button = find_child("BtnBack", true, false) as Button
 @onready var btn_main_menu: Button = find_child("BtnMainMenu", true, false) as Button
 @onready var btn_delete_account: Button = find_child("BtnDeleteAccount", true, false) as Button
@@ -51,9 +50,6 @@ func _ready() -> void:
 
 	if btn_logout != null and not btn_logout.pressed.is_connected(_on_btn_logout_pressed):
 		btn_logout.pressed.connect(_on_btn_logout_pressed)
-
-	if btn_tutorial != null and not btn_tutorial.pressed.is_connected(_on_btn_tutorial_pressed):
-		btn_tutorial.pressed.connect(_on_btn_tutorial_pressed)
 
 	if btn_back != null and not btn_back.pressed.is_connected(_on_btn_back_pressed):
 		btn_back.pressed.connect(_on_btn_back_pressed)
@@ -221,7 +217,6 @@ func _style_option_button(opt: OptionButton) -> void:
 
 func _apply_royal_styles() -> void:
 	_style_btn(btn_logout, Color(0.24, 0.20, 0.30, 0.98), Color(0.76, 0.62, 0.32, 0.90))
-	_style_btn(btn_tutorial, Color(0.36, 0.26, 0.10, 0.98), Color(0.95, 0.78, 0.34, 0.96), Color(1.0, 0.95, 0.76))
 	_style_btn(btn_back, Color(0.14, 0.38, 0.22, 0.98), Color(0.46, 0.84, 0.54, 0.95))
 	_style_btn(btn_main_menu, Color(0.15, 0.20, 0.34, 0.98), Color(0.68, 0.76, 0.94, 0.88))
 	_style_btn(btn_delete_account, Color(0.48, 0.11, 0.13, 0.98), Color(0.94, 0.34, 0.34, 0.96), Color(1.0, 0.92, 0.90))
@@ -232,13 +227,6 @@ func _on_btn_logout_pressed() -> void:
 	if auth != null and auth.has_method("logout"):
 		auth.call("logout")
 	get_tree().change_scene_to_file("res://scenes/VillageSelect.tscn")
-
-
-func _on_btn_tutorial_pressed() -> void:
-	var tm := _autoload("TutorialManager")
-	if tm != null and tm.has_method("restart_tutorial"):
-		tm.restart_tutorial()
-	get_tree().change_scene_to_file("res://scenes/Village.tscn")
 
 
 func _on_btn_back_pressed() -> void:

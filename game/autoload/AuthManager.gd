@@ -10,6 +10,7 @@ const WEB_SESSION_KEY := "tvk_auth_session"
 var is_logged_in: bool = false
 var auth_provider: String = "" # "google" | "apple"
 var user_id: String = ""
+var provider_uid: String = ""
 var display_name: String = ""
 var email: String = ""
 var auth_token: String = ""
@@ -73,6 +74,8 @@ func complete_external_login(provider: String, user_name: String, user_email: St
 	if clean.is_empty():
 		clean = "Lord Gorkem" if prov == "google" else "Lord Roland"
 	display_name = clean
+	if not uid.strip_edges().is_empty():
+		provider_uid = uid.strip_edges()
 	var uid_seed := (prov + ":" + uid.strip_edges()) if not uid.strip_edges().is_empty() else ((prov + ":" + clean_email) if not clean_email.is_empty() else (prov + ":" + display_name.to_lower()))
 	user_id = prov + "_" + uid_seed.sha256_text().substr(0, 12)
 	email = clean_email if not clean_email.is_empty() else (display_name.to_lower().replace(" ", ".") + ("@icloud.com" if prov == "apple" else "@gmail.com"))
@@ -90,6 +93,7 @@ func clear_session_only() -> void:
 	is_logged_in = false
 	auth_provider = ""
 	user_id = ""
+	provider_uid = ""
 	display_name = ""
 	email = ""
 	auth_token = ""
@@ -121,21 +125,28 @@ func logout() -> void:
 		var wm = loop.root.get_node_or_null("WorldManager")
 		var gs_pre = loop.root.get_node_or_null("GameState")
 		if is_logged_in and wm != null and gs_pre != null and gs_pre.has_active_village():
-			var has_unsaved_cloud := int(wm.get("_last_local_mutation_unix")) > int(wm.get("_last_cloud_save_unix"))
+			var has_unsaved_cloud := false
+			if wm.get("_last_local_mutation_unix") != null and wm.get("_last_cloud_save_unix") != null:
+				has_unsaved_cloud = int(wm.get("_last_local_mutation_unix")) > int(wm.get("_last_cloud_save_unix"))
 			if wm.has_method("save_active_world"):
-				wm.save_active_world(has_unsaved_cloud)
+				wm.save_active_world(has_unsaved_cloud, has_unsaved_cloud)
 		var sm_pre = loop.root.get_node_or_null("SaveManager")
 		if is_logged_in and gs_pre != null and gs_pre.has_active_village() and sm_pre != null and sm_pre.has_method("save_game"):
 			sm_pre.save_game()
 		if wm != null:
 			wm.set("_suppress_reset_save", true)
+			if wm.has_method("cancel_pending_cloud_poll"):
+				wm.call("cancel_pending_cloud_poll")
 		var net = loop.root.get_node_or_null("NetworkManager")
 		if net != null:
 			net.auth_token = ""
+			if net.has_method("cancel_background_requests"):
+				net.call("cancel_background_requests")
 
 	is_logged_in = false
 	auth_provider = ""
 	user_id = ""
+	provider_uid = ""
 	display_name = ""
 	email = ""
 	auth_token = ""
@@ -161,6 +172,7 @@ func get_profile() -> Dictionary:
 		"is_logged_in": is_logged_in,
 		"provider": auth_provider,
 		"user_id": user_id,
+		"provider_uid": provider_uid,
 		"name": display_name,
 		"email": email,
 		"token": auth_token
@@ -203,6 +215,7 @@ func load_session() -> bool:
 	is_logged_in = bool(data.get("is_logged_in", false))
 	auth_provider = str(data.get("provider", ""))
 	user_id = str(data.get("user_id", ""))
+	provider_uid = str(data.get("provider_uid", ""))
 	display_name = _normalize_name(str(data.get("name", "")))
 	email = str(data.get("email", ""))
 	var loaded_tok := str(data.get("token", ""))
@@ -489,7 +502,13 @@ func _start_ios_native_auth(prov: String, is_apple: bool, req_id: String, base_u
 				_auth_poll_timer.stop()
 			if is_instance_valid(status_lbl):
 				status_lbl.text = "Apple doğrulandı — hesabınız yükleniyor..."
-			_handle_verified_identity(res_prov, res_email, res_uid, parent_node, on_complete, res_id_tok)
+			var net_t := get_tree()
+			if net_t != null:
+				net_t.create_timer(0.25).timeout.connect(func():
+					_handle_verified_identity(res_prov, res_email, res_uid, parent_node, on_complete, res_id_tok)
+				)
+			else:
+				_handle_verified_identity(res_prov, res_email, res_uid, parent_node, on_complete, res_id_tok)
 		else:
 			if is_instance_valid(status_lbl):
 				status_lbl.text = str(data.get("error", "Giriş iptal edildi."))
@@ -727,8 +746,9 @@ func _handle_verified_identity(prov: String, raw_email: String, raw_uid: String,
 				auth_provider = clean_prov
 				email = resolved_email
 				user_id = resolved_uid
+				provider_uid = str(res_data.get("provider_uid", clean_uid)).strip_edges()
 				display_name = _normalize_name(existing_name) if not existing_name.is_empty() else "Lord Oyuncu"
-				_cache_known_account(clean_prov, clean_uid, resolved_email, display_name, resolved_uid)
+				_cache_known_account(clean_prov, provider_uid if not provider_uid.is_empty() else clean_uid, resolved_email, display_name, resolved_uid)
 
 				if not srv_token.is_empty():
 					_dismiss_auth_sheet()
@@ -775,6 +795,7 @@ func _handle_verified_identity(prov: String, raw_email: String, raw_uid: String,
 								break
 					if has_local_v:
 						_dismiss_auth_sheet()
+						provider_uid = clean_uid
 						var prof_c := complete_external_login(clean_prov, cached_name, str(cached.get("email", clean_email)), clean_uid)
 						if not str(cached.get("user_id", "")).is_empty():
 							user_id = str(cached.get("user_id"))
@@ -794,7 +815,7 @@ func _handle_verified_identity(prov: String, raw_email: String, raw_uid: String,
 								on_complete.call(prof_l)
 						else:
 							_show_account_check_retry_sheet(clean_prov, clean_email, clean_uid, parent_node, on_complete, identity_token)
-					, 0, str(cached.get("email", clean_email)), clean_uid)
+					, 1, str(cached.get("email", clean_email)), clean_uid)
 					return
 				_show_account_check_retry_sheet(clean_prov, clean_email, clean_uid, parent_node, on_complete, identity_token)
 				return

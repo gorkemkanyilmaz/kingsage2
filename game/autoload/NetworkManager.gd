@@ -13,6 +13,20 @@ var is_server_reachable: bool = false
 var auth_token: String = ""
 
 var _http: HTTPRequest
+var _bg_requests: Array[HTTPRequest] = []
+
+
+func _untrack_bg_request(req: HTTPRequest) -> void:
+	_bg_requests.erase(req)
+
+
+func cancel_background_requests() -> void:
+	var copy := _bg_requests.duplicate()
+	_bg_requests.clear()
+	for r in copy:
+		if r != null and is_instance_valid(r):
+			r.cancel_request()
+			r.queue_free()
 
 
 func _ready() -> void:
@@ -50,9 +64,12 @@ func _auto_connect_cloud() -> void:
 
 func check_server(callback: Callable = Callable()) -> void:
 	var req := HTTPRequest.new()
+	req.use_threads = not OS.has_feature("web")
 	add_child(req)
-	req.timeout = 10.0
+	_bg_requests.append(req)
+	req.timeout = 8.0
 	req.request_completed.connect(func(result: int, response_code: int, _headers: PackedStringArray, body: PackedByteArray):
+		_untrack_bg_request(req)
 		is_server_reachable = (result == HTTPRequest.RESULT_SUCCESS and response_code == 200)
 		var data := {}
 		var json_str := body.get_string_from_utf8()
@@ -64,13 +81,23 @@ func check_server(callback: Callable = Callable()) -> void:
 			callback.call(is_server_reachable, data)
 		req.queue_free()
 	)
-	req.request(server_url + "/api/health")
+	var err := req.request(server_url + "/api/health")
+	if err != OK:
+		_untrack_bg_request(req)
+		is_server_reachable = false
+		server_status_changed.emit(false, {})
+		if callback.is_valid():
+			callback.call(false, {})
+		req.queue_free()
 
 
 func check_account_online(provider: String, email: String, provider_uid: String, callback: Callable = Callable(), _retry_count: int = 0, identity_token: String = "") -> void:
 	var req := HTTPRequest.new()
+	req.use_threads = not OS.has_feature("web")
 	add_child(req)
-	req.timeout = 10.0
+	var timeouts := [6.0, 8.0, 10.0]
+	var cur_timeout := float(timeouts[mini(_retry_count, timeouts.size() - 1)])
+	req.timeout = cur_timeout
 	var payload_dict := {
 		"provider": provider,
 		"email": email.strip_edges(),
@@ -80,7 +107,23 @@ func check_account_online(provider: String, email: String, provider_uid: String,
 		payload_dict["identity_token"] = identity_token.strip_edges()
 	var payload := JSON.stringify(payload_dict)
 	var headers := ["Content-Type: application/json"]
+	var done := [false]
+
+	var handle_failure := func(response_code: int, res_data: Dictionary):
+		if _retry_count < 2 and is_inside_tree():
+			var delay := 0.35 if _retry_count == 0 else 0.60
+			get_tree().create_timer(delay).timeout.connect(func():
+				if is_inside_tree():
+					check_account_online(provider, email, provider_uid, callback, _retry_count + 1, identity_token)
+			)
+			return
+		if callback.is_valid():
+			callback.call(false, res_data)
+
 	req.request_completed.connect(func(result: int, response_code: int, _hdrs: PackedStringArray, body: PackedByteArray):
+		if bool(done[0]):
+			return
+		done[0] = true
 		var success := (result == HTTPRequest.RESULT_SUCCESS and response_code == 200)
 		var res_data := {}
 		var json_str := body.get_string_from_utf8()
@@ -88,26 +131,47 @@ func check_account_online(provider: String, email: String, provider_uid: String,
 		if not json_str.is_empty() and test_json.parse(json_str) == OK and typeof(test_json.data) == TYPE_DICTIONARY:
 			res_data = test_json.data
 		res_data["_http_code"] = response_code
+		req.queue_free()
 		if success:
 			is_server_reachable = true
-		elif response_code != 400 and response_code != 403 and response_code != 404 and _retry_count < 1 and is_inside_tree():
-			req.queue_free()
-			get_tree().create_timer(0.8).timeout.connect(func():
-				if is_inside_tree():
-					check_account_online(provider, email, provider_uid, callback, _retry_count + 1, identity_token)
-			)
-			return
-		if callback.is_valid():
-			callback.call(success, res_data)
-		req.queue_free()
+			if callback.is_valid():
+				callback.call(true, res_data)
+		elif response_code != 400 and response_code != 403 and response_code != 404:
+			handle_failure.call(response_code, res_data)
+		else:
+			if callback.is_valid():
+				callback.call(false, res_data)
 	)
-	req.request(server_url + "/api/auth/check_account", headers, HTTPClient.METHOD_POST, payload)
+
+	var watchdog := Timer.new()
+	watchdog.one_shot = true
+	watchdog.wait_time = cur_timeout + 1.5
+	watchdog.timeout.connect(func():
+		if bool(done[0]):
+			return
+		done[0] = true
+		if is_instance_valid(req):
+			req.cancel_request()
+			req.queue_free()
+		handle_failure.call(0, {"_http_code": 0, "_watchdog_timeout": true})
+	)
+	req.add_child(watchdog)
+	watchdog.start()
+
+	var req_err := req.request(server_url + "/api/auth/check_account", headers, HTTPClient.METHOD_POST, payload)
+	if req_err != OK and not bool(done[0]):
+		done[0] = true
+		req.queue_free()
+		handle_failure.call(0, {"_http_code": 0, "_request_error": req_err})
 
 
 func login_online(provider: String, display_name: String, callback: Callable = Callable(), _retry_count: int = 0, explicit_email: String = "", explicit_uid: String = "") -> void:
 	var req := HTTPRequest.new()
+	req.use_threads = not OS.has_feature("web")
 	add_child(req)
-	req.timeout = 10.0
+	var timeouts := [6.0, 8.0, 10.0]
+	var cur_timeout := float(timeouts[mini(_retry_count, timeouts.size() - 1)])
+	req.timeout = cur_timeout
 
 	var auth_email := explicit_email.strip_edges()
 	var auth_uid := explicit_uid.strip_edges()
@@ -118,6 +182,8 @@ func login_online(provider: String, display_name: String, callback: Callable = C
 		if auth_pre != null:
 			if auth_email.is_empty():
 				auth_email = str(auth_pre.email).strip_edges()
+			if auth_uid.is_empty() and auth_pre.get("provider_uid") != null:
+				auth_uid = str(auth_pre.get("provider_uid")).strip_edges()
 			if auth_uid.is_empty():
 				auth_uid = str(auth_pre.user_id).strip_edges()
 			if auth_pre.get("identity_token") != null:
@@ -136,8 +202,24 @@ func login_online(provider: String, display_name: String, callback: Callable = C
 	var payload := JSON.stringify(payload_dict)
 
 	var headers := ["Content-Type: application/json"]
+	var done := [false]
+
+	var handle_login_failure := func(res_data: Dictionary):
+		if _retry_count < 2 and is_inside_tree():
+			var delay := 0.35 if _retry_count == 0 else 0.60
+			get_tree().create_timer(delay).timeout.connect(func():
+				if is_inside_tree():
+					login_online(provider, display_name, callback, _retry_count + 1, explicit_email, explicit_uid)
+			)
+			return
+		if callback.is_valid():
+			callback.call(false, res_data)
+		auth_completed.emit(false, res_data)
 
 	req.request_completed.connect(func(result: int, response_code: int, _hdrs: PackedStringArray, body: PackedByteArray):
+		if bool(done[0]):
+			return
+		done[0] = true
 		var success := (result == HTTPRequest.RESULT_SUCCESS and response_code == 200)
 		var res_data := {}
 		var json_str := body.get_string_from_utf8()
@@ -145,6 +227,7 @@ func login_online(provider: String, display_name: String, callback: Callable = C
 		if not json_str.is_empty() and test_json.parse(json_str) == OK and typeof(test_json.data) == TYPE_DICTIONARY:
 			res_data = test_json.data
 		res_data["_http_code"] = response_code
+		req.queue_free()
 
 		if success:
 			is_server_reachable = true
@@ -158,6 +241,9 @@ func login_online(provider: String, display_name: String, callback: Callable = C
 					auth.auth_token = auth_token
 					if res_data.has("user_id") and not str(res_data.get("user_id", "")).is_empty():
 						auth.user_id = str(res_data.get("user_id"))
+					var resolved_puid := str(res_data.get("provider_uid", auth_uid)).strip_edges()
+					if not resolved_puid.is_empty():
+						auth.set("provider_uid", resolved_puid)
 					if res_data.has("display_name") and not str(res_data.get("display_name", "")).is_empty():
 						auth.display_name = str(res_data.get("display_name"))
 					else:
@@ -168,39 +254,58 @@ func login_online(provider: String, display_name: String, callback: Callable = C
 						auth.email = auth_email
 					auth.save_session()
 					if auth.has_method("_cache_known_account"):
-						auth.call("_cache_known_account", provider, auth_uid, auth.email, auth.display_name, auth.user_id)
+						auth.call("_cache_known_account", provider, resolved_puid, auth.email, auth.display_name, auth.user_id)
 					auth.auth_state_changed.emit(true, auth.get_profile())
 				var wm = loop.root.get_node_or_null("WorldManager")
 				if wm != null and wm.has_method("apply_cloud_sync"):
 					wm.apply_cloud_sync(res_data)
 			server_status_changed.emit(true, res_data)
-		elif response_code != 400 and response_code != 403 and response_code != 409 and _retry_count < 1 and is_inside_tree():
-			req.queue_free()
-			get_tree().create_timer(0.8).timeout.connect(func():
-				if is_inside_tree():
-					login_online(provider, display_name, callback, _retry_count + 1, explicit_email, explicit_uid)
-			)
-			return
-
-		if callback.is_valid():
-			callback.call(success, res_data)
-		auth_completed.emit(success, res_data)
-		req.queue_free()
+			if callback.is_valid():
+				callback.call(true, res_data)
+			auth_completed.emit(true, res_data)
+		elif response_code != 400 and response_code != 403 and response_code != 409:
+			handle_login_failure.call(res_data)
+		else:
+			if callback.is_valid():
+				callback.call(false, res_data)
+			auth_completed.emit(false, res_data)
 	)
 
-	req.request(server_url + "/api/auth/login", headers, HTTPClient.METHOD_POST, payload)
+	var watchdog := Timer.new()
+	watchdog.one_shot = true
+	watchdog.wait_time = cur_timeout + 1.5
+	watchdog.timeout.connect(func():
+		if bool(done[0]):
+			return
+		done[0] = true
+		if is_instance_valid(req):
+			req.cancel_request()
+			req.queue_free()
+		handle_login_failure.call({"_http_code": 0, "_watchdog_timeout": true})
+	)
+	req.add_child(watchdog)
+	watchdog.start()
+
+	var req_err := req.request(server_url + "/api/auth/login", headers, HTTPClient.METHOD_POST, payload)
+	if req_err != OK and not bool(done[0]):
+		done[0] = true
+		req.queue_free()
+		handle_login_failure.call({"_http_code": 0, "_request_error": req_err})
 
 
 func sync_state_from_cloud(token: String, callback: Callable = Callable(), req_seq: int = -1) -> void:
 	var req := HTTPRequest.new()
+	req.use_threads = not OS.has_feature("web")
 	add_child(req)
-	req.timeout = 10.0
+	_bg_requests.append(req)
+	req.timeout = 8.0
 
 	var headers := [
 		"Authorization: Bearer " + token
 	]
 
 	req.request_completed.connect(func(result: int, response_code: int, _hdrs: PackedStringArray, body: PackedByteArray):
+		_untrack_bg_request(req)
 		var success := (result == HTTPRequest.RESULT_SUCCESS and response_code == 200)
 		var res_data := {}
 		if success:
@@ -220,7 +325,13 @@ func sync_state_from_cloud(token: String, callback: Callable = Callable(), req_s
 		req.queue_free()
 	)
 
-	req.request(server_url + "/api/game/state", headers, HTTPClient.METHOD_GET)
+	var err := req.request(server_url + "/api/game/state", headers, HTTPClient.METHOD_GET)
+	if err != OK:
+		_untrack_bg_request(req)
+		if callback.is_valid():
+			callback.call(false, {})
+		sync_completed.emit(false, {})
+		req.queue_free()
 
 
 func pull_shared_world_from_cloud(callback: Callable = Callable()) -> void:

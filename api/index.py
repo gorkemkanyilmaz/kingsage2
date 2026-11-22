@@ -2817,15 +2817,29 @@ def auth_check_account(req: CheckAccountRequest):
         email = existing_d.get("email") or resolved_email or clean_email
         stored_puid = str(existing_d.get("provider_uid") or "").strip() or resolved_uid
         created_unix = int(existing["created_unix"] or now)
-        token = f"tk_tok_{secrets.token_hex(24)}"
-        cursor.execute(
-            "UPDATE users SET token = ?, last_login_unix = ?, provider_uid = ?, email = ? WHERE id = ?",
-            (token, now, stored_puid, email, user_id)
-        )
 
         cloud_state, cloud_updated_unix, server_village, worlds_meta = _fetch_cloud_and_village_with_worlds(cursor, user_id, display_name, False, existing_d)
         has_village = bool(server_village is not None or _player_has_village_in_world(cloud_state, display_name))
         u_diamonds, u_scrolls = _parse_user_wallet(existing_d)
+
+        existing_tok = str(existing_d.get("token") or "").strip()
+        token = f"tk_tok_{secrets.token_hex(24)}"
+        if conn.is_pg:
+            cursor.execute("SAVEPOINT sp_tok_upd")
+        try:
+            cursor.execute(
+                "UPDATE users SET token = ?, last_login_unix = ?, provider_uid = ?, email = ? WHERE id = ?",
+                (token, now, stored_puid, email, user_id)
+            )
+            if conn.is_pg:
+                cursor.execute("RELEASE SAVEPOINT sp_tok_upd")
+        except Exception:
+            if conn.is_pg:
+                cursor.execute("ROLLBACK TO SAVEPOINT sp_tok_upd")
+            if existing_tok.startswith("tk_tok_"):
+                token = existing_tok
+            else:
+                raise
 
     return {
         "ok": True,
@@ -3368,6 +3382,8 @@ def post_cloud_save(payload: Dict[str, Any], user: Dict[str, Any] = Depends(get_
     worlds_meta: List[Dict[str, Any]] = []
     with conn:
         cursor = conn.cursor()
+        if conn.is_pg:
+            cursor.execute("SET LOCAL statement_timeout = '8000'; SET LOCAL lock_timeout = '3000'")
         ensure_cloud_saves_table(cursor, conn.is_pg)
         _ensure_world_reset_epoch(cursor, now)
         _migrate_legacy_cloud_saves_to_world_states(cursor, now)
@@ -3384,9 +3400,11 @@ def post_cloud_save(payload: Dict[str, Any], user: Dict[str, Any] = Depends(get_
         cursor.execute("SELECT diamonds, scrolls_json FROM users WHERE id = ?", (user["id"],))
         u_w_row = cursor.fetchone()
         db_diamonds, db_scrolls = _parse_user_wallet(dict(u_w_row) if u_w_row else user)
+        prev_diamonds = db_diamonds
+        prev_scrolls = dict(db_scrolls)
 
-        # Eğer client açıkça wallet_authoritative gönderdiyse veya DB boşken client parşömen taşıyorsa senkronla;
-        # aksi halde users tablosundaki yetkili cüzdanı koru (bayat save'in satın alınan parşömeni {} ile ezmesini engelle!)
+        # Eğer client açıkça wallet_authoritative gönderdiyse ve değerler gerçekten değiştiyse senkronla;
+        # aksi halde gereksiz `users` satır kilidini önle ve yetkili cüzdanı koru.
         raw_c_player = (
             state_obj.get("state", {}).get("player")
             if isinstance(state_obj.get("state"), dict)
@@ -3403,10 +3421,11 @@ def post_cloud_save(payload: Dict[str, Any], user: Dict[str, Any] = Depends(get_
                         for k, v in raw_c_player["scrolls"].items()
                         if int(v or 0) > 0
                     }
-                cursor.execute(
-                    "UPDATE users SET diamonds = ?, scrolls_json = ? WHERE id = ?",
-                    (db_diamonds, json.dumps(db_scrolls, ensure_ascii=False), user["id"]),
-                )
+                if db_diamonds != prev_diamonds or db_scrolls != prev_scrolls:
+                    cursor.execute(
+                        "UPDATE users SET diamonds = ?, scrolls_json = ? WHERE id = ?",
+                        (db_diamonds, json.dumps(db_scrolls, ensure_ascii=False), user["id"]),
+                    )
 
         merged_w = merge_world_state(server_w, state_obj, user["display_name"], now)
         auth_wallet = {"diamonds": db_diamonds, "scrolls": db_scrolls}
@@ -3472,7 +3491,11 @@ def post_cloud_save(payload: Dict[str, Any], user: Dict[str, Any] = Depends(get_
                     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, 0, ?, ?, ?, ?, ?, ?)
                 """, (pv_id, w_id, user["id"], pv_name, pv_x, pv_y, user["display_name"], pv_pts, pv_blds, pv_res, pv_units, now, pv_prot, pv_cprot))
 
-        worlds_meta = _sync_worlds_table_from_states(cursor, now)
+        needs_worlds_write = (
+            ws_row is None
+            or len(merged_w.get("registered_real_players", [])) != len((server_w or {}).get("registered_real_players", []))
+        )
+        worlds_meta = _sync_worlds_table_from_states(cursor, now, write_updates=needs_worlds_write)
 
     return {
         "ok": True,
