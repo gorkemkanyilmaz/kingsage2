@@ -121,35 +121,48 @@ func _run_all() -> void:
 	qm.call("close_quest_modal")
 
 	# ------------------------------------------------------------------
-	# 3. ResourceBar Village Points Placement (Desktop & Dynamic Island)
+	# 3. ResourceBar Symmetry + Village Points Placement (Desktop & Dynamic Island)
 	# ------------------------------------------------------------------
 	var rbar_scene: PackedScene = load("res://ui/ResourceBar.tscn")
 	var rbar := rbar_scene.instantiate() as PanelContainer
-	rbar.size = Vector2(1080, 164)
+	rbar.size = Vector2(1080, 177)
 	root.add_child(rbar)
 	await process_frame
 	await process_frame
 
-	var left_col := rbar.find_child("VillageLeftCol", true, false) as VBoxContainer
+	var vbox_rb := rbar.get_node_or_null("VBox") as VBoxContainer
+	var top_row := rbar.find_child("TopRow", true, false) as HBoxContainer
 	var v_info := rbar.find_child("VillageInfo", true, false) as HBoxContainer
 	var pts_row := rbar.find_child("PointsRow", true, false) as HBoxContainer
 	var pts_box := rbar.find_child("PointsBox", true, false) as Control
 	var v_name_lbl := rbar.find_child("VillageName", true, false) as Label
 	var res_row := rbar.find_child("ResourcesRow", true, false) as HBoxContainer
-	_assert(left_col != null and v_info != null and pts_row != null and pts_box != null and v_name_lbl != null and res_row != null, "ResourceBar VillageLeftCol + PointsRow + PointsBox hierarchy found")
-	if left_col != null and v_info != null and pts_row != null and pts_box != null and v_name_lbl != null and res_row != null:
-		_assert(pts_box.get_parent() == pts_row, "PointsBox moved inside PointsRow")
-		_assert(v_info.find_child("PointsBox", true, false) == null, "PointsBox no longer crowding VillageInfo row")
-		_assert(pts_box.global_position.y >= v_name_lbl.global_position.y + v_name_lbl.size.y - 6.0, "Desktop: PointsBox positioned below VillageName (pts_y=%.1f, name_end=%.1f)" % [pts_box.global_position.y, v_name_lbl.global_position.y + v_name_lbl.size.y])
+	var btn_dia := rbar.find_child("BtnDiamonds", true, false) as Control
+	var btn_mkt := rbar.find_child("BtnMarket", true, false) as Control
+	_assert(vbox_rb != null and top_row != null and v_info != null and pts_row != null and pts_box != null and v_name_lbl != null and res_row != null and btn_dia != null and btn_mkt != null, "ResourceBar TopRow + PointsRow + ResourcesRow hierarchy found")
+	if vbox_rb != null and top_row != null and v_info != null and pts_row != null and pts_box != null and v_name_lbl != null and res_row != null and btn_dia != null and btn_mkt != null:
+		_assert(v_info.get_parent() == top_row, "VillageInfo directly in TopRow aligned with RightWing")
+		_assert(pts_row.get_parent() == vbox_rb and pts_box.get_parent() == pts_row, "PointsRow placed cleanly between TopRow and ResourcesRow")
+		_assert(v_info.find_child("PointsBox", true, false) == null, "PointsBox no longer inside VillageInfo")
+		var d_cy := v_info.global_position.y + v_info.size.y * 0.5
+		var dia_cy := btn_dia.global_position.y + btn_dia.size.y * 0.5
+		var mkt_cy := btn_mkt.global_position.y + btn_mkt.size.y * 0.5
+		_assert(absf(d_cy - dia_cy) <= 2.0 and absf(d_cy - mkt_cy) <= 2.0, "Desktop: VillageInfo horizontally symmetrical with BtnDiamonds/BtnMarket (diff=%.1f, %.1f)" % [absf(d_cy - dia_cy), absf(d_cy - mkt_cy)])
+		_assert(pts_box.global_position.y >= v_name_lbl.global_position.y + v_name_lbl.size.y - 2.0, "Desktop: PointsBox positioned below VillageName (pts_y=%.1f, name_end=%.1f)" % [pts_box.global_position.y, v_name_lbl.global_position.y + v_name_lbl.size.y])
 		_assert(pts_box.global_position.y + pts_box.size.y <= res_row.global_position.y + 4.0, "Desktop: PointsBox above ResourcesRow (pts_end=%.1f, res_y=%.1f)" % [pts_box.global_position.y + pts_box.size.y, res_row.global_position.y])
 
-		gc.set("_test_island_width", 390.0)
-		gc.set("_safe_top_px", 118.0)
-		rbar.call("refresh")
-		await process_frame
-		await process_frame
-		_assert(pts_box.global_position.y > v_name_lbl.global_position.y, "Dynamic Island: PointsBox below VillageName")
-		_assert(pts_box.global_position.y + pts_box.size.y <= res_row.global_position.y + 6.0, "Dynamic Island: PointsBox above ResourcesRow")
+		for safe_top_val in [118.0, 162.0]:
+			gc.set("_test_island_width", 390.0)
+			gc.set("_safe_top_px", safe_top_val)
+			rbar.call("refresh")
+			await process_frame
+			await process_frame
+			var isl_v_cy := v_info.global_position.y + v_info.size.y * 0.5
+			var isl_d_cy := btn_dia.global_position.y + btn_dia.size.y * 0.5
+			var isl_m_cy := btn_mkt.global_position.y + btn_mkt.size.y * 0.5
+			_assert(absf(isl_v_cy - isl_d_cy) <= 2.0 and absf(isl_v_cy - isl_m_cy) <= 2.0, "Dynamic Island (%.0f): VillageInfo aligned symmetrically with BtnDiamonds/BtnMarket (diff=%.1f, %.1f)" % [safe_top_val, absf(isl_v_cy - isl_d_cy), absf(isl_v_cy - isl_m_cy)])
+			_assert(pts_box.global_position.y > v_name_lbl.global_position.y + v_name_lbl.size.y - 2.0, "Dynamic Island (%.0f): PointsBox below VillageName" % safe_top_val)
+			_assert(pts_box.global_position.y + pts_box.size.y <= res_row.global_position.y + 4.0, "Dynamic Island (%.0f): PointsBox above ResourcesRow" % safe_top_val)
 		gc.set("_test_island_width", -1.0)
 		gc.set("_safe_top_px", 0.0)
 

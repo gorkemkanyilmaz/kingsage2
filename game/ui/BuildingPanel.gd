@@ -1283,11 +1283,18 @@ func _refresh_upgrade_view(state: Dictionary, cur_lvl: int, max_lvl: int) -> voi
 	cost_stone.add_theme_color_override("font_color", Color(1.0, 0.42, 0.42, 1.0) if cur_s < req_s else Color(1.0, 1.0, 1.0, 1.0))
 	cost_iron.add_theme_color_override("font_color", Color(1.0, 0.42, 0.42, 1.0) if cur_i < req_i else Color(1.0, 1.0, 1.0, 1.0))
 
-	var dur_secs: float = RulesEngineScript.build_seconds(_current_key, tgt_lvl)
+	var proj_blds: Dictionary = details.get("projected", _village.get("buildings", {})) if typeof(details.get("projected")) == TYPE_DICTIONARY else (_village.get("buildings", {}) as Dictionary)
+	var castle_lvl := maxi(1, int(proj_blds.get("main", 1)))
+	var dur_secs: float = RulesEngineScript.build_seconds(_current_key, tgt_lvl, castle_lvl)
+	var dur_str: String = _format_time_str(int(ceil(dur_secs)))
+	var boost_note := ""
+	var gc = Engine.get_main_loop().root.get_node_or_null("GameConfig") if Engine.get_main_loop() is SceneTree else null
+	if gs != null and gc != null and gc.has_method("is_starter_boost_active") and bool(gc.call("is_starter_boost_active", gs.world)):
+		boost_note = " (2× Başlangıç Hızı)"
 	if active_in_queue:
-		time_label.text = "Sıradaki İnşa Süresi: %d sn" % int(ceil(dur_secs))
+		time_label.text = "Sıradaki İnşa Süresi: %s%s" % [dur_str, boost_note]
 	else:
-		time_label.text = "İnşa Süresi: %d sn" % int(ceil(dur_secs))
+		time_label.text = "İnşa Süresi: %s%s" % [dur_str, boost_note]
 
 	if extra_pct > 0:
 		extra_cost_label.text = "⚠️ Kuyruk Ek Maliyeti: +%%%d" % extra_pct

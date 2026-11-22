@@ -154,9 +154,14 @@ func _run_tests() -> void:
 	var rp_res: Dictionary = store.call("buy_resource_pack", "res_wood_1000")
 	_check(bool(rp_res.get("ok", false)) and int(gs.call("get_active_village")["resources"]["wood"]) == 1100, "1.000 Odun Sandığı elmasla alındı (wood 100 -> 1100)")
 	_check(int(store.call("get_diamonds")) == 95, "Kaynak paketi 5 elmas düştü (100 -> 95)")
+	var rp_fill_low: Dictionary = store.call("buy_resource_pack", "res_fill_storage")
+	_check(not bool(rp_fill_low.get("ok", true)), "95 elmas ile Ambarları Doldur (100 Elmas) reddedildi")
+	gs.player["diamonds"] = 100
 	var rp_fill: Dictionary = store.call("buy_resource_pack", "res_fill_storage")
 	var fill_cap := int(RE.storage_capacity(int(gs.call("get_active_village")["buildings"].get("storage", 1))))
-	_check(bool(rp_fill.get("ok", false)) and int(gs.call("get_active_village")["resources"]["stone"]) == fill_cap, "Ambarları Doldur depo kapasitesine (%d) tamamladı" % fill_cap)
+	_check(bool(rp_fill.get("ok", false)) and int(gs.call("get_active_village")["resources"]["stone"]) == fill_cap, "Ambarları Doldur 100 elmasla depo kapasitesine (%d) tamamladı" % fill_cap)
+	_check(int(store.call("get_diamonds")) == 0, "Ambarları Doldur sonrası 100 elmas düştü (100 -> 0)")
+	gs.player["diamonds"] = 100
 	var rp_full: Dictionary = store.call("buy_resource_pack", "res_fill_storage")
 	_check(not bool(rp_full.get("ok", true)), "Depo tamamen doluyken kaynak paketi reddedildi")
 	var pk_try := str(store.call("get_pack_price_label", store.call("get_pack_def", "diamonds_10")))

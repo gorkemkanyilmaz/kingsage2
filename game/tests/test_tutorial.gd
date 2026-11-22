@@ -341,7 +341,7 @@ func _run_tests() -> void:
 	var settings := await _swap_scene("res://scenes/Settings.tscn")
 	_check(settings != null, "Settings.tscn yüklendi")
 	var btn_replay := settings.find_child("BtnTutorialReplay", true, false) as Button
-	_check(btn_replay != null, "Ayarlar ekranında BtnTutorialReplay butonu mevcut")
+	_check(btn_replay == null, "Ayarlar ekranından BtnTutorialReplay kaldırıldı (Build 22+)")
 	tm.call("restart_tutorial")
 	_check(int(tm.call("get_current_step")) == 0 and not bool(gs.get("player").get("tutorial_completed", true)), "restart_tutorial() rehberi 0. adıma sıfırladı")
 

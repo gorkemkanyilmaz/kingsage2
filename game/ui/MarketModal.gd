@@ -47,7 +47,7 @@ const FALLBACK_RESOURCE_PACKS: Array[Dictionary] = [
 	{"id": "res_iron_1000", "name": "1.000 Demir Sandığı", "cost_diamonds": 5, "wood": 0, "stone": 0, "iron": 1000, "fill_storage": false, "badge": "⛏️ Cevher", "description": "Aktif köy ambarına anında +1.000 Demir ekler."},
 	{"id": "res_bundle_1500", "name": "Kraliyet Erzak Paketi (+1.500 Tümü)", "cost_diamonds": 12, "wood": 1500, "stone": 1500, "iron": 1500, "fill_storage": false, "badge": "⭐ Avantajlı", "description": "Aktif köye +1.500 Odun, +1.500 Taş ve +1.500 Demir ekler."},
 	{"id": "res_bundle_5000", "name": "İmparatorluk Hazine Kervanı (+5.000 Tümü)", "cost_diamonds": 35, "wood": 5000, "stone": 5000, "iron": 5000, "fill_storage": false, "badge": "👑 Büyük Paket", "description": "Aktif köye +5.000 Odun, +5.000 Taş ve +5.000 Demir ekler."},
-	{"id": "res_fill_storage", "name": "Ambarları Doldur (%100 Tam Depo)", "cost_diamonds": 25, "wood": 0, "stone": 0, "iron": 0, "fill_storage": true, "badge": "🏛️ Tam Kapasite", "description": "Aktif köyün Odun, Taş ve Demir ambarlarını Depo kapasitesinin %100'üne doldurur."},
+	{"id": "res_fill_storage", "name": "Ambarları Doldur (%100 Tam Depo)", "cost_diamonds": 100, "wood": 0, "stone": 0, "iron": 0, "fill_storage": true, "badge": "🏛️ Tam Kapasite", "description": "Aktif köyün Odun, Taş ve Demir ambarlarını Depo kapasitesinin %100'üne doldurur."},
 ]
 
 const TABS := [

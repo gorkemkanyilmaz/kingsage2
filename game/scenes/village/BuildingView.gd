@@ -30,11 +30,18 @@ var custom_badge_offset: Vector2 = Vector2(-1, -1)
 var click_polygon: PackedVector2Array = []
 
 # Sürükleme / Tıklama Ayrımı (Mobilde harita kaydırırken bina paneli kazara açılmasın)
+const DRAG_CANCEL_PX := 10.0
 var _mouse_press_pos := Vector2.ZERO
+var _mouse_drag_accum := 0.0
 var _touch_press_pos := Vector2.ZERO
+var _press_screen_pos := Vector2.ZERO
+var _touch_drag_accum := 0.0
+var _touch_id: int = -1
 var _is_dragging := false
+var _press_cancelled := false
 var _touch_active := false
 var _mouse_active := false
+var _last_touch_ms: int = -10000
 var _last_click_frame: int = -1
 
 # Düğümler
@@ -212,10 +219,8 @@ func _build_ui() -> void:
 	_btn.add_theme_stylebox_override("disabled", empty_sb)
 	_btn.add_theme_stylebox_override("focus", empty_sb)
 
-	_btn.pressed.connect(func():
-		if not _is_dragging:
-			_trigger_click()
-	)
+	# Dokunmatik + fare sürükleme ayrımı yalnızca _on_btn_gui_input üzerinden yönetilir;
+	# _btn.pressed iOS dokunmatik emülasyonunda kaydırma sonrası yanlış tetikleyebildiği için bağlanmaz.
 	_btn.gui_input.connect(_on_btn_gui_input)
 	_btn.mouse_entered.connect(_on_mouse_entered)
 	_btn.mouse_exited.connect(_on_mouse_exited)
@@ -249,8 +254,15 @@ func _update_button_size() -> void:
 
 func cancel_press() -> void:
 	_is_dragging = true
+	_press_cancelled = true
 	_touch_active = false
 	_mouse_active = false
+	_touch_id = -1
+	_touch_drag_accum = 0.0
+	_mouse_drag_accum = 0.0
+	if _btn != null:
+		_btn.set_pressed_no_signal(false)
+		_btn.release_focus()
 
 
 func _trigger_click() -> void:
@@ -261,43 +273,82 @@ func _trigger_click() -> void:
 	clicked.emit()
 
 
+func _to_screen_pos(local_pos: Vector2) -> Vector2:
+	if is_inside_tree():
+		return get_global_transform_with_canvas() * local_pos
+	return local_pos
+
+
+func _to_screen_delta(local_delta: Vector2) -> Vector2:
+	if is_inside_tree():
+		return get_global_transform_with_canvas().basis_xform(local_delta)
+	return local_delta
+
+
 func _on_btn_gui_input(event: InputEvent) -> void:
 	if event is InputEventScreenTouch:
 		var st := event as InputEventScreenTouch
+		_last_touch_ms = Time.get_ticks_msec()
 		if st.pressed:
+			if _touch_active and st.index != _touch_id:
+				cancel_press()
+				return
 			_touch_active = true
+			_touch_id = st.index
 			_touch_press_pos = st.position
+			_press_screen_pos = _to_screen_pos(st.position)
+			_touch_drag_accum = 0.0
 			_is_dragging = false
+			_press_cancelled = false
 		else:
-			if _touch_active and not _is_dragging:
-				_trigger_click()
+			if _touch_active and st.index == _touch_id:
+				var screen_disp := _to_screen_pos(st.position).distance_to(_press_screen_pos)
+				var local_disp := st.position.distance_to(_touch_press_pos)
+				if not _is_dragging and not _press_cancelled and _touch_drag_accum <= DRAG_CANCEL_PX and screen_disp <= DRAG_CANCEL_PX and local_disp <= DRAG_CANCEL_PX:
+					_trigger_click()
 			_is_dragging = false
+			_press_cancelled = false
 			_touch_active = false
+			_touch_id = -1
+			_touch_drag_accum = 0.0
 	elif event is InputEventScreenDrag:
 		var sd := event as InputEventScreenDrag
-		if not _is_dragging and (sd.position - _touch_press_pos).length() > 16.0:
-			_is_dragging = true
+		_last_touch_ms = Time.get_ticks_msec()
+		if _touch_active and sd.index == _touch_id:
+			_touch_drag_accum += _to_screen_delta(sd.relative).length()
+			var screen_disp := _to_screen_pos(sd.position).distance_to(_press_screen_pos)
+			var local_disp := sd.position.distance_to(_touch_press_pos)
+			if _touch_drag_accum > DRAG_CANCEL_PX or screen_disp > DRAG_CANCEL_PX or local_disp > DRAG_CANCEL_PX:
+				_is_dragging = true
+				_press_cancelled = true
 	elif event is InputEventMouseButton:
-		if _touch_active:
+		if _touch_active or (Time.get_ticks_msec() - _last_touch_ms) < 400:
 			return
 		var mb := event as InputEventMouseButton
 		if mb.button_index == MOUSE_BUTTON_LEFT:
 			if mb.pressed:
 				_mouse_active = true
 				_mouse_press_pos = mb.global_position
+				_mouse_drag_accum = 0.0
 				_is_dragging = false
+				_press_cancelled = false
 			else:
-				if _mouse_active and not _is_dragging:
+				var m_disp := (mb.global_position - _mouse_press_pos).length()
+				if _mouse_active and not _is_dragging and not _press_cancelled and _mouse_drag_accum <= DRAG_CANCEL_PX and m_disp <= DRAG_CANCEL_PX:
 					_trigger_click()
 				_is_dragging = false
+				_press_cancelled = false
 				_mouse_active = false
+				_mouse_drag_accum = 0.0
 	elif event is InputEventMouseMotion:
-		if _touch_active:
+		if _touch_active or (Time.get_ticks_msec() - _last_touch_ms) < 400:
 			return
 		var mm := event as InputEventMouseMotion
-		if mm.button_mask & MOUSE_BUTTON_MASK_LEFT:
-			if not _is_dragging and (mm.global_position - _mouse_press_pos).length() > 16.0:
+		if _mouse_active and (mm.button_mask & MOUSE_BUTTON_MASK_LEFT) != 0:
+			_mouse_drag_accum += mm.relative.length()
+			if not _is_dragging and (_mouse_drag_accum > DRAG_CANCEL_PX or (mm.global_position - _mouse_press_pos).length() > DRAG_CANCEL_PX):
 				_is_dragging = true
+				_press_cancelled = true
 			if _is_dragging:
 				dragged.emit(mm.relative)
 

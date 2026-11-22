@@ -133,11 +133,14 @@ const BUILDING_SPRITES := {}
 
 const BASE_OFFSET_Y: float = 116.0
 
+const IncomingAttackAlert := preload("res://ui/IncomingAttackAlert.gd")
+
 @onready var village_area: Control = $VillageArea
 
 # Zoom & Pan Durum Değişkenleri
 const MIN_ZOOM: float = 1.0
 const MAX_ZOOM: float = 2.2
+const TOUCH_PAN_DEADZONE: float = 10.0
 var _current_zoom: float = 1.0
 var _is_panning: bool = false
 var _pan_start_mouse: Vector2 = Vector2.ZERO
@@ -146,10 +149,21 @@ var _active_touches: Dictionary = {}
 var _prev_touch_dist: float = 0.0
 var _prev_pinch_mid: Vector2 = Vector2.ZERO
 var _touch_start_pos: Vector2 = Vector2.ZERO
+var _touch_start_area_pos: Vector2 = Vector2.ZERO
 var _touch_drag_total: float = 0.0
+var _mouse_drag_total: float = 0.0
 var _was_gesture: bool = false
 var _last_touch_ms: int = -10000
+var _last_gesture_end_ms: int = -10000
 var _overscan_bg: ColorRect = null
+
+# Gelen Saldırı Kırmızı Yanıp Sönme & Alarm Arayüzü
+var _attack_alarm_overlay: Control = null
+var _attack_red_tint: ColorRect = null
+var _attack_red_frame: Panel = null
+var _attack_alarm_banner: Button = null
+var _attack_banner_sb: StyleBoxFlat = null
+var _attack_flash_time: float = 0.0
 
 var _game_loop: Node = null
 var _building_nodes: Dictionary = {}
@@ -238,6 +252,7 @@ func _ready() -> void:
 			btn_alliance.pressed.connect(_on_alliance_btn_pressed)
 
 	_setup_overscan_bg()
+	_ensure_attack_alarm_ui()
 
 	# Arka plan ve binalar dinamik ResourceBar altından başlar
 	_sync_top_bar_layout()
@@ -276,6 +291,8 @@ func _ready() -> void:
 
 	refresh_all()
 	_update_queue_ui()
+	_update_incoming_attack_alarm(0.0)
+	_update_incoming_attack_alarm(0.0)
 	_init_animated_background()
 
 	var wm_init = Engine.get_main_loop().root.get_node_or_null("WorldManager") if Engine.get_main_loop() is SceneTree else null
@@ -344,6 +361,7 @@ func _init_animated_background() -> void:
 
 func _process(delta: float) -> void:
 	_update_queue_ui()
+	_update_incoming_attack_alarm(delta)
 	_progress_timer += delta
 	if _progress_timer >= 0.5:
 		_progress_timer = 0.0
@@ -410,6 +428,7 @@ func _on_state_changed() -> void:
 			building_panel.hide()
 	refresh_all()
 	_update_queue_ui()
+	_update_incoming_attack_alarm(0.0)
 
 
 func _setup_village_nodes() -> void:
@@ -452,6 +471,8 @@ func _get_game_state() -> Node:
 
 
 func _on_building_selected(key: String) -> void:
+	if _is_panning or _was_gesture or (Time.get_ticks_msec() - _last_gesture_end_ms) < 280:
+		return
 	_ensure_nodes()
 	if building_panel != null and building_panel.visible and building_panel.has_method("is_train_input_focused") and bool(building_panel.call("is_train_input_focused")):
 		return
@@ -477,6 +498,7 @@ func _on_building_completed(village_id: int, key: String, level: int) -> void:
 
 	refresh_all()
 	_update_queue_ui()
+	_update_incoming_attack_alarm(0.0)
 	if building_panel.visible:
 		building_panel.refresh()
 	var sm = Engine.get_main_loop().root.get_node_or_null("SaveManager") if Engine.get_main_loop() is SceneTree else null
@@ -559,6 +581,7 @@ func _get_building_icon(key: String) -> String:
 func _on_building_started(_village_id: int, _key: String, _level: int) -> void:
 	refresh_all()
 	_update_queue_ui()
+	_update_incoming_attack_alarm(0.0)
 	if building_panel.visible:
 		building_panel.refresh()
 
@@ -1152,6 +1175,10 @@ func _setup_overscan_bg() -> void:
 func _on_building_dragged(rel: Vector2) -> void:
 	if _is_recent_touch():
 		return
+	_mouse_drag_total += rel.length()
+	if _mouse_drag_total > TOUCH_PAN_DEADZONE:
+		_last_gesture_end_ms = Time.get_ticks_msec()
+		_cancel_all_building_presses()
 	_pan_by(rel)
 
 
@@ -1170,6 +1197,8 @@ func _cancel_all_building_presses() -> void:
 
 func _is_point_over_hud(pos: Vector2) -> bool:
 	var hud_nodes: Array = [resource_bar, bottom_nav, btn_alliance]
+	if _attack_alarm_banner != null and _attack_alarm_banner.visible:
+		hud_nodes.append(_attack_alarm_banner)
 	if building_panel != null and building_panel.visible:
 		hud_nodes.append(building_panel)
 	if queue_hud != null and queue_hud.visible:
@@ -1196,10 +1225,12 @@ func _input(event: InputEvent) -> void:
 				_is_panning = false
 				_was_gesture = false
 				_touch_start_pos = st.position
+				_touch_start_area_pos = village_area.position if village_area != null else Vector2.ZERO
 				_touch_drag_total = 0.0
 			elif _active_touches.size() >= 2:
 				_is_panning = false
 				_was_gesture = true
+				_last_gesture_end_ms = Time.get_ticks_msec()
 				_cancel_all_building_presses()
 				var vals = _active_touches.values()
 				var p0: Vector2 = vals[0]
@@ -1213,9 +1244,15 @@ func _input(event: InputEvent) -> void:
 			if _active_touches.size() < 2:
 				_prev_touch_dist = 0.0
 			if _active_touches.is_empty():
-				var handled := _was_gesture
+				var area_moved := village_area != null and village_area.position.distance_to(_touch_start_area_pos) > 4.0
+				var moved := _touch_drag_total > TOUCH_PAN_DEADZONE or _touch_start_pos.distance_to(st.position) > TOUCH_PAN_DEADZONE or area_moved
+				var handled := _was_gesture or _is_panning or moved
+				if handled:
+					_last_gesture_end_ms = Time.get_ticks_msec()
+					_cancel_all_building_presses()
 				_is_panning = false
 				_was_gesture = false
+				_touch_drag_total = 0.0
 				if handled and had_touch:
 					get_viewport().set_input_as_handled()
 	elif event is InputEventScreenDrag:
@@ -1225,6 +1262,7 @@ func _input(event: InputEvent) -> void:
 			return
 		_active_touches[sd.index] = sd.position
 		if _active_touches.size() >= 2:
+			_last_gesture_end_ms = Time.get_ticks_msec()
 			_cancel_all_building_presses()
 			var vals = _active_touches.values()
 			var p0: Vector2 = vals[0]
@@ -1244,11 +1282,12 @@ func _input(event: InputEvent) -> void:
 			get_viewport().set_input_as_handled()
 		elif _active_touches.size() == 1:
 			_touch_drag_total += sd.relative.length()
-			if _is_panning or _touch_drag_total > 14.0 or _touch_start_pos.distance_to(sd.position) > 14.0:
+			if _is_panning or _touch_drag_total > TOUCH_PAN_DEADZONE or _touch_start_pos.distance_to(sd.position) > TOUCH_PAN_DEADZONE:
 				if not _is_panning:
 					_is_panning = true
 					_was_gesture = true
 					_cancel_all_building_presses()
+				_last_gesture_end_ms = Time.get_ticks_msec()
 				_pan_by(sd.relative)
 				get_viewport().set_input_as_handled()
 
@@ -1265,13 +1304,22 @@ func _unhandled_input(event: InputEvent) -> void:
 		elif mb.button_index == MOUSE_BUTTON_LEFT or mb.button_index == MOUSE_BUTTON_RIGHT:
 			if mb.pressed:
 				_is_panning = true
+				_mouse_drag_total = 0.0
 				_pan_start_mouse = mb.position
 				_pan_start_pos = village_area.position if village_area != null else Vector2(0.0, BASE_OFFSET_Y)
 			else:
+				if _mouse_drag_total > TOUCH_PAN_DEADZONE:
+					_last_gesture_end_ms = Time.get_ticks_msec()
+					_cancel_all_building_presses()
 				_is_panning = false
+				_mouse_drag_total = 0.0
 	elif event is InputEventMouseMotion:
 		var mm := event as InputEventMouseMotion
 		if _is_panning:
+			_mouse_drag_total += mm.relative.length()
+			if _mouse_drag_total > TOUCH_PAN_DEADZONE:
+				_last_gesture_end_ms = Time.get_ticks_msec()
+				_cancel_all_building_presses()
 			_pan_by(mm.relative)
 
 
@@ -1290,6 +1338,141 @@ func _sync_top_bar_layout() -> void:
 	if btn_alliance != null:
 		btn_alliance.offset_top = top_h + 14.0
 		btn_alliance.offset_bottom = top_h + 70.0
+	if _attack_alarm_banner != null:
+		_attack_alarm_banner.offset_top = top_h + 84.0
+		_attack_alarm_banner.offset_bottom = top_h + 138.0
+
+
+func _ensure_attack_alarm_ui() -> void:
+	if _attack_alarm_overlay == null:
+		_attack_alarm_overlay = Control.new()
+		_attack_alarm_overlay.name = "AttackAlarmOverlay"
+		_attack_alarm_overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
+		_attack_alarm_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_attack_alarm_overlay.z_index = 45
+		_attack_alarm_overlay.visible = false
+		add_child(_attack_alarm_overlay)
+
+		_attack_red_tint = ColorRect.new()
+		_attack_red_tint.name = "AttackRedTint"
+		_attack_red_tint.set_anchors_preset(Control.PRESET_FULL_RECT)
+		_attack_red_tint.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_attack_red_tint.color = Color(0.88, 0.04, 0.04, 0.0)
+		_attack_alarm_overlay.add_child(_attack_red_tint)
+
+		_attack_red_frame = Panel.new()
+		_attack_red_frame.name = "AttackRedFrame"
+		_attack_red_frame.set_anchors_preset(Control.PRESET_FULL_RECT)
+		_attack_red_frame.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		var fsb := StyleBoxFlat.new()
+		fsb.bg_color = Color(0.0, 0.0, 0.0, 0.0)
+		fsb.border_color = Color(1.0, 0.10, 0.10, 1.0)
+		fsb.set_border_width_all(16)
+		fsb.shadow_color = Color(1.0, 0.04, 0.04, 0.85)
+		fsb.shadow_size = 22
+		_attack_red_frame.add_theme_stylebox_override("panel", fsb)
+		_attack_alarm_overlay.add_child(_attack_red_frame)
+
+	if _attack_alarm_banner == null:
+		_attack_alarm_banner = Button.new()
+		_attack_alarm_banner.name = "AttackAlarmBanner"
+		_attack_alarm_banner.z_index = 110
+		_attack_alarm_banner.z_as_relative = false
+		_attack_alarm_banner.anchor_left = 0.5
+		_attack_alarm_banner.anchor_right = 0.5
+		_attack_alarm_banner.anchor_top = 0.0
+		_attack_alarm_banner.anchor_bottom = 0.0
+		_attack_alarm_banner.offset_left = -300.0
+		_attack_alarm_banner.offset_right = 300.0
+		var top_h := _get_top_bar_height()
+		_attack_alarm_banner.offset_top = top_h + 84.0
+		_attack_alarm_banner.offset_bottom = top_h + 138.0
+		_attack_alarm_banner.visible = false
+		_attack_alarm_banner.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+		_attack_banner_sb = StyleBoxFlat.new()
+		_attack_banner_sb.bg_color = Color(0.68, 0.08, 0.08, 0.96)
+		_attack_banner_sb.border_color = Color(1.0, 0.48, 0.36, 1.0)
+		_attack_banner_sb.set_border_width_all(3)
+		_attack_banner_sb.set_corner_radius_all(14)
+		_attack_banner_sb.shadow_color = Color(0.95, 0.05, 0.05, 0.78)
+		_attack_banner_sb.shadow_size = 12
+		var bhov := _attack_banner_sb.duplicate() as StyleBoxFlat
+		bhov.bg_color = Color(0.84, 0.12, 0.12, 1.0)
+		bhov.border_color = Color(1.0, 0.82, 0.46, 1.0)
+		_attack_alarm_banner.add_theme_stylebox_override("normal", _attack_banner_sb)
+		_attack_alarm_banner.add_theme_stylebox_override("hover", bhov)
+		_attack_alarm_banner.add_theme_stylebox_override("pressed", bhov)
+		_attack_alarm_banner.add_theme_font_override("font", FontCinzelBold)
+		_attack_alarm_banner.add_theme_font_size_override("font_size", 21)
+		_attack_alarm_banner.add_theme_color_override("font_color", Color(1.0, 0.96, 0.92))
+		_attack_alarm_banner.pressed.connect(_on_attack_alarm_banner_pressed)
+		add_child(_attack_alarm_banner)
+
+
+func _on_attack_alarm_banner_pressed() -> void:
+	var gs = Engine.get_main_loop().root.get_node_or_null("GameState") if Engine.get_main_loop() is SceneTree else null
+	if gs == null:
+		return
+	var incoming := IncomingAttackAlert.get_incoming_attacks(gs, _current_now())
+	if not incoming.is_empty():
+		IncomingAttackAlert.show_modal(self, incoming, true)
+
+
+func _update_incoming_attack_alarm(delta: float) -> void:
+	_ensure_attack_alarm_ui()
+	var gs = Engine.get_main_loop().root.get_node_or_null("GameState") if Engine.get_main_loop() is SceneTree else null
+	if gs == null or not gs.has_active_village():
+		if _attack_alarm_overlay != null:
+			_attack_alarm_overlay.visible = false
+		if _attack_alarm_banner != null:
+			_attack_alarm_banner.visible = false
+		if village_area != null:
+			village_area.modulate = Color.WHITE
+		IncomingAttackAlert.close_modal(self)
+		return
+
+	var incoming := IncomingAttackAlert.get_incoming_attacks(gs, _current_now())
+	if incoming.is_empty():
+		_attack_flash_time = 0.0
+		if _attack_alarm_overlay != null:
+			_attack_alarm_overlay.visible = false
+		if _attack_alarm_banner != null:
+			_attack_alarm_banner.visible = false
+		if village_area != null:
+			village_area.modulate = Color.WHITE
+		IncomingAttackAlert.close_modal(self)
+		return
+
+	_attack_flash_time += maxf(delta, 0.0)
+	var pulse := 0.5 + 0.5 * sin(_attack_flash_time * 6.0)
+
+	if _attack_alarm_overlay != null:
+		_attack_alarm_overlay.visible = true
+	if _attack_red_tint != null:
+		_attack_red_tint.color = Color(0.88, 0.04, 0.04, lerpf(0.05, 0.25, pulse))
+	if _attack_red_frame != null:
+		_attack_red_frame.modulate.a = lerpf(0.35, 1.0, pulse)
+	if village_area != null:
+		var g_b := lerpf(0.76, 1.0, 1.0 - pulse)
+		village_area.modulate = Color(1.0, g_b, g_b, 1.0)
+
+	var first := incoming[0]
+	var rem_sec := int(first.get("remaining_sec", 0))
+	var rem_min := int(first.get("remaining_min", 1))
+	if _attack_alarm_banner != null:
+		_attack_alarm_banner.visible = true
+		if rem_sec < 60:
+			_attack_alarm_banner.text = "🚨 SALDIRI ALARMI! < 1 dk (%ds) — Vezir Detayı" % rem_sec
+		else:
+			_attack_alarm_banner.text = "🚨 SALDIRI ALARMI! %d dk kaldı (%s) — Vezir" % [rem_min, IncomingAttackAlert.fmt_countdown(rem_sec)]
+		if _attack_banner_sb != null:
+			_attack_banner_sb.bg_color = Color(lerpf(0.56, 0.86, pulse), 0.07, 0.07, 0.97)
+			_attack_banner_sb.border_color = Color(1.0, lerpf(0.34, 0.88, pulse), lerpf(0.28, 0.42, pulse), 1.0)
+
+	var tm: Node = Engine.get_main_loop().root.get_node_or_null("TutorialManager") if Engine.get_main_loop() is SceneTree else null
+	var tut_active: bool = tm != null and tm.has_method("is_tutorial_active") and bool(tm.call("is_tutorial_active"))
+	if not tut_active and IncomingAttackAlert.has_unacknowledged(incoming):
+		IncomingAttackAlert.show_modal(self, incoming, true)
 
 
 func _on_layout_resized() -> void:

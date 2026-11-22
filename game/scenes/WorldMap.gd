@@ -7,6 +7,7 @@ const Palette := preload("res://themes/Palette.gd")
 const MapVillageViewScript := preload("res://scenes/map/MapVillageView.gd")
 const FontNunitoBold := preload("res://assets/fonts/Nunito-Bold.ttf")
 const GameLoopScript := preload("res://scripts/core/GameLoop.gd")
+const IncomingAttackAlert := preload("res://ui/IncomingAttackAlert.gd")
 
 const TexHarita1 := preload("res://assets/sprites/map/harita-1.jpg")
 const TexHarita2 := preload("res://assets/sprites/map/harita-2.jpg")
@@ -292,14 +293,37 @@ func _collect_my_movements(gs: Node) -> Array:
 	return out
 
 
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
 	if movements_layer != null:
 		movements_layer.queue_redraw()
 
 	_refresh_movement_status_bar()
+	_check_incoming_attack_alert(delta)
 
 	if movement_detail_panel != null and movement_detail_panel.visible:
 		_update_movement_detail_timer()
+
+
+var _attack_check_accum: float = 0.0
+
+
+func _check_incoming_attack_alert(delta: float) -> void:
+	_attack_check_accum += delta
+	if _attack_check_accum < 0.8:
+		return
+	_attack_check_accum = 0.0
+	var gs = Engine.get_main_loop().root.get_node_or_null("GameState") if Engine.get_main_loop() is SceneTree else null
+	if gs == null or not gs.has_active_village():
+		return
+	var tm = Engine.get_main_loop().root.get_node_or_null("TutorialManager") if Engine.get_main_loop() is SceneTree else null
+	if tm != null and tm.has_method("is_tutorial_active") and bool(tm.call("is_tutorial_active")):
+		return
+	var incoming := IncomingAttackAlert.get_incoming_attacks(gs, _effective_now())
+	if incoming.is_empty():
+		IncomingAttackAlert.close_modal(self)
+		return
+	if IncomingAttackAlert.has_unacknowledged(incoming):
+		IncomingAttackAlert.show_modal(self, incoming, false)
 
 
 # ---------------------------------------------------------------- Görsel Kurulum

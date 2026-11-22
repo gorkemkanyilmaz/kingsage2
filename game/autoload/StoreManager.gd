@@ -225,7 +225,7 @@ const RESOURCE_PACKS: Array[Dictionary] = [
 	{
 		"id": "res_fill_storage",
 		"name": "Ambarları Doldur (%100 Tam Depo)",
-		"cost_diamonds": 25,
+		"cost_diamonds": 100,
 		"wood": 0,
 		"stone": 0,
 		"iron": 0,

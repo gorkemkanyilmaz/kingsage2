@@ -27,8 +27,28 @@ extends RefCounted
 const RESOURCES := ["wood", "stone", "iron"]
 const UNIT_RESOURCES := ["wood", "stone", "iron"]
 
-## İnşaat süresi için tek sabit taban (bilinmeyen → AÇIK SORU; ASSUMPTIONS.md #1).
-const BASE_BUILD_SECONDS := 60.0
+## Kraliyet KingsAge inşaat süresi tabanı (1× dünya hızı, Kale Sv. 1 = %100 faktöründe).
+## Seviye arttıkça üstel büyür; köyün Kale ('main') seviyesi arttıkça zaman faktörü (%100 -> %15) ile kısalır.
+const BUILDING_TIME_SPEC := {
+	"wood":     {"base": 240.0,   "growth": 1.15},
+	"stone":    {"base": 240.0,   "growth": 1.15},
+	"iron":     {"base": 240.0,   "growth": 1.15},
+	"storage":  {"base": 210.0,   "growth": 1.15},
+	"farm":     {"base": 240.0,   "growth": 1.15},
+	"main":     {"base": 300.0,   "growth": 1.15},
+	"hide":     {"base": 180.0,   "growth": 1.16},
+	"wall":     {"base": 360.0,   "growth": 1.20},
+	"market":   {"base": 360.0,   "growth": 1.17},
+	"barracks": {"base": 420.0,   "growth": 1.18},
+	"stable":   {"base": 420.0,   "growth": 1.17},
+	"garage":   {"base": 900.0,   "growth": 1.30},
+	"smith":    {"base": 1800.0,  "growth": 1.35},
+	"snob":     {"base": 3600.0,  "growth": 1.28},
+	"statue":   {"base": 86400.0, "growth": 1.00},
+}
+
+## Geriye dönük uyumluluk sabiti.
+const BASE_BUILD_SECONDS := 240.0
 
 
 # =============================================================================
@@ -269,14 +289,17 @@ static func _time_factor_percent(building: String, level: int) -> float:
 
 
 ## İnşaat süresi (saniye).
-## ⚠️ Taban süre yardım sitesinde YOK → tek sabit `BASE_BUILD_SECONDS` seçildi;
-## inşaat zaman faktörü serisi (main/"construction") seviye ile uygulanır.
-## Bkz. ASSUMPTIONS.md #1 ve time-factors.json#unresolved.construction_time_formula.
-static func build_seconds(key: String, level: int) -> float:
+## Her bina türünün 1× dünya hızında temel süresi ve üstel büyümesi uygulanır;
+## köyün Kale (`main`) seviyesine karşılık gelen zaman faktörü (%100..%15) ve `_speed()` (ilk 7 gün 2× dahil) uygulanır.
+static func build_seconds(key: String, level: int, castle_level: int = 1) -> float:
 	if level < 1:
 		return 0.0
-	var tf := _time_factor_percent("main", level)
-	return BASE_BUILD_SECONDS * float(level) * (tf / 100.0) / _speed()
+	var spec: Dictionary = BUILDING_TIME_SPEC.get(key, {"base": 240.0, "growth": 1.15})
+	var base_sec := float(spec.get("base", 240.0))
+	var growth := float(spec.get("growth", 1.15))
+	var eff_castle := maxi(1, castle_level)
+	var tf := _time_factor_percent("main", eff_castle)
+	return base_sec * pow(growth, float(level - 1)) * (tf / 100.0) / _speed()
 
 
 ## Kuyruktaki (queue_index+1). işin **ek maliyet yüzdesi** ([0,0,0,25,56,…]).

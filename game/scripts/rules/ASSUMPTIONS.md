@@ -14,7 +14,7 @@
 
 | # | Fonksiyon | Bilinmeyen | Seçilen sabit / yöntem | Referans (`known:false`) |
 |---|---|---|---|---|
-| 1 | `build_seconds(key, level)` | İnşaatın **taban süresi** | `BASE_BUILD_SECONDS = 60.0` s + Kale (`main`) inşaat zaman faktörü serisi × seviye | `time-factors.json#unresolved.construction_time_formula`, `#unresolved.build_time_scaling` |
+| 1 | `build_seconds(key, level, castle_level)` | İnşaatın **taban süresi** | Bina bazlı taban + üstel büyüme (`BUILDING_TIME_SPEC`) × Kale (`main`) zaman faktörü (`castle_level`) / `speed` | `time-factors.json#unresolved.construction_time_formula`, `#unresolved.build_time_scaling` |
 | 2 | `research_seconds(unit, lvl)` | Kışla **süre katsayısı** | `units.json` temel süre × Kışla zaman faktörü (`lvl`; `-1` → birimin min. Kışla seviyesi) | `time-factors.json#unresolved.research_time_formula`, `units.json#time_coefficient_known` |
 | 3 | `training_seconds(unit, n, lvl)` | Kışla/Köşk **süre katsayısı** | `units.json` temel süre × adet × Kışla/Köşk zaman faktörü (`lvl`; `-1` → min. ilgili bina seviyesi) | `time-factors.json#unresolved.training_time_formula` |
 | 4 | `is_researched` / `can_research` | Araştırma **durumu** | **ÇÖZÜLDÜ:** `village.researched[unit]` bayrağı (araştırma gerçek bir eylemdir; türetilmez) | — (docs/19 §4 güncellendi) |
@@ -26,24 +26,18 @@
 
 ## 2. Ayrıntılar
 
-### #1 — `build_seconds(key, level)` (İnşaat süresi)
+### #1 — `build_seconds(key, level, castle_level)` (İnşaat süresi)
 **Bilinmeyen:** Yardım sitesinde inşaat süresi = *zaman faktörü × taban süre* olduğu anlaşılıyor,
 ancak **taban süre** hiçbir yerde verilmiyor (`time-factors.json#unresolved.construction_time_formula`,
 `known:false`). Zaman faktörü **serileri** ise biliniyor (`known:true`).
 
-**Seçilen yöntem (tek sabit + bilinen seri):**
+**Seçilen yöntem (KingsAge mekaniğine uygun bina bazlı üstel model + Kale zaman faktörü):**
 ```
-build_seconds(key, level) = BASE_BUILD_SECONDS × level × (main_zaman_faktörü(level) / 100) / speed
-BASE_BUILD_SECONDS = 60.0
+build_seconds(key, level, castle_level) = base(key) × growth(key)^(level - 1) × (main_zaman_faktörü(castle_level) / 100) / speed
 ```
-- `main` serisi `applies_to = "construction"` olduğu için inşaat faktörü olarak kullanılır
-  (seviye indeksi `level`; seri dışında en yakın uca kırpılır).
-- **Tek sabit**: `BASE_BUILD_SECONDS = 60.0`. Seviye ile **doğrusal** büyüme varsayıldı
-  (maliyet geometrik büyürken sürenin sabit kalmaması gerektiği için en yalın varsayım).
-- `speed` böler (docs/19 §2.4).
-
-> ⚠️ Sayı **kesin değildir**; yalnızca göreli/sıralı davranışı verir. Oyun istemcisinden
-> doğrulanınca bu sabit değişecektir.
+- `main` serisi `applies_to = "construction"` olduğu için hedeflenen binanın seviyesi değil, köyün **Kale (`main`) seviyesi** (`castle_level`) üzerinden zaman faktörü (`%100` → `%15`) uygulanır; Kale büyüdükçe tüm inşaatlar hızlanır.
+- Her bina kendi kademesine uygun 1× taban süre (`210s` Depo, `240s` Hammadde/Değirmen, `300s` Kale, `420s` Kışla/Katır, `900s` Simyager, `1800s` Kuyumcu, `3600s` Köşk, `86400s` Anıt) ve üstel büyüme katsayısı (`1.15–1.35`) kullanır.
+- İlk 7 gün 2× hız bonusu (`GameConfig.speed`) formülü ayrıca böler (bkz. docs/19 §2.4).
 
 ### #2 — `research_seconds(unit, building_level)` (Araştırma süresi)
 Birim başına **temel süre** `rules/units.json → research.base_time_seconds` içinde **bilinir**

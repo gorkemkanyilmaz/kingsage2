@@ -255,7 +255,9 @@ static func start_build(state: Dictionary, village: Dictionary, key: String, now
 	var vid := int(village.get("id", -1))
 	var q := queues(state)
 	var start := maxi(now_unix, _last_finish(state, vid))
-	var duration := RE.build_seconds(key, tgt)
+	var proj_blds: Dictionary = check.get("projected", village.get("buildings", {}))
+	var castle_lvl := maxi(1, int(proj_blds.get("main", 1)))
+	var duration := RE.build_seconds(key, tgt, castle_lvl)
 	var finish := start + _round_half_up(duration)
 
 	var item := {
@@ -298,13 +300,18 @@ static func _last_finish(state: Dictionary, village_id: int) -> int:
 ## Kuyruktaki işleri `now_unix`'ten başlayarak yeniden zincirler (iptal sonrası).
 static func reschedule(state: Dictionary, village_id: int, now_unix: int) -> void:
 	var cursor := now_unix
+	var village := _village_of(state, village_id)
+	var blds = village.get("buildings", {}) if not village.is_empty() else {}
+	var cur_castle := maxi(1, int((blds as Dictionary).get("main", 1)) if typeof(blds) == TYPE_DICTIONARY else 1)
 	for item in items(state, village_id):
 		var key := str((item as Dictionary).get("key", ""))
 		var tgt := int((item as Dictionary).get("target_level", 0))
-		var duration := RE.build_seconds(key, tgt)
+		var duration := RE.build_seconds(key, tgt, cur_castle)
 		(item as Dictionary)["start_unix"] = cursor
 		cursor += _round_half_up(duration)
 		(item as Dictionary)["finish_unix"] = cursor
+		if key == "main":
+			cur_castle = maxi(cur_castle, tgt)
 
 
 # =============================================================================
