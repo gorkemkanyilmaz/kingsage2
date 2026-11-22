@@ -9,12 +9,6 @@
 #import <StoreKit/StoreKit.h>
 #import <UserNotifications/UserNotifications.h>
 #import <objc/runtime.h>
-#if __has_include(<BackgroundTasks/BackgroundTasks.h>)
-#import <BackgroundTasks/BackgroundTasks.h>
-#define TVK_HAS_BG_TASKS 1
-#else
-#define TVK_HAS_BG_TASKS 0
-#endif
 #if __has_include(<AuthenticationServices/AuthenticationServices.h>)
 #import <AuthenticationServices/AuthenticationServices.h>
 #define TVK_HAS_AUTH_SERVICES 1
@@ -348,6 +342,8 @@ extern "C" void tvk_ios_auth_bridge_init(void);
 @property (nonatomic, assign) NSUInteger scanTickCount;
 @property (nonatomic, copy) NSString *activeNotifDir;
 @property (nonatomic, copy) NSString *lastDeviceToken;
+@property (nonatomic, assign) BOOL isTerminating;
+@property (nonatomic, assign) NSTimeInterval lastFlushUnix;
 + (instancetype)shared;
 - (void)installDelegateAndHooks;
 - (void)start;
@@ -410,6 +406,15 @@ extern "C" void tvk_ios_auth_bridge_init(void) {
                                                            queue:[NSOperationQueue mainQueue]
                                                       usingBlock:^(NSNotification * _Nonnull note) {
             [[TVKNotificationBridge shared] flushAndScheduleBackground];
+            [[TVKNotificationBridge shared] stop];
+            [[TVKNativeAuthBridge shared] stopWatcher];
+            [[TVKStoreKitBridge shared] stop];
+        }];
+        [[NSNotificationCenter defaultCenter] addObserverForName:UIApplicationWillTerminateNotification
+                                                          object:nil
+                                                           queue:[NSOperationQueue mainQueue]
+                                                      usingBlock:^(NSNotification * _Nonnull note) {
+            [TVKNotificationBridge shared].isTerminating = YES;
             [[TVKNotificationBridge shared] stop];
             [[TVKNativeAuthBridge shared] stopWatcher];
             [[TVKStoreKitBridge shared] stop];
@@ -1383,19 +1388,25 @@ static void tvk_swizzledDidFailRegister(id selfObj, SEL _cmd, UIApplication *app
 
 - (void)installDelegateAndHooks {
     dispatch_async(dispatch_get_main_queue(), ^{
-        UNUserNotificationCenter *center = [UNUserNotificationCenter currentNotificationCenter];
-        if (center.delegate != self) {
-            center.delegate = self;
+        if (self.isTerminating) {
+            return;
         }
-        [self hookAppDelegatePushCallbacksIfPossible];
-        [self registerBackgroundRefreshTaskOnce];
-        [self publishCurrentStatus];
+        @try {
+            UNUserNotificationCenter *center = [UNUserNotificationCenter currentNotificationCenter];
+            if (center.delegate != self) {
+                center.delegate = self;
+            }
+            [self hookAppDelegatePushCallbacksIfPossible];
+            [self publishCurrentStatus];
+        } @catch (NSException *ex) {
+            NSLog(@"[TVKNotif] installDelegateAndHooks exception: %@", ex);
+        }
     });
 }
 
 - (void)hookAppDelegatePushCallbacksIfPossible {
     static BOOL sHooked = NO;
-    if (sHooked) {
+    if (sHooked || self.isTerminating) {
         return;
     }
     UIApplication *app = [UIApplication sharedApplication];
@@ -1405,7 +1416,9 @@ static void tvk_swizzledDidFailRegister(id selfObj, SEL _cmd, UIApplication *app
     }
     sHooked = YES;
     Class cls = object_getClass(del);
-    BOOL addedAny = NO;
+    if (cls == Nil) {
+        return;
+    }
 
     SEL regSel = @selector(application:didRegisterForRemoteNotificationsWithDeviceToken:);
     Method regM = class_getInstanceMethod(cls, regSel);
@@ -1413,9 +1426,7 @@ static void tvk_swizzledDidFailRegister(id selfObj, SEL _cmd, UIApplication *app
         gTVKOrigDidRegIMP = (TVKDidRegIMP)method_getImplementation(regM);
         method_setImplementation(regM, (IMP)tvk_swizzledDidRegister);
     } else {
-        if (class_addMethod(cls, regSel, (IMP)tvk_swizzledDidRegister, "v@:@@")) {
-            addedAny = YES;
-        }
+        class_addMethod(cls, regSel, (IMP)tvk_swizzledDidRegister, "v@:@@");
     }
 
     SEL failSel = @selector(application:didFailToRegisterForRemoteNotificationsWithError:);
@@ -1424,123 +1435,15 @@ static void tvk_swizzledDidFailRegister(id selfObj, SEL _cmd, UIApplication *app
         gTVKOrigDidFailIMP = (TVKDidFailIMP)method_getImplementation(failM);
         method_setImplementation(failM, (IMP)tvk_swizzledDidFailRegister);
     } else {
-        if (class_addMethod(cls, failSel, (IMP)tvk_swizzledDidFailRegister, "v@:@@")) {
-            addedAny = YES;
-        }
-    }
-
-    if (addedAny) {
-        id<UIApplicationDelegate> strongDel = del;
-        app.delegate = nil;
-        app.delegate = strongDel;
+        class_addMethod(cls, failSel, (IMP)tvk_swizzledDidFailRegister, "v@:@@");
     }
 }
-
-- (void)registerBackgroundRefreshTaskOnce {
-#if TVK_HAS_BG_TASKS
-    if (@available(iOS 13.0, *)) {
-        static dispatch_once_t bgToken;
-        dispatch_once(&bgToken, ^{
-            [[BGTaskScheduler sharedScheduler] registerForTaskWithIdentifier:kTVKBgRefreshTaskId
-                                                                  usingQueue:nil
-                                                               launchHandler:^(BGTask * _Nonnull task) {
-                if ([task isKindOfClass:[BGAppRefreshTask class]]) {
-                    [self handleBackgroundRefreshTask:(BGAppRefreshTask *)task];
-                } else {
-                    [task setTaskCompletedWithSuccess:NO];
-                }
-            }];
-        });
-    }
-#endif
-}
-
-#if TVK_HAS_BG_TASKS
-- (void)scheduleNextBackgroundRefreshIfEnabled API_AVAILABLE(ios(13.0)) {
-    NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
-    BOOL enabled = [defaults boolForKey:kTVKNotifEnabledKey];
-    NSString *authTok = [defaults stringForKey:kTVKNotifAuthTokenKey] ?: @"";
-    if (!enabled || authTok.length == 0) {
-        return;
-    }
-    BGAppRefreshTaskRequest *req = [[BGAppRefreshTaskRequest alloc] initWithIdentifier:kTVKBgRefreshTaskId];
-    req.earliestBeginDate = [NSDate dateWithTimeIntervalSinceNow:15.0 * 60.0];
-    NSError *err = nil;
-    [[BGTaskScheduler sharedScheduler] submitTaskRequest:req error:&err];
-    if (err != nil) {
-        NSLog(@"[TVKNotif] BGAppRefresh submit note: %@", err);
-    }
-}
-
-- (void)handleBackgroundRefreshTask:(BGAppRefreshTask *)task API_AVAILABLE(ios(13.0)) {
-    [self scheduleNextBackgroundRefreshIfEnabled];
-    NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
-    BOOL enabled = [defaults boolForKey:kTVKNotifEnabledKey];
-    NSString *srv = [defaults stringForKey:kTVKNotifServerUrlKey] ?: @"https://tahtkilic.vercel.app";
-    NSString *authTok = [defaults stringForKey:kTVKNotifAuthTokenKey] ?: @"";
-    if (!enabled || authTok.length == 0 || srv.length == 0) {
-        [task setTaskCompletedWithSuccess:YES];
-        return;
-    }
-    NSString *urlStr = [srv stringByAppendingString:@"/api/notifications/pending?ack=1"];
-    NSURL *url = [NSURL URLWithString:urlStr];
-    if (url == nil) {
-        [task setTaskCompletedWithSuccess:NO];
-        return;
-    }
-    NSMutableURLRequest *req = [NSMutableURLRequest requestWithURL:url
-                                                       cachePolicy:NSURLRequestReloadIgnoringLocalCacheData
-                                                   timeoutInterval:12.0];
-    [req setHTTPMethod:@"GET"];
-    [req setValue:[@"Bearer " stringByAppendingString:authTok] forHTTPHeaderField:@"Authorization"];
-
-    NSURLSession *session = [NSURLSession sessionWithConfiguration:[NSURLSessionConfiguration defaultSessionConfiguration]];
-    __block NSURLSessionDataTask *dataTask = [session dataTaskWithRequest:req completionHandler:^(NSData * _Nullable data, NSURLResponse * _Nullable response, NSError * _Nullable error) {
-        if (error != nil || data.length == 0) {
-            [task setTaskCompletedWithSuccess:NO];
-            return;
-        }
-        id parsed = [NSJSONSerialization JSONObjectWithData:data options:0 error:nil];
-        if (![parsed isKindOfClass:[NSDictionary class]]) {
-            [task setTaskCompletedWithSuccess:NO];
-            return;
-        }
-        NSArray *list = [parsed[@"notifications"] isKindOfClass:[NSArray class]] ? parsed[@"notifications"] : @[];
-        UNUserNotificationCenter *center = [UNUserNotificationCenter currentNotificationCenter];
-        for (id item in list) {
-            if (![item isKindOfClass:[NSDictionary class]]) {
-                continue;
-            }
-            NSDictionary *nd = (NSDictionary *)item;
-            NSString *title = [nd[@"title"] isKindOfClass:[NSString class]] ? nd[@"title"] : @"Baş Vezir";
-            NSString *body = [nd[@"body"] isKindOfClass:[NSString class]] ? nd[@"body"] : @"";
-            if (body.length == 0) {
-                continue;
-            }
-            NSDictionary *payload = [nd[@"payload"] isKindOfClass:[NSDictionary class]] ? nd[@"payload"] : @{};
-            UNMutableNotificationContent *content = [[UNMutableNotificationContent alloc] init];
-            content.title = title;
-            content.body = body;
-            content.sound = [UNNotificationSound defaultSound];
-            content.badge = @1;
-            content.userInfo = payload;
-            NSString *nid = [NSString stringWithFormat:@"tvk_srv_%@", nd[@"id"] ?: [[NSUUID UUID] UUIDString]];
-            UNTimeIntervalNotificationTrigger *trig = [UNTimeIntervalNotificationTrigger triggerWithTimeInterval:0.5 repeats:NO];
-            UNNotificationRequest *nreq = [UNNotificationRequest requestWithIdentifier:nid content:content trigger:trig];
-            [center addNotificationRequest:nreq withCompletionHandler:nil];
-        }
-        [task setTaskCompletedWithSuccess:YES];
-    }];
-    task.expirationHandler = ^{
-        [dataTask cancel];
-    };
-    [dataTask resume];
-    [session finishTasksAndInvalidate];
-}
-#endif
 
 - (void)start {
     dispatch_async(dispatch_get_main_queue(), ^{
+        if (self.isTerminating) {
+            return;
+        }
         if (self.pollTimer != nil && [self.pollTimer isValid]) {
             return;
         }
@@ -1555,34 +1458,55 @@ static void tvk_swizzledDidFailRegister(id selfObj, SEL _cmd, UIApplication *app
 }
 
 - (void)stop {
-    dispatch_async(dispatch_get_main_queue(), ^{
+    if ([NSThread isMainThread]) {
         if (self.pollTimer != nil) {
             [self.pollTimer invalidate];
             self.pollTimer = nil;
         }
-    });
+    } else {
+        dispatch_async(dispatch_get_main_queue(), ^{
+            if (self.pollTimer != nil) {
+                [self.pollTimer invalidate];
+                self.pollTimer = nil;
+            }
+        });
+    }
 }
 
 - (void)flushAndScheduleBackground {
-    [self pollForNotifRequest];
-#if TVK_HAS_BG_TASKS
-    if (@available(iOS 13.0, *)) {
-        [self scheduleNextBackgroundRefreshIfEnabled];
+    if (self.isTerminating) {
+        return;
     }
-#endif
+    NSTimeInterval now = [[NSDate date] timeIntervalSince1970];
+    if (now - self.lastFlushUnix < 0.35) {
+        return;
+    }
+    self.lastFlushUnix = now;
+    @try {
+        [self pollForNotifRequest];
+    } @catch (NSException *ex) {
+        NSLog(@"[TVKNotif] flushAndScheduleBackground exception: %@", ex);
+    }
 }
 
 - (void)clearAppBadge {
     dispatch_async(dispatch_get_main_queue(), ^{
-        UNUserNotificationCenter *center = [UNUserNotificationCenter currentNotificationCenter];
-        [center removeAllDeliveredNotifications];
-        if (@available(iOS 16.0, *)) {
-            [center setBadgeCount:0 withCompletionHandler:nil];
-        } else {
+        if (self.isTerminating) {
+            return;
+        }
+        @try {
+            UNUserNotificationCenter *center = [UNUserNotificationCenter currentNotificationCenter];
+            [center removeAllDeliveredNotifications];
+            if (@available(iOS 16.0, *)) {
+                [center setBadgeCount:0 withCompletionHandler:nil];
+            } else {
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wdeprecated-declarations"
-            [UIApplication sharedApplication].applicationIconBadgeNumber = 0;
+                [UIApplication sharedApplication].applicationIconBadgeNumber = 0;
 #pragma clang diagnostic pop
+            }
+        } @catch (NSException *ex) {
+            NSLog(@"[TVKNotif] clearAppBadge exception: %@", ex);
         }
     });
 }

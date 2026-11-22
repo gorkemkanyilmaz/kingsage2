@@ -1,12 +1,19 @@
 name: Build & Upload iOS TestFlight
 
 on:
+  push:
+    branches:
+      - main
+    paths:
+      - "tools/ios_native_auth_bridge.mm"
+      - ".github/workflows/ios-testflight.yml"
+      - "game/export_presets.cfg"
   workflow_dispatch:
     inputs:
       build_number:
         description: "TestFlight Build Number (e.g. 1, 2, 3, 4, 5, 6)"
         required: true
-        default: "27"
+        default: "28"
       runner:
         description: "GitHub macOS Runner"
         required: true
@@ -71,7 +78,7 @@ jobs:
           ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
           ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
           ASC_KEY_P8_BASE64: ${{ secrets.ASC_KEY_P8_BASE64 }}
-          BUILD_NUMBER: ${{ inputs.build_number }}
+          BUILD_NUMBER: ${{ inputs.build_number || '28' }}
         run: |
           set -o pipefail
           mkdir -p "$HOME/.appstoreconnect/private_keys" build/ios
@@ -87,7 +94,7 @@ jobs:
 
       - name: Inject Profile UUID & Build Number into Godot Export Preset
         env:
-          BUILD_NUMBER: ${{ inputs.build_number }}
+          BUILD_NUMBER: ${{ inputs.build_number || '28' }}
         run: |
           python3 - <<'PY'
           import os, re
@@ -192,23 +199,24 @@ jobs:
                   patched_lines.append(ln)
               txt = "".join(patched_lines)
               txt = re.sub(r"CLANG_ENABLE_OBJC_ARC\s*=\s*NO\s*;", "CLANG_ENABLE_OBJC_ARC = YES;", txt)
+              txt = re.sub(r"GCC_ENABLE_OBJC_EXCEPTIONS\s*=\s*NO\s*;", "GCC_ENABLE_OBJC_EXCEPTIONS = YES;", txt)
 
               def patch_build_settings(m):
                   block = m.group(0)
                   if "AuthenticationServices" in block:
                       return block
                   if "CLANG_ENABLE_OBJC_ARC" not in block:
-                      block = block.replace("buildSettings = {", "buildSettings = {\n\t\t\t\tCLANG_ENABLE_OBJC_ARC = YES;", 1)
+                      block = block.replace("buildSettings = {", "buildSettings = {\n\t\t\t\tCLANG_ENABLE_OBJC_ARC = YES;\n\t\t\t\tGCC_ENABLE_OBJC_EXCEPTIONS = YES;", 1)
                   if "OTHER_LDFLAGS = (" in block:
                       block = block.replace(
                           "OTHER_LDFLAGS = (",
-                          'OTHER_LDFLAGS = (\n\t\t\t\t\t"-ObjC",\n\t\t\t\t\t"-weak_framework",\n\t\t\t\t\tAuthenticationServices,\n\t\t\t\t\t"-weak_framework",\n\t\t\t\t\tLocalAuthentication,\n\t\t\t\t\t"-weak_framework",\n\t\t\t\t\tWebKit,\n\t\t\t\t\t"-framework",\n\t\t\t\t\tStoreKit,\n\t\t\t\t\t"-framework",\n\t\t\t\t\tUserNotifications,\n\t\t\t\t\t"-weak_framework",\n\t\t\t\t\tBackgroundTasks,',
+                          'OTHER_LDFLAGS = (\n\t\t\t\t\t"-ObjC",\n\t\t\t\t\t"-weak_framework",\n\t\t\t\t\tAuthenticationServices,\n\t\t\t\t\t"-weak_framework",\n\t\t\t\t\tLocalAuthentication,\n\t\t\t\t\t"-weak_framework",\n\t\t\t\t\tWebKit,\n\t\t\t\t\t"-framework",\n\t\t\t\t\tStoreKit,\n\t\t\t\t\t"-framework",\n\t\t\t\t\tUserNotifications,',
                           1,
                       )
                   else:
                       block = block.replace(
                           "buildSettings = {",
-                          'buildSettings = {\n\t\t\t\tOTHER_LDFLAGS = (\n\t\t\t\t\t"$(inherited)",\n\t\t\t\t\t"-ObjC",\n\t\t\t\t\t"-weak_framework",\n\t\t\t\t\tAuthenticationServices,\n\t\t\t\t\t"-weak_framework",\n\t\t\t\t\tLocalAuthentication,\n\t\t\t\t\t"-weak_framework",\n\t\t\t\t\tWebKit,\n\t\t\t\t\t"-framework",\n\t\t\t\t\tStoreKit,\n\t\t\t\t\t"-framework",\n\t\t\t\t\tUserNotifications,\n\t\t\t\t\t"-weak_framework",\n\t\t\t\t\tBackgroundTasks,\n\t\t\t\t);',
+                          'buildSettings = {\n\t\t\t\tOTHER_LDFLAGS = (\n\t\t\t\t\t"$(inherited)",\n\t\t\t\t\t"-ObjC",\n\t\t\t\t\t"-weak_framework",\n\t\t\t\t\tAuthenticationServices,\n\t\t\t\t\t"-weak_framework",\n\t\t\t\t\tLocalAuthentication,\n\t\t\t\t\t"-weak_framework",\n\t\t\t\t\tWebKit,\n\t\t\t\t\t"-framework",\n\t\t\t\t\tStoreKit,\n\t\t\t\t\t"-framework",\n\t\t\t\t\tUserNotifications,\n\t\t\t\t);',
                           1,
                       )
                   return block
@@ -216,9 +224,9 @@ jobs:
               txt = re.sub(r"buildSettings = \{.*?\n\t\t\t\};", patch_build_settings, txt, flags=re.S)
               with open(pbx, "w", encoding="utf-8") as f:
                   f.write(txt)
-              print(f"Patched {pbx} for Objective-C++ ARC and AuthenticationServices/LocalAuthentication/WebKit/StoreKit/UserNotifications/BackgroundTasks")
+              print(f"Patched {pbx} for Objective-C++ ARC/Exceptions and AuthenticationServices/LocalAuthentication/WebKit/StoreKit/UserNotifications")
 
-          # 2. Ensure URL scheme tahtkilic, Face ID, Background Modes and BGTask identifiers exist in Info.plist
+          # 2. Ensure URL scheme tahtkilic, Face ID and Background Modes exist in Info.plist
           for plist_path in glob.glob("build/ios/**/*Info.plist", recursive=True):
               with open(plist_path, "rb") as f:
                   pl = plistlib.load(f)
@@ -232,14 +240,9 @@ jobs:
                           "CFBundleURLSchemes": ["tahtkilic"]
                       })
                   bg_modes = list(pl.get("UIBackgroundModes") or [])
-                  for mode in ("remote-notification", "fetch"):
-                      if mode not in bg_modes:
-                          bg_modes.append(mode)
+                  if "remote-notification" not in bg_modes:
+                      bg_modes.append("remote-notification")
                   pl["UIBackgroundModes"] = bg_modes
-                  bg_ids = list(pl.get("BGTaskSchedulerPermittedIdentifiers") or [])
-                  if "com.tahtkilic.kingsage2.notif_refresh" not in bg_ids:
-                      bg_ids.append("com.tahtkilic.kingsage2.notif_refresh")
-                  pl["BGTaskSchedulerPermittedIdentifiers"] = bg_ids
                   with open(plist_path, "wb") as f:
                       plistlib.dump(pl, f)
                   print(f"Updated {plist_path}")
@@ -268,7 +271,7 @@ jobs:
         env:
           ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
           ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
-          BUILD_NUMBER: ${{ inputs.build_number }}
+          BUILD_NUMBER: ${{ inputs.build_number || '28' }}
         run: |
           set -o pipefail
           fastlane ios export_and_upload project_path:"$XCODE_PROJ" scheme:"$XCODE_SCHEME" target:"$XCODE_TARGET" 2>&1 | tee fastlane_upload.log

@@ -183,7 +183,15 @@ func _check_client_reset_epoch() -> void:
 
 
 func _notification(what: int) -> void:
-	if what == NOTIFICATION_WM_CLOSE_REQUEST or what == NOTIFICATION_APPLICATION_PAUSED or what == NOTIFICATION_APPLICATION_FOCUS_OUT:
+	if what == NOTIFICATION_WM_CLOSE_REQUEST:
+		var gs = _find_game_state()
+		if gs != null and gs.has_active_village():
+			_disk_save_dirty = false
+			_cloud_save_dirty = false
+			_save_flush_accum = 0.0
+			_save_first_dirty_accum = 0.0
+			save_active_world(false, false)
+	elif what == NOTIFICATION_APPLICATION_PAUSED or what == NOTIFICATION_APPLICATION_FOCUS_OUT:
 		var gs = _find_game_state()
 		if gs != null and gs.has_active_village():
 			flush_pending_save()

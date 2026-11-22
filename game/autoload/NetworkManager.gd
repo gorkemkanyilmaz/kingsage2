@@ -37,6 +37,17 @@ func cancel_background_requests() -> void:
 			r.queue_free()
 
 
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_WM_CLOSE_REQUEST:
+		_cloud_save_in_flight = false
+		_pending_cloud_save.clear()
+		_store_req_queue.clear()
+		_store_req_in_flight = false
+		cancel_background_requests()
+		if _http != null and is_instance_valid(_http):
+			_http.cancel_request()
+
+
 func _ready() -> void:
 	if OS.has_feature("web"):
 		var web_origin = JavaScriptBridge.eval("window.location.origin")

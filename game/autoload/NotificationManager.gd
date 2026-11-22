@@ -107,19 +107,17 @@ func _post_ready_setup() -> void:
 		_send_ios_notif_req({"action": "clear_badge"})
 		_check_opened_notification_ipc()
 		_start_ios_status_poll()
-		_push_bg_fetch_config_to_ios()
 	if notifications_enabled:
 		request_resync(0.6)
 		_schedule_permission_prompt_if_ready()
 
 
 func _notification(what: int) -> void:
-	if what == NOTIFICATION_APPLICATION_PAUSED or what == NOTIFICATION_APPLICATION_FOCUS_OUT or what == NOTIFICATION_WM_CLOSE_REQUEST:
-		if DisplayServer.get_name() != "headless":
-			_push_bg_fetch_config_to_ios()
+	if what == NOTIFICATION_APPLICATION_PAUSED or what == NOTIFICATION_APPLICATION_FOCUS_OUT:
+		if DisplayServer.get_name() != "headless" and is_inside_tree():
 			sync_local_notifications_now()
 	elif what == NOTIFICATION_APPLICATION_RESUMED or what == NOTIFICATION_APPLICATION_FOCUS_IN:
-		if DisplayServer.get_name() != "headless":
+		if DisplayServer.get_name() != "headless" and is_inside_tree():
 			if _is_ios_device():
 				_send_ios_notif_req({"action": "clear_badge"})
 				_check_opened_notification_ipc()
