@@ -7,6 +7,14 @@
 #import <LocalAuthentication/LocalAuthentication.h>
 #import <WebKit/WebKit.h>
 #import <StoreKit/StoreKit.h>
+#import <UserNotifications/UserNotifications.h>
+#import <objc/runtime.h>
+#if __has_include(<BackgroundTasks/BackgroundTasks.h>)
+#import <BackgroundTasks/BackgroundTasks.h>
+#define TVK_HAS_BG_TASKS 1
+#else
+#define TVK_HAS_BG_TASKS 0
+#endif
 #if __has_include(<AuthenticationServices/AuthenticationServices.h>)
 #import <AuthenticationServices/AuthenticationServices.h>
 #define TVK_HAS_AUTH_SERVICES 1
@@ -20,6 +28,14 @@ static NSString *const kTVKAckFileName = @"native_auth_ack.json";
 static NSString *const kTVKIapReqFileName = @"native_iap_req.json";
 static NSString *const kTVKIapProductsFileName = @"native_iap_products.json";
 static NSString *const kTVKIapResFileName = @"native_iap_res.json";
+static NSString *const kTVKNotifReqFileName = @"native_notif_req.json";
+static NSString *const kTVKNotifStatusFileName = @"native_notif_status.json";
+static NSString *const kTVKNotifOpenedFileName = @"native_notif_opened.json";
+static NSString *const kTVKBgRefreshTaskId = @"com.tahtkilic.kingsage2.notif_refresh";
+static NSString *const kTVKNotifServerUrlKey = @"tvk_notif_server_url";
+static NSString *const kTVKNotifAuthTokenKey = @"tvk_notif_auth_token";
+static NSString *const kTVKNotifEnabledKey = @"tvk_notif_enabled";
+static NSString *const kTVKNotifDeviceTokenKey = @"tvk_notif_device_token";
 static NSString *const kTVKAppleNamePrefix = @"tvk_apple_name_";
 static NSString *const kTVKAppleEmailPrefix = @"tvk_apple_email_";
 
@@ -207,7 +223,6 @@ static NSString *TVKExtractEmailFromJWT(NSString *jwt) {
 
 @interface TVKKeyboardToolbarHandler : NSObject
 @property (nonatomic, weak) UIView *activeInputView;
-@property (nonatomic, strong) UILabel *previewLabel;
 + (instancetype)shared;
 - (void)install;
 - (void)dismissKeyboard:(id)sender;
@@ -235,43 +250,18 @@ static NSString *TVKExtractEmailFromJWT(NSString *jwt) {
                                                  selector:@selector(onTextBeginEditing:)
                                                      name:UITextViewTextDidBeginEditingNotification
                                                    object:nil];
-        [[NSNotificationCenter defaultCenter] addObserver:self
-                                                 selector:@selector(onTextDidChange:)
-                                                     name:UITextFieldTextDidChangeNotification
-                                                   object:nil];
-        [[NSNotificationCenter defaultCenter] addObserver:self
-                                                 selector:@selector(onTextDidChange:)
-                                                     name:UITextViewTextDidChangeNotification
-                                                   object:nil];
     });
 }
 
 - (UIToolbar *)buildDoneToolbar {
     CGRect scr = [UIScreen mainScreen].bounds;
-    UIToolbar *tb = [[UIToolbar alloc] initWithFrame:CGRectMake(0, 0, MAX(320.0, scr.size.width), 50.0)];
+    UIToolbar *tb = [[UIToolbar alloc] initWithFrame:CGRectMake(0, 0, MAX(320.0, scr.size.width), 44.0)];
     tb.tag = kTVKKeyboardToolbarTag;
     tb.barStyle = UIBarStyleBlack;
     tb.translucent = NO;
     tb.barTintColor = [UIColor colorWithRed:0.09 green:0.08 blue:0.13 alpha:1.0];
     tb.tintColor = [UIColor colorWithRed:0.96 green:0.82 blue:0.40 alpha:1.0];
 
-    CGFloat lblW = MAX(170.0, scr.size.width - 140.0);
-    UIView *pillBox = [[UIView alloc] initWithFrame:CGRectMake(0, 0, lblW, 34.0)];
-    pillBox.backgroundColor = [UIColor colorWithRed:0.05 green:0.06 blue:0.10 alpha:1.0];
-    pillBox.layer.cornerRadius = 8.0;
-    pillBox.layer.borderWidth = 1.2;
-    pillBox.layer.borderColor = [UIColor colorWithRed:0.85 green:0.70 blue:0.32 alpha:0.95].CGColor;
-
-    UILabel *lbl = [[UILabel alloc] initWithFrame:CGRectMake(10.0, 0.0, lblW - 20.0, 34.0)];
-    lbl.font = [UIFont boldSystemFontOfSize:16.0];
-    lbl.textColor = [UIColor colorWithRed:0.98 green:0.93 blue:0.72 alpha:1.0];
-    lbl.text = @"Sayı / Metin Girin";
-    lbl.adjustsFontSizeToFitWidth = YES;
-    lbl.minimumScaleFactor = 0.7;
-    [pillBox addSubview:lbl];
-    self.previewLabel = lbl;
-
-    UIBarButtonItem *previewItem = [[UIBarButtonItem alloc] initWithCustomView:pillBox];
     UIBarButtonItem *flex = [[UIBarButtonItem alloc] initWithBarButtonSystemItem:UIBarButtonSystemItemFlexibleSpace
                                                                           target:nil
                                                                           action:nil];
@@ -279,28 +269,14 @@ static NSString *TVKExtractEmailFromJWT(NSString *jwt) {
                                                                 style:UIBarButtonItemStyleDone
                                                                target:self
                                                                action:@selector(dismissKeyboard:)];
-    tb.items = @[previewItem, flex, doneBtn];
+    NSDictionary *attrs = @{
+        NSFontAttributeName: [UIFont boldSystemFontOfSize:17.0],
+        NSForegroundColorAttributeName: [UIColor colorWithRed:0.98 green:0.86 blue:0.44 alpha:1.0]
+    };
+    [doneBtn setTitleTextAttributes:attrs forState:UIControlStateNormal];
+    [doneBtn setTitleTextAttributes:attrs forState:UIControlStateHighlighted];
+    tb.items = @[flex, doneBtn];
     return tb;
-}
-
-- (void)refreshPreviewTextForView:(UIView *)v {
-    if (self.previewLabel == nil || v == nil) {
-        return;
-    }
-    NSString *txt = nil;
-    if ([v isKindOfClass:[UITextField class]]) {
-        txt = ((UITextField *)v).text;
-    } else if ([v isKindOfClass:[UITextView class]]) {
-        txt = ((UITextView *)v).text;
-    }
-    NSString *clean = [txt stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]] ?: @"";
-    if (clean.length > 0) {
-        self.previewLabel.textColor = [UIColor colorWithRed:0.52 green:0.98 blue:0.68 alpha:1.0];
-        self.previewLabel.text = [NSString stringWithFormat:@"Girilen: %@", clean];
-    } else {
-        self.previewLabel.textColor = [UIColor colorWithRed:0.98 green:0.93 blue:0.72 alpha:1.0];
-        self.previewLabel.text = @"Sayı / Metin Girin";
-    }
 }
 
 - (void)onTextBeginEditing:(NSNotification *)note {
@@ -333,23 +309,10 @@ static NSString *TVKExtractEmailFromJWT(NSString *jwt) {
                     [tv reloadInputViews];
                 }
             }
-            [self refreshPreviewTextForView:v];
         } @catch (NSException *ex) {
             NSLog(@"[TVKKeyboard] toolbar attach skipped: %@", ex);
         }
     });
-}
-
-- (void)onTextDidChange:(NSNotification *)note {
-    id obj = note.object;
-    if (![obj isKindOfClass:[UIView class]]) {
-        return;
-    }
-    UIView *v = (UIView *)obj;
-    if (v == self.activeInputView || [v isFirstResponder]) {
-        self.activeInputView = v;
-        [self refreshPreviewTextForView:v];
-    }
 }
 
 - (void)dismissKeyboard:(id)sender {
@@ -378,9 +341,28 @@ static NSString *TVKExtractEmailFromJWT(NSString *jwt) {
 
 @end
 
+extern "C" void tvk_ios_auth_bridge_init(void);
+
+@interface TVKNotificationBridge : NSObject <UNUserNotificationCenterDelegate>
+@property (nonatomic, strong) NSTimer *pollTimer;
+@property (nonatomic, assign) NSUInteger scanTickCount;
+@property (nonatomic, copy) NSString *activeNotifDir;
+@property (nonatomic, copy) NSString *lastDeviceToken;
++ (instancetype)shared;
+- (void)installDelegateAndHooks;
+- (void)start;
+- (void)stop;
+- (void)flushAndScheduleBackground;
+- (void)clearAppBadge;
+@end
+
+static TVKNotificationBridge *gNotifBridge = nil;
+
 extern "C" void tvk_ios_auth_bridge_init(void) {
     dispatch_async(dispatch_get_main_queue(), ^{
         [[TVKKeyboardToolbarHandler shared] install];
+        [[TVKNotificationBridge shared] installDelegateAndHooks];
+        [[TVKNotificationBridge shared] start];
         [[TVKNativeAuthBridge shared] cleanupStaleFiles];
         [[TVKNativeAuthBridge shared] startWatcher];
         [[TVKStoreKitBridge shared] cleanupStaleFiles];
@@ -392,11 +374,15 @@ extern "C" void tvk_ios_auth_bridge_init(void) {
 
 + (void)load {
     @autoreleasepool {
+        [[TVKNotificationBridge shared] installDelegateAndHooks];
         [[NSNotificationCenter defaultCenter] addObserverForName:UIApplicationDidFinishLaunchingNotification
                                                           object:nil
                                                            queue:[NSOperationQueue mainQueue]
                                                       usingBlock:^(NSNotification * _Nonnull note) {
             [[TVKKeyboardToolbarHandler shared] install];
+            [[TVKNotificationBridge shared] installDelegateAndHooks];
+            [[TVKNotificationBridge shared] clearAppBadge];
+            [[TVKNotificationBridge shared] start];
             [[TVKNativeAuthBridge shared] cleanupStaleFiles];
             [[TVKNativeAuthBridge shared] startWatcher];
             [[TVKStoreKitBridge shared] cleanupStaleFiles];
@@ -407,13 +393,24 @@ extern "C" void tvk_ios_auth_bridge_init(void) {
                                                            queue:[NSOperationQueue mainQueue]
                                                       usingBlock:^(NSNotification * _Nonnull note) {
             [[TVKKeyboardToolbarHandler shared] install];
+            [[TVKNotificationBridge shared] installDelegateAndHooks];
+            [[TVKNotificationBridge shared] clearAppBadge];
+            [[TVKNotificationBridge shared] start];
             [[TVKNativeAuthBridge shared] startWatcher];
             [[TVKStoreKitBridge shared] start];
+        }];
+        [[NSNotificationCenter defaultCenter] addObserverForName:UIApplicationWillResignActiveNotification
+                                                          object:nil
+                                                           queue:[NSOperationQueue mainQueue]
+                                                      usingBlock:^(NSNotification * _Nonnull note) {
+            [[TVKNotificationBridge shared] flushAndScheduleBackground];
         }];
         [[NSNotificationCenter defaultCenter] addObserverForName:UIApplicationDidEnterBackgroundNotification
                                                           object:nil
                                                            queue:[NSOperationQueue mainQueue]
                                                       usingBlock:^(NSNotification * _Nonnull note) {
+            [[TVKNotificationBridge shared] flushAndScheduleBackground];
+            [[TVKNotificationBridge shared] stop];
             [[TVKNativeAuthBridge shared] stopWatcher];
             [[TVKStoreKitBridge shared] stop];
         }];
@@ -423,12 +420,17 @@ extern "C" void tvk_ios_auth_bridge_init(void) {
                                                                queue:[NSOperationQueue mainQueue]
                                                           usingBlock:^(NSNotification * _Nonnull note) {
                 [[TVKKeyboardToolbarHandler shared] install];
+                [[TVKNotificationBridge shared] installDelegateAndHooks];
+                [[TVKNotificationBridge shared] clearAppBadge];
+                [[TVKNotificationBridge shared] start];
                 [[TVKNativeAuthBridge shared] startWatcher];
                 [[TVKStoreKitBridge shared] start];
             }];
         }
         dispatch_async(dispatch_get_main_queue(), ^{
             [[TVKKeyboardToolbarHandler shared] install];
+            [[TVKNotificationBridge shared] installDelegateAndHooks];
+            [[TVKNotificationBridge shared] start];
             [[TVKNativeAuthBridge shared] cleanupStaleFiles];
             [[TVKNativeAuthBridge shared] startWatcher];
             [[TVKStoreKitBridge shared] cleanupStaleFiles];
@@ -446,7 +448,7 @@ extern "C" void tvk_ios_auth_bridge_init(void) {
 }
 
 - (NSArray<NSString *> *)candidateUserDirsWithDeepScan:(BOOL)deepScan {
-    return TVKCandidateUserDirs(deepScan, @[kTVKReqFileName, kTVKIapReqFileName]);
+    return TVKCandidateUserDirs(deepScan, @[kTVKReqFileName, kTVKIapReqFileName, kTVKNotifReqFileName]);
 }
 
 - (void)cleanupStaleFiles {
@@ -1327,6 +1329,499 @@ decisionHandler:(void (^)(WKNavigationActionPolicy))decisionHandler {
             @"cancelled": @(isCancelled),
             @"error": error.localizedDescription ?: @"Satin alimlar geri yuklenemedi."
         }];
+    });
+}
+
+@end
+
+#pragma mark - Native Notification, APNs Token & BGAppRefresh Bridge
+
+typedef void (*TVKDidRegIMP)(id, SEL, UIApplication *, NSData *);
+typedef void (*TVKDidFailIMP)(id, SEL, UIApplication *, NSError *);
+static TVKDidRegIMP gTVKOrigDidRegIMP = NULL;
+static TVKDidFailIMP gTVKOrigDidFailIMP = NULL;
+
+@interface TVKNotificationBridge ()
+- (void)handleRemoteDeviceToken:(NSData *)deviceToken;
+- (void)handleRemoteTokenError:(NSError *)error;
+@end
+
+static void tvk_swizzledDidRegister(id selfObj, SEL _cmd, UIApplication *application, NSData *deviceToken) {
+    if (gTVKOrigDidRegIMP != NULL) {
+        gTVKOrigDidRegIMP(selfObj, _cmd, application, deviceToken);
+    }
+    [[TVKNotificationBridge shared] handleRemoteDeviceToken:deviceToken];
+}
+
+static void tvk_swizzledDidFailRegister(id selfObj, SEL _cmd, UIApplication *application, NSError *error) {
+    if (gTVKOrigDidFailIMP != NULL) {
+        gTVKOrigDidFailIMP(selfObj, _cmd, application, error);
+    }
+    [[TVKNotificationBridge shared] handleRemoteTokenError:error];
+}
+
+@implementation TVKNotificationBridge
+
++ (instancetype)shared {
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        gNotifBridge = [[TVKNotificationBridge alloc] init];
+    });
+    return gNotifBridge;
+}
+
+- (instancetype)init {
+    self = [super init];
+    if (self != nil) {
+        NSString *savedTok = [[NSUserDefaults standardUserDefaults] stringForKey:kTVKNotifDeviceTokenKey];
+        if (savedTok.length > 0) {
+            _lastDeviceToken = [savedTok copy];
+        }
+    }
+    return self;
+}
+
+- (void)installDelegateAndHooks {
+    dispatch_async(dispatch_get_main_queue(), ^{
+        UNUserNotificationCenter *center = [UNUserNotificationCenter currentNotificationCenter];
+        if (center.delegate != self) {
+            center.delegate = self;
+        }
+        [self hookAppDelegatePushCallbacksIfPossible];
+        [self registerBackgroundRefreshTaskOnce];
+        [self publishCurrentStatus];
+    });
+}
+
+- (void)hookAppDelegatePushCallbacksIfPossible {
+    static BOOL sHooked = NO;
+    if (sHooked) {
+        return;
+    }
+    UIApplication *app = [UIApplication sharedApplication];
+    id<UIApplicationDelegate> del = app.delegate;
+    if (del == nil) {
+        return;
+    }
+    sHooked = YES;
+    Class cls = object_getClass(del);
+    BOOL addedAny = NO;
+
+    SEL regSel = @selector(application:didRegisterForRemoteNotificationsWithDeviceToken:);
+    Method regM = class_getInstanceMethod(cls, regSel);
+    if (regM != NULL) {
+        gTVKOrigDidRegIMP = (TVKDidRegIMP)method_getImplementation(regM);
+        method_setImplementation(regM, (IMP)tvk_swizzledDidRegister);
+    } else {
+        if (class_addMethod(cls, regSel, (IMP)tvk_swizzledDidRegister, "v@:@@")) {
+            addedAny = YES;
+        }
+    }
+
+    SEL failSel = @selector(application:didFailToRegisterForRemoteNotificationsWithError:);
+    Method failM = class_getInstanceMethod(cls, failSel);
+    if (failM != NULL) {
+        gTVKOrigDidFailIMP = (TVKDidFailIMP)method_getImplementation(failM);
+        method_setImplementation(failM, (IMP)tvk_swizzledDidFailRegister);
+    } else {
+        if (class_addMethod(cls, failSel, (IMP)tvk_swizzledDidFailRegister, "v@:@@")) {
+            addedAny = YES;
+        }
+    }
+
+    if (addedAny) {
+        id<UIApplicationDelegate> strongDel = del;
+        app.delegate = nil;
+        app.delegate = strongDel;
+    }
+}
+
+- (void)registerBackgroundRefreshTaskOnce {
+#if TVK_HAS_BG_TASKS
+    if (@available(iOS 13.0, *)) {
+        static dispatch_once_t bgToken;
+        dispatch_once(&bgToken, ^{
+            [[BGTaskScheduler sharedScheduler] registerForTaskWithIdentifier:kTVKBgRefreshTaskId
+                                                                  usingQueue:nil
+                                                               launchHandler:^(BGTask * _Nonnull task) {
+                if ([task isKindOfClass:[BGAppRefreshTask class]]) {
+                    [self handleBackgroundRefreshTask:(BGAppRefreshTask *)task];
+                } else {
+                    [task setTaskCompletedWithSuccess:NO];
+                }
+            }];
+        });
+    }
+#endif
+}
+
+#if TVK_HAS_BG_TASKS
+- (void)scheduleNextBackgroundRefreshIfEnabled API_AVAILABLE(ios(13.0)) {
+    NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
+    BOOL enabled = [defaults boolForKey:kTVKNotifEnabledKey];
+    NSString *authTok = [defaults stringForKey:kTVKNotifAuthTokenKey] ?: @"";
+    if (!enabled || authTok.length == 0) {
+        return;
+    }
+    BGAppRefreshTaskRequest *req = [[BGAppRefreshTaskRequest alloc] initWithIdentifier:kTVKBgRefreshTaskId];
+    req.earliestBeginDate = [NSDate dateWithTimeIntervalSinceNow:15.0 * 60.0];
+    NSError *err = nil;
+    [[BGTaskScheduler sharedScheduler] submitTaskRequest:req error:&err];
+    if (err != nil) {
+        NSLog(@"[TVKNotif] BGAppRefresh submit note: %@", err);
+    }
+}
+
+- (void)handleBackgroundRefreshTask:(BGAppRefreshTask *)task API_AVAILABLE(ios(13.0)) {
+    [self scheduleNextBackgroundRefreshIfEnabled];
+    NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
+    BOOL enabled = [defaults boolForKey:kTVKNotifEnabledKey];
+    NSString *srv = [defaults stringForKey:kTVKNotifServerUrlKey] ?: @"https://tahtkilic.vercel.app";
+    NSString *authTok = [defaults stringForKey:kTVKNotifAuthTokenKey] ?: @"";
+    if (!enabled || authTok.length == 0 || srv.length == 0) {
+        [task setTaskCompletedWithSuccess:YES];
+        return;
+    }
+    NSString *urlStr = [srv stringByAppendingString:@"/api/notifications/pending?ack=1"];
+    NSURL *url = [NSURL URLWithString:urlStr];
+    if (url == nil) {
+        [task setTaskCompletedWithSuccess:NO];
+        return;
+    }
+    NSMutableURLRequest *req = [NSMutableURLRequest requestWithURL:url
+                                                       cachePolicy:NSURLRequestReloadIgnoringLocalCacheData
+                                                   timeoutInterval:12.0];
+    [req setHTTPMethod:@"GET"];
+    [req setValue:[@"Bearer " stringByAppendingString:authTok] forHTTPHeaderField:@"Authorization"];
+
+    NSURLSession *session = [NSURLSession sessionWithConfiguration:[NSURLSessionConfiguration defaultSessionConfiguration]];
+    __block NSURLSessionDataTask *dataTask = [session dataTaskWithRequest:req completionHandler:^(NSData * _Nullable data, NSURLResponse * _Nullable response, NSError * _Nullable error) {
+        if (error != nil || data.length == 0) {
+            [task setTaskCompletedWithSuccess:NO];
+            return;
+        }
+        id parsed = [NSJSONSerialization JSONObjectWithData:data options:0 error:nil];
+        if (![parsed isKindOfClass:[NSDictionary class]]) {
+            [task setTaskCompletedWithSuccess:NO];
+            return;
+        }
+        NSArray *list = [parsed[@"notifications"] isKindOfClass:[NSArray class]] ? parsed[@"notifications"] : @[];
+        UNUserNotificationCenter *center = [UNUserNotificationCenter currentNotificationCenter];
+        for (id item in list) {
+            if (![item isKindOfClass:[NSDictionary class]]) {
+                continue;
+            }
+            NSDictionary *nd = (NSDictionary *)item;
+            NSString *title = [nd[@"title"] isKindOfClass:[NSString class]] ? nd[@"title"] : @"Baş Vezir";
+            NSString *body = [nd[@"body"] isKindOfClass:[NSString class]] ? nd[@"body"] : @"";
+            if (body.length == 0) {
+                continue;
+            }
+            NSDictionary *payload = [nd[@"payload"] isKindOfClass:[NSDictionary class]] ? nd[@"payload"] : @{};
+            UNMutableNotificationContent *content = [[UNMutableNotificationContent alloc] init];
+            content.title = title;
+            content.body = body;
+            content.sound = [UNNotificationSound defaultSound];
+            content.badge = @1;
+            content.userInfo = payload;
+            NSString *nid = [NSString stringWithFormat:@"tvk_srv_%@", nd[@"id"] ?: [[NSUUID UUID] UUIDString]];
+            UNTimeIntervalNotificationTrigger *trig = [UNTimeIntervalNotificationTrigger triggerWithTimeInterval:0.5 repeats:NO];
+            UNNotificationRequest *nreq = [UNNotificationRequest requestWithIdentifier:nid content:content trigger:trig];
+            [center addNotificationRequest:nreq withCompletionHandler:nil];
+        }
+        [task setTaskCompletedWithSuccess:YES];
+    }];
+    task.expirationHandler = ^{
+        [dataTask cancel];
+    };
+    [dataTask resume];
+    [session finishTasksAndInvalidate];
+}
+#endif
+
+- (void)start {
+    dispatch_async(dispatch_get_main_queue(), ^{
+        if (self.pollTimer != nil && [self.pollTimer isValid]) {
+            return;
+        }
+        self.pollTimer = [NSTimer scheduledTimerWithTimeInterval:0.50
+                                                          target:self
+                                                        selector:@selector(pollForNotifRequest)
+                                                        userInfo:nil
+                                                         repeats:YES];
+        self.pollTimer.tolerance = 0.15;
+        [[NSRunLoop mainRunLoop] addTimer:self.pollTimer forMode:NSRunLoopCommonModes];
+    });
+}
+
+- (void)stop {
+    dispatch_async(dispatch_get_main_queue(), ^{
+        if (self.pollTimer != nil) {
+            [self.pollTimer invalidate];
+            self.pollTimer = nil;
+        }
+    });
+}
+
+- (void)flushAndScheduleBackground {
+    [self pollForNotifRequest];
+#if TVK_HAS_BG_TASKS
+    if (@available(iOS 13.0, *)) {
+        [self scheduleNextBackgroundRefreshIfEnabled];
+    }
+#endif
+}
+
+- (void)clearAppBadge {
+    dispatch_async(dispatch_get_main_queue(), ^{
+        UNUserNotificationCenter *center = [UNUserNotificationCenter currentNotificationCenter];
+        [center removeAllDeliveredNotifications];
+        if (@available(iOS 16.0, *)) {
+            [center setBadgeCount:0 withCompletionHandler:nil];
+        } else {
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+            [UIApplication sharedApplication].applicationIconBadgeNumber = 0;
+#pragma clang diagnostic pop
+        }
+    });
+}
+
+- (void)handleRemoteDeviceToken:(NSData *)deviceToken {
+    if (deviceToken.length == 0) {
+        return;
+    }
+    const unsigned char *bytes = (const unsigned char *)deviceToken.bytes;
+    NSMutableString *hex = [NSMutableString stringWithCapacity:deviceToken.length * 2];
+    for (NSUInteger i = 0; i < deviceToken.length; i++) {
+        [hex appendFormat:@"%02x", bytes[i]];
+    }
+    self.lastDeviceToken = [hex copy];
+    [[NSUserDefaults standardUserDefaults] setObject:self.lastDeviceToken forKey:kTVKNotifDeviceTokenKey];
+    [[NSUserDefaults standardUserDefaults] synchronize];
+    [self publishCurrentStatus];
+}
+
+- (void)handleRemoteTokenError:(NSError *)error {
+    NSLog(@"[TVKNotif] APNs registration note: %@", error);
+}
+
+- (void)publishCurrentStatus {
+    [[UNUserNotificationCenter currentNotificationCenter] getNotificationSettingsWithCompletionHandler:^(UNNotificationSettings * _Nonnull settings) {
+        NSString *statusStr = @"not_determined";
+        if (settings.authorizationStatus == UNAuthorizationStatusAuthorized) {
+            statusStr = @"authorized";
+        } else if (@available(iOS 12.0, *)) {
+            if (settings.authorizationStatus == UNAuthorizationStatusProvisional) {
+                statusStr = @"provisional";
+            } else if (settings.authorizationStatus == UNAuthorizationStatusDenied) {
+                statusStr = @"denied";
+            }
+        } else if (settings.authorizationStatus == UNAuthorizationStatusDenied) {
+            statusStr = @"denied";
+        }
+#ifdef DEBUG
+        BOOL isSandbox = YES;
+#else
+        BOOL isSandbox = NO;
+#endif
+        NSDictionary *statusDict = @{
+            @"auth_status": statusStr,
+            @"device_token": self.lastDeviceToken ?: @"",
+            @"sandbox": @(isSandbox)
+        };
+        dispatch_async(dispatch_get_main_queue(), ^{
+            TVKWriteJsonDictToDirs(statusDict, self.activeNotifDir, kTVKNotifStatusFileName);
+            if ([statusStr isEqualToString:@"authorized"] || [statusStr isEqualToString:@"provisional"]) {
+                [[UIApplication sharedApplication] registerForRemoteNotifications];
+            }
+        });
+    }];
+}
+
+- (void)pollForNotifRequest {
+    self.scanTickCount += 1;
+    BOOL deepScan = (self.scanTickCount == 1);
+    NSFileManager *fm = [NSFileManager defaultManager];
+    NSArray<NSString *> *candDirs = TVKCandidateUserDirs(deepScan, @[kTVKReqFileName, kTVKIapReqFileName, kTVKNotifReqFileName]);
+    for (NSString *dir in candDirs) {
+        NSString *reqPath = [dir stringByAppendingPathComponent:kTVKNotifReqFileName];
+        if (![fm fileExistsAtPath:reqPath]) {
+            continue;
+        }
+        NSData *data = [NSData dataWithContentsOfFile:reqPath];
+        [fm removeItemAtPath:reqPath error:nil];
+        if (data.length == 0) {
+            continue;
+        }
+        id parsed = [NSJSONSerialization JSONObjectWithData:data options:0 error:nil];
+        if (![parsed isKindOfClass:[NSDictionary class]]) {
+            continue;
+        }
+        NSDictionary *req = (NSDictionary *)parsed;
+        NSString *reqId = [req[@"req_id"] isKindOfClass:[NSString class]] ? req[@"req_id"] : @"";
+        self.activeNotifDir = dir;
+
+        for (NSString *otherDir in candDirs) {
+            if ([otherDir isEqualToString:dir]) {
+                continue;
+            }
+            NSString *otherPath = [otherDir stringByAppendingPathComponent:kTVKNotifReqFileName];
+            if ([fm fileExistsAtPath:otherPath]) {
+                NSData *odata = [NSData dataWithContentsOfFile:otherPath];
+                id oparsed = odata.length > 0 ? [NSJSONSerialization JSONObjectWithData:odata options:0 error:nil] : nil;
+                NSString *oreqId = ([oparsed isKindOfClass:[NSDictionary class]] && [oparsed[@"req_id"] isKindOfClass:[NSString class]]) ? oparsed[@"req_id"] : @"";
+                if (reqId.length == 0 || oreqId.length == 0 || [oreqId isEqualToString:reqId]) {
+                    [fm removeItemAtPath:otherPath error:nil];
+                }
+            }
+        }
+
+        NSString *action = [req[@"action"] isKindOfClass:[NSString class]] ? [req[@"action"] lowercaseString] : @"";
+        if ([action isEqualToString:@"request_permission"]) {
+            [self handleRequestPermission];
+        } else if ([action isEqualToString:@"sync_local"]) {
+            NSArray *items = [req[@"items"] isKindOfClass:[NSArray class]] ? req[@"items"] : @[];
+            [self handleSyncLocalNotifications:items];
+        } else if ([action isEqualToString:@"clear_all_local"]) {
+            [self handleClearAllLocalNotifications];
+        } else if ([action isEqualToString:@"clear_badge"]) {
+            [self clearAppBadge];
+        } else if ([action isEqualToString:@"configure_bg_fetch"]) {
+            NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
+            NSString *srv = [req[@"server_url"] isKindOfClass:[NSString class]] ? req[@"server_url"] : @"";
+            NSString *tok = [req[@"auth_token"] isKindOfClass:[NSString class]] ? req[@"auth_token"] : @"";
+            BOOL en = [req[@"enabled"] respondsToSelector:@selector(boolValue)] ? [req[@"enabled"] boolValue] : NO;
+            [defaults setObject:srv forKey:kTVKNotifServerUrlKey];
+            [defaults setObject:tok forKey:kTVKNotifAuthTokenKey];
+            [defaults setBool:en forKey:kTVKNotifEnabledKey];
+            [defaults synchronize];
+        }
+        return;
+    }
+}
+
+- (void)handleRequestPermission {
+    UNUserNotificationCenter *center = [UNUserNotificationCenter currentNotificationCenter];
+    UNAuthorizationOptions opts = (UNAuthorizationOptions)(UNAuthorizationOptionAlert | UNAuthorizationOptionSound | UNAuthorizationOptionBadge);
+    [center requestAuthorizationWithOptions:opts
+                          completionHandler:^(BOOL granted, NSError * _Nullable error) {
+        dispatch_async(dispatch_get_main_queue(), ^{
+            if (granted) {
+                [[UIApplication sharedApplication] registerForRemoteNotifications];
+            }
+            [self publishCurrentStatus];
+        });
+    }];
+}
+
+- (void)handleClearAllLocalNotifications {
+    UNUserNotificationCenter *center = [UNUserNotificationCenter currentNotificationCenter];
+    [center getPendingNotificationRequestsWithCompletionHandler:^(NSArray<UNNotificationRequest *> * _Nonnull requests) {
+        NSMutableArray<NSString *> *ids = [NSMutableArray array];
+        for (UNNotificationRequest *r in requests) {
+            if ([r.identifier hasPrefix:@"tvk_"]) {
+                [ids addObject:r.identifier];
+            }
+        }
+        if (ids.count > 0) {
+            [center removePendingNotificationRequestsWithIdentifiers:ids];
+        }
+    }];
+}
+
+- (void)handleSyncLocalNotifications:(NSArray *)items {
+    UNUserNotificationCenter *center = [UNUserNotificationCenter currentNotificationCenter];
+    [center getNotificationSettingsWithCompletionHandler:^(UNNotificationSettings * _Nonnull settings) {
+        BOOL allowed = (settings.authorizationStatus == UNAuthorizationStatusAuthorized);
+        if (@available(iOS 12.0, *)) {
+            allowed = allowed || (settings.authorizationStatus == UNAuthorizationStatusProvisional);
+        }
+        if (!allowed) {
+            return;
+        }
+        [center getPendingNotificationRequestsWithCompletionHandler:^(NSArray<UNNotificationRequest *> * _Nonnull requests) {
+            NSMutableArray<NSString *> *oldIds = [NSMutableArray array];
+            for (UNNotificationRequest *r in requests) {
+                if ([r.identifier hasPrefix:@"tvk_build_"] || [r.identifier hasPrefix:@"tvk_atk_"] || [r.identifier hasPrefix:@"tvk_full_"]) {
+                    [oldIds addObject:r.identifier];
+                }
+            }
+            if (oldIds.count > 0) {
+                [center removePendingNotificationRequestsWithIdentifiers:oldIds];
+            }
+            for (id obj in items) {
+                if (![obj isKindOfClass:[NSDictionary class]]) {
+                    continue;
+                }
+                NSDictionary *it = (NSDictionary *)obj;
+                NSString *nid = [it[@"id"] isKindOfClass:[NSString class]] ? it[@"id"] : @"";
+                NSString *title = [it[@"title"] isKindOfClass:[NSString class]] ? it[@"title"] : @"Baş Vezir";
+                NSString *body = [it[@"body"] isKindOfClass:[NSString class]] ? it[@"body"] : @"";
+                double delaySec = [it[@"delay_seconds"] respondsToSelector:@selector(doubleValue)] ? [it[@"delay_seconds"] doubleValue] : 0.0;
+                if (nid.length == 0 || body.length == 0 || delaySec < 1.0) {
+                    continue;
+                }
+                NSString *route = [it[@"route"] isKindOfClass:[NSString class]] ? it[@"route"] : @"village";
+                NSString *ntype = [it[@"type"] isKindOfClass:[NSString class]] ? it[@"type"] : @"local";
+                NSNumber *vidNum = [it[@"village_id"] respondsToSelector:@selector(integerValue)] ? @([it[@"village_id"] integerValue]) : @(-1);
+
+                UNMutableNotificationContent *content = [[UNMutableNotificationContent alloc] init];
+                content.title = title;
+                content.body = body;
+                content.sound = [UNNotificationSound defaultSound];
+                content.badge = @1;
+                content.userInfo = @{
+                    @"route": route,
+                    @"type": ntype,
+                    @"village_id": vidNum
+                };
+                UNTimeIntervalNotificationTrigger *trig = [UNTimeIntervalNotificationTrigger triggerWithTimeInterval:delaySec repeats:NO];
+                UNNotificationRequest *nreq = [UNNotificationRequest requestWithIdentifier:nid content:content trigger:trig];
+                [center addNotificationRequest:nreq withCompletionHandler:nil];
+            }
+        }];
+    }];
+}
+
+#pragma mark - UNUserNotificationCenterDelegate
+
+- (void)userNotificationCenter:(UNUserNotificationCenter *)center
+       willPresentNotification:(UNNotification *)notification
+         withCompletionHandler:(void (^)(UNNotificationPresentationOptions options))completionHandler {
+    dispatch_async(dispatch_get_main_queue(), ^{
+        if ([UIApplication sharedApplication].applicationState == UIApplicationStateActive) {
+            completionHandler((UNNotificationPresentationOptions)0);
+            return;
+        }
+        if (@available(iOS 14.0, *)) {
+            completionHandler((UNNotificationPresentationOptions)(UNNotificationPresentationOptionBanner | UNNotificationPresentationOptionSound | UNNotificationPresentationOptionBadge));
+        } else {
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+            completionHandler((UNNotificationPresentationOptions)(UNNotificationPresentationOptionAlert | UNNotificationPresentationOptionSound | UNNotificationPresentationOptionBadge));
+#pragma clang diagnostic pop
+        }
+    });
+}
+
+- (void)userNotificationCenter:(UNUserNotificationCenter *)center
+didReceiveNotificationResponse:(UNNotificationResponse *)response
+         withCompletionHandler:(void (^)(void))completionHandler {
+    NSDictionary *uinfo = response.notification.request.content.userInfo ?: @{};
+    NSString *route = [uinfo[@"route"] isKindOfClass:[NSString class]] ? uinfo[@"route"] : @"village";
+    NSString *ntype = [uinfo[@"type"] isKindOfClass:[NSString class]] ? uinfo[@"type"] : @"";
+    NSNumber *vidNum = [uinfo[@"village_id"] respondsToSelector:@selector(integerValue)] ? @([uinfo[@"village_id"] integerValue]) : @(-1);
+    NSDictionary *opened = @{
+        @"route": route,
+        @"type": ntype,
+        @"village_id": vidNum,
+        @"opened_unix": @((long)[[NSDate date] timeIntervalSince1970])
+    };
+    dispatch_async(dispatch_get_main_queue(), ^{
+        [self clearAppBadge];
+        TVKWriteJsonDictToDirs(opened, self.activeNotifDir, kTVKNotifOpenedFileName);
+        completionHandler();
     });
 }
 

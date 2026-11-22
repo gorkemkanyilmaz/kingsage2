@@ -254,6 +254,18 @@ theme_override_font_sizes/font_size = 20
 text = "👑 0 P"
 vertical_alignment = 1
 
+[node name="BtnSwitchVillage" type="Button" parent="VBox/TopRow/LeftWingWrap/LeftWing/PointsRow"]
+visible = false
+custom_minimum_size = Vector2(0, 26)
+layout_mode = 2
+size_flags_horizontal = 0
+size_flags_vertical = 4
+tooltip_text = "Köyler Arası Geçiş Yap"
+theme_override_colors/font_color = Color(0.95, 0.98, 1, 1)
+theme_override_fonts/font = ExtResource("7_nunito_bold")
+theme_override_font_sizes/font_size = 17
+text = "⇄ Köyler"
+
 [node name="LeftFlexSpacer" type="Control" parent="VBox/TopRow"]
 layout_mode = 2
 size_flags_horizontal = 3

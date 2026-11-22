@@ -71,7 +71,11 @@ const BUILDING_DESCRIPTIONS := {
 }
 
 var _desc_box: PanelContainer = null
+var _desc_vbox: VBoxContainer = null
 var _desc_label: Label = null
+var _castle_speed_section: VBoxContainer = null
+var _castle_speed_scroll: ScrollContainer = null
+var _castle_speed_list: VBoxContainer = null
 var _prod_box: PanelContainer = null
 var _prod_vbox: VBoxContainer = null
 var _special_box: PanelContainer = null
@@ -477,6 +481,11 @@ func _ensure_description_and_production_nodes() -> void:
 		desc_sb.shadow_size = 6
 		_desc_box.add_theme_stylebox_override("panel", desc_sb)
 
+		_desc_vbox = VBoxContainer.new()
+		_desc_vbox.name = "DescriptionVBox"
+		_desc_vbox.add_theme_constant_override("separation", 8)
+		_desc_box.add_child(_desc_vbox)
+
 		_desc_label = Label.new()
 		_desc_label.name = "DescriptionLabel"
 		_desc_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -485,7 +494,34 @@ func _ensure_description_and_production_nodes() -> void:
 		_desc_label.add_theme_color_override("font_color", Color(0.95, 0.90, 0.78, 1.0))
 		_desc_label.add_theme_constant_override("outline_size", 0)
 		_desc_label.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0))
-		_desc_box.add_child(_desc_label)
+		_desc_vbox.add_child(_desc_label)
+
+		_castle_speed_section = VBoxContainer.new()
+		_castle_speed_section.name = "CastleSpeedupSection"
+		_castle_speed_section.add_theme_constant_override("separation", 6)
+		_castle_speed_section.hide()
+		_desc_vbox.add_child(_castle_speed_section)
+
+		var spd_title := Label.new()
+		spd_title.name = "CastleSpeedupTitle"
+		spd_title.text = "⚡ Seviye Bazlı İnşaat Hızlandırma (Sv. 1 – 50)"
+		spd_title.add_theme_font_override("font", FontNunitoBold)
+		spd_title.add_theme_font_size_override("font_size", 22)
+		spd_title.add_theme_color_override("font_color", Color(1.0, 0.86, 0.44, 1.0))
+		_castle_speed_section.add_child(spd_title)
+
+		_castle_speed_scroll = ScrollContainer.new()
+		_castle_speed_scroll.name = "CastleSpeedupScroll"
+		_castle_speed_scroll.custom_minimum_size = Vector2(0, 215)
+		_castle_speed_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+		_castle_speed_scroll.scroll_deadzone = 12
+		_castle_speed_section.add_child(_castle_speed_scroll)
+
+		_castle_speed_list = VBoxContainer.new()
+		_castle_speed_list.name = "CastleSpeedupList"
+		_castle_speed_list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		_castle_speed_list.add_theme_constant_override("separation", 4)
+		_castle_speed_scroll.add_child(_castle_speed_list)
 
 		vbox.add_child(_desc_box)
 		vbox.move_child(_desc_box, 2)
@@ -538,6 +574,83 @@ func _ensure_description_and_production_nodes() -> void:
 
 		vbox.add_child(_special_box)
 		vbox.move_child(_special_box, 4)
+
+
+func _update_castle_speedup_list(cur_lvl: int) -> void:
+	if _castle_speed_list == null:
+		return
+	for child in _castle_speed_list.get_children():
+		_castle_speed_list.remove_child(child)
+		child.queue_free()
+
+	var active_lvl := maxi(1, cur_lvl)
+	var row_h := 36.0
+	for lvl in range(1, 51):
+		var tf := RulesEngineScript.castle_time_factor_percent(lvl)
+		var pct := RulesEngineScript.castle_speedup_percent(lvl)
+		var is_cur := (lvl == active_lvl)
+		var is_next := (lvl == active_lvl + 1)
+
+		var row_pc := PanelContainer.new()
+		row_pc.name = "CastleSpeedRow_%d" % lvl
+		row_pc.custom_minimum_size = Vector2(0, row_h)
+		var rsb := StyleBoxFlat.new()
+		if is_cur:
+			rsb.bg_color = Color(0.34, 0.25, 0.08, 0.96)
+			rsb.border_color = Color(0.98, 0.80, 0.34, 0.95)
+			rsb.set_border_width_all(1)
+		elif is_next:
+			rsb.bg_color = Color(0.11, 0.25, 0.15, 0.92)
+			rsb.border_color = Color(0.42, 0.82, 0.52, 0.70)
+			rsb.set_border_width_all(1)
+		else:
+			rsb.bg_color = Color(0.10, 0.09, 0.13, 0.80) if (lvl % 2 == 0) else Color(0.13, 0.11, 0.16, 0.72)
+		rsb.set_corner_radius_all(6)
+		rsb.content_margin_left = 12
+		rsb.content_margin_right = 12
+		rsb.content_margin_top = 4
+		rsb.content_margin_bottom = 4
+		row_pc.add_theme_stylebox_override("panel", rsb)
+
+		var hb := HBoxContainer.new()
+		hb.add_theme_constant_override("separation", 10)
+		row_pc.add_child(hb)
+
+		var lvl_lbl := Label.new()
+		if is_cur:
+			lvl_lbl.text = "▶ Seviye %d (Güncel)" % lvl
+		elif is_next:
+			lvl_lbl.text = "Seviye %d (Sonraki)" % lvl
+		else:
+			lvl_lbl.text = "Seviye %d" % lvl
+		lvl_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		lvl_lbl.add_theme_font_override("font", FontNunitoBold)
+		lvl_lbl.add_theme_font_size_override("font_size", 21)
+		lvl_lbl.add_theme_color_override("font_color", Color(1.0, 0.90, 0.48) if is_cur else (Color(0.64, 0.96, 0.72) if is_next else Color(0.90, 0.86, 0.78)))
+		hb.add_child(lvl_lbl)
+
+		var pct_lbl := Label.new()
+		if lvl == 1:
+			pct_lbl.text = "Temel Hız (%0 • Süre %100)"
+		else:
+			var suffix := " • Bina Yıkımı" if lvl == 15 else ""
+			pct_lbl.text = "İnşaatı %%%d hızlandırır (Süre %%%d)%s" % [pct, tf, suffix]
+		pct_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+		pct_lbl.add_theme_font_override("font", FontNunitoSemiBold)
+		pct_lbl.add_theme_font_size_override("font_size", 20)
+		pct_lbl.add_theme_color_override("font_color", Color(0.56, 0.98, 0.68) if pct > 0 else Color(0.76, 0.74, 0.70))
+		hb.add_child(pct_lbl)
+
+		_castle_speed_list.add_child(row_pc)
+
+	call_deferred("_scroll_castle_speedup_to_level", active_lvl)
+
+
+func _scroll_castle_speedup_to_level(active_lvl: int) -> void:
+	if _castle_speed_scroll == null or not is_instance_valid(_castle_speed_scroll):
+		return
+	var target_y := maxi(0, (active_lvl - 1) * 40 - 16)
+	_castle_speed_scroll.scroll_vertical = target_y
 
 
 func _update_production_table(cur_lvl: int) -> void:
@@ -1141,6 +1254,14 @@ func refresh() -> void:
 			_desc_label.text = desc
 			_desc_box.show()
 
+	# Kale için seviye bazlı inşaat hızlandırma yüzdesi listesi (Sv. 1 – 50 alt alta)
+	if _castle_speed_section != null:
+		if _current_tab == Tab.UPGRADE and _current_key == "main":
+			_castle_speed_section.show()
+			_update_castle_speedup_list(cur_lvl)
+		else:
+			_castle_speed_section.hide()
+
 	# Taş Ocağı, Oduncu Kampı, Maden Ocağı ve Depo için üretim / kapasite tablosu
 	if _current_tab == Tab.UPGRADE and _current_key in ["wood", "stone", "iron", "storage"]:
 		_update_production_table(cur_lvl)
@@ -1316,7 +1437,7 @@ func _refresh_upgrade_view(state: Dictionary, cur_lvl: int, max_lvl: int) -> voi
 
 	var chain: Array = RulesEngineScript.requirement_chain(_village.get("buildings", {}), _current_key, tgt_lvl)
 	var is_upgradable: bool = bool(details.get("ok", false))
-	var has_tall_box: bool = is_res_bldg or (_special_box != null and _special_box.visible)
+	var has_tall_box: bool = is_res_bldg or (_current_key == "main") or (_special_box != null and _special_box.visible)
 
 	if is_upgradable:
 		req_section.hide()

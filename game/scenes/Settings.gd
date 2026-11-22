@@ -14,6 +14,7 @@ const FontNunitoSemiBold: Font = preload("res://assets/fonts/Nunito-SemiBold.ttf
 @onready var btn_back: Button = find_child("BtnBack", true, false) as Button
 @onready var btn_main_menu: Button = find_child("BtnMainMenu", true, false) as Button
 @onready var btn_delete_account: Button = find_child("BtnDeleteAccount", true, false) as Button
+@onready var btn_toggle_notifications: Button = find_child("BtnToggleNotifications", true, false) as Button
 @onready var bottom_nav: Control = get_node_or_null("BottomNav") as Control
 
 var _delete_modal: CanvasLayer = null
@@ -59,6 +60,10 @@ func _ready() -> void:
 
 	if btn_delete_account != null and not btn_delete_account.pressed.is_connected(_on_btn_delete_account_pressed):
 		btn_delete_account.pressed.connect(_on_btn_delete_account_pressed)
+
+	if btn_toggle_notifications != null and not btn_toggle_notifications.pressed.is_connected(_on_btn_toggle_notifications_pressed):
+		btn_toggle_notifications.pressed.connect(_on_btn_toggle_notifications_pressed)
+	_refresh_notifications_button()
 
 
 func _sync_layout_bounds() -> void:
@@ -220,6 +225,32 @@ func _apply_royal_styles() -> void:
 	_style_btn(btn_back, Color(0.14, 0.38, 0.22, 0.98), Color(0.46, 0.84, 0.54, 0.95))
 	_style_btn(btn_main_menu, Color(0.15, 0.20, 0.34, 0.98), Color(0.68, 0.76, 0.94, 0.88))
 	_style_btn(btn_delete_account, Color(0.48, 0.11, 0.13, 0.98), Color(0.94, 0.34, 0.34, 0.96), Color(1.0, 0.92, 0.90))
+
+
+func _refresh_notifications_button() -> void:
+	if btn_toggle_notifications == null:
+		return
+	var nm := _autoload("NotificationManager")
+	var enabled := true
+	if nm != null and nm.has_method("is_notifications_enabled"):
+		enabled = bool(nm.call("is_notifications_enabled"))
+	if enabled:
+		btn_toggle_notifications.text = "🔔 Açık"
+		_style_btn(btn_toggle_notifications, Color(0.14, 0.42, 0.24, 0.98), Color(0.46, 0.88, 0.56, 0.95))
+	else:
+		btn_toggle_notifications.text = "🔕 Kapalı"
+		_style_btn(btn_toggle_notifications, Color(0.28, 0.16, 0.18, 0.98), Color(0.76, 0.46, 0.44, 0.90))
+	btn_toggle_notifications.add_theme_font_size_override("font_size", 22)
+
+
+func _on_btn_toggle_notifications_pressed() -> void:
+	var nm := _autoload("NotificationManager")
+	var cur := true
+	if nm != null and nm.has_method("is_notifications_enabled"):
+		cur = bool(nm.call("is_notifications_enabled"))
+	if nm != null and nm.has_method("set_notifications_enabled"):
+		nm.call("set_notifications_enabled", not cur)
+	_refresh_notifications_button()
 
 
 func _on_btn_logout_pressed() -> void:

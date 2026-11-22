@@ -11,6 +11,7 @@ import time
 import math
 import html
 import hashlib
+import base64
 import random
 import secrets
 import sqlite3
@@ -23,6 +24,16 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
 import re
+
+try:
+    import jwt as pyjwt
+except ImportError:
+    pyjwt = None
+
+try:
+    import httpx
+except ImportError:
+    httpx = None
 
 # -----------------------------------------------------------------------------
 # Evrensel Veritabanı Yapılandırması (Supabase PostgreSQL & SQLite Çift Desteği)
@@ -294,7 +305,32 @@ def init_db():
                 world_id INTEGER PRIMARY KEY,
                 state_json TEXT NOT NULL,
                 updated_unix {0} NOT NULL
-            )""".format(bigint_t)
+            )""".format(bigint_t),
+
+            """CREATE TABLE IF NOT EXISTS device_push_tokens (
+                id {0},
+                user_id TEXT NOT NULL,
+                display_name TEXT NOT NULL,
+                platform TEXT NOT NULL DEFAULT 'ios',
+                token TEXT NOT NULL,
+                sandbox INTEGER NOT NULL DEFAULT 0,
+                updated_unix {1} NOT NULL,
+                UNIQUE(user_id, platform, token)
+            )""".format(pk_auto, bigint_t),
+
+            """CREATE TABLE IF NOT EXISTS pending_notifications (
+                id {0},
+                user_id TEXT,
+                display_name TEXT NOT NULL,
+                notif_type TEXT NOT NULL,
+                title TEXT NOT NULL,
+                body TEXT NOT NULL,
+                payload_json TEXT NOT NULL DEFAULT '{{}}',
+                dedup_key TEXT NOT NULL DEFAULT '',
+                created_unix {1} NOT NULL,
+                delivered_unix {1} NOT NULL DEFAULT 0,
+                pushed_unix {1} NOT NULL DEFAULT 0
+            )""".format(pk_auto, bigint_t)
         ]
 
         for stmt in tables:
@@ -453,6 +489,16 @@ class VerifyIapRequest(BaseModel):
     pack_id: Optional[str] = Field(None, max_length=60)
     platform: str = Field("ios", max_length=40)
     receipt_data: Optional[str] = Field("", max_length=32768)
+
+
+class RegisterPushTokenRequest(BaseModel):
+    platform: str = Field("ios", max_length=20)
+    token: str = Field(..., min_length=16, max_length=512)
+    sandbox: bool = False
+
+
+class UnregisterPushTokenRequest(BaseModel):
+    token: Optional[str] = Field("", max_length=512)
 
 # -----------------------------------------------------------------------------
 # Kimlik Doğrulama / Yetkilendirme (Bearer Token Dependency)
@@ -2382,14 +2428,15 @@ def ensure_cloud_saves_table(cursor, is_pg: bool) -> None:
         return
     if is_pg:
         cursor.execute(
-            "SELECT to_regclass('public.world_states') AS ws, to_regclass('public.cloud_saves') AS cs, to_regclass('public.server_meta') AS sm, to_regclass('public.oauth_sessions') AS oa, to_regclass('public.iap_transactions') AS iap"
+            "SELECT to_regclass('public.world_states') AS ws, to_regclass('public.cloud_saves') AS cs, to_regclass('public.server_meta') AS sm, to_regclass('public.oauth_sessions') AS oa, to_regclass('public.iap_transactions') AS iap, to_regclass('public.device_push_tokens') AS dpt, to_regclass('public.pending_notifications') AS pn"
         )
         trow = cursor.fetchone()
-        if trow and all(trow.get(k) is not None for k in ("ws", "cs", "sm", "oa", "iap")):
+        if trow and all(trow.get(k) is not None for k in ("ws", "cs", "sm", "oa", "iap", "dpt", "pn")):
             _ensure_users_store_columns(cursor, True)
             _PG_SCHEMA_INITIALIZED = True
             return
     bigint_t = "BIGINT" if is_pg else "INTEGER"
+    pk_auto = "SERIAL PRIMARY KEY" if is_pg else "INTEGER PRIMARY KEY AUTOINCREMENT"
     cursor.execute("""CREATE TABLE IF NOT EXISTS cloud_saves (
         user_id TEXT PRIMARY KEY,
         state_json TEXT NOT NULL,
@@ -2421,9 +2468,312 @@ def ensure_cloud_saves_table(cursor, is_pg: bool) -> None:
         receipt_data TEXT DEFAULT '',
         created_unix {0} NOT NULL
     )""".format(bigint_t))
+    cursor.execute("""CREATE TABLE IF NOT EXISTS device_push_tokens (
+        id {0},
+        user_id TEXT NOT NULL,
+        display_name TEXT NOT NULL,
+        platform TEXT NOT NULL DEFAULT 'ios',
+        token TEXT NOT NULL,
+        sandbox INTEGER NOT NULL DEFAULT 0,
+        updated_unix {1} NOT NULL,
+        UNIQUE(user_id, platform, token)
+    )""".format(pk_auto, bigint_t))
+    cursor.execute("""CREATE TABLE IF NOT EXISTS pending_notifications (
+        id {0},
+        user_id TEXT,
+        display_name TEXT NOT NULL,
+        notif_type TEXT NOT NULL,
+        title TEXT NOT NULL,
+        body TEXT NOT NULL,
+        payload_json TEXT NOT NULL DEFAULT '{{}}',
+        dedup_key TEXT NOT NULL DEFAULT '',
+        created_unix {1} NOT NULL,
+        delivered_unix {1} NOT NULL DEFAULT 0,
+        pushed_unix {1} NOT NULL DEFAULT 0
+    )""".format(pk_auto, bigint_t))
+    try:
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_pending_notif_name_deliv ON pending_notifications (display_name, delivered_unix)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_pending_notif_dedup ON pending_notifications (dedup_key)")
+    except Exception:
+        pass
     _ensure_users_store_columns(cursor, is_pg)
     if is_pg:
         _PG_SCHEMA_INITIALIZED = True
+
+
+_APNS_JWT_CACHE: Dict[str, Any] = {"token": "", "issued_at": 0}
+
+
+def _get_apns_auth_header() -> str:
+    if pyjwt is None:
+        return ""
+    key_id = os.getenv("APNS_KEY_ID", "").strip()
+    team_id = os.getenv("APNS_TEAM_ID", "H2TTF8894Z").strip() or "H2TTF8894Z"
+    p8_raw = os.getenv("APNS_KEY_P8", "").strip()
+    if not p8_raw:
+        p8_b64 = os.getenv("APNS_KEY_P8_BASE64", "").strip()
+        if p8_b64:
+            try:
+                p8_raw = base64.b64decode(p8_b64).decode("utf-8")
+            except Exception:
+                p8_raw = ""
+    if not key_id or not p8_raw:
+        return ""
+    now_u = int(time.time())
+    if _APNS_JWT_CACHE.get("token") and (now_u - int(_APNS_JWT_CACHE.get("issued_at", 0))) < 2700:
+        return f"bearer {_APNS_JWT_CACHE['token']}"
+    try:
+        tok = pyjwt.encode(
+            {"iss": team_id, "iat": now_u},
+            p8_raw,
+            algorithm="ES256",
+            headers={"alg": "ES256", "kid": key_id},
+        )
+        if isinstance(tok, bytes):
+            tok = tok.decode("utf-8")
+        _APNS_JWT_CACHE["token"] = tok
+        _APNS_JWT_CACHE["issued_at"] = now_u
+        return f"bearer {tok}"
+    except Exception:
+        return ""
+
+
+def _resolve_target_user_rows(cursor, target_name: str) -> List[Dict[str, Any]]:
+    norm_t = _norm_p_name(target_name)
+    variants = [v for v in _name_variants(norm_t) if v]
+    if not variants:
+        return []
+    placeholders = ", ".join(["LOWER(?)"] * len(variants))
+    cursor.execute(
+        f"SELECT id, display_name FROM users WHERE LOWER(display_name) IN ({placeholders})",
+        tuple(variants),
+    )
+    return [dict(r) for r in (cursor.fetchall() or [])]
+
+
+def _dispatch_apns_push_for_player(
+    cursor,
+    target_user_ids: List[str],
+    target_variants: List[str],
+    title: str,
+    body: str,
+    payload: Dict[str, Any],
+) -> int:
+    auth_hdr = _get_apns_auth_header()
+    if not auth_hdr or httpx is None:
+        return 0
+    tok_rows: List[Dict[str, Any]] = []
+    seen_tokens = set()
+    if target_user_ids:
+        ph = ", ".join(["?"] * len(target_user_ids))
+        cursor.execute(
+            f"SELECT token, sandbox FROM device_push_tokens WHERE platform = 'ios' AND user_id IN ({ph})",
+            tuple(target_user_ids),
+        )
+        for r in (cursor.fetchall() or []):
+            t = str(r.get("token") or "").strip()
+            if t and t not in seen_tokens:
+                seen_tokens.add(t)
+                tok_rows.append({"token": t, "sandbox": int(r.get("sandbox") or 0)})
+    if not tok_rows and target_variants:
+        ph = ", ".join(["LOWER(?)"] * len(target_variants))
+        cursor.execute(
+            f"SELECT token, sandbox FROM device_push_tokens WHERE platform = 'ios' AND LOWER(display_name) IN ({ph})",
+            tuple(target_variants),
+        )
+        for r in (cursor.fetchall() or []):
+            t = str(r.get("token") or "").strip()
+            if t and t not in seen_tokens:
+                seen_tokens.add(t)
+                tok_rows.append({"token": t, "sandbox": int(r.get("sandbox") or 0)})
+    if not tok_rows:
+        return 0
+
+    bundle_id = os.getenv("APNS_BUNDLE_ID", "com.tahtkilic.kingsage2").strip() or "com.tahtkilic.kingsage2"
+    aps_body = {
+        "aps": {
+            "alert": {"title": title, "body": body},
+            "sound": "default",
+            "badge": 1,
+        },
+        "route": str(payload.get("route", "village")),
+        "type": str(payload.get("type", "")),
+        "village_id": int(payload.get("village_id", -1) or -1),
+    }
+    headers = {
+        "authorization": auth_hdr,
+        "apns-topic": bundle_id,
+        "apns-push-type": "alert",
+        "apns-priority": "10",
+    }
+    sent_count = 0
+    invalid_tokens: List[str] = []
+    try:
+        with httpx.Client(http2=True, timeout=4.0) as client:
+            for item in tok_rows:
+                tok = item["token"]
+                hosts = (
+                    ["https://api.sandbox.push.apple.com", "https://api.push.apple.com"]
+                    if item["sandbox"] == 1
+                    else ["https://api.push.apple.com", "https://api.sandbox.push.apple.com"]
+                )
+                for idx, host in enumerate(hosts):
+                    try:
+                        resp = client.post(f"{host}/3/device/{tok}", headers=headers, json=aps_body)
+                        if resp.status_code == 200:
+                            sent_count += 1
+                            break
+                        if resp.status_code == 410 or ("Unregistered" in resp.text):
+                            invalid_tokens.append(tok)
+                            break
+                        if resp.status_code == 400 and "BadDeviceToken" in resp.text and idx == 0:
+                            continue
+                        break
+                    except Exception:
+                        break
+    except Exception:
+        pass
+
+    for bad_tok in invalid_tokens:
+        try:
+            cursor.execute("DELETE FROM device_push_tokens WHERE token = ?", (bad_tok,))
+        except Exception:
+            pass
+    return sent_count
+
+
+def _queue_player_notification(
+    cursor,
+    target_display_name: str,
+    notif_type: str,
+    title: str,
+    body: str,
+    payload: Dict[str, Any],
+    dedup_key: str,
+    now: int,
+) -> bool:
+    norm_t = _norm_p_name(target_display_name)
+    if not norm_t:
+        return False
+    variants = [v for v in _name_variants(norm_t) if v]
+    u_rows = _resolve_target_user_rows(cursor, norm_t)
+    if not u_rows and not variants:
+        return False
+    canonical_name = str(u_rows[0]["display_name"]) if u_rows else norm_t
+    uid_list = [str(r["id"]) for r in u_rows if r.get("id")]
+    primary_uid = uid_list[0] if uid_list else None
+
+    if dedup_key:
+        cursor.execute(
+            "SELECT id FROM pending_notifications WHERE dedup_key = ? LIMIT 1",
+            (dedup_key,),
+        )
+        if cursor.fetchone():
+            return False
+
+    sent_push = _dispatch_apns_push_for_player(cursor, uid_list, variants, title, body, payload)
+    pushed_u = now if sent_push > 0 else 0
+    cursor.execute(
+        """
+        INSERT INTO pending_notifications (
+            user_id, display_name, notif_type, title, body, payload_json, dedup_key, created_unix, delivered_unix, pushed_unix
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?)
+        """,
+        (
+            primary_uid,
+            canonical_name,
+            notif_type,
+            title,
+            body,
+            json.dumps(payload, ensure_ascii=False),
+            dedup_key,
+            now,
+            pushed_u,
+        ),
+    )
+    return True
+
+
+def _dispatch_world_save_notifications(
+    cursor,
+    server_w: Optional[Dict[str, Any]],
+    merged_w: Dict[str, Any],
+    acting_player: str,
+    world_id: int,
+    now: int,
+) -> None:
+    s_st = (server_w.get("state") if isinstance(server_w, dict) and isinstance(server_w.get("state"), dict) else {}) or {}
+    m_st = (merged_w.get("state") if isinstance(merged_w, dict) and isinstance(merged_w.get("state"), dict) else {}) or {}
+
+    prev_mov_sigs = {_movement_sig(m) for m in (s_st.get("movements") or []) if isinstance(m, dict)}
+    prev_msg_sigs = {_message_sig_str(m) for m in (s_st.get("messages") or []) if isinstance(m, dict)}
+
+    v_by_id: Dict[int, Dict[str, Any]] = {}
+    for v in (m_st.get("villages") or []):
+        if isinstance(v, dict) and v.get("id") is not None:
+            v_by_id[int(v.get("id") or 0)] = v
+
+    # 1) Yeni başlayan düşman saldırısı / akını bildirimi
+    for m in (m_st.get("movements") or []):
+        if not isinstance(m, dict):
+            continue
+        msig = _movement_sig(m)
+        if msig in prev_mov_sigs:
+            continue
+        m_type = str(m.get("type", "")).strip().lower()
+        m_state = str(m.get("state", "outgoing")).strip().lower()
+        arrive_u = int(m.get("arrive_unix", m.get("arrival_unix", 0)) or 0)
+        if m_type not in ("attack", "raid") or m_state != "outgoing" or arrive_u <= now:
+            continue
+        to_vid = int(m.get("to_village_id", 0) or 0)
+        from_vid = int(m.get("from_village_id", m.get("village_id", 0)) or 0)
+        tv = v_by_id.get(to_vid)
+        if not tv or not _is_real_player_village(tv):
+            continue
+        target_owner = _norm_p_name(str(tv.get("owner", "")))
+        if not target_owner or _matches_player(target_owner, acting_player):
+            continue
+        fv = v_by_id.get(from_vid)
+        att_name = _norm_p_name(str(m.get("owner") or (fv.get("owner") if fv else "") or acting_player or "Düşman Lord"))
+        tv_name = str(tv.get("name") or "Köyünüz")
+        eta_min = max(1, int(round(float(arrive_u - now) / 60.0)))
+        title = "🚨 Baş Vezir: SALDIRI ALTINDASINIZ!"
+        body = f"Lordum, {att_name} ordusu {tv_name} köyünüze doğru yola çıktı! Varışa ~{eta_min} dk var — hemen oyuna girip savunmanızı hazırlayın!"
+        payload = {
+            "type": "incoming_attack",
+            "route": "village",
+            "village_id": to_vid,
+            "attacker": att_name,
+            "arrive_unix": arrive_u,
+        }
+        dedup_key = f"atk:{world_id}:{to_vid}:{from_vid}:{arrive_u}"
+        _queue_player_notification(cursor, target_owner, "incoming_attack", title, body, payload, dedup_key, now)
+
+    # 2) Yeni gelen özel mesaj / mektup bildirimi
+    for msg in (m_st.get("messages") or []):
+        if not isinstance(msg, dict) or _is_welcome_message(msg):
+            continue
+        if bool(msg.get("read", False)):
+            continue
+        msig_str = _message_sig_str(msg)
+        if not msig_str or msig_str in prev_msg_sigs:
+            continue
+        to_n = _norm_p_name(str(msg.get("to", msg.get("to_name", ""))).strip())
+        from_n = _norm_p_name(str(msg.get("from", msg.get("from_name", ""))).strip()) or "Bir Lord"
+        if not to_n or _matches_player(to_n, acting_player) or _matches_player(to_n, from_n):
+            continue
+        subj = str(msg.get("subject") or "Yeni Mektup").strip()[:60]
+        title = "✉️ Baş Vezir: Yeni Bir Mektubunuz Var!"
+        body = f"Lordum, {from_n} size '{subj}' konulu acil bir mektup gönderdi. Okumak ve yanıtlamak için tahtınıza dönün!"
+        payload = {
+            "type": "incoming_message",
+            "route": "messages",
+            "from": from_n,
+            "subject": subj,
+            "village_id": -1,
+        }
+        dedup_key = f"msg:{msig_str}"
+        _queue_player_notification(cursor, to_n, "incoming_message", title, body, payload, dedup_key, now)
 
 
 def _ensure_world_reset_epoch(cursor, now: int) -> None:
@@ -3353,6 +3703,22 @@ def action_send_troops(req: SendTroopsRequest, user: Dict[str, Any] = Depends(ge
     """, (from_v["world_id"], user["id"], req.from_village_id, req.to_village_id, req.type, json.dumps(req.units), now, arrival_unix))
 
     cursor.execute("UPDATE villages SET units_json = ? WHERE id = ?", (json.dumps(units_avail), req.from_village_id))
+    try:
+        if req.type in ("attack", "raid") and int(to_v["is_bot"] or 0) == 0 and not _matches_player(str(to_v["owner"] or ""), user["display_name"]):
+            ensure_cloud_saves_table(cursor, conn.is_pg)
+            eta_min = max(1, int(round(duration / 60.0)))
+            _queue_player_notification(
+                cursor,
+                str(to_v["owner"]),
+                "incoming_attack",
+                "🚨 Baş Vezir: SALDIRI ALTINDASINIZ!",
+                f"Lordum, {user['display_name']} ordusu {to_v['name']} köyünüze yola çıktı! Varışa ~{eta_min} dk var — hemen oyuna girip savunmanızı hazırlayın!",
+                {"type": "incoming_attack", "route": "village", "village_id": int(req.to_village_id), "attacker": user["display_name"], "arrive_unix": arrival_unix},
+                f"atk:{from_v['world_id']}:{req.to_village_id}:{req.from_village_id}:{arrival_unix}",
+                now,
+            )
+    except Exception:
+        pass
     conn.commit()
     conn.close()
 
@@ -3394,10 +3760,26 @@ def send_message(req: SendMessageRequest, user: Dict[str, Any] = Depends(get_cur
     conn = get_db()
     with conn:
         cursor = conn.cursor()
+        ensure_cloud_saves_table(cursor, conn.is_pg)
         cursor.execute("""
             INSERT INTO messages (world_id, from_name, to_name, subject, body, created_unix, is_read)
             VALUES (1, ?, ?, ?, ?, ?, 0)
         """, (user["display_name"], clean_to, clean_subj, clean_body, now))
+        try:
+            if not _matches_player(clean_to, user["display_name"]):
+                subj_raw = req.subject.strip()[:60]
+                _queue_player_notification(
+                    cursor,
+                    req.to_name.strip(),
+                    "incoming_message",
+                    "✉️ Baş Vezir: Yeni Bir Mektubunuz Var!",
+                    f"Lordum, {user['display_name']} size '{subj_raw}' konulu acil bir mektup gönderdi. Okumak için oyuna dönün!",
+                    {"type": "incoming_message", "route": "messages", "from": user["display_name"], "subject": subj_raw, "village_id": -1},
+                    f"msg_api:{_norm_p_name(user['display_name']).lower()}|{_norm_p_name(req.to_name).lower()}|{subj_raw.lower()}|{now}",
+                    now,
+                )
+        except Exception:
+            pass
 
     return {"ok": True, "sent_unix": now}
 
@@ -3512,6 +3894,10 @@ def post_cloud_save(payload: Dict[str, Any], user: Dict[str, Any] = Depends(get_
         if bool(payload.get("alliance_authoritative", False) or state_obj.get("alliance_authoritative", False)) and isinstance(state_obj, dict):
             state_obj["alliance_authoritative"] = True
         merged_w = merge_world_state(server_w, state_obj, user["display_name"], now)
+        try:
+            _dispatch_world_save_notifications(cursor, server_w, merged_w, user["display_name"], w_id, now)
+        except Exception:
+            pass
         auth_wallet = {"diamonds": db_diamonds, "scrolls": db_scrolls}
         merged_for_player = _prepare_world_for_player(merged_w, user["display_name"], auth_wallet)
         merged_json = json.dumps(merged_w, ensure_ascii=False)
@@ -4449,6 +4835,106 @@ def _wipe_player_from_world_state(w_data: Dict[str, Any], norm_p: str) -> Dict[s
     return w_data
 
 
+@app.post("/api/notifications/register")
+def notifications_register(req: RegisterPushTokenRequest, user: Dict[str, Any] = Depends(get_current_user)):
+    now = int(time.time())
+    plat = (req.platform or "ios").strip().lower() or "ios"
+    tok = (req.token or "").strip()
+    if len(tok) < 16:
+        raise HTTPException(status_code=400, detail="Geçersiz bildirim jetonu.")
+    uid = str(user["id"])
+    dname = str(user["display_name"])
+    conn = get_db()
+    with conn:
+        cursor = conn.cursor()
+        ensure_cloud_saves_table(cursor, conn.is_pg)
+        cursor.execute("DELETE FROM device_push_tokens WHERE platform = ? AND token = ?", (plat, tok))
+        cursor.execute(
+            """
+            INSERT INTO device_push_tokens (user_id, display_name, platform, token, sandbox, updated_unix)
+            VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            (uid, dname, plat, tok, 1 if req.sandbox else 0, now),
+        )
+    return {"ok": True, "platform": plat, "updated_unix": now}
+
+
+@app.post("/api/notifications/unregister")
+def notifications_unregister(req: UnregisterPushTokenRequest = UnregisterPushTokenRequest(), user: Dict[str, Any] = Depends(get_current_user)):
+    uid = str(user["id"])
+    tok = (req.token or "").strip() if req else ""
+    conn = get_db()
+    with conn:
+        cursor = conn.cursor()
+        ensure_cloud_saves_table(cursor, conn.is_pg)
+        if tok:
+            cursor.execute("DELETE FROM device_push_tokens WHERE user_id = ? AND token = ?", (uid, tok))
+        else:
+            cursor.execute("DELETE FROM device_push_tokens WHERE user_id = ?", (uid,))
+    return {"ok": True}
+
+
+@app.get("/api/notifications/pending")
+def notifications_pending(ack: int = Query(1), user: Dict[str, Any] = Depends(get_current_user)):
+    now = int(time.time())
+    cutoff = now - (48 * 3600)
+    dname = str(user.get("display_name") or "").strip()
+    variants = [v for v in _name_variants(_norm_p_name(dname)) if v]
+    uid = str(user["id"])
+    out_list: List[Dict[str, Any]] = []
+    conn = get_db()
+    with conn:
+        cursor = conn.cursor()
+        ensure_cloud_saves_table(cursor, conn.is_pg)
+        if variants:
+            ph = ", ".join(["LOWER(?)"] * len(variants))
+            cursor.execute(
+                f"""
+                SELECT id, notif_type, title, body, payload_json, created_unix
+                FROM pending_notifications
+                WHERE delivered_unix = 0 AND created_unix >= ?
+                  AND (user_id = ? OR LOWER(display_name) IN ({ph}))
+                ORDER BY id ASC LIMIT 25
+                """,
+                tuple([cutoff, uid] + variants),
+            )
+        else:
+            cursor.execute(
+                """
+                SELECT id, notif_type, title, body, payload_json, created_unix
+                FROM pending_notifications
+                WHERE delivered_unix = 0 AND created_unix >= ? AND user_id = ?
+                ORDER BY id ASC LIMIT 25
+                """,
+                (cutoff, uid),
+            )
+        rows = cursor.fetchall() or []
+        ids_to_ack: List[int] = []
+        for r in rows:
+            rd = dict(r)
+            nid = int(rd["id"])
+            ids_to_ack.append(nid)
+            try:
+                p_obj = json.loads(rd.get("payload_json") or "{}")
+            except Exception:
+                p_obj = {}
+            out_list.append({
+                "id": nid,
+                "type": rd.get("notif_type", ""),
+                "title": rd.get("title", "Baş Vezir"),
+                "body": rd.get("body", ""),
+                "payload": p_obj if isinstance(p_obj, dict) else {},
+                "created_unix": int(rd.get("created_unix", 0) or 0),
+            })
+        if int(ack) == 1 and ids_to_ack:
+            ph_ids = ", ".join(["?"] * len(ids_to_ack))
+            cursor.execute(
+                f"UPDATE pending_notifications SET delivered_unix = ? WHERE id IN ({ph_ids})",
+                tuple([now] + ids_to_ack),
+            )
+    return {"ok": True, "notifications": out_list}
+
+
 @app.post("/api/account/delete")
 def delete_account(user: Dict[str, Any] = Depends(get_current_user)):
     now = int(time.time())
@@ -4469,6 +4955,8 @@ def delete_account(user: Dict[str, Any] = Depends(get_current_user)):
         cursor.execute("DELETE FROM movements WHERE user_id = ?", (uid,))
         cursor.execute("DELETE FROM villages WHERE user_id = ?", (uid,))
         cursor.execute("DELETE FROM iap_transactions WHERE user_id = ?", (uid,))
+        cursor.execute("DELETE FROM device_push_tokens WHERE user_id = ?", (uid,))
+        cursor.execute("DELETE FROM pending_notifications WHERE user_id = ?", (uid,))
 
         for nm in name_variants:
             cursor.execute("DELETE FROM villages WHERE LOWER(owner) = LOWER(?) AND is_bot = 0", (nm,))
@@ -4476,6 +4964,8 @@ def delete_account(user: Dict[str, Any] = Depends(get_current_user)):
             cursor.execute("DELETE FROM messages WHERE LOWER(from_name) = LOWER(?) OR LOWER(to_name) = LOWER(?)", (nm, nm))
             cursor.execute("DELETE FROM alliance_invitations WHERE LOWER(user_name) = LOWER(?) OR LOWER(invited_by) = LOWER(?)", (nm, nm))
             cursor.execute("DELETE FROM alliance_members WHERE LOWER(user_name) = LOWER(?)", (nm,))
+            cursor.execute("DELETE FROM device_push_tokens WHERE LOWER(display_name) = LOWER(?)", (nm,))
+            cursor.execute("DELETE FROM pending_notifications WHERE LOWER(display_name) = LOWER(?)", (nm,))
 
         if name_variants:
             cursor.execute("SELECT id, leader_name, founder_name FROM alliances")

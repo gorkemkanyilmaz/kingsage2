@@ -2354,6 +2354,28 @@ func _live_sync_game_state_from_world(merged_w: Dictionary, p_name: String) -> v
 		else:
 			gs.alliances = (st["alliances"] as Array).duplicate(true)
 	if typeof(st.get("movements")) == TYPE_ARRAY:
+		var prev_mov_sigs: Dictionary = {}
+		for pm in gs.movements:
+			if typeof(pm) == TYPE_DICTIONARY:
+				var pmd := pm as Dictionary
+				prev_mov_sigs["%d>%d:%d" % [int(pmd.get("from_village_id", 0)), int(pmd.get("to_village_id", 0)), int(pmd.get("arrive_unix", 0))]] = true
+		var nm_mov := _find_autoload("NotificationManager")
+		if nm_mov != null and nm_mov.has_method("notify_web_background_event"):
+			var now_mov := int(Time.get_unix_time_from_system())
+			for rm in (st["movements"] as Array):
+				if typeof(rm) != TYPE_DICTIONARY:
+					continue
+				var rmd := rm as Dictionary
+				var rt := str(rmd.get("type", ""))
+				var rs := str(rmd.get("state", "outgoing"))
+				var to_v := int(rmd.get("to_village_id", -1))
+				var fr_v := int(rmd.get("from_village_id", -1))
+				var arr_u := int(rmd.get("arrive_unix", 0))
+				var msig_w := "%d>%d:%d" % [fr_v, to_v, arr_u]
+				if not prev_mov_sigs.has(msig_w) and (rt == "attack" or rt == "raid") and rs == "outgoing" and owned_vids.has(to_v) and not owned_vids.has(fr_v) and arr_u > now_mov:
+					var eta_m := maxi(1, int(round(float(arr_u - now_mov) / 60.0)))
+					var att_n := str(rmd.get("owner", "Düşman Lord"))
+					nm_mov.call("notify_web_background_event", "incoming_attack", "🚨 Baş Vezir: SALDIRI ALTINDASINIZ!", "Lordum, %s ordusu köyünüze yola çıktı (~%d dk)! Hemen savunmaya geçin!" % [att_n, eta_m], "village", to_v, "atk:" + msig_w)
 		if _last_local_mutation_unix > _last_cloud_save_unix or wallet_locked:
 			gs.movements = _merge_player_and_remote_movements(gs.movements, st["movements"] as Array, p_name, owned_vids)
 		else:
@@ -2374,6 +2396,10 @@ func _live_sync_game_state_from_world(merged_w: Dictionary, p_name: String) -> v
 		gs.queues = merged_queues
 	TrainingScript.reconcile_state_settlers_reserved({"villages": gs.villages, "queues": gs.queues})
 	if typeof(st.get("messages")) == TYPE_ARRAY:
+		var prev_msg_sigs: Dictionary = {}
+		for pm_old in gs.messages:
+			if typeof(pm_old) == TYPE_DICTIONARY:
+				prev_msg_sigs[_message_sig_str(pm_old)] = true
 		var msg_del_sync: Dictionary = {}
 		if typeof(gs.player.get("deleted_message_sigs")) == TYPE_ARRAY:
 			for mds in (gs.player["deleted_message_sigs"] as Array):
@@ -2384,6 +2410,7 @@ func _live_sync_game_state_from_world(merged_w: Dictionary, p_name: String) -> v
 				msg_read_sync[str(mrs)] = true
 		var sync_msgs: Array = []
 		var seen_sync_msgs: Dictionary = {}
+		var nm_msg := _find_autoload("NotificationManager")
 		for mm in (st["messages"] as Array):
 			if typeof(mm) != TYPE_DICTIONARY:
 				continue
@@ -2396,6 +2423,10 @@ func _live_sync_game_state_from_world(merged_w: Dictionary, p_name: String) -> v
 				continue
 			if is_own and msg_read_sync.has(msig):
 				mmd["read"] = true
+			if nm_msg != null and nm_msg.has_method("notify_web_background_event"):
+				if not prev_msg_sigs.has(msig) and _matches_player(m_to, p_name) and not _matches_player(m_from, p_name) and not bool(mmd.get("read", false)) and not _is_welcome_message_dict(mmd):
+					var subj_w := str(mmd.get("subject", "Yeni Mektup"))
+					nm_msg.call("notify_web_background_event", "incoming_message", "✉️ Baş Vezir: Yeni Bir Mektubunuz Var!", "Lordum, %s size '%s' konulu mektup gönderdi. Okumak için hemen dönün!" % [m_from, subj_w], "messages", -1, "msg:" + msig)
 			if seen_sync_msgs.has(msig):
 				var prev_mmd := sync_msgs[int(seen_sync_msgs[msig])] as Dictionary
 				if bool(mmd.get("read", false)) or (is_own and msg_read_sync.has(msig)):
@@ -2928,6 +2959,9 @@ func _on_village_conquered_signal(vid: int, new_owner: String) -> void:
 		if int(vd.get("id", -1)) == vid:
 			conq_vx = int(vd.get("x", -1))
 			conq_vy = int(vd.get("y", -1))
+			vd["is_conquered"] = true
+			if str(vd.get("conquered_by", "")).strip_edges().is_empty() and not new_owner.strip_edges().is_empty():
+				vd["conquered_by"] = new_owner.strip_edges()
 		if _is_real_player_village_dict(vd) and _matches_player(str(vd.get("owner", "")), p_name):
 			remaining_owned += 1
 

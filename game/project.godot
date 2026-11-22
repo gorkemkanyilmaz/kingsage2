@@ -32,6 +32,7 @@ StoreManager="*res://autoload/StoreManager.gd"
 VillageBackgroundCache="*res://autoload/VillageBackgroundCache.gd"
 TutorialManager="*res://autoload/TutorialManager.gd"
 QuestManager="*res://autoload/QuestManager.gd"
+NotificationManager="*res://autoload/NotificationManager.gd"
 
 [display]
 

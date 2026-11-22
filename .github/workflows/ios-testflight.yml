@@ -6,7 +6,7 @@ on:
       build_number:
         description: "TestFlight Build Number (e.g. 1, 2, 3, 4, 5, 6)"
         required: true
-        default: "26"
+        default: "27"
       runner:
         description: "GitHub macOS Runner"
         required: true
@@ -202,13 +202,13 @@ jobs:
                   if "OTHER_LDFLAGS = (" in block:
                       block = block.replace(
                           "OTHER_LDFLAGS = (",
-                          'OTHER_LDFLAGS = (\n\t\t\t\t\t"-ObjC",\n\t\t\t\t\t"-weak_framework",\n\t\t\t\t\tAuthenticationServices,\n\t\t\t\t\t"-weak_framework",\n\t\t\t\t\tLocalAuthentication,\n\t\t\t\t\t"-weak_framework",\n\t\t\t\t\tWebKit,\n\t\t\t\t\t"-framework",\n\t\t\t\t\tStoreKit,',
+                          'OTHER_LDFLAGS = (\n\t\t\t\t\t"-ObjC",\n\t\t\t\t\t"-weak_framework",\n\t\t\t\t\tAuthenticationServices,\n\t\t\t\t\t"-weak_framework",\n\t\t\t\t\tLocalAuthentication,\n\t\t\t\t\t"-weak_framework",\n\t\t\t\t\tWebKit,\n\t\t\t\t\t"-framework",\n\t\t\t\t\tStoreKit,\n\t\t\t\t\t"-framework",\n\t\t\t\t\tUserNotifications,\n\t\t\t\t\t"-weak_framework",\n\t\t\t\t\tBackgroundTasks,',
                           1,
                       )
                   else:
                       block = block.replace(
                           "buildSettings = {",
-                          'buildSettings = {\n\t\t\t\tOTHER_LDFLAGS = (\n\t\t\t\t\t"$(inherited)",\n\t\t\t\t\t"-ObjC",\n\t\t\t\t\t"-weak_framework",\n\t\t\t\t\tAuthenticationServices,\n\t\t\t\t\t"-weak_framework",\n\t\t\t\t\tLocalAuthentication,\n\t\t\t\t\t"-weak_framework",\n\t\t\t\t\tWebKit,\n\t\t\t\t\t"-framework",\n\t\t\t\t\tStoreKit,\n\t\t\t\t);',
+                          'buildSettings = {\n\t\t\t\tOTHER_LDFLAGS = (\n\t\t\t\t\t"$(inherited)",\n\t\t\t\t\t"-ObjC",\n\t\t\t\t\t"-weak_framework",\n\t\t\t\t\tAuthenticationServices,\n\t\t\t\t\t"-weak_framework",\n\t\t\t\t\tLocalAuthentication,\n\t\t\t\t\t"-weak_framework",\n\t\t\t\t\tWebKit,\n\t\t\t\t\t"-framework",\n\t\t\t\t\tStoreKit,\n\t\t\t\t\t"-framework",\n\t\t\t\t\tUserNotifications,\n\t\t\t\t\t"-weak_framework",\n\t\t\t\t\tBackgroundTasks,\n\t\t\t\t);',
                           1,
                       )
                   return block
@@ -216,9 +216,9 @@ jobs:
               txt = re.sub(r"buildSettings = \{.*?\n\t\t\t\};", patch_build_settings, txt, flags=re.S)
               with open(pbx, "w", encoding="utf-8") as f:
                   f.write(txt)
-              print(f"Patched {pbx} for Objective-C++ ARC and AuthenticationServices/LocalAuthentication/WebKit/StoreKit")
+              print(f"Patched {pbx} for Objective-C++ ARC and AuthenticationServices/LocalAuthentication/WebKit/StoreKit/UserNotifications/BackgroundTasks")
 
-          # 2. Ensure URL scheme tahtkilic and Face ID usage description exist in Info.plist
+          # 2. Ensure URL scheme tahtkilic, Face ID, Background Modes and BGTask identifiers exist in Info.plist
           for plist_path in glob.glob("build/ios/**/*Info.plist", recursive=True):
               with open(plist_path, "rb") as f:
                   pl = plistlib.load(f)
@@ -231,12 +231,22 @@ jobs:
                           "CFBundleURLName": "com.tahtkilic.kingsage2",
                           "CFBundleURLSchemes": ["tahtkilic"]
                       })
+                  bg_modes = list(pl.get("UIBackgroundModes") or [])
+                  for mode in ("remote-notification", "fetch"):
+                      if mode not in bg_modes:
+                          bg_modes.append(mode)
+                  pl["UIBackgroundModes"] = bg_modes
+                  bg_ids = list(pl.get("BGTaskSchedulerPermittedIdentifiers") or [])
+                  if "com.tahtkilic.kingsage2.notif_refresh" not in bg_ids:
+                      bg_ids.append("com.tahtkilic.kingsage2.notif_refresh")
+                  pl["BGTaskSchedulerPermittedIdentifiers"] = bg_ids
                   with open(plist_path, "wb") as f:
                       plistlib.dump(pl, f)
                   print(f"Updated {plist_path}")
 
-          # 3. Enable Sign In with Apple entitlement only when confirmed in provisioning profile
+          # 3. Enable Sign In with Apple & Push Notifications entitlements when confirmed in provisioning profile
           apple_signin_ok = os.environ.get("ASC_APPLE_SIGNIN_ENABLED", "0") == "1"
+          push_ok = os.environ.get("ASC_PUSH_ENABLED", "0") == "1"
           for ent_path in glob.glob("build/ios/**/*.entitlements", recursive=True):
               with open(ent_path, "rb") as f:
                   ent = plistlib.load(f)
@@ -245,9 +255,13 @@ jobs:
                       ent["com.apple.developer.applesignin"] = ["Default"]
                   elif "com.apple.developer.applesignin" in ent:
                       del ent["com.apple.developer.applesignin"]
+                  if push_ok:
+                      ent["aps-environment"] = "production"
+                  elif "aps-environment" in ent:
+                      del ent["aps-environment"]
                   with open(ent_path, "wb") as f:
                       plistlib.dump(ent, f)
-                  print(f"Updated {ent_path} (applesignin={apple_signin_ok})")
+                  print(f"Updated {ent_path} (applesignin={apple_signin_ok}, push={push_ok})")
           PY
 
       - name: Export Signed IPA & Upload to TestFlight

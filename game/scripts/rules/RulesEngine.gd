@@ -288,6 +288,16 @@ static func _time_factor_percent(building: String, level: int) -> float:
 	return float(vals[i])
 
 
+## Verilen Kale (`main`) seviyesindeki inşaat süresi çarpanı yüzdesi (%100..%15).
+static func castle_time_factor_percent(level: int) -> int:
+	return int(round(_time_factor_percent("main", maxi(1, level))))
+
+
+## Verilen Kale (`main`) seviyesinde Sv. 1'e kıyasla inşaat hızlandırma yüzdesi (%0..%85).
+static func castle_speedup_percent(level: int) -> int:
+	return maxi(0, 100 - castle_time_factor_percent(level))
+
+
 ## İnşaat süresi (saniye).
 ## Her bina türünün 1× dünya hızında temel süresi ve üstel büyümesi uygulanır;
 ## köyün Kale (`main`) seviyesine karşılık gelen zaman faktörü (%100..%15) ve `_speed()` (ilk 7 gün 2× dahil) uygulanır.

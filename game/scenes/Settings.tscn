@@ -195,6 +195,42 @@ layout_mode = 2
 theme_override_font_sizes/font_size = 24
 theme_override_fonts/font = ExtResource("7_nunito_bold")
 
+[node name="NotificationsCard" type="PanelContainer" parent="Center/VBox"]
+layout_mode = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_card")
+
+[node name="HBox" type="HBoxContainer" parent="Center/VBox/NotificationsCard"]
+layout_mode = 2
+theme_override_constants/separation = 14
+
+[node name="InfoVBox" type="VBoxContainer" parent="Center/VBox/NotificationsCard/HBox"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 4
+
+[node name="NotifTitle" type="Label" parent="Center/VBox/NotificationsCard/HBox/InfoVBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.901961, 0.560784, 1)
+theme_override_font_sizes/font_size = 25
+theme_override_fonts/font = ExtResource("6_cinzel")
+text = "🔔 Baş Vezir Bildirimleri"
+
+[node name="NotifDesc" type="Label" parent="Center/VBox/NotificationsCard/HBox/InfoVBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.921569, 0.898039, 0.835294, 1)
+theme_override_font_sizes/font_size = 20
+theme_override_fonts/font = ExtResource("8_nunito_semibold")
+text = "Oyun kapalıyken saldırı, inşaat, rapor, yeni mesaj ve tam depo uyarıları gönderir."
+autowrap_mode = 3
+
+[node name="BtnToggleNotifications" type="Button" parent="Center/VBox/NotificationsCard/HBox"]
+custom_minimum_size = Vector2(180, 68)
+layout_mode = 2
+size_flags_vertical = 4
+theme_override_font_sizes/font_size = 22
+theme_override_fonts/font = ExtResource("7_nunito_bold")
+text = "🔔 Açık"
+
 [node name="BtnBack" type="Button" parent="Center/VBox"]
 custom_minimum_size = Vector2(0, 76)
 layout_mode = 2

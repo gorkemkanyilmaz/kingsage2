@@ -55,6 +55,7 @@ var storage_label: Label
 var realm_label: Label
 var btn_prev: Button
 var btn_next: Button
+var btn_switch_village: Button
 var btn_diamonds: Button
 var btn_market: Button
 var _diamonds_count_lbl: Label = null
@@ -79,6 +80,9 @@ var _tooltip_title: Label = null
 var _tooltip_body: Label = null
 var _tooltip_hide_timer: Timer = null
 var _last_tooltip_key: String = ""
+var _tooltip_opened_by_tap: bool = false
+var _last_tooltip_touch_msec: int = 0
+var _last_tooltip_touch_key: String = ""
 var _wing_styles_done: bool = false
 var _res_cards_styled: bool = false
 var _applying_layout: bool = false
@@ -153,6 +157,18 @@ func _ensure_nodes() -> void:
 		btn_prev = find_child("BtnPrevVillage", true, false) as Button
 	if btn_next == null:
 		btn_next = find_child("BtnNextVillage", true, false) as Button
+	if btn_switch_village == null:
+		btn_switch_village = find_child("BtnSwitchVillage", true, false) as Button
+	if btn_switch_village == null and points_row != null:
+		btn_switch_village = Button.new()
+		btn_switch_village.name = "BtnSwitchVillage"
+		btn_switch_village.visible = false
+		btn_switch_village.custom_minimum_size = Vector2(0, 26)
+		btn_switch_village.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+		btn_switch_village.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		btn_switch_village.tooltip_text = "Köyler Arası Geçiş Yap"
+		btn_switch_village.text = "⇄ Köyler"
+		points_row.add_child(btn_switch_village)
 	if btn_diamonds == null:
 		btn_diamonds = find_child("BtnDiamonds", true, false) as Button
 	if btn_market == null:
@@ -230,6 +246,8 @@ func _ready() -> void:
 		btn_prev.pressed.connect(_on_prev_village_pressed)
 	if btn_next != null and not btn_next.pressed.is_connected(_on_next_village_pressed):
 		btn_next.pressed.connect(_on_next_village_pressed)
+	if btn_switch_village != null and not btn_switch_village.pressed.is_connected(_on_switch_village_btn_pressed):
+		btn_switch_village.pressed.connect(_on_switch_village_btn_pressed)
 	if btn_diamonds != null and not btn_diamonds.pressed.is_connected(_on_diamonds_pressed):
 		btn_diamonds.pressed.connect(_on_diamonds_pressed)
 	if btn_market != null and not btn_market.pressed.is_connected(_on_market_pressed):
@@ -242,15 +260,18 @@ func _ready() -> void:
 		if not village_name_label.gui_input.is_connected(_on_village_name_gui_input):
 			village_name_label.gui_input.connect(_on_village_name_gui_input)
 
-	for box in [points_box, wood_box, stone_box, iron_box, storage_box, citizens_box]:
-		if box != null:
-			box.mouse_filter = Control.MOUSE_FILTER_STOP
-			if not box.gui_input.is_connected(_on_economy_box_gui_input):
-				box.gui_input.connect(_on_economy_box_gui_input)
+	var is_mobile_touch := OS.has_feature("ios") or OS.has_feature("android")
 	for pair in [["points", points_box], ["wood", wood_box], ["stone", stone_box], ["iron", iron_box], ["storage", storage_box], ["citizens", citizens_box]]:
+		var bkey := str(pair[0])
 		var bx := pair[1] as Control
 		if bx != null:
-			bx.mouse_entered.connect(_on_box_mouse_entered.bind(str(pair[0]), bx))
+			bx.mouse_filter = Control.MOUSE_FILTER_STOP
+			if not bx.gui_input.is_connected(_on_economy_box_gui_input):
+				bx.gui_input.connect(_on_economy_box_gui_input.bind(bkey, bx))
+			if not is_mobile_touch:
+				var hover_cb := _on_box_mouse_entered.bind(bkey, bx)
+				if not bx.mouse_entered.is_connected(hover_cb):
+					bx.mouse_entered.connect(hover_cb)
 
 	if btn_rename_village != null and not btn_rename_village.pressed.is_connected(_on_rename_btn_pressed):
 		btn_rename_village.pressed.connect(_on_rename_btn_pressed)
@@ -336,6 +357,7 @@ func _apply_responsive_layout() -> void:
 		left_wing_wrap.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		left_wing_wrap.size_flags_stretch_ratio = 1.0
 		left_wing_wrap.clip_contents = has_island
+	var switch_vis := (btn_switch_village != null and btn_switch_village.visible)
 	if left_wing != null:
 		left_wing.add_theme_constant_override("separation", 3)
 		left_wing.size_flags_horizontal = Control.SIZE_EXPAND_FILL if has_island else Control.SIZE_SHRINK_BEGIN
@@ -344,6 +366,7 @@ func _apply_responsive_layout() -> void:
 		points_row.custom_minimum_size.y = points_row_h
 		points_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		points_row.alignment = BoxContainer.ALIGNMENT_BEGIN
+		points_row.add_theme_constant_override("separation", 4 if (has_island and switch_vis) else 6)
 	if resources_row != null:
 		resources_row.custom_minimum_size.y = res_row_h
 		resources_row.add_theme_constant_override("separation", 8)
@@ -379,10 +402,22 @@ func _apply_responsive_layout() -> void:
 		points_box.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	if points_label != null:
 		points_label.add_theme_font_override("font", FONT_BOLD)
-		points_label.add_theme_font_size_override("font_size", 18 if has_island else 19)
+		var pts_fs := 16 if (has_island and switch_vis) else (18 if has_island else 19)
+		points_label.add_theme_font_size_override("font_size", pts_fs)
 		points_label.add_theme_color_override("font_color", Color(1.0, 0.89, 0.44))
 		points_label.add_theme_constant_override("outline_size", 2)
 		points_label.add_theme_color_override("font_outline_color", Color(0.05, 0.04, 0.02, 0.95))
+	if btn_switch_village != null:
+		btn_switch_village.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+		btn_switch_village.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		btn_switch_village.custom_minimum_size = Vector2(0, 26)
+		btn_switch_village.add_theme_font_override("font", FONT_BOLD)
+		btn_switch_village.add_theme_font_size_override("font_size", 15 if has_island else 17)
+		btn_switch_village.add_theme_color_override("font_color", Color(0.95, 0.98, 1.0))
+		btn_switch_village.add_theme_color_override("font_hover_color", Color(1.0, 1.0, 1.0))
+		btn_switch_village.add_theme_color_override("font_pressed_color", Color(1.0, 0.94, 0.72))
+		btn_switch_village.add_theme_constant_override("outline_size", 2)
+		btn_switch_village.add_theme_color_override("font_outline_color", Color(0.02, 0.05, 0.12, 0.96))
 	if btn_prev != null:
 		btn_prev.custom_minimum_size = Vector2(28, 32) if has_island else Vector2(36, 38)
 	if btn_next != null:
@@ -463,10 +498,18 @@ func _update_village_name_fit(has_island: bool) -> void:
 		village_name_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 		village_name_label.custom_minimum_size.x = minf(ceilf(text_w) + 6.0, max_name_w)
 	else:
+		var multi_vis_d := (btn_prev != null and btn_prev.visible)
+		var max_desk_w := 350.0 if multi_vis_d else 430.0
+		var text_w_d := FONT_BOLD.get_string_size(village_name_label.text, HORIZONTAL_ALIGNMENT_LEFT, -1, 26).x
 		village_name_label.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
-		village_name_label.clip_text = false
-		village_name_label.text_overrun_behavior = TextServer.OVERRUN_NO_TRIMMING
-		village_name_label.custom_minimum_size.x = 0.0
+		if text_w_d > max_desk_w:
+			village_name_label.clip_text = true
+			village_name_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+			village_name_label.custom_minimum_size.x = max_desk_w
+		else:
+			village_name_label.clip_text = false
+			village_name_label.text_overrun_behavior = TextServer.OVERRUN_NO_TRIMMING
+			village_name_label.custom_minimum_size.x = 0.0
 
 
 func _is_tap_event(event: InputEvent) -> bool:
@@ -635,13 +678,34 @@ func _ensure_royal_wing_frames() -> void:
 		psb.set_border_width_all(1)
 		psb.border_width_bottom = 2
 		psb.set_corner_radius_all(9)
-		psb.content_margin_left = 10.0
-		psb.content_margin_right = 10.0
+		psb.content_margin_left = 8.0
+		psb.content_margin_right = 8.0
 		psb.content_margin_top = 2.0
 		psb.content_margin_bottom = 2.0
 		psb.shadow_color = Color(0, 0, 0, 0.40)
 		psb.shadow_size = 3
 		(points_box as PanelContainer).add_theme_stylebox_override("panel", psb)
+
+	if btn_switch_village != null:
+		var swsb := StyleBoxFlat.new()
+		swsb.bg_color = Color(0.10, 0.24, 0.36, 0.98)
+		swsb.border_color = Color(0.55, 0.86, 1.0, 0.95)
+		swsb.set_border_width_all(1)
+		swsb.border_width_bottom = 2
+		swsb.set_corner_radius_all(9)
+		swsb.content_margin_left = 8.0
+		swsb.content_margin_right = 8.0
+		swsb.content_margin_top = 1.0
+		swsb.content_margin_bottom = 1.0
+		swsb.shadow_color = Color(0, 0, 0, 0.35)
+		swsb.shadow_size = 3
+		var sw_hov := swsb.duplicate() as StyleBoxFlat
+		sw_hov.bg_color = Color(0.16, 0.34, 0.50, 1.0)
+		sw_hov.border_color = Color(0.80, 0.94, 1.0, 1.0)
+		btn_switch_village.add_theme_stylebox_override("normal", swsb)
+		btn_switch_village.add_theme_stylebox_override("hover", sw_hov)
+		btn_switch_village.add_theme_stylebox_override("pressed", sw_hov)
+		btn_switch_village.add_theme_stylebox_override("focus", swsb)
 
 	if btn_rename_village != null:
 		var rsb := StyleBoxFlat.new()
@@ -696,22 +760,49 @@ func _on_village_info_draw() -> void:
 	pass
 
 
-func _on_economy_box_gui_input(event: InputEvent) -> void:
-	if _is_tap_event(event):
-		accept_event()
-		var key := "points"
-		var src: Control = null
+func _hide_resource_tooltip(expected_layer: CanvasLayer = null) -> void:
+	if expected_layer != null and _tooltip_layer != expected_layer:
+		return
+	if is_instance_valid(_tooltip_layer):
+		_tooltip_layer.queue_free()
+	_tooltip_layer = null
+	_last_tooltip_key = ""
+	_tooltip_opened_by_tap = false
+
+
+func _on_economy_box_gui_input(event: InputEvent, bound_key: String = "", bound_ctrl: Control = null) -> void:
+	if not _is_tap_event(event):
+		return
+	var key := bound_key
+	var src: Control = bound_ctrl
+	if key.is_empty() or src == null:
+		key = "points"
 		for pair in [["wood", wood_box], ["stone", stone_box], ["iron", iron_box], ["storage", storage_box], ["citizens", citizens_box], ["points", points_box]]:
 			var ctrl := pair[1] as Control
 			if ctrl != null and ctrl.get_global_rect().has_point(get_global_mouse_position()):
 				key = str(pair[0])
 				src = ctrl
 				break
-		_show_resource_tooltip(key, src)
+	if event is InputEventScreenTouch:
+		_last_tooltip_touch_msec = Time.get_ticks_msec()
+		_last_tooltip_touch_key = key
+	elif event is InputEventMouseButton:
+		if _last_tooltip_touch_key == key and _last_tooltip_touch_msec > 0 and (Time.get_ticks_msec() - _last_tooltip_touch_msec) < 150:
+			accept_event()
+			return
+	accept_event()
+	if is_instance_valid(_tooltip_layer) and _last_tooltip_key == key and _tooltip_opened_by_tap:
+		_hide_resource_tooltip()
+		return
+	_show_resource_tooltip(key, src, 4.5, true)
 
 
 func _on_box_mouse_entered(key: String, ctrl: Control) -> void:
-	_show_resource_tooltip(key, ctrl, 2.5)
+	if OS.has_feature("ios") or OS.has_feature("android"):
+		return
+	if is_instance_valid(_tooltip_layer) and _tooltip_opened_by_tap:
+		return
+	_show_resource_tooltip(key, ctrl, 2.5, false)
 
 
 func _fmt_num(val: int) -> String:
@@ -839,7 +930,7 @@ func _tooltip_text_for(key: String) -> Dictionary:
 			return {"title": "👑 LORD PUANI", "body": "Köyünüzün toplam puanı (parantez içi tüm köylerinizin toplamı).\nPuan; bina seviyeleri arttıkça yükselir ve sıralamayı belirler."}
 
 
-func _show_resource_tooltip(key: String, anchor: Control, auto_hide_sec: float = 4.5) -> void:
+func _show_resource_tooltip(key: String, anchor: Control, auto_hide_sec: float = 4.5, from_tap: bool = true) -> void:
 	var tree := _scene_tree()
 	if tree == null:
 		return
@@ -848,14 +939,15 @@ func _show_resource_tooltip(key: String, anchor: Control, auto_hide_sec: float =
 		root = tree.root
 	if root == null:
 		return
-	if is_instance_valid(_tooltip_layer):
-		_tooltip_layer.queue_free()
+	_hide_resource_tooltip()
 	var info := _tooltip_text_for(key)
 
 	var layer := CanvasLayer.new()
 	layer.name = "ResourceTooltipLayer"
 	layer.layer = 137
 	_tooltip_layer = layer
+	_last_tooltip_key = key
+	_tooltip_opened_by_tap = from_tap
 	root.add_child(layer)
 
 	var panel := PanelContainer.new()
@@ -896,7 +988,7 @@ func _show_resource_tooltip(key: String, anchor: Control, auto_hide_sec: float =
 	more.custom_minimum_size = Vector2(0, 40)
 	_style_modal_btn(more, Color(0.20, 0.18, 0.28, 0.96), Color(0.78, 0.62, 0.30, 0.90))
 	more.pressed.connect(func():
-		layer.queue_free()
+		_hide_resource_tooltip(layer)
 		_show_economy_modal()
 	)
 	vb.add_child(more)
@@ -916,11 +1008,14 @@ func _show_resource_tooltip(key: String, anchor: Control, auto_hide_sec: float =
 	timer.wait_time = auto_hide_sec
 	timer.one_shot = true
 	timer.timeout.connect(func():
-		if is_instance_valid(layer):
-			layer.queue_free()
+		_hide_resource_tooltip(layer)
 	)
 	layer.add_child(timer)
 	timer.start()
+
+
+func _on_switch_village_btn_pressed() -> void:
+	_show_village_switcher_modal()
 
 
 func _on_prev_village_pressed() -> void:
@@ -1055,6 +1150,18 @@ func refresh() -> void:
 		btn_prev.visible = multi
 	if btn_next != null:
 		btn_next.visible = multi
+	if btn_switch_village != null:
+		btn_switch_village.visible = multi
+		btn_switch_village.text = "⇄ Köy Değiştir" if island_w > 0.0 else ("⇄ Köyler Arası Geçiş (%d)" % villages_list.size())
+
+	var has_island_now := island_w > 0.0
+	if points_row != null:
+		points_row.add_theme_constant_override("separation", 4 if (has_island_now and multi) else 6)
+	if points_box is PanelContainer:
+		var psb_cur := (points_box as PanelContainer).get_theme_stylebox("panel") as StyleBoxFlat
+		if psb_cur != null:
+			psb_cur.content_margin_left = 6.0 if (has_island_now and multi) else 8.0
+			psb_cur.content_margin_right = 6.0 if (has_island_now and multi) else 8.0
 
 	if village_name_label != null:
 		if island_w > 0.0:
@@ -1065,6 +1172,7 @@ func refresh() -> void:
 		_update_village_name_fit(island_w > 0.0)
 
 	if points_label != null:
+		points_label.add_theme_font_size_override("font_size", 16 if (has_island_now and multi) else (18 if has_island_now else 19))
 		var v_pts := int(v.get("points", 0))
 		if multi:
 			var total_pts := 0
@@ -1073,6 +1181,16 @@ func refresh() -> void:
 			points_label.text = ("👑 %d(%d)" % [v_pts, total_pts]) if island_w > 0.0 else ("👑 %d P (%d)" % [v_pts, total_pts])
 		else:
 			points_label.text = "👑 %d P" % v_pts
+
+	_apply_responsive_layout()
+	if has_island_now and left_wing_wrap != null:
+		if points_row != null:
+			points_row.reset_size()
+		if left_wing != null:
+			left_wing.reset_size()
+		left_wing_wrap.reset_size()
+		if top_row != null:
+			top_row.queue_sort()
 
 	var res: Dictionary = v.get("resources", {})
 	var w := float(res.get("wood", 0))
@@ -1581,12 +1699,21 @@ func _show_village_switcher_modal() -> void:
 			sel_btn.mouse_filter = Control.MOUSE_FILTER_PASS
 			sel_btn.custom_minimum_size = Vector2(140, 44)
 			_style_modal_btn(sel_btn, Color(0.18, 0.42, 0.24, 0.96), Color(0.45, 0.84, 0.52, 0.90))
-			sel_btn.pressed.connect(func():
+			var select_this_village := func():
+				if is_cur:
+					return
 				if gs.has_method("set_active_village"):
 					gs.call("set_active_village", vid)
 				refresh()
-				layer.queue_free()
-			)
+				if is_instance_valid(layer):
+					layer.queue_free()
+			sel_btn.pressed.connect(select_this_village)
+			if not is_cur:
+				row.gui_input.connect(func(ev: InputEvent):
+					if _is_tap_event(ev):
+						accept_event()
+						select_this_village.call()
+				)
 			hb.add_child(sel_btn)
 
 	var close_btn := Button.new()

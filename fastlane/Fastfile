@@ -109,6 +109,24 @@ platform :ios do
       UI.important("Sign In with Apple capability check note: #{e.message}")
     end
 
+    push_enabled = false
+    begin
+      bid_push = Spaceship::ConnectAPI::BundleId.find(bundle_id)
+      if bid_push
+        pcaps = bid_push.get_capabilities rescue []
+        push_enabled = pcaps.any? { |c| c.capability_type.to_s == "PUSH_NOTIFICATIONS" }
+        unless push_enabled
+          UI.message("Attempting to enable Push Notifications (PUSH_NOTIFICATIONS) capability on #{bundle_id}...")
+          bid_push.create_capability("PUSH_NOTIFICATIONS")
+          pcaps = bid_push.get_capabilities rescue []
+          push_enabled = pcaps.any? { |c| c.capability_type.to_s == "PUSH_NOTIFICATIONS" }
+        end
+        UI.message("Push Notifications capability active: #{push_enabled}")
+      end
+    rescue => e
+      UI.important("Push Notifications capability check note: #{e.message}")
+    end
+
     cert(
       api_key: api_key,
       team_id: team_id,
@@ -130,8 +148,8 @@ platform :ios do
     UI.user_error!("SIGH failed to produce profile UUID") if profile_uuid.empty?
 
     sh("mkdir -p '#{File.dirname(out_env)}'")
-    File.write(out_env, "ASC_PROFILE_NAME=#{profile_name}\nASC_PROFILE_UUID=#{profile_uuid}\nASC_APPLE_SIGNIN_ENABLED=#{apple_signin_enabled ? '1' : '0'}\n")
-    UI.success("Prepared signing profile #{profile_name} (#{profile_uuid}), apple_signin=#{apple_signin_enabled}")
+    File.write(out_env, "ASC_PROFILE_NAME=#{profile_name}\nASC_PROFILE_UUID=#{profile_uuid}\nASC_APPLE_SIGNIN_ENABLED=#{apple_signin_enabled ? '1' : '0'}\nASC_PUSH_ENABLED=#{push_enabled ? '1' : '0'}\n")
+    UI.success("Prepared signing profile #{profile_name} (#{profile_uuid}), apple_signin=#{apple_signin_enabled}, push=#{push_enabled}")
   end
 
   desc "Export IPA from Godot Xcode archive and upload to TestFlight"

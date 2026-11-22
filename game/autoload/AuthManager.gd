@@ -137,6 +137,9 @@ func logout() -> void:
 			wm.set("_suppress_reset_save", true)
 			if wm.has_method("cancel_pending_cloud_poll"):
 				wm.call("cancel_pending_cloud_poll")
+		var nm = loop.root.get_node_or_null("NotificationManager")
+		if nm != null and nm.has_method("on_user_logout"):
+			nm.call("on_user_logout")
 		var net = loop.root.get_node_or_null("NetworkManager")
 		if net != null:
 			net.auth_token = ""
