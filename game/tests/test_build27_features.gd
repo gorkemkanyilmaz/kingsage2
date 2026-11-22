@@ -87,34 +87,38 @@ func _test_castle_speedup_description(gs: Node) -> void:
 	bp.call("show_building", v, "main")
 
 	var desc_box := bp.find_child("BuildingDescriptionBox", true, false) as Control
-	var spd_sec := bp.find_child("CastleSpeedupSection", true, false) as Control
-	var spd_list := bp.find_child("CastleSpeedupList", true, false) as VBoxContainer
+	var prod_box := bp.find_child("ProductionTableBox", true, false) as Control
+	var prod_vbox := bp.find_child("ProductionVBox", true, false) as VBoxContainer
 	_assert(desc_box != null and desc_box.visible, "Kale açıklaması kutusu görünür")
-	_assert(spd_sec != null and spd_sec.visible, "Kale açıkken CastleSpeedupSection görünür")
-	_assert(spd_list != null and spd_list.get_child_count() == 50, "Alt alta tüm 50 Kale seviyesi listelendi (adet=%d)" % (spd_list.get_child_count() if spd_list != null else -1))
+	_assert(prod_box != null and prod_box.visible, "Kale açıkken maden tarzı parşömen tablo (ProductionTableBox) görünür")
+	_assert(prod_vbox != null and prod_vbox.get_child_count() == 6, "1 Başlık + 1 Güncel + 4 Sonraki Seviye = 6 satır listelendi (adet=%d)" % (prod_vbox.get_child_count() if prod_vbox != null else -1))
 
-	if spd_list != null and spd_list.get_child_count() == 50:
-		var r1 := _collect_row_text(spd_list.get_child(0))
-		var r2 := _collect_row_text(spd_list.get_child(1))
-		var r15 := _collect_row_text(spd_list.get_child(14))
-		var r50 := _collect_row_text(spd_list.get_child(49))
-		_assert(r1.contains("Seviye 1") and r1.contains("Güncel") and r1.contains("%0"), "Sv.1 satırı doğru: %s" % r1)
-		_assert(r2.contains("Seviye 2") and r2.contains("Sonraki") and r2.contains("%4"), "Sv.2 satırı doğru (%%4): %s" % r2)
-		_assert(r15.contains("Seviye 15") and r15.contains("%42") and r15.contains("Yıkım"), "Sv.15 satırı doğru (%%42 + Yıkım): %s" % r15)
-		_assert(r50.contains("Seviye 50") and r50.contains("%85"), "Sv.50 satırı doğru (%%85): %s" % r50)
+	if prod_vbox != null and prod_vbox.get_child_count() == 6:
+		var r_hdr := _collect_row_text(prod_vbox.get_child(0))
+		var r_cur := _collect_row_text(prod_vbox.get_child(1))
+		var r_lv2 := _collect_row_text(prod_vbox.get_child(2))
+		var r_lv3 := _collect_row_text(prod_vbox.get_child(3))
+		var r_lv4 := _collect_row_text(prod_vbox.get_child(4))
+		var r_lv5 := _collect_row_text(prod_vbox.get_child(5))
+		_assert(r_hdr.contains("İnşaat Hızı") and r_hdr.contains("hızlanma") and r_hdr.contains("inşa süresi"), "Başlık satırı doğru: %s" % r_hdr)
+		_assert(r_cur.contains("Güncel") and r_cur.contains("%0") and r_cur.contains("%100"), "Güncel (Sv.1) satırı doğru: %s" % r_cur)
+		_assert(r_lv2.contains("Seviye 2") and r_lv2.contains("+%4") and r_lv2.contains("%96"), "Seviye 2 satırı doğru (+%%4): %s" % r_lv2)
+		_assert(r_lv3.contains("Seviye 3") and r_lv3.contains("+%7") and r_lv3.contains("%93"), "Seviye 3 satırı doğru (+%%7): %s" % r_lv3)
+		_assert(r_lv4.contains("Seviye 4") and r_lv4.contains("+%11") and r_lv4.contains("%89"), "Seviye 4 satırı doğru (+%%11): %s" % r_lv4)
+		_assert(r_lv5.contains("Seviye 5") and r_lv5.contains("+%14") and r_lv5.contains("%86"), "Seviye 5 satırı doğru (+%%14): %s" % r_lv5)
 
-	# Kale Sv.10 olunca güncel vurgusu Sv.10'a kaymalı
+	# Kale Sv.10 olunca Güncel +%29 ve sonraki 4 seviye (Sv. 11–14) gösterilmeli
 	v["buildings"]["main"] = 10
 	bp.call("show_building", v, "main")
-	if spd_list != null and spd_list.get_child_count() == 50:
-		var r10 := _collect_row_text(spd_list.get_child(9))
-		_assert(r10.contains("Seviye 10") and r10.contains("Güncel") and r10.contains("%29"), "Kale Sv.10 güncel vurgusu ve %%29 hızlandırma doğru: %s" % r10)
+	if prod_vbox != null and prod_vbox.get_child_count() == 6:
+		var r10_cur := _collect_row_text(prod_vbox.get_child(1))
+		var r11_nxt := _collect_row_text(prod_vbox.get_child(2))
+		_assert(r10_cur.contains("Güncel") and r10_cur.contains("+%29") and r10_cur.contains("%71"), "Kale Sv.10 Güncel satırı doğru (+%%29): %s" % r10_cur)
+		_assert(r11_nxt.contains("Seviye 11") and r11_nxt.contains("+%32") and r11_nxt.contains("%68"), "Kale Sv.10 sonrası Seviye 11 satırı doğru (+%%32): %s" % r11_nxt)
 
-	# Diğer binalarda gizli olmalı
-	bp.call("show_building", v, "wood")
-	_assert(spd_sec != null and not spd_sec.visible, "Oduncu Kampı panelinde Kale hızlandırma listesi gizli")
+	# Üretim/kapasite/hız tablosu olmayan binalarda (Kışla) gizli olmalı
 	bp.call("show_building", v, "barracks")
-	_assert(spd_sec != null and not spd_sec.visible, "Kışla panelinde Kale hızlandırma listesi gizli")
+	_assert(prod_box != null and not prod_box.visible, "Kışla panelinde ProductionTableBox gizli")
 
 	bp.queue_free()
 
