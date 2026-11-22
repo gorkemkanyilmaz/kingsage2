@@ -708,6 +708,8 @@ RESOURCE_PACKS: List[Dict[str, Any]] = [
 _PG_SCHEMA_INITIALIZED = False
 _PG_EPOCH_VERIFIED = False
 _PG_BOTS_VERIFIED = False
+_PG_WORLDS_VERIFIED = False
+_PG_LEGACY_MIGRATED = False
 
 
 def _ensure_users_store_columns(cursor, is_pg: bool) -> None:
@@ -1129,14 +1131,20 @@ def _find_free_spot_on_server(villages: List[Dict[str, Any]], pref_x: int = 100,
 
 
 def _ensure_worlds_rows(cursor, now: int) -> None:
+    global _PG_WORLDS_VERIFIED
+    if getattr(cursor, "is_pg", False) and _PG_WORLDS_VERIFIED:
+        return
+    cursor.execute("SELECT id FROM worlds")
+    existing_ids = {int((r["id"] if isinstance(r, dict) else r[0]) or 0) for r in cursor.fetchall()}
     for wid in range(1, WORLDS_COUNT + 1):
-        cursor.execute("SELECT id FROM worlds WHERE id = ?", (wid,))
-        if not cursor.fetchone():
+        if wid not in existing_ids:
             cursor.execute(
                 """INSERT INTO worlds (id, name, seed, is_active, created_unix, registered_players)
                    VALUES (?, ?, ?, ?, ?, 0)""",
                 (wid, f"Dünya {wid}", 1000 + wid, 1 if wid == 1 else 0, now)
             )
+    if getattr(cursor, "is_pg", False):
+        _PG_WORLDS_VERIFIED = True
 
 
 def _unwrap_world_payload(raw_w: Dict[str, Any], default_wid: int = 1, now: int = 0) -> Dict[str, Any]:
@@ -1297,6 +1305,10 @@ def _prepare_world_for_player(
     prof_read_sigs = [str(x) for x in (found_prof.get("read_report_sigs") or []) if str(x)]
     del_sig_set = set(prof_del_sigs)
     read_sig_set = set(prof_read_sigs)
+    prof_del_msg_sigs = [str(x) for x in (found_prof.get("deleted_message_sigs") or []) if str(x)]
+    prof_read_msg_sigs = [str(x) for x in (found_prof.get("read_message_sigs") or []) if str(x)]
+    del_msg_set = set(prof_del_msg_sigs)
+    read_msg_set = set(prof_read_msg_sigs)
 
     # Akıllı Tutorial tamamlanma koruması (çoklu köy / mezuniyet / ileri seviye binalar)
     tut_completed = bool(found_prof.get("tutorial_completed", False))
@@ -1334,6 +1346,31 @@ def _prepare_world_for_player(
             filtered_reps.append(rep)
         state["reports"] = filtered_reps
 
+    # Oyuncu için mükerrer (özellikle Hoş Geldiniz) mesajları birleştir, silinenleri gizle ve okunanları senkronize et
+    if isinstance(state.get("messages"), list):
+        dedup_msgs: List[Dict[str, Any]] = []
+        msg_pos: Dict[str, int] = {}
+        for raw_m in state["messages"]:
+            if not isinstance(raw_m, dict):
+                continue
+            m = copy.deepcopy(raw_m)
+            m_to = str(m.get("to", m.get("to_name", ""))).strip()
+            m_from = str(m.get("from", m.get("from_name", ""))).strip()
+            is_for_player = (not norm_p) or _matches_player(m_to, norm_p) or _matches_player(m_from, norm_p)
+            msig_str = _message_sig_str(m)
+            if is_for_player and msig_str in del_msg_set:
+                continue
+            if is_for_player and msig_str in read_msg_set:
+                m["read"] = True
+            if msig_str in msg_pos:
+                prev_m = dedup_msgs[msg_pos[msig_str]]
+                if bool(m.get("read", False)) or msig_str in read_msg_set:
+                    prev_m["read"] = True
+                continue
+            msg_pos[msig_str] = len(dedup_msgs)
+            dedup_msgs.append(m)
+        state["messages"] = dedup_msgs
+
     state["active_village_id"] = active_vid
     state["player"] = {
         "id": 1,
@@ -1357,6 +1394,8 @@ def _prepare_world_for_player(
         "read_report_sigs": prof_read_sigs[-400:],
         "deleted_report_sigs": prof_del_sigs[-400:],
         "unread_toggled_sigs": [str(x) for x in (found_prof.get("unread_toggled_sigs") or []) if str(x)][-200:],
+        "read_message_sigs": prof_read_msg_sigs[-400:],
+        "deleted_message_sigs": prof_del_msg_sigs[-400:],
         "premium": False,
     }
     w["registered_real_players"] = _collect_real_players(w)
@@ -1524,6 +1563,12 @@ def _merge_player_profile_dicts(base_prof: Any, inc_prof: Any, c_is_newer: bool 
         b_del = [str(x) for x in (bp.get("deleted_report_sigs") or []) if str(x)]
         i_del = [str(x) for x in (ip.get("deleted_report_sigs") or []) if str(x)]
         res["deleted_report_sigs"] = list(dict.fromkeys(b_del + i_del))[-400:]
+        b_mdel = [str(x) for x in (bp.get("deleted_message_sigs") or []) if str(x)]
+        i_mdel = [str(x) for x in (ip.get("deleted_message_sigs") or []) if str(x)]
+        res["deleted_message_sigs"] = list(dict.fromkeys(b_mdel + i_mdel))[-400:]
+        b_mread = [str(x) for x in (bp.get("read_message_sigs") or []) if str(x)]
+        i_mread = [str(x) for x in (ip.get("read_message_sigs") or []) if str(x)]
+        res["read_message_sigs"] = list(dict.fromkeys(b_mread + i_mread))[-400:]
         return res
 
     tut_done = bool(bp.get("tutorial_completed", False)) or bool(ip.get("tutorial_completed", False))
@@ -1550,6 +1595,14 @@ def _merge_player_profile_dicts(base_prof: Any, inc_prof: Any, c_is_newer: bool 
         read_sigs = [x for x in dict.fromkeys(b_read + i_read) if x not in effective_unreads][-400:]
         merged_unreads = [x for x in dict.fromkeys(list(b_unreads | i_unreads)) if x not in set(b_read)][-200:]
 
+    b_mdel = [str(x) for x in (bp.get("deleted_message_sigs") or []) if str(x)]
+    i_mdel = [str(x) for x in (ip.get("deleted_message_sigs") or []) if str(x)]
+    msg_del_sigs = list(dict.fromkeys(b_mdel + i_mdel))[-400:]
+
+    b_mread = [str(x) for x in (bp.get("read_message_sigs") or []) if str(x)]
+    i_mread = [str(x) for x in (ip.get("read_message_sigs") or []) if str(x)]
+    msg_read_sigs = list(dict.fromkeys(b_mread + i_mread))[-400:]
+
     out = copy.deepcopy(bp)
     for k, v in ip.items():
         if v not in (None, "") or k not in out:
@@ -1563,18 +1616,33 @@ def _merge_player_profile_dicts(base_prof: Any, inc_prof: Any, c_is_newer: bool 
     out["read_report_sigs"] = read_sigs
     out["deleted_report_sigs"] = del_sigs
     out["unread_toggled_sigs"] = merged_unreads
+    out["read_message_sigs"] = msg_read_sigs
+    out["deleted_message_sigs"] = msg_del_sigs
     return out
 
 
-def _message_sig(msg: Any) -> tuple:
+def _is_welcome_message(msg: Any) -> bool:
     if not isinstance(msg, dict):
-        return ("",)
-    return (
-        str(msg.get("from", msg.get("from_name", ""))).strip(),
-        str(msg.get("to", msg.get("to_name", ""))).strip(),
-        str(msg.get("subject", "")).strip(),
-        int(msg.get("created_unix", 0) or 0),
-    )
+        return False
+    subj = str(msg.get("subject", "")).strip().lower()
+    frm = str(msg.get("from", msg.get("from_name", ""))).strip().lower()
+    return ("hoş geldiniz" in subj or "hos geldiniz" in subj) and ("konsey" in frm or "taht ve kılıç" in frm or "taht ve kilic" in frm)
+
+
+def _message_sig_str(msg: Any) -> str:
+    if not isinstance(msg, dict):
+        return ""
+    to_n = _norm_p_name(str(msg.get("to", msg.get("to_name", ""))).strip()).lower()
+    if _is_welcome_message(msg):
+        return f"welcome:{to_n}"
+    from_n = _norm_p_name(str(msg.get("from", msg.get("from_name", ""))).strip()).lower()
+    subj = str(msg.get("subject", "")).strip().lower()
+    ts = int(msg.get("created_unix", 0) or 0)
+    return f"{from_n}|{to_n}|{subj}|{ts}"
+
+
+def _message_sig(msg: Any) -> str:
+    return _message_sig_str(msg)
 
 
 def _movement_sig(mov: Any) -> tuple:
@@ -1646,6 +1714,10 @@ def merge_world_state(server_w: Optional[Dict[str, Any]], client_raw: Dict[str, 
                 incoming_prof["deleted_report_sigs"] = [str(x) for x in c_player["deleted_report_sigs"] if str(x)]
             if isinstance(c_player.get("unread_toggled_sigs"), list):
                 incoming_prof["unread_toggled_sigs"] = [str(x) for x in c_player["unread_toggled_sigs"] if str(x)]
+            if isinstance(c_player.get("read_message_sigs"), list):
+                incoming_prof["read_message_sigs"] = [str(x) for x in c_player["read_message_sigs"] if str(x)]
+            if isinstance(c_player.get("deleted_message_sigs"), list):
+                incoming_prof["deleted_message_sigs"] = [str(x) for x in c_player["deleted_message_sigs"] if str(x)]
             c_profs[act_name] = _merge_player_profile_dicts(
                 s_existing_prof,
                 incoming_prof,
@@ -2117,20 +2189,6 @@ def merge_world_state(server_w: Optional[Dict[str, Any]], client_raw: Dict[str, 
 
     s_state["alliances"] = list(s_alliances.values())
 
-    # 6. Mesajlar ve Raporlar (deduplicated union)
-    s_msgs = list(s_state.get("messages") or [])
-    msg_idx = {_message_sig(m): i for i, m in enumerate(s_msgs) if isinstance(m, dict)}
-    for m in (c_state.get("messages") or []):
-        if not isinstance(m, dict):
-            continue
-        msig = _message_sig(m)
-        if msig not in msg_idx:
-            msg_idx[msig] = len(s_msgs)
-            s_msgs.append(copy.deepcopy(m))
-        elif _matches_player(str(m.get("to", m.get("to_name", ""))), act_name) and bool(m.get("read", False)):
-            s_msgs[msg_idx[msig]]["read"] = True
-    s_state["messages"] = s_msgs[-250:]
-
     act_prof_final: Dict[str, Any] = {}
     for pk, pv in s_profs.items():
         if _matches_player(str(pk), act_name) and isinstance(pv, dict):
@@ -2138,6 +2196,40 @@ def merge_world_state(server_w: Optional[Dict[str, Any]], client_raw: Dict[str, 
             break
     act_read_sigs = {str(x) for x in (act_prof_final.get("read_report_sigs") or []) if str(x)}
     act_del_sigs = {str(x) for x in (act_prof_final.get("deleted_report_sigs") or []) if str(x)}
+    act_read_msg_sigs = {str(x) for x in (act_prof_final.get("read_message_sigs") or []) if str(x)}
+    act_del_msg_sigs = {str(x) for x in (act_prof_final.get("deleted_message_sigs") or []) if str(x)}
+
+    # 6. Mesajlar ve Raporlar (kanonik imzalı deduplicated union + kalıcı okunma/silme)
+    s_msgs: List[Dict[str, Any]] = []
+    msg_idx: Dict[str, int] = {}
+    for raw_m in (s_state.get("messages") or []) + (c_state.get("messages") or []):
+        if not isinstance(raw_m, dict):
+            continue
+        mc = copy.deepcopy(raw_m)
+        msig = _message_sig_str(mc)
+        to_n = str(mc.get("to", mc.get("to_name", ""))).strip()
+        from_n = str(mc.get("from", mc.get("from_name", ""))).strip()
+        is_to_act = _matches_player(to_n, act_name)
+        is_from_act = _matches_player(from_n, act_name)
+        if msig in act_read_msg_sigs and (is_to_act or is_from_act):
+            mc["read"] = True
+        if msig not in msg_idx:
+            msg_idx[msig] = len(s_msgs)
+            s_msgs.append(mc)
+        else:
+            existing_m = s_msgs[msg_idx[msig]]
+            if bool(mc.get("read", False)) or (msig in act_read_msg_sigs and (is_to_act or is_from_act)):
+                existing_m["read"] = True
+
+    cleaned_msgs: List[Dict[str, Any]] = []
+    for m in s_msgs:
+        msig = _message_sig_str(m)
+        to_n = str(m.get("to", m.get("to_name", ""))).strip()
+        from_n = str(m.get("from", m.get("from_name", ""))).strip()
+        if msig in act_del_msg_sigs and _matches_player(to_n, act_name) and (_is_welcome_message(m) or _matches_player(from_n, act_name) or from_n not in _collect_real_players(merged)):
+            continue
+        cleaned_msgs.append(m)
+    s_state["messages"] = cleaned_msgs[-250:]
 
     s_reps = list(s_state.get("reports") or [])
     rep_idx_by_sig: Dict[tuple, int] = {}
@@ -2293,10 +2385,11 @@ def _ensure_world_reset_epoch(cursor, now: int) -> None:
         cursor.execute("INSERT INTO server_meta (k, v) VALUES (?, ?)", ("world_reset_epoch", val_str))
 
 
-def _sync_worlds_table_from_states(cursor, now: int) -> List[Dict[str, Any]]:
+def _sync_worlds_table_from_states(cursor, now: int, ws_rows: Optional[List[Any]] = None, write_updates: bool = True) -> List[Dict[str, Any]]:
     _ensure_worlds_rows(cursor, now)
-    cursor.execute("SELECT world_id, state_json FROM world_states ORDER BY world_id ASC")
-    ws_rows = cursor.fetchall()
+    if ws_rows is None:
+        cursor.execute("SELECT world_id, state_json FROM world_states ORDER BY world_id ASC")
+        ws_rows = cursor.fetchall()
     reg_counts: Dict[int, int] = {}
     for row in ws_rows:
         wid = int(row["world_id"])
@@ -2306,19 +2399,30 @@ def _sync_worlds_table_from_states(cursor, now: int) -> List[Dict[str, Any]]:
         except Exception:
             reg_counts[wid] = 0
 
-    for wid in range(1, WORLDS_COUNT + 1):
-        cnt = reg_counts.get(wid, None)
-        if cnt is not None:
-            cursor.execute("UPDATE worlds SET registered_players = ? WHERE id = ?", (cnt, wid))
-            if cnt >= MAX_REAL_PLAYERS_PER_WORLD and wid < WORLDS_COUNT:
-                cursor.execute("UPDATE worlds SET is_active = 1 WHERE id = ?", (wid + 1,))
-
     cursor.execute("SELECT * FROM worlds ORDER BY id ASC")
     rows = cursor.fetchall()
+    existing_by_id = {int(r["id"]): dict(r) for r in rows}
+
+    if write_updates:
+        unlocked_ids = set()
+        for wid in range(1, WORLDS_COUNT + 1):
+            cnt = reg_counts.get(wid, None)
+            if cnt is None:
+                continue
+            cur_row = existing_by_id.get(wid)
+            if cur_row and int(cur_row.get("registered_players", 0) or 0) != cnt:
+                cursor.execute("UPDATE worlds SET registered_players = ? WHERE id = ?", (cnt, wid))
+                cur_row["registered_players"] = cnt
+            if cnt >= MAX_REAL_PLAYERS_PER_WORLD and wid < WORLDS_COUNT:
+                next_row = existing_by_id.get(wid + 1)
+                if next_row and int(next_row.get("is_active", 0) or 0) != 1 and (wid + 1) not in unlocked_ids:
+                    unlocked_ids.add(wid + 1)
+                    cursor.execute("UPDATE worlds SET is_active = 1 WHERE id = ?", (wid + 1,))
+                    next_row["is_active"] = 1
+
     out: List[Dict[str, Any]] = []
-    for r in rows:
-        d = dict(r)
-        wid = int(d["id"])
+    for wid in sorted(existing_by_id.keys()):
+        d = existing_by_id[wid]
         if wid in reg_counts:
             d["registered_players"] = reg_counts[wid]
         out.append(d)
@@ -2326,9 +2430,14 @@ def _sync_worlds_table_from_states(cursor, now: int) -> List[Dict[str, Any]]:
 
 
 def _migrate_legacy_cloud_saves_to_world_states(cursor, now: int) -> None:
+    global _PG_LEGACY_MIGRATED
+    if getattr(cursor, "is_pg", False) and _PG_LEGACY_MIGRATED:
+        return
     cursor.execute("SELECT COUNT(*) as cnt FROM world_states")
     c_row = cursor.fetchone()
     if c_row and int(list(c_row.values())[0] or 0) > 0:
+        if getattr(cursor, "is_pg", False):
+            _PG_LEGACY_MIGRATED = True
         return
     cursor.execute("SELECT cs.user_id, cs.state_json, cs.updated_unix, u.display_name FROM cloud_saves cs LEFT JOIN users u ON u.id = cs.user_id ORDER BY cs.updated_unix ASC")
     legacy_rows = cursor.fetchall()
@@ -2368,7 +2477,7 @@ def _serialize_server_village(v_row) -> Optional[Dict[str, Any]]:
     return v
 
 
-def _fetch_cloud_and_village_with_worlds(cursor, user_id: str, display_name: str, run_bot_sim: bool = False):
+def _fetch_cloud_and_village_with_worlds(cursor, user_id: str, display_name: str, run_bot_sim: bool = False, user_row: Optional[Dict[str, Any]] = None):
     now = int(time.time())
     _ensure_world1_bots_seeded(cursor, now)
     _migrate_legacy_cloud_saves_to_world_states(cursor, now)
@@ -2387,7 +2496,7 @@ def _fetch_cloud_and_village_with_worlds(cursor, user_id: str, display_name: str
                 except Exception:
                     pass
 
-    worlds_meta = _sync_worlds_table_from_states(cursor, now)
+    worlds_meta = _sync_worlds_table_from_states(cursor, now, ws_rows=ws_rows, write_updates=False)
 
     chosen_w = None
     chosen_updated = 0
@@ -2494,12 +2603,15 @@ def _fetch_cloud_and_village_with_worlds(cursor, user_id: str, display_name: str
                     "UPDATE world_states SET state_json = ?, updated_unix = ? WHERE world_id = ?",
                     (json.dumps(chosen_w, ensure_ascii=False), now, sv_wid)
                 )
-                worlds_meta = _sync_worlds_table_from_states(cursor, now)
+                worlds_meta = _sync_worlds_table_from_states(cursor, now, write_updates=True)
             except Exception:
                 pass
 
-    cursor.execute("SELECT diamonds, scrolls_json FROM users WHERE id = ?", (user_id,))
-    u_wallet_row = cursor.fetchone()
+    if user_row is None:
+        cursor.execute("SELECT diamonds, scrolls_json FROM users WHERE id = ?", (user_id,))
+        u_wallet_row = cursor.fetchone()
+    else:
+        u_wallet_row = user_row
     u_diamonds, u_scrolls = _parse_user_wallet(u_wallet_row)
     user_wallet = {"diamonds": u_diamonds, "scrolls": u_scrolls}
 
@@ -2517,8 +2629,8 @@ def _fetch_cloud_and_village_with_worlds(cursor, user_id: str, display_name: str
     return cloud_state, chosen_updated, server_village, worlds_meta
 
 
-def _fetch_cloud_and_village(cursor, user_id: str, display_name: str):
-    cs, cu, sv, _wm = _fetch_cloud_and_village_with_worlds(cursor, user_id, display_name)
+def _fetch_cloud_and_village(cursor, user_id: str, display_name: str, user_row: Optional[Dict[str, Any]] = None):
+    cs, cu, sv, _wm = _fetch_cloud_and_village_with_worlds(cursor, user_id, display_name, False, user_row)
     return cs, cu, sv
 
 
@@ -2557,32 +2669,63 @@ def _find_user_by_identity(cursor, provider: str, clean_email: str, clean_uid: s
         if cand and "@" in cand and cand not in email_candidates:
             email_candidates.append(cand)
 
+    uid_id_candidates: List[str] = []
     for uid in uid_candidates:
-        cursor.execute("SELECT * FROM users WHERE provider_uid = ? AND provider = ?", (uid, provider))
-        row = cursor.fetchone()
-        if row:
-            return row, uid, (email_candidates[0] if email_candidates else "")
         h12 = f"{provider}_{hashlib.sha256(f'{provider}:{uid}'.encode('utf-8')).hexdigest()[:12]}"
         h14 = f"{provider}_{hashlib.sha256(f'{provider}:{uid}'.encode('utf-8')).hexdigest()[:14]}"
         for id_cand in (h12, h14, uid):
-            cursor.execute("SELECT * FROM users WHERE id = ?", (id_cand,))
-            row = cursor.fetchone()
-            if row:
-                return row, uid, (email_candidates[0] if email_candidates else "")
+            if id_cand not in uid_id_candidates:
+                uid_id_candidates.append(id_cand)
 
+    em_id_candidates: List[str] = []
     for em in email_candidates:
-        cursor.execute("SELECT * FROM users WHERE LOWER(email) = LOWER(?) AND provider = ?", (em, provider))
-        row = cursor.fetchone()
-        if row:
-            return row, (uid_candidates[0] if uid_candidates else ""), em
-        # Also check web oauth_submit deterministic email-based user_id formats
         em_h12 = f"{provider}_{hashlib.sha256(f'{provider}:{em}'.encode('utf-8')).hexdigest()[:12]}"
         em_h14 = f"{provider}_{hashlib.sha256(f'{provider}:{em}'.encode('utf-8')).hexdigest()[:14]}"
         for id_cand in (em_h12, em_h14):
-            cursor.execute("SELECT * FROM users WHERE id = ?", (id_cand,))
-            row = cursor.fetchone()
-            if row:
-                return row, (uid_candidates[0] if uid_candidates else ""), em
+            if id_cand not in em_id_candidates:
+                em_id_candidates.append(id_cand)
+
+    all_ids: List[str] = list(dict.fromkeys(uid_id_candidates + em_id_candidates))
+    conds: List[str] = []
+    params: List[Any] = []
+    if uid_candidates:
+        conds.append(f"(provider = ? AND provider_uid IN ({','.join(['?'] * len(uid_candidates))}))")
+        params.append(provider)
+        params.extend(uid_candidates)
+    if all_ids:
+        conds.append(f"id IN ({','.join(['?'] * len(all_ids))})")
+        params.extend(all_ids)
+    if email_candidates:
+        conds.append(f"(provider = ? AND LOWER(email) IN ({','.join(['?'] * len(email_candidates))}))")
+        params.append(provider)
+        params.extend(email_candidates)
+
+    if conds:
+        cursor.execute(f"SELECT * FROM users WHERE {' OR '.join(conds)}", tuple(params))
+        rows = cursor.fetchall()
+        if rows:
+            for uid in uid_candidates:
+                for r in rows:
+                    if str(r.get("provider") or "") == provider and str(r.get("provider_uid") or "") == uid:
+                        return r, uid, (email_candidates[0] if email_candidates else "")
+            for uid in uid_candidates:
+                h12 = f"{provider}_{hashlib.sha256(f'{provider}:{uid}'.encode('utf-8')).hexdigest()[:12]}"
+                h14 = f"{provider}_{hashlib.sha256(f'{provider}:{uid}'.encode('utf-8')).hexdigest()[:14]}"
+                for id_cand in (h12, h14, uid):
+                    for r in rows:
+                        if str(r.get("id") or "") == id_cand:
+                            return r, uid, (email_candidates[0] if email_candidates else "")
+            for em in email_candidates:
+                for r in rows:
+                    if str(r.get("provider") or "") == provider and str(r.get("email") or "").strip().lower() == em:
+                        return r, (uid_candidates[0] if uid_candidates else ""), em
+            for em in email_candidates:
+                em_h12 = f"{provider}_{hashlib.sha256(f'{provider}:{em}'.encode('utf-8')).hexdigest()[:12]}"
+                em_h14 = f"{provider}_{hashlib.sha256(f'{provider}:{em}'.encode('utf-8')).hexdigest()[:14]}"
+                for id_cand in (em_h12, em_h14):
+                    for r in rows:
+                        if str(r.get("id") or "") == id_cand:
+                            return r, (uid_candidates[0] if uid_candidates else ""), em
 
     return None, (uid_candidates[0] if uid_candidates else ""), (email_candidates[0] if email_candidates else "")
 
@@ -2658,6 +2801,8 @@ def auth_check_account(req: CheckAccountRequest):
     conn = get_db()
     with conn:
         cursor = conn.cursor()
+        if conn.is_pg:
+            cursor.execute("SET LOCAL statement_timeout = '8000'; SET LOCAL lock_timeout = '3000'")
         ensure_cloud_saves_table(cursor, conn.is_pg)
         _ensure_world_reset_epoch(cursor, now)
 
@@ -2678,7 +2823,7 @@ def auth_check_account(req: CheckAccountRequest):
             (token, now, stored_puid, email, user_id)
         )
 
-        cloud_state, cloud_updated_unix, server_village, worlds_meta = _fetch_cloud_and_village_with_worlds(cursor, user_id, display_name, False)
+        cloud_state, cloud_updated_unix, server_village, worlds_meta = _fetch_cloud_and_village_with_worlds(cursor, user_id, display_name, False, existing_d)
         has_village = bool(server_village is not None or _player_has_village_in_world(cloud_state, display_name))
         u_diamonds, u_scrolls = _parse_user_wallet(existing_d)
 
@@ -2721,6 +2866,8 @@ def auth_login(req: AuthLoginRequest):
     conn = get_db()
     with conn:
         cursor = conn.cursor()
+        if conn.is_pg:
+            cursor.execute("SET LOCAL statement_timeout = '8000'; SET LOCAL lock_timeout = '3000'")
         ensure_cloud_saves_table(cursor, conn.is_pg)
         _ensure_world_reset_epoch(cursor, now)
 
@@ -2789,7 +2936,7 @@ def auth_login(req: AuthLoginRequest):
         u_wallet_row = cursor.fetchone()
         u_diamonds, u_scrolls = _parse_user_wallet(u_wallet_row)
 
-        cloud_state, cloud_updated_unix, server_village, worlds_meta = _fetch_cloud_and_village_with_worlds(cursor, user_id, display_name, False)
+        cloud_state, cloud_updated_unix, server_village, worlds_meta = _fetch_cloud_and_village_with_worlds(cursor, user_id, display_name, False, u_wallet_row)
         has_village = bool(server_village is not None or _player_has_village_in_world(cloud_state, display_name))
 
     return {
@@ -2821,10 +2968,12 @@ def get_worlds():
     conn = get_db()
     with conn:
         cursor = conn.cursor()
+        if conn.is_pg:
+            cursor.execute("SET LOCAL statement_timeout = '8000'; SET LOCAL lock_timeout = '3000'")
         ensure_cloud_saves_table(cursor, conn.is_pg)
         _ensure_world_reset_epoch(cursor, now)
         _migrate_legacy_cloud_saves_to_world_states(cursor, now)
-        worlds = _sync_worlds_table_from_states(cursor, now)
+        worlds = _sync_worlds_table_from_states(cursor, now, write_updates=False)
     return {"ok": True, "worlds": worlds}
 
 @app.post("/api/worlds/join")
@@ -2884,16 +3033,23 @@ def join_world(req: JoinWorldRequest, user: Dict[str, Any] = Depends(get_current
         cursor.execute("UPDATE worlds SET registered_players = registered_players + 1 WHERE id = ?", (req.world_id,))
 
         # Karşılama mesajı (Yalnızca 1 kez, ittifak daveti olmadan Konsey tarafından)
-        cursor.execute("""
-            INSERT INTO messages (world_id, from_name, to_name, subject, body, created_unix, is_read)
-            VALUES (?, 'Taht ve Kılıç Konseyi', ?, ?, ?, ?, 0)
-        """, (
-            req.world_id,
-            p_name,
-            f"🛡️ Dünya {req.world_id}'ye Hoş Geldiniz, Sayın Lord",
-            f"Selamlar Sayın {p_name},\n\nDünya {req.world_id} topraklarına hoş geldiniz! 15 günlük fetih korumanız aktif durumdadır. Bu süre zarfında köylerinizi geliştirebilir ve ordunuzu kurabilirsiniz.\n\nKılıcınız keskin, krallığınız daim olsun.\n\nSaygılarımızla,\nTaht ve Kılıç Konseyi",
-            now
-        ))
+        cursor.execute("SELECT subject FROM messages WHERE world_id = ? AND LOWER(to_name) = LOWER(?)", (req.world_id, p_name))
+        existing_msgs = cursor.fetchall()
+        already_welcomed_sql = any(
+            _is_welcome_message({"from": "Taht ve Kılıç Konseyi", "subject": r.get("subject", "")})
+            for r in existing_msgs
+        )
+        if not already_welcomed_sql:
+            cursor.execute("""
+                INSERT INTO messages (world_id, from_name, to_name, subject, body, created_unix, is_read)
+                VALUES (?, 'Taht ve Kılıç Konseyi', ?, ?, ?, ?, 0)
+            """, (
+                req.world_id,
+                p_name,
+                f"🛡️ Dünya {req.world_id}'ye Hoş Geldiniz, Sayın Lord",
+                f"Selamlar Sayın {p_name},\n\nDünya {req.world_id} topraklarına hoş geldiniz! 15 günlük fetih korumanız aktif durumdadır. Bu süre zarfında köylerinizi geliştirebilir ve ordunuzu kurabilirsiniz.\n\nKılıcınız keskin, krallığınız daim olsun.\n\nSaygılarımızla,\nTaht ve Kılıç Konseyi",
+                now
+            ))
 
     return {"ok": True, "village_id": new_vid, "x": spot[0], "y": spot[1]}
 
@@ -2903,6 +3059,8 @@ def get_world_map(world_id: int):
     conn = get_db()
     with conn:
         cursor = conn.cursor()
+        if conn.is_pg:
+            cursor.execute("SET LOCAL statement_timeout = '8000'; SET LOCAL lock_timeout = '3000'")
         ensure_cloud_saves_table(cursor, conn.is_pg)
         _ensure_world_reset_epoch(cursor, now)
         if world_id == 1:
@@ -3153,15 +3311,14 @@ def get_cloud_state(user: Dict[str, Any] = Depends(get_current_user)):
     conn = get_db()
     with conn:
         cursor = conn.cursor()
+        if conn.is_pg:
+            cursor.execute("SET LOCAL statement_timeout = '8000'; SET LOCAL lock_timeout = '3000'")
         ensure_cloud_saves_table(cursor, conn.is_pg)
         _ensure_world_reset_epoch(cursor, now)
-        cloud_state, cloud_updated_unix, server_village = _fetch_cloud_and_village(
-            cursor, user["id"], user["display_name"]
+        cloud_state, cloud_updated_unix, server_village, worlds_meta = _fetch_cloud_and_village_with_worlds(
+            cursor, user["id"], user["display_name"], False, user
         )
-        worlds_meta = _sync_worlds_table_from_states(cursor, now)
-        cursor.execute("SELECT diamonds, scrolls_json FROM users WHERE id = ?", (user["id"],))
-        u_fresh = cursor.fetchone()
-        u_diamonds, u_scrolls = _parse_user_wallet(dict(u_fresh) if u_fresh else user)
+        u_diamonds, u_scrolls = _parse_user_wallet(user)
     if cloud_state is not None:
         return {
             "ok": True,
@@ -3455,6 +3612,8 @@ def store_buy_scroll(req: BuyScrollRequest, user: Dict[str, Any] = Depends(get_c
     conn = get_db()
     with conn:
         cursor = conn.cursor()
+        if conn.is_pg:
+            cursor.execute("SET LOCAL statement_timeout = '8000'; SET LOCAL lock_timeout = '3000'")
         ensure_cloud_saves_table(cursor, conn.is_pg)
         cursor.execute("SELECT diamonds, scrolls_json FROM users WHERE id = ?", (user["id"],))
         u_row = cursor.fetchone()
@@ -3495,6 +3654,8 @@ def store_use_scroll(req: UseScrollRequest, user: Dict[str, Any] = Depends(get_c
     conn = get_db()
     with conn:
         cursor = conn.cursor()
+        if conn.is_pg:
+            cursor.execute("SET LOCAL statement_timeout = '8000'; SET LOCAL lock_timeout = '3000'")
         ensure_cloud_saves_table(cursor, conn.is_pg)
         cursor.execute("SELECT diamonds, scrolls_json FROM users WHERE id = ?", (user["id"],))
         u_row = cursor.fetchone()
@@ -3719,6 +3880,8 @@ def store_verify_iap(req: VerifyIapRequest, user: Dict[str, Any] = Depends(get_c
     conn = get_db()
     with conn:
         cursor = conn.cursor()
+        if conn.is_pg:
+            cursor.execute("SET LOCAL statement_timeout = '8000'; SET LOCAL lock_timeout = '3000'")
         ensure_cloud_saves_table(cursor, conn.is_pg)
         cursor.execute("SELECT transaction_id FROM iap_transactions WHERE transaction_id = ?", (tx_id,))
         existing_tx = cursor.fetchone()
@@ -4190,6 +4353,8 @@ def delete_account(user: Dict[str, Any] = Depends(get_current_user)):
     conn = get_db()
     with conn:
         cursor = conn.cursor()
+        if conn.is_pg:
+            cursor.execute("SET LOCAL statement_timeout = '8000'; SET LOCAL lock_timeout = '3000'")
         ensure_cloud_saves_table(cursor, conn.is_pg)
 
         cursor.execute("DELETE FROM cloud_saves WHERE user_id = ?", (uid,))

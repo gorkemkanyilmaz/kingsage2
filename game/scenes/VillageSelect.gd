@@ -37,6 +37,7 @@ var _name_input: LineEdit
 var _status_lbl: Label
 var _world_buttons: Dictionary = {}
 var _selected_world_id: int = 1
+var _auto_enter_after_login: bool = false
 static var _boot_splash_shown: bool = false
 
 
@@ -101,6 +102,8 @@ func _on_cloud_sync_finished(success: bool, _data: Dictionary) -> void:
 	_update_profile_continue_button()
 	_check_conquered_state()
 	_update_server_status_ui()
+	if _auto_enter_after_login and _is_authenticated() and (center_modal == null or not center_modal.visible):
+		call_deferred("_deferred_enter_existing_world")
 
 
 func _is_authenticated() -> bool:
@@ -152,6 +155,7 @@ func _refresh_auth_state() -> void:
 		_update_profile_continue_button()
 		call_deferred("_check_conquered_state")
 	else:
+		_auto_enter_after_login = false
 		if _profile_bar != null:
 			_profile_bar.hide()
 		if _btn_profile_continue != null:
@@ -440,6 +444,7 @@ func _do_login(provider: String) -> void:
 		auth.authenticate_with_provider(provider, desired_name, self, func(prof: Dictionary):
 			if not bool(prof.get("is_logged_in", false)):
 				return
+			_auto_enter_after_login = true
 			if not bool(prof.get("_server_synced", false)):
 				var canonical_name := str(prof.get("name", desired_name))
 				if canonical_name.is_empty():
@@ -482,6 +487,7 @@ func _deferred_enter_existing_world() -> void:
 		wm.current_world_id = target_wid
 		var is_conq := bool(wm.has_method("is_player_conquered") and wm.is_player_conquered(target_wid, p_name))
 		if not is_conq and wm.enter_world(target_wid, p_name):
+			_auto_enter_after_login = false
 			var co = root.get_node_or_null("ConqueredOverlay") if root != null else null
 			if co != null and is_instance_valid(co):
 				co.queue_free()

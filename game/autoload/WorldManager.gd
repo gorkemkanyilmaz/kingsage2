@@ -481,6 +481,8 @@ func _world_has_player_village_in_dict(w_data: Dictionary, p_name: String) -> bo
 func _world_has_conquest_defeat_in_dict(w_data: Dictionary, p_name: String) -> bool:
 	if w_data.is_empty() or _norm_name(p_name).is_empty():
 		return false
+	if _world_has_player_village_in_dict(w_data, p_name):
+		return false
 	var st: Dictionary = w_data.get("state", {}) if typeof(w_data.get("state")) == TYPE_DICTIONARY else {}
 	var wd: Dictionary = st.get("world", {}) if typeof(st.get("world")) == TYPE_DICTIONARY else {}
 	var profs: Dictionary = wd.get("player_profiles", {}) if typeof(wd.get("player_profiles")) == TYPE_DICTIONARY else {}
@@ -488,13 +490,16 @@ func _world_has_conquest_defeat_in_dict(w_data: Dictionary, p_name: String) -> b
 		if _matches_player(str(pk), p_name) and typeof(profs[pk]) == TYPE_DICTIONARY:
 			var di = (profs[pk] as Dictionary).get("defeated_info", {})
 			if typeof(di) == TYPE_DICTIONARY and not (di as Dictionary).is_empty():
-				return true
+				var c_str := str((di as Dictionary).get("conqueror", "")).strip_edges()
+				if not c_str.is_empty() and not _matches_player(c_str, p_name):
+					return true
 	var reps: Array = st.get("reports", []) if typeof(st.get("reports")) == TYPE_ARRAY else []
 	for r in reps:
 		if typeof(r) != TYPE_DICTIONARY or str((r as Dictionary).get("type", "")) != "battle":
 			continue
 		var data: Dictionary = (r as Dictionary).get("data", {}) if typeof((r as Dictionary).get("data")) == TYPE_DICTIONARY else {}
-		if bool(data.get("conquered", false)) and _matches_player(str(data.get("defender_name", "")), p_name):
+		var atk_s := str(data.get("attacker_name", "")).strip_edges()
+		if bool(data.get("conquered", false)) and _matches_player(str(data.get("defender_name", "")), p_name) and not atk_s.is_empty() and not _matches_player(atk_s, p_name):
 			return true
 	return false
 
@@ -767,7 +772,7 @@ func join_world(world_id: int, player_name: String, target_x: int = 100, target_
 	var msgs: Array = state.get("messages", [])
 	var already_welcomed := false
 	for m in msgs:
-		if typeof(m) == TYPE_DICTIONARY and str(m.get("to", "")) == player_name and str(m.get("subject", "")).contains("Hoş Geldiniz"):
+		if typeof(m) == TYPE_DICTIONARY and _matches_player(str(m.get("to", m.get("to_name", ""))), player_name) and _is_welcome_message_dict(m as Dictionary):
 			already_welcomed = true
 			break
 	if not already_welcomed:
@@ -1072,6 +1077,29 @@ static func _report_sig_str(r: Dictionary) -> String:
 	]
 
 
+static func _norm_static_name(raw_name: String) -> String:
+	var n := raw_name.strip_edges()
+	while n.length() >= 10 and n.substr(0, 10).to_lower() == "lord lord ":
+		n = n.substr(5).strip_edges()
+	return n
+
+
+static func _is_welcome_message_dict(m: Dictionary) -> bool:
+	var subj := str(m.get("subject", "")).strip_edges().to_lower()
+	var frm := str(m.get("from", m.get("from_name", ""))).strip_edges().to_lower()
+	return (subj.contains("hoş geldiniz") or subj.contains("hos geldiniz")) and (frm.contains("konsey") or frm.contains("taht ve kılıç") or frm.contains("taht ve kilic"))
+
+
+static func _message_sig_str(m: Dictionary) -> String:
+	var to_n := _norm_static_name(str(m.get("to", m.get("to_name", "")))).to_lower()
+	if _is_welcome_message_dict(m):
+		return "welcome:" + to_n
+	var from_n := _norm_static_name(str(m.get("from", m.get("from_name", "")))).to_lower()
+	var subj := str(m.get("subject", "")).strip_edges().to_lower()
+	var ts := int(m.get("created_unix", 0))
+	return "%s|%s|%s|%d" % [from_n, to_n, subj, ts]
+
+
 func _merge_string_sig_arrays(a_val, b_val, max_len: int = 400) -> Array:
 	var seen: Dictionary = {}
 	var out: Array = []
@@ -1116,6 +1144,8 @@ func _merge_profile_dicts(base_p: Dictionary, inc_p: Dictionary, prefer_inc_read
 	if i_restart > b_restart and i_restart > 0:
 		var r_out := inc_p.duplicate(true)
 		r_out["deleted_report_sigs"] = _merge_string_sig_arrays(base_p.get("deleted_report_sigs", []), inc_p.get("deleted_report_sigs", []))
+		r_out["deleted_message_sigs"] = _merge_string_sig_arrays(base_p.get("deleted_message_sigs", []), inc_p.get("deleted_message_sigs", []))
+		r_out["read_message_sigs"] = _merge_string_sig_arrays(base_p.get("read_message_sigs", []), inc_p.get("read_message_sigs", []))
 		return r_out
 
 	var out := base_p.duplicate(true)
@@ -1154,6 +1184,8 @@ func _merge_profile_dicts(base_p: Dictionary, inc_p: Dictionary, prefer_inc_read
 			final_unreads.append(str(us2))
 	out["read_report_sigs"] = final_reads
 	out["unread_toggled_sigs"] = final_unreads
+	out["read_message_sigs"] = _merge_string_sig_arrays(base_p.get("read_message_sigs", []), inc_p.get("read_message_sigs", []))
+	out["deleted_message_sigs"] = _merge_string_sig_arrays(base_p.get("deleted_message_sigs", []), inc_p.get("deleted_message_sigs", []))
 	return out
 
 
@@ -1189,6 +1221,51 @@ func _apply_report_sigs_to_state(state_dict: Dictionary, player_name: String) ->
 				rd["unread"] = false
 			kept.append(rd)
 		state_dict["reports"] = kept
+	_apply_message_sigs_to_state(state_dict, player_name)
+
+
+func _apply_message_sigs_to_state(state_dict: Dictionary, player_name: String) -> void:
+	if typeof(state_dict) != TYPE_DICTIONARY:
+		return
+	var p_dict: Dictionary = state_dict.get("player", {}) if typeof(state_dict.get("player")) == TYPE_DICTIONARY else {}
+	var w_dict: Dictionary = state_dict.get("world", {}) if typeof(state_dict.get("world")) == TYPE_DICTIONARY else {}
+	var profs: Dictionary = w_dict.get("player_profiles", {}) if typeof(w_dict.get("player_profiles")) == TYPE_DICTIONARY else {}
+	var match_prof: Dictionary = {}
+	for k in profs.keys():
+		if _matches_player(str(k), player_name) and typeof(profs[k]) == TYPE_DICTIONARY:
+			match_prof = profs[k] as Dictionary
+			break
+	var del_arr := _merge_string_sig_arrays(match_prof.get("deleted_message_sigs", []), p_dict.get("deleted_message_sigs", []))
+	var read_arr := _merge_string_sig_arrays(match_prof.get("read_message_sigs", []), p_dict.get("read_message_sigs", []))
+	var del_set: Dictionary = {}
+	for ds in del_arr:
+		del_set[str(ds)] = true
+	var read_set: Dictionary = {}
+	for rs in read_arr:
+		read_set[str(rs)] = true
+	if typeof(state_dict.get("messages")) == TYPE_ARRAY:
+		var kept: Array = []
+		var seen: Dictionary = {}
+		for m in (state_dict["messages"] as Array):
+			if typeof(m) != TYPE_DICTIONARY:
+				continue
+			var md := (m as Dictionary).duplicate(true)
+			var to_n := str(md.get("to", md.get("to_name", ""))).strip_edges()
+			var from_n := str(md.get("from", md.get("from_name", ""))).strip_edges()
+			var is_own := _matches_player(to_n, player_name) or _matches_player(from_n, player_name)
+			var msig := _message_sig_str(md)
+			if is_own and del_set.has(msig):
+				continue
+			if is_own and read_set.has(msig):
+				md["read"] = true
+			if seen.has(msig):
+				var prev := kept[int(seen[msig])] as Dictionary
+				if bool(md.get("read", false)) or (is_own and read_set.has(msig)):
+					prev["read"] = true
+				continue
+			seen[msig] = kept.size()
+			kept.append(md)
+		state_dict["messages"] = kept
 
 
 ## Oyuncu profilini (tutorial, görevler, altın zırh, seçili köy vb.) dünya haritasına yazar.
@@ -1224,6 +1301,8 @@ func _sync_player_profile_to_world(state_dict: Dictionary) -> void:
 	var p_diamonds := maxi(0, int(p.get("diamonds", 35))) if (p.has("diamonds") and p.get("diamonds") != null) else (maxi(0, int(existing_prof.get("diamonds", 35))) if existing_prof.has("diamonds") and existing_prof.get("diamonds") != null else 35)
 	var read_sigs := _merge_string_sig_arrays(p.get("read_report_sigs", []) if p.has("read_report_sigs") else existing_prof.get("read_report_sigs", []), [])
 	var del_sigs := _merge_string_sig_arrays(existing_prof.get("deleted_report_sigs", []), p.get("deleted_report_sigs", []))
+	var read_msg_sigs := _merge_string_sig_arrays(existing_prof.get("read_message_sigs", []), p.get("read_message_sigs", []))
+	var del_msg_sigs := _merge_string_sig_arrays(existing_prof.get("deleted_message_sigs", []), p.get("deleted_message_sigs", []))
 	var inc_prof := {
 		"name": p_name,
 		"provider": str(p.get("provider", existing_prof.get("provider", ""))),
@@ -1245,6 +1324,8 @@ func _sync_player_profile_to_world(state_dict: Dictionary) -> void:
 		"read_report_sigs": read_sigs,
 		"deleted_report_sigs": del_sigs,
 		"unread_toggled_sigs": _merge_string_sig_arrays(p.get("unread_toggled_sigs", []) if p.has("unread_toggled_sigs") else existing_prof.get("unread_toggled_sigs", []), [], 200),
+		"read_message_sigs": read_msg_sigs,
+		"deleted_message_sigs": del_msg_sigs,
 		"active_village_id": int(state_dict.get("active_village_id", -1)),
 	}
 	var merged_prof := _merge_profile_dicts(existing_prof, inc_prof, p.has("read_report_sigs"))
@@ -1257,6 +1338,8 @@ func _sync_player_profile_to_world(state_dict: Dictionary) -> void:
 	p["read_report_sigs"] = (merged_prof.get("read_report_sigs", []) as Array).duplicate(true)
 	p["deleted_report_sigs"] = (merged_prof.get("deleted_report_sigs", []) as Array).duplicate(true)
 	p["unread_toggled_sigs"] = (merged_prof.get("unread_toggled_sigs", []) as Array).duplicate(true)
+	p["read_message_sigs"] = (merged_prof.get("read_message_sigs", []) as Array).duplicate(true)
+	p["deleted_message_sigs"] = (merged_prof.get("deleted_message_sigs", []) as Array).duplicate(true)
 
 
 ## İlgili oyuncunun profilini dünya haritasından `state_dict["player"]` içine yükler.
@@ -1298,6 +1381,8 @@ func _restore_player_profile_from_world(state_dict: Dictionary, player_name: Str
 		r_diamonds = maxi(0, int(cur_p.get("diamonds", 35)))
 	var r_read_sigs := _merge_string_sig_arrays(found.get("read_report_sigs", []), cur_p.get("read_report_sigs", []) if cur_same else [])
 	var r_del_sigs := _merge_string_sig_arrays(found.get("deleted_report_sigs", []), cur_p.get("deleted_report_sigs", []) if cur_same else [])
+	var r_read_msg_sigs := _merge_string_sig_arrays(found.get("read_message_sigs", []), cur_p.get("read_message_sigs", []) if cur_same else [])
+	var r_del_msg_sigs := _merge_string_sig_arrays(found.get("deleted_message_sigs", []), cur_p.get("deleted_message_sigs", []) if cur_same else [])
 
 	var tut_completed := bool(found.get("tutorial_completed", false)) or (cur_same and bool(cur_p.get("tutorial_completed", false)))
 	var tut_skipped := bool(found.get("tutorial_skipped", false)) or (cur_same and bool(cur_p.get("tutorial_skipped", false)))
@@ -1341,6 +1426,8 @@ func _restore_player_profile_from_world(state_dict: Dictionary, player_name: Str
 		"read_report_sigs": r_read_sigs,
 		"deleted_report_sigs": r_del_sigs,
 		"unread_toggled_sigs": _merge_string_sig_arrays(found.get("unread_toggled_sigs", []), cur_p.get("unread_toggled_sigs", []) if cur_same else [], 200),
+		"read_message_sigs": r_read_msg_sigs,
+		"deleted_message_sigs": r_del_msg_sigs,
 		"premium": false,
 	}
 	state_dict["player"] = restored
@@ -1732,6 +1819,42 @@ func _merge_shared_world_data(local_w: Dictionary, cloud_w: Dictionary, p_name: 
 					comb_reps.append((lr as Dictionary).duplicate(true))
 		m_state["reports"] = comb_reps
 
+	# Yerel ve bulut mesajlarını birleştir, okunma/silinme imzalarını uygula (mükerrer Hoş Geldiniz'leri önle)
+	var m_p_msg_src: Dictionary = m_state.get("player", {}) if typeof(m_state.get("player")) == TYPE_DICTIONARY else {}
+	var l_p_msg_src: Dictionary = l_state.get("player", {}) if typeof(l_state.get("player")) == TYPE_DICTIONARY else {}
+	var merged_msg_read_arr := _merge_string_sig_arrays(m_p_msg_src.get("read_message_sigs", []), l_p_msg_src.get("read_message_sigs", []))
+	var merged_msg_del_arr := _merge_string_sig_arrays(m_p_msg_src.get("deleted_message_sigs", []), l_p_msg_src.get("deleted_message_sigs", []))
+	var msg_read_set: Dictionary = {}
+	for mrs in merged_msg_read_arr:
+		msg_read_set[str(mrs)] = true
+	var msg_del_set: Dictionary = {}
+	for mds in merged_msg_del_arr:
+		msg_del_set[str(mds)] = true
+	var comb_msgs: Array = []
+	var seen_msg_idx: Dictionary = {}
+	var m_msgs_raw: Array = m_state.get("messages", []) if typeof(m_state.get("messages")) == TYPE_ARRAY else []
+	var l_msgs_raw: Array = l_state.get("messages", []) if typeof(l_state.get("messages")) == TYPE_ARRAY else []
+	for src_m in m_msgs_raw + l_msgs_raw:
+		if typeof(src_m) != TYPE_DICTIONARY:
+			continue
+		var mc := (src_m as Dictionary).duplicate(true)
+		var msig := _message_sig_str(mc)
+		var m_to := str(mc.get("to", mc.get("to_name", ""))).strip_edges()
+		var m_from := str(mc.get("from", mc.get("from_name", ""))).strip_edges()
+		var is_own_m := _matches_player(m_to, p_name) or _matches_player(m_from, p_name)
+		if is_own_m and msg_del_set.has(msig):
+			continue
+		if is_own_m and msg_read_set.has(msig):
+			mc["read"] = true
+		if seen_msg_idx.has(msig):
+			var prev_mc := comb_msgs[int(seen_msg_idx[msig])] as Dictionary
+			if bool(mc.get("read", false)) or (is_own_m and msg_read_set.has(msig)):
+				prev_mc["read"] = true
+			continue
+		seen_msg_idx[msig] = comb_msgs.size()
+		comb_msgs.append(mc)
+	m_state["messages"] = comb_msgs
+
 	# Kendi yerel profilimizi koru (monotonik birleştirme ile), diğer profilleri sunucudan tut
 	var m_world: Dictionary = m_state.get("world", {}) if typeof(m_state.get("world")) == TYPE_DICTIONARY else {}
 	var l_world: Dictionary = l_state.get("world", {}) if typeof(l_state.get("world")) == TYPE_DICTIONARY else {}
@@ -1885,6 +2008,8 @@ func _live_sync_game_state_from_world(merged_w: Dictionary, p_name: String) -> v
 			gs.player["quests"] = (merged_live_p["quests"] as Dictionary).duplicate(true)
 			gs.player["read_report_sigs"] = (merged_live_p.get("read_report_sigs", []) as Array).duplicate(true)
 			gs.player["deleted_report_sigs"] = (merged_live_p.get("deleted_report_sigs", []) as Array).duplicate(true)
+			gs.player["read_message_sigs"] = (merged_live_p.get("read_message_sigs", []) as Array).duplicate(true)
+			gs.player["deleted_message_sigs"] = (merged_live_p.get("deleted_message_sigs", []) as Array).duplicate(true)
 
 	var owned_vids: Dictionary = {}
 	for v in gs.villages:
@@ -1913,7 +2038,36 @@ func _live_sync_game_state_from_world(merged_w: Dictionary, p_name: String) -> v
 				merged_queues.append((rq as Dictionary).duplicate(true))
 		gs.queues = merged_queues
 	if typeof(st.get("messages")) == TYPE_ARRAY:
-		gs.messages = (st["messages"] as Array).duplicate(true)
+		var msg_del_sync: Dictionary = {}
+		if typeof(gs.player.get("deleted_message_sigs")) == TYPE_ARRAY:
+			for mds in (gs.player["deleted_message_sigs"] as Array):
+				msg_del_sync[str(mds)] = true
+		var msg_read_sync: Dictionary = {}
+		if typeof(gs.player.get("read_message_sigs")) == TYPE_ARRAY:
+			for mrs in (gs.player["read_message_sigs"] as Array):
+				msg_read_sync[str(mrs)] = true
+		var sync_msgs: Array = []
+		var seen_sync_msgs: Dictionary = {}
+		for mm in (st["messages"] as Array):
+			if typeof(mm) != TYPE_DICTIONARY:
+				continue
+			var mmd := (mm as Dictionary).duplicate(true)
+			var msig := _message_sig_str(mmd)
+			var m_to := str(mmd.get("to", mmd.get("to_name", ""))).strip_edges()
+			var m_from := str(mmd.get("from", mmd.get("from_name", ""))).strip_edges()
+			var is_own := _matches_player(m_to, p_name) or _matches_player(m_from, p_name)
+			if is_own and msg_del_sync.has(msig):
+				continue
+			if is_own and msg_read_sync.has(msig):
+				mmd["read"] = true
+			if seen_sync_msgs.has(msig):
+				var prev_mmd := sync_msgs[int(seen_sync_msgs[msig])] as Dictionary
+				if bool(mmd.get("read", false)) or (is_own and msg_read_sync.has(msig)):
+					prev_mmd["read"] = true
+				continue
+			seen_sync_msgs[msig] = sync_msgs.size()
+			sync_msgs.append(mmd)
+		gs.messages = sync_msgs
 	if typeof(st.get("reports")) == TYPE_ARRAY:
 		var sync_del_set: Dictionary = {}
 		if typeof(gs.player.get("deleted_report_sigs")) == TYPE_ARRAY:
@@ -2412,6 +2566,11 @@ func maybe_show_conquered_modal_for_current_scene(world_id: int = -1, player_nam
 		return false
 
 	if s_name == "VillageSelect" and suppress_auto_conquered_prompt:
+		return false
+
+	if has_player_village(wid, p_name):
+		return false
+	if not is_player_conquered(wid, p_name) and conqueror_name.strip_edges().is_empty():
 		return false
 
 	var def_info := get_last_defeat_info(wid, p_name)

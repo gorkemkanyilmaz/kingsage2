@@ -279,9 +279,33 @@ func _ready() -> void:
 	_init_animated_background()
 
 	var wm_init = Engine.get_main_loop().root.get_node_or_null("WorldManager") if Engine.get_main_loop() is SceneTree else null
-	if wm_init != null and gs_init != null:
+	if wm_init != null and gs_init != null and not gs_init.has_active_village():
 		var p_init := str(gs_init.player.get("name", ""))
-		if (not gs_init.has_active_village() or wm_init.is_player_conquered(wm_init.current_world_id, p_init)) and wm_init.has_method("maybe_show_conquered_modal_for_current_scene"):
+		var auth_init = Engine.get_main_loop().root.get_node_or_null("AuthManager") if Engine.get_main_loop() is SceneTree else null
+		if auth_init != null and not str(auth_init.display_name).is_empty():
+			p_init = str(auth_init.display_name)
+		var recovered_v := false
+		if wm_init.has_method("has_player_village"):
+			var cand_worlds: Array = [wm_init.current_world_id]
+			for wid_i in range(1, 11):
+				if wid_i != wm_init.current_world_id:
+					cand_worlds.append(wid_i)
+			for wid_cand in cand_worlds:
+				if wm_init.has_player_village(int(wid_cand), p_init) and not wm_init.is_player_conquered(int(wid_cand), p_init):
+					if wm_init.enter_world(int(wid_cand), p_init):
+						_rendered_village_id = int(gs_init.active_village_id)
+						refresh_all()
+						_update_queue_ui()
+						recovered_v = true
+						break
+		if not recovered_v:
+			if wm_init.is_player_conquered(wm_init.current_world_id, p_init) and wm_init.has_method("maybe_show_conquered_modal_for_current_scene"):
+				wm_init.call_deferred("maybe_show_conquered_modal_for_current_scene", wm_init.current_world_id, p_init)
+			elif DisplayServer.get_name() != "headless":
+				get_tree().call_deferred("change_scene_to_file", "res://scenes/VillageSelect.tscn")
+	elif wm_init != null and gs_init != null:
+		var p_init := str(gs_init.player.get("name", ""))
+		if wm_init.is_player_conquered(wm_init.current_world_id, p_init) and wm_init.has_method("maybe_show_conquered_modal_for_current_scene"):
 			wm_init.call_deferred("maybe_show_conquered_modal_for_current_scene", wm_init.current_world_id, p_init)
 
 

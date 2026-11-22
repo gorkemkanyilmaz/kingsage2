@@ -67,6 +67,7 @@ static var initial_tab: String = "reports"
 var _current_tab: String = "reports"
 var _report_filter: String = "all"
 var _toolbar: VBoxContainer = null
+var _msg_toolbar: HBoxContainer = null
 var _filter_buttons: Dictionary = {}
 
 
@@ -100,6 +101,7 @@ func _ready() -> void:
 		rbar.resized.connect(_sync_top_bar_layout)
 	_style_detail_panel()
 	_ensure_report_toolbar()
+	_ensure_message_toolbar()
 	_setup_tabs()
 	_setup_composer()
 	var gc_util = Engine.get_main_loop().root.get_node_or_null("GameConfig") if Engine.get_main_loop() is SceneTree else null
@@ -209,10 +211,12 @@ func _select_tab(tab_name: String) -> void:
 
 	if tab_name == "new_message":
 		if _toolbar != null: _toolbar.hide()
+		if _msg_toolbar != null: _msg_toolbar.hide()
 		if scroll_container != null: scroll_container.hide()
 		if composer_panel != null: composer_panel.show()
 	else:
 		if _toolbar != null: _toolbar.visible = (tab_name == "reports")
+		if _msg_toolbar != null: _msg_toolbar.visible = (tab_name == "messages")
 		if scroll_container != null: scroll_container.show()
 		if composer_panel != null: composer_panel.hide()
 		if tab_name == "reports":
@@ -361,12 +365,200 @@ func _on_send_message_pressed() -> void:
 	_select_tab("messages")
 
 
+static func _norm_player_l(raw_name: String) -> String:
+	var n := raw_name.strip_edges()
+	while n.length() >= 10 and n.substr(0, 10).to_lower() == "lord lord ":
+		n = n.substr(5).strip_edges()
+	return n.to_lower()
+
+
+static func _message_sig(m: Dictionary) -> String:
+	var subj := str(m.get("subject", "")).strip_edges().to_lower()
+	var frm := str(m.get("from", m.get("from_name", ""))).strip_edges().to_lower()
+	var to_l := _norm_player_l(str(m.get("to", m.get("to_name", ""))))
+	if (subj.contains("hoş geldiniz") or subj.contains("hos geldiniz")) and (frm.contains("konsey") or frm.contains("taht ve kılıç") or frm.contains("taht ve kilic")):
+		return "welcome:" + to_l
+	var from_l := _norm_player_l(frm)
+	return "%s|%s|%s|%d" % [from_l, to_l, subj, int(m.get("created_unix", 0))]
+
+
+func _ensure_message_toolbar() -> void:
+	if _msg_toolbar != null:
+		return
+	var main_vb := find_child("MainVBox", true, false) as VBoxContainer
+	if main_vb == null:
+		return
+	_msg_toolbar = HBoxContainer.new()
+	_msg_toolbar.name = "MessageToolbar"
+	_msg_toolbar.add_theme_constant_override("separation", 10)
+	_msg_toolbar.visible = false
+	main_vb.add_child(_msg_toolbar)
+	var scroll_idx := scroll_container.get_index() if scroll_container != null else main_vb.get_child_count()
+	main_vb.move_child(_msg_toolbar, clampi(scroll_idx, 0, main_vb.get_child_count() - 1))
+
+	var mark_msg_btn := Button.new()
+	mark_msg_btn.name = "BtnMarkAllMessagesRead"
+	mark_msg_btn.text = "✓ Tümünü Okundu İşaretle"
+	mark_msg_btn.custom_minimum_size = Vector2(0, 42)
+	mark_msg_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	mark_msg_btn.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	mark_msg_btn.add_theme_font_override("font", FontNunitoBold)
+	mark_msg_btn.add_theme_font_size_override("font_size", 22)
+	var mm_sb := StyleBoxFlat.new()
+	mm_sb.bg_color = Color(0.13, 0.25, 0.17, 0.96)
+	mm_sb.border_color = Color(0.45, 0.85, 0.52, 0.85)
+	mm_sb.set_border_width_all(1)
+	mm_sb.set_corner_radius_all(10)
+	mark_msg_btn.add_theme_stylebox_override("normal", mm_sb)
+	mark_msg_btn.add_theme_stylebox_override("hover", mm_sb)
+	mark_msg_btn.add_theme_color_override("font_color", Color(0.84, 0.98, 0.86))
+	mark_msg_btn.pressed.connect(_mark_all_messages_read)
+	_msg_toolbar.add_child(mark_msg_btn)
+
+	var del_read_msg_btn := Button.new()
+	del_read_msg_btn.name = "BtnDeleteReadMessages"
+	del_read_msg_btn.text = "🗑️ Okunanları Sil"
+	del_read_msg_btn.custom_minimum_size = Vector2(0, 42)
+	del_read_msg_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	del_read_msg_btn.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	del_read_msg_btn.add_theme_font_override("font", FontNunitoBold)
+	del_read_msg_btn.add_theme_font_size_override("font_size", 22)
+	var dm_sb := StyleBoxFlat.new()
+	dm_sb.bg_color = Color(0.28, 0.12, 0.14, 0.96)
+	dm_sb.border_color = Color(0.86, 0.40, 0.36, 0.85)
+	dm_sb.set_border_width_all(1)
+	dm_sb.set_corner_radius_all(10)
+	del_read_msg_btn.add_theme_stylebox_override("normal", dm_sb)
+	del_read_msg_btn.add_theme_stylebox_override("hover", dm_sb)
+	del_read_msg_btn.add_theme_color_override("font_color", Color(1.0, 0.86, 0.84))
+	del_read_msg_btn.pressed.connect(_delete_read_messages)
+	_msg_toolbar.add_child(del_read_msg_btn)
+
+
+func _set_message_read(msg: Dictionary, make_read: bool = true, should_persist: bool = true) -> void:
+	var gs: Node = Engine.get_main_loop().root.get_node_or_null("GameState") if Engine.get_main_loop() is SceneTree else null
+	var sig := _message_sig(msg)
+	msg["read"] = make_read
+	if gs != null and "messages" in gs and typeof(gs.messages) == TYPE_ARRAY:
+		for item in (gs.messages as Array):
+			if typeof(item) == TYPE_DICTIONARY and _message_sig(item as Dictionary) == sig:
+				(item as Dictionary)["read"] = make_read
+	_update_sig_list(gs, "read_message_sigs", sig, make_read)
+	if should_persist:
+		_persist_report_changes()
+
+
+func _delete_message(msg: Dictionary) -> void:
+	var gs: Node = Engine.get_main_loop().root.get_node_or_null("GameState") if Engine.get_main_loop() is SceneTree else null
+	var sig := _message_sig(msg)
+	_update_sig_list(gs, "deleted_message_sigs", sig, true)
+	if gs != null and "messages" in gs and typeof(gs.messages) == TYPE_ARRAY:
+		var kept: Array = []
+		for item in (gs.messages as Array):
+			if typeof(item) == TYPE_DICTIONARY and _message_sig(item as Dictionary) == sig:
+				continue
+			kept.append(item)
+		gs.messages = kept
+	if detail_panel != null and detail_panel.visible:
+		detail_panel.hide()
+	_persist_report_changes()
+	_populate_messages()
+
+
+func _mark_all_messages_read() -> void:
+	var gs: Node = Engine.get_main_loop().root.get_node_or_null("GameState") if Engine.get_main_loop() is SceneTree else null
+	if gs == null or not ("messages" in gs):
+		return
+	var pname_l := _norm_player_l(str(gs.player.get("name", "Kral")))
+	var del_sigs := _get_sig_set(gs, "deleted_message_sigs")
+	for item in gs.messages:
+		if typeof(item) != TYPE_DICTIONARY:
+			continue
+		var m := item as Dictionary
+		var to_l := _norm_player_l(str(m.get("to", m.get("to_name", ""))))
+		var from_l := _norm_player_l(str(m.get("from", m.get("from_name", ""))))
+		if to_l != pname_l and from_l != pname_l:
+			continue
+		var sig := _message_sig(m)
+		if del_sigs.has(sig):
+			continue
+		m["read"] = true
+		_update_sig_list(gs, "read_message_sigs", sig, true)
+	_persist_report_changes()
+	_populate_messages()
+
+
+func _delete_read_messages() -> void:
+	var gs: Node = Engine.get_main_loop().root.get_node_or_null("GameState") if Engine.get_main_loop() is SceneTree else null
+	if gs == null or not ("messages" in gs):
+		return
+	var pname_l := _norm_player_l(str(gs.player.get("name", "Kral")))
+	var read_sigs := _get_sig_set(gs, "read_message_sigs")
+	var kept: Array = []
+	for item in gs.messages:
+		if typeof(item) != TYPE_DICTIONARY:
+			continue
+		var m := item as Dictionary
+		var to_l := _norm_player_l(str(m.get("to", m.get("to_name", ""))))
+		var from_l := _norm_player_l(str(m.get("from", m.get("from_name", ""))))
+		if to_l != pname_l and from_l != pname_l:
+			kept.append(m)
+			continue
+		var sig := _message_sig(m)
+		var is_read := bool(m.get("read", false)) or read_sigs.has(sig) or (from_l == pname_l and to_l != pname_l)
+		if is_read:
+			_update_sig_list(gs, "deleted_message_sigs", sig, true)
+		else:
+			kept.append(m)
+	gs.messages = kept
+	if detail_panel != null and detail_panel.visible:
+		detail_panel.hide()
+	_persist_report_changes()
+	_populate_messages()
+
+
+func _make_message_card(msg: Dictionary, icon_path: String, title: String, subtitle: String, accent: Color, is_read: bool, is_outgoing: bool) -> PanelContainer:
+	var card := _make_card(icon_path, title, subtitle, accent, func(): _show_message_detail(msg))
+	var row := card.get_child(0) as HBoxContainer
+	if row == null:
+		return card
+
+	if not is_read and not is_outgoing:
+		var sb := (card.get_theme_stylebox("panel") as StyleBoxFlat).duplicate() as StyleBoxFlat
+		sb.bg_color = Color(0.15, 0.13, 0.21, 0.99)
+		sb.border_color = Color(0.98, 0.80, 0.36, 1.0)
+		sb.border_width_left = 12
+		card.add_theme_stylebox_override("panel", sb)
+
+	var del_btn := Button.new()
+	del_btn.name = "BtnDeleteMessage"
+	del_btn.text = "🗑️"
+	del_btn.tooltip_text = "Mektubu Sil"
+	del_btn.custom_minimum_size = Vector2(46, 46)
+	del_btn.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	del_btn.mouse_filter = Control.MOUSE_FILTER_STOP
+	del_btn.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	del_btn.add_theme_font_size_override("font_size", 21)
+	var dsb := StyleBoxFlat.new()
+	dsb.bg_color = Color(0.32, 0.12, 0.14, 0.96)
+	dsb.border_color = Color(0.86, 0.38, 0.36, 0.90)
+	dsb.set_border_width_all(1)
+	dsb.set_corner_radius_all(10)
+	del_btn.add_theme_stylebox_override("normal", dsb)
+	del_btn.add_theme_stylebox_override("hover", dsb)
+	del_btn.add_theme_color_override("font_color", Color(1.0, 0.84, 0.82))
+	del_btn.pressed.connect(func(): _delete_message(msg))
+	row.add_child(del_btn)
+	return card
+
+
 func _populate_messages() -> void:
 	_ensure_nodes()
 	if report_list == null:
 		return
 
 	for child in report_list.get_children():
+		report_list.remove_child(child)
 		child.queue_free()
 
 	var gs = Engine.get_main_loop().root.get_node_or_null("GameState") if Engine.get_main_loop() is SceneTree else null
@@ -374,17 +566,35 @@ func _populate_messages() -> void:
 		return
 
 	var player_name := str(gs.player.get("name", "Kral"))
+	var pname_l := _norm_player_l(player_name)
+	var del_sigs := _get_sig_set(gs, "deleted_message_sigs")
+	var read_sigs := _get_sig_set(gs, "read_message_sigs")
 	var msgs: Array = gs.messages
 	var player_msgs: Array = []
+	var seen_idx: Dictionary = {}
 	for item in msgs:
 		if typeof(item) != TYPE_DICTIONARY:
 			continue
 		var m := item as Dictionary
-		var to_user := str(m.get("to", ""))
-		var from_user := str(m.get("from", ""))
+		var to_user := str(m.get("to", m.get("to_name", ""))).strip_edges()
+		var from_user := str(m.get("from", m.get("from_name", ""))).strip_edges()
+		var to_l := _norm_player_l(to_user)
+		var from_l := _norm_player_l(from_user)
 		# Sadece bu kullanıcıya gelen veya bu kullanıcının yazdığı mektuplar gösterilmeli
-		if to_user == player_name or from_user == player_name:
-			player_msgs.append(m)
+		if to_l != pname_l and from_l != pname_l:
+			continue
+		var sig := _message_sig(m)
+		if del_sigs.has(sig):
+			continue
+		if read_sigs.has(sig):
+			m["read"] = true
+		if seen_idx.has(sig):
+			var prev_m := player_msgs[int(seen_idx[sig])] as Dictionary
+			if bool(m.get("read", false)) or read_sigs.has(sig):
+				prev_m["read"] = true
+			continue
+		seen_idx[sig] = player_msgs.size()
+		player_msgs.append(m)
 
 	if player_msgs.is_empty():
 		report_list.add_child(_make_empty_messages_state())
@@ -392,14 +602,14 @@ func _populate_messages() -> void:
 
 	for i in range(player_msgs.size() - 1, -1, -1):
 		var m := player_msgs[i] as Dictionary
-		var from_user := str(m.get("from", "Bilinmeyen"))
-		var to_user := str(m.get("to", ""))
+		var from_user := str(m.get("from", m.get("from_name", "Bilinmeyen")))
+		var to_user := str(m.get("to", m.get("to_name", "")))
 		var subj := str(m.get("subject", "Konusuz"))
-		var is_read := bool(m.get("read", false))
+		var is_read := bool(m.get("read", false)) or read_sigs.has(_message_sig(m))
 		var dt := Time.get_datetime_string_from_unix_time(int(m.get("created_unix", 0)))
 
 		var icon := ICON_TRADE
-		var is_outgoing := (from_user == player_name and to_user != player_name)
+		var is_outgoing := (_norm_player_l(from_user) == pname_l and _norm_player_l(to_user) != pname_l)
 		var title := ""
 		if is_outgoing:
 			title = " Kime: %s | %s" % [to_user, subj]
@@ -412,7 +622,7 @@ func _populate_messages() -> void:
 
 		var subtitle := "Tarih: %s   |   Alıcı: %s" % [dt, to_user]
 		var accent := Color(0.95, 0.85, 0.40) if (not is_read and not is_outgoing) else Color(0.60, 0.55, 0.50)
-		report_list.add_child(_make_card(icon, title, subtitle, accent, func(): _show_message_detail(m)))
+		report_list.add_child(_make_message_card(m, icon, title, subtitle, accent, is_read, is_outgoing))
 
 
 func _make_empty_messages_state() -> Control:
@@ -438,12 +648,12 @@ func _make_empty_messages_state() -> Control:
 
 
 func _show_message_detail(msg: Dictionary) -> void:
-	msg["read"] = true
-	var eb = Engine.get_main_loop().root.get_node_or_null("EventBus") if Engine.get_main_loop() is SceneTree else null
-	if eb != null and eb.has_signal("state_changed"):
-		eb.state_changed.emit()
+	_set_message_read(msg, true, true)
+	if _current_tab == "messages":
+		_populate_messages()
 
 	for child in content_box.get_children():
+		content_box.remove_child(child)
 		child.queue_free()
 
 	detail_text.visible = false
@@ -475,8 +685,8 @@ func _show_message_detail(msg: Dictionary) -> void:
 	var meta_lbl := Label.new()
 	var dt := Time.get_datetime_string_from_unix_time(int(msg.get("created_unix", 0)))
 	meta_lbl.text = "Gönderen: %s   |   Alıcı: %s   |   Tarih: %s" % [
-		str(msg.get("from", "")),
-		str(msg.get("to", "")),
+		str(msg.get("from", msg.get("from_name", ""))),
+		str(msg.get("to", msg.get("to_name", ""))),
 		dt
 	]
 	meta_lbl.add_theme_font_override("font", FontNunitoBold)
@@ -494,12 +704,17 @@ func _show_message_detail(msg: Dictionary) -> void:
 	body_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	mc_vbox.add_child(body_lbl)
 
+	var btn_row := HBoxContainer.new()
+	btn_row.add_theme_constant_override("separation", 12)
+	mc_vbox.add_child(btn_row)
+
 	# Yanıtla butonu
-	var from_user := str(msg.get("from", ""))
+	var from_user := str(msg.get("from", msg.get("from_name", "")))
 	var cur_subj := str(msg.get("subject", ""))
 	var reply_btn := Button.new()
 	reply_btn.text = " Bu Mektubu Yanıtla"
 	reply_btn.custom_minimum_size = Vector2(0, 52)
+	reply_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	reply_btn.add_theme_font_override("font", FontNunitoBold)
 	reply_btn.add_theme_font_size_override("font_size", 24)
 	var r_sb := StyleBoxFlat.new()
@@ -518,7 +733,24 @@ func _show_message_detail(msg: Dictionary) -> void:
 			body_input.text = ""
 			body_input.grab_focus()
 	)
-	mc_vbox.add_child(reply_btn)
+	btn_row.add_child(reply_btn)
+
+	# Sil butonu
+	var del_msg_btn := Button.new()
+	del_msg_btn.name = "BtnDeleteMessageDetail"
+	del_msg_btn.text = "🗑️ Bu Mektubu Sil"
+	del_msg_btn.custom_minimum_size = Vector2(210, 52)
+	del_msg_btn.add_theme_font_override("font", FontNunitoBold)
+	del_msg_btn.add_theme_font_size_override("font_size", 23)
+	var dd_sb := StyleBoxFlat.new()
+	dd_sb.bg_color = Color(0.36, 0.13, 0.14, 0.96)
+	dd_sb.border_color = Color(0.88, 0.36, 0.34, 0.92)
+	dd_sb.set_border_width_all(2)
+	dd_sb.set_corner_radius_all(12)
+	del_msg_btn.add_theme_stylebox_override("normal", dd_sb)
+	del_msg_btn.add_theme_color_override("font_color", Color(1.0, 0.88, 0.86))
+	del_msg_btn.pressed.connect(func(): _delete_message(msg))
+	btn_row.add_child(del_msg_btn)
 
 	detail_panel.show()
 
@@ -708,13 +940,15 @@ func _persist_report_changes() -> void:
 	if not (loop is SceneTree) or (loop as SceneTree).root == null:
 		return
 	var root := (loop as SceneTree).root
+	var wm := root.get_node_or_null("WorldManager")
+	if wm != null and wm.has_method("notify_local_mutation"):
+		wm.call("notify_local_mutation")
 	var eb := root.get_node_or_null("EventBus")
 	if eb != null and eb.has_signal("state_changed"):
 		eb.state_changed.emit()
 	var sm := root.get_node_or_null("SaveManager")
 	if sm != null and sm.has_method("save_game"):
 		sm.call("save_game")
-	var wm := root.get_node_or_null("WorldManager")
 	if wm != null and wm.has_method("save_active_world"):
 		wm.call("save_active_world", true)
 

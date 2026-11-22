@@ -49,6 +49,32 @@ func _read_raw_save_json() -> String:
 
 # --- Sorgu ------------------------------------------------------------------
 
+func _raw_save_has_player_village(player_name: String) -> bool:
+	var raw := _read_raw_save_json()
+	if raw.is_empty():
+		return false
+	var parsed = JSON.parse_string(raw)
+	if typeof(parsed) != TYPE_DICTIONARY:
+		return false
+	var st: Variant = (parsed as Dictionary).get("state", {})
+	if typeof(st) != TYPE_DICTIONARY:
+		return false
+	var vills: Variant = (st as Dictionary).get("villages", [])
+	if typeof(vills) != TYPE_ARRAY:
+		return false
+	var target_l := player_name.strip_edges().to_lower()
+	for v in (vills as Array):
+		if typeof(v) != TYPE_DICTIONARY:
+			continue
+		var vd := v as Dictionary
+		if bool(vd.get("is_bot", false)) or bool(vd.get("is_barbarian", false)):
+			continue
+		var ow_l := str(vd.get("owner", "")).strip_edges().to_lower()
+		if not target_l.is_empty() and ow_l == target_l:
+			return true
+	return false
+
+
 func has_save() -> bool:
 	var loop = Engine.get_main_loop()
 	if loop is SceneTree:
@@ -59,6 +85,7 @@ func has_save() -> bool:
 				return true
 			if wm.is_player_conquered(wm.current_world_id, auth.display_name):
 				return false
+			return _raw_save_has_player_village(auth.display_name)
 	return not _read_raw_save_json().is_empty()
 
 
@@ -212,6 +239,19 @@ func load_game() -> bool:
 			if typeof(v) == TYPE_DICTIONARY and (not bool(v.get("is_bot", true)) and not bool(v.get("is_barbarian", false))):
 				if str(v.get("owner", "")) == "Kral" or str(v.get("owner", "")).is_empty():
 					v["owner"] = p_name
+		if not gs.has_active_village():
+			var p_low := p_name.strip_edges().to_lower()
+			for v in gs.villages:
+				if typeof(v) != TYPE_DICTIONARY:
+					continue
+				var vd := v as Dictionary
+				if bool(vd.get("is_bot", false)) or bool(vd.get("is_barbarian", false)):
+					continue
+				if str(vd.get("owner", "")).strip_edges().to_lower() == p_low:
+					gs.active_village_id = int(vd.get("id", -1))
+					break
+		if not gs.has_active_village():
+			return false
 		if cfg != null and gs.world.has("starter_boost_until_unix") and cfg.has_method("sync_from_world"):
 			cfg.sync_from_world(gs.world, loaded_now)
 		var saved_unix := int(parsed.get("savedAtUnix", 0))

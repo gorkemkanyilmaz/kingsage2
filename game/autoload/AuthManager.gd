@@ -121,10 +121,9 @@ func logout() -> void:
 		var wm = loop.root.get_node_or_null("WorldManager")
 		var gs_pre = loop.root.get_node_or_null("GameState")
 		if is_logged_in and wm != null and gs_pre != null and gs_pre.has_active_village():
-			if wm.has_method("notify_local_mutation"):
-				wm.call("notify_local_mutation")
+			var has_unsaved_cloud := int(wm.get("_last_local_mutation_unix")) > int(wm.get("_last_cloud_save_unix"))
 			if wm.has_method("save_active_world"):
-				wm.save_active_world(true)
+				wm.save_active_world(has_unsaved_cloud)
 		var sm_pre = loop.root.get_node_or_null("SaveManager")
 		if is_logged_in and gs_pre != null and gs_pre.has_active_village() and sm_pre != null and sm_pre.has_method("save_game"):
 			sm_pre.save_game()
@@ -765,15 +764,37 @@ func _handle_verified_identity(prov: String, raw_email: String, raw_uid: String,
 			if not success:
 				# Sunucu doğrulanamadıysa kullanıcıyı yeni oyuncu gibi isim ekranına atma!
 				var cached := _lookup_known_account(clean_prov, clean_uid, clean_email)
-				if not cached.is_empty() and not str(cached.get("display_name", "")).is_empty():
-					_dismiss_auth_sheet()
-					var prof_c := complete_external_login(clean_prov, str(cached.get("display_name", "")), str(cached.get("email", clean_email)), clean_uid)
-					if not str(cached.get("user_id", "")).is_empty():
-						user_id = str(cached.get("user_id"))
-						save_session()
-					prof_c["_server_synced"] = false
-					if on_complete.is_valid():
-						on_complete.call(prof_c)
+				var cached_name := str(cached.get("display_name", "")).strip_edges() if not cached.is_empty() else ""
+				if not cached_name.is_empty():
+					var wm_chk = loop.root.get_node_or_null("WorldManager") if loop is SceneTree else null
+					var has_local_v := false
+					if wm_chk != null and wm_chk.has_method("has_player_village"):
+						for wid_c in range(1, 11):
+							if wm_chk.has_player_village(wid_c, cached_name):
+								has_local_v = true
+								break
+					if has_local_v:
+						_dismiss_auth_sheet()
+						var prof_c := complete_external_login(clean_prov, cached_name, str(cached.get("email", clean_email)), clean_uid)
+						if not str(cached.get("user_id", "")).is_empty():
+							user_id = str(cached.get("user_id"))
+							save_session()
+						prof_c["_server_synced"] = false
+						if on_complete.is_valid():
+							on_complete.call(prof_c)
+						return
+					if _auth_status_lbl != null and is_instance_valid(_auth_status_lbl):
+						_auth_status_lbl.text = "Sunucu ile yeniden bağlanılıyor..."
+					net.login_online(clean_prov, cached_name, func(l_ok2: bool, _l_data2: Dictionary):
+						if l_ok2:
+							_dismiss_auth_sheet()
+							var prof_l := get_profile()
+							prof_l["_server_synced"] = true
+							if on_complete.is_valid():
+								on_complete.call(prof_l)
+						else:
+							_show_account_check_retry_sheet(clean_prov, clean_email, clean_uid, parent_node, on_complete, identity_token)
+					, 0, str(cached.get("email", clean_email)), clean_uid)
 					return
 				_show_account_check_retry_sheet(clean_prov, clean_email, clean_uid, parent_node, on_complete, identity_token)
 				return

@@ -145,6 +145,23 @@ func _update_report_badge() -> void:
 			badge_label.text = str(unread) if unread <= 99 else "99+"
 
 
+func _norm_player_lower(raw_name: String) -> String:
+	var n := raw_name.strip_edges()
+	while n.length() >= 10 and n.substr(0, 10).to_lower() == "lord lord ":
+		n = n.substr(5).strip_edges()
+	return n.to_lower()
+
+
+func _msg_sig_str(m: Dictionary) -> String:
+	var subj := str(m.get("subject", "")).strip_edges().to_lower()
+	var frm := str(m.get("from", m.get("from_name", ""))).strip_edges().to_lower()
+	var to_l := _norm_player_lower(str(m.get("to", m.get("to_name", ""))))
+	if (subj.contains("hoş geldiniz") or subj.contains("hos geldiniz")) and (frm.contains("konsey") or frm.contains("taht ve kılıç") or frm.contains("taht ve kilic")):
+		return "welcome:" + to_l
+	var from_l := _norm_player_lower(frm)
+	return "%s|%s|%s|%d" % [from_l, to_l, subj, int(m.get("created_unix", 0))]
+
+
 func _update_message_badge() -> void:
 	if message_badge == null:
 		message_badge = get_node_or_null("HBox/BtnMessages/MessageBadge")
@@ -157,14 +174,41 @@ func _update_message_badge() -> void:
 			message_badge.visible = false
 		return
 
-	var player_name := str(gs.player.get("name", "Kral"))
-	var unread_msg := 0
+	var pname_l := _norm_player_lower(str(gs.player.get("name", "Kral")))
+	var del_sigs := {}
+	var read_sigs := {}
+	if typeof(gs.player) == TYPE_DICTIONARY:
+		var p_dict: Dictionary = gs.player
+		if typeof(p_dict.get("deleted_message_sigs")) == TYPE_ARRAY:
+			for s in (p_dict["deleted_message_sigs"] as Array):
+				del_sigs[str(s)] = true
+		if typeof(p_dict.get("read_message_sigs")) == TYPE_ARRAY:
+			for s in (p_dict["read_message_sigs"] as Array):
+				read_sigs[str(s)] = true
+
+	var msg_read_by_sig := {}
+	var msg_unread_by_sig := {}
 	if "messages" in gs and gs.messages is Array:
 		for msg in gs.messages:
-			if typeof(msg) == TYPE_DICTIONARY:
-				var m := msg as Dictionary
-				if str(m.get("to", "")) == player_name and not bool(m.get("read", true)):
-					unread_msg += 1
+			if typeof(msg) != TYPE_DICTIONARY:
+				continue
+			var m := msg as Dictionary
+			var to_l := _norm_player_lower(str(m.get("to", m.get("to_name", ""))))
+			if to_l != pname_l:
+				continue
+			var sig := _msg_sig_str(m)
+			if del_sigs.has(sig) or read_sigs.has(sig):
+				msg_read_by_sig[sig] = true
+				continue
+			if bool(m.get("read", true)):
+				msg_read_by_sig[sig] = true
+			else:
+				msg_unread_by_sig[sig] = true
+
+	var unread_msg := 0
+	for sig in msg_unread_by_sig.keys():
+		if not msg_read_by_sig.has(sig):
+			unread_msg += 1
 
 	if message_badge != null:
 		message_badge.visible = (unread_msg > 0)
