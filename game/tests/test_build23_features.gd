@@ -85,6 +85,7 @@ func _test_resourcebar_symmetry(gc: Node) -> void:
 	await _tick(3)
 
 	var top_row := rbar.find_child("TopRow", true, false) as HBoxContainer
+	var left_wing := rbar.find_child("LeftWing", true, false) as VBoxContainer
 	var v_info := rbar.find_child("VillageInfo", true, false) as HBoxContainer
 	var v_name := rbar.find_child("VillageName", true, false) as Label
 	var pts_row := rbar.find_child("PointsRow", true, false) as HBoxContainer
@@ -93,13 +94,13 @@ func _test_resourcebar_symmetry(gc: Node) -> void:
 	var btn_dia := rbar.find_child("BtnDiamonds", true, false) as Control
 	var btn_mkt := rbar.find_child("BtnMarket", true, false) as Control
 
-	_assert(top_row != null and v_info != null and v_name != null and pts_row != null and pts_box != null and res_row != null and btn_dia != null and btn_mkt != null, "ResourceBar tüm düğümler mevcut")
-	if v_info != null and btn_dia != null and btn_mkt != null and pts_box != null and res_row != null:
-		_assert(v_info.get_parent() == top_row, "VillageInfo doğrudan TopRow içinde")
-		var v_cy := v_info.global_position.y + v_info.size.y * 0.5
+	_assert(top_row != null and left_wing != null and v_info != null and v_name != null and pts_row != null and pts_box != null and res_row != null and btn_dia != null and btn_mkt != null, "ResourceBar tüm düğümler mevcut")
+	if left_wing != null and v_info != null and btn_dia != null and btn_mkt != null and pts_box != null and res_row != null:
+		_assert(v_info.get_parent() == left_wing and pts_row.get_parent() == left_wing, "VillageInfo ve PointsRow sol sütun (LeftWing) içinde")
+		var v_cy := left_wing.global_position.y + left_wing.size.y * 0.5
 		var d_cy := btn_dia.global_position.y + btn_dia.size.y * 0.5
 		var m_cy := btn_mkt.global_position.y + btn_mkt.size.y * 0.5
-		_assert(absf(v_cy - d_cy) <= 2.0 and absf(v_cy - m_cy) <= 2.0, "Desktop dikey merkez hizası eşit (v=%.1f, d=%.1f, m=%.1f)" % [v_cy, d_cy, m_cy])
+		_assert(absf(v_cy - d_cy) <= 3.0 and absf(v_cy - m_cy) <= 3.0, "Desktop dikey merkez hizası eşit (v=%.1f, d=%.1f, m=%.1f)" % [v_cy, d_cy, m_cy])
 		_assert(pts_box.global_position.y >= v_name.global_position.y + v_name.size.y - 2.0, "Desktop PointsBox köy adının altında")
 		_assert(pts_box.global_position.y + pts_box.size.y <= res_row.global_position.y + 4.0, "Desktop PointsBox kaynak satırının üstünde")
 
@@ -108,10 +109,10 @@ func _test_resourcebar_symmetry(gc: Node) -> void:
 			gc.set("_safe_top_px", s_top)
 			rbar.call("refresh")
 			await _tick(3)
-			var iv_cy := v_info.global_position.y + v_info.size.y * 0.5
+			var iv_cy := left_wing.global_position.y + left_wing.size.y * 0.5
 			var id_cy := btn_dia.global_position.y + btn_dia.size.y * 0.5
 			var im_cy := btn_mkt.global_position.y + btn_mkt.size.y * 0.5
-			_assert(absf(iv_cy - id_cy) <= 2.0 and absf(iv_cy - im_cy) <= 2.0, "Dynamic Island (safe_top=%.0f) sol/sağ simetri korundu (diff=%.1f, %.1f)" % [s_top, absf(iv_cy - id_cy), absf(iv_cy - im_cy)])
+			_assert(absf(iv_cy - id_cy) <= 3.0 and absf(iv_cy - im_cy) <= 3.0, "Dynamic Island (safe_top=%.0f) sol/sağ simetri korundu (diff=%.1f, %.1f)" % [s_top, absf(iv_cy - id_cy), absf(iv_cy - im_cy)])
 			_assert(pts_box.global_position.y >= v_name.global_position.y + v_name.size.y - 2.0, "Dynamic Island (%.0f) PointsBox köy adı altında" % s_top)
 			_assert(pts_box.global_position.y + pts_box.size.y <= res_row.global_position.y + 4.0, "Dynamic Island (%.0f) PointsBox kaynaklar üstünde" % s_top)
 

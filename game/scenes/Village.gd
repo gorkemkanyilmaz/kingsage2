@@ -78,7 +78,7 @@ const BUILDING_CONFIG := {
 	},
 	"iron": {
 		"size": Vector2(150, 306),
-		"badge": Vector2(40, 20),
+		"badge": Vector2(26, 20),
 		"polygon": [Vector2(2, 0), Vector2(150, 2), Vector2(148, 306), Vector2(0, 304)]
 	},
 	"storage": {
@@ -254,10 +254,12 @@ func _ready() -> void:
 	_setup_overscan_bg()
 	_ensure_attack_alarm_ui()
 
-	# Arka plan ve binalar dinamik ResourceBar altından başlar
+	# Arka plan ve binalar dinamik ResourceBar altından başlar; yatayda en sola (sağ kenar tam görünür) kenetlenir
 	_sync_top_bar_layout()
 	if village_area != null:
-		village_area.position = Vector2(0.0, _get_top_bar_height())
+		var init_vp := _get_view_size()
+		var init_eff := _effective_zoom()
+		village_area.position = Vector2(_get_locked_x(init_vp, Vector2(1080.0, 1920.0) * init_eff), _get_top_bar_height())
 		_clamp_village_area()
 		var vp := get_viewport()
 		if vp != null and not vp.size_changed.is_connected(_on_layout_resized):
@@ -1508,10 +1510,17 @@ func _effective_zoom() -> float:
 	return _get_base_scale(_get_view_size()) * _current_zoom
 
 
+func _get_locked_x(vp_size: Vector2, scaled_size: Vector2) -> float:
+	if scaled_size.x <= vp_size.x + 1.0:
+		return (vp_size.x - scaled_size.x) * 0.5
+	return vp_size.x - scaled_size.x
+
+
 func _pan_by(rel: Vector2) -> void:
 	if village_area == null:
 		return
-	village_area.position += rel
+	# Sağa/sola yatay kaydırma devre dışı — yalnızca dikey (yukarı/aşağı) kaydırma yapılır.
+	village_area.position.y += rel.y
 	_clamp_village_area()
 
 
@@ -1539,16 +1548,6 @@ func _clamp_village_area() -> void:
 	var scaled_size := Vector2(1080.0, 1920.0) * eff
 	village_area.scale = Vector2(eff, eff)
 
-	var min_x: float
-	var max_x: float
-	if scaled_size.x <= vp_size.x + 1.0:
-		var center_x := (vp_size.x - scaled_size.x) * 0.5
-		min_x = center_x
-		max_x = center_x
-	else:
-		min_x = vp_size.x - scaled_size.x
-		max_x = 0.0
-
 	var top_h := _get_top_bar_height()
 	var nav_h := _get_bottom_nav_height()
 	var min_y := (vp_size.y - nav_h + 4.0) - scaled_size.y
@@ -1558,7 +1557,7 @@ func _clamp_village_area() -> void:
 		min_y = mid_y
 		max_y = mid_y
 
-	village_area.position.x = clampf(village_area.position.x, min_x, max_x)
+	village_area.position.x = _get_locked_x(vp_size, scaled_size)
 	village_area.position.y = clampf(village_area.position.y, min_y, max_y)
 
 
@@ -1567,9 +1566,9 @@ func _reset_view() -> void:
 	if village_area != null:
 		var vp_size := _get_view_size()
 		var eff := _effective_zoom()
-		var center_x := (vp_size.x - 1080.0 * eff) * 0.5
+		var locked_x := _get_locked_x(vp_size, Vector2(1080.0, 1920.0) * eff)
 		village_area.scale = Vector2(eff, eff)
-		village_area.position = Vector2(center_x, _get_top_bar_height())
+		village_area.position = Vector2(locked_x, _get_top_bar_height())
 		_clamp_village_area()
 
 
@@ -1590,9 +1589,9 @@ func focus_building_for_tutorial(b_key: String) -> void:
 	var top_h := _get_top_bar_height()
 	var nav_h := _get_bottom_nav_height()
 	var eff := _effective_zoom()
-	var center_x := (vp_size.x - 1080.0 * eff) * 0.5
+	var locked_x := _get_locked_x(vp_size, Vector2(1080.0, 1920.0) * eff)
 	village_area.scale = Vector2(eff, eff)
-	village_area.position = Vector2(center_x, top_h)
+	village_area.position = Vector2(locked_x, top_h)
 	_clamp_village_area()
 
 	var b_view := get_building_view(b_key)

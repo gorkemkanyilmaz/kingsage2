@@ -20,6 +20,7 @@ extends RefCounted
 ## protokol uyumu için alınır (bu modül birikimli üretim yapmaz).
 
 const RE := preload("res://scripts/rules/RulesEngine.gd")
+const TrainingScript := preload("res://scripts/sim/army/Training.gd")
 
 const TYPE_RESEARCH := "research"
 const TYPE_TRAIN := "train"
@@ -72,6 +73,7 @@ static func process_tick(state: Dictionary, now_unix: int, delta_seconds: float)
 		# Aynı dizi referansını koru (çağıran `state.queues`ı tutuyor olabilir).
 		queues.clear()
 		queues.append_array(remaining)
+	TrainingScript.reconcile_state_settlers_reserved(state)
 
 	return events
 
@@ -110,6 +112,8 @@ static func _complete(state: Dictionary, item: Dictionary) -> Dictionary:
 			village["units"] = units
 		(units as Dictionary)[key] = int((units as Dictionary).get(key, 0)) + count
 		var reserved := int(item.get("settlers", 0))
+		if reserved <= 0:
+			reserved = count * RE.unit_settlers(key)
 		if reserved > 0:
 			village["settlers_reserved"] = maxi(0, int(village.get("settlers_reserved", 0)) - reserved)
 	return {

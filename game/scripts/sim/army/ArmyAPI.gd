@@ -113,8 +113,13 @@ static func total_units(village: Dictionary) -> int:
 
 
 ## Ordunun kullanabileceği **kalan vatandaş kapasitesi** (≥ 0).
-static func army_capacity(village: Dictionary) -> int:
-	return maxi(0, Training.free_citizens(village))
+static func army_capacity(village: Dictionary, state: Dictionary = {}) -> int:
+	return maxi(0, Training.free_citizens(village, state))
+
+
+## Kuyrukla uyumsuz kalmış `settlers_reserved` sayaçlarını tüm köylerde onarır.
+static func reconcile_settlers_reserved(state: Dictionary) -> void:
+	Training.reconcile_state_settlers_reserved(state)
 
 
 ## Ordunun bağladığı vatandaş sayısı (Σ birim × settlers).

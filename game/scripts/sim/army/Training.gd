@@ -82,7 +82,7 @@ static func army_settlers(village: Dictionary) -> int:
 		return 0
 	var total := 0
 	for key in (units as Dictionary).keys():
-		total += RE.unit_settlers(str(key)) * int((units as Dictionary)[key])
+		total += RE.unit_settlers(str(key)) * maxi(0, int((units as Dictionary)[key]))
 	return total
 
 
@@ -91,13 +91,71 @@ static func settlers_reserved(village: Dictionary) -> int:
 	return maxi(0, int(village.get("settlers_reserved", 0)))
 
 
+## Verilen kuyruktaki (type == "train") aktif eğitim öğelerinden gerçek rezervi hesaplar.
+static func queued_train_settlers(queues: Variant, village_id: int) -> int:
+	if typeof(queues) != TYPE_ARRAY or village_id < 0:
+		return 0
+	var total := 0
+	for item in (queues as Array):
+		if typeof(item) != TYPE_DICTIONARY:
+			continue
+		var d: Dictionary = item
+		if str(d.get("type", "")) != TYPE_TRAIN:
+			continue
+		if int(d.get("village_id", -1)) != village_id:
+			continue
+		var s := int(d.get("settlers", 0))
+		if s <= 0:
+			s = maxi(0, int(d.get("count", 0))) * RE.unit_settlers(str(d.get("key", "")))
+		total += maxi(0, s)
+	return total
+
+
+## `state.queues` içindeki gerçek eğitim kuyruğuna göre tüm köylerin `settlers_reserved` alanını onarır.
+static func reconcile_state_settlers_reserved(state: Dictionary) -> void:
+	if typeof(state) != TYPE_DICTIONARY:
+		return
+	var queues = state.get("queues", null)
+	var villages = state.get("villages", null)
+	if typeof(queues) != TYPE_ARRAY or typeof(villages) != TYPE_ARRAY:
+		return
+	for v in (villages as Array):
+		if typeof(v) == TYPE_DICTIONARY:
+			var vd := v as Dictionary
+			vd["settlers_reserved"] = queued_train_settlers(queues, int(vd.get("id", -1)))
+
+
+## Kuyruk bağlamı biliniyorsa gerçek eğitim rezerviyle eşitleyerek döndürür (sızmış rezervi otomatik iyileştirir).
+static func effective_settlers_reserved(village: Dictionary, state: Dictionary = {}) -> int:
+	var vid := int(village.get("id", -1))
+	if typeof(state) == TYPE_DICTIONARY and not state.is_empty() and typeof(state.get("queues")) == TYPE_ARRAY and vid >= 0:
+		var actual := queued_train_settlers(state.get("queues"), vid)
+		village["settlers_reserved"] = actual
+		return actual
+	var loop := Engine.get_main_loop()
+	if loop is SceneTree and (loop as SceneTree).root != null and vid >= 0:
+		var gs := (loop as SceneTree).root.get_node_or_null("GameState")
+		if gs != null:
+			var g_vills = gs.get("villages")
+			var g_queues = gs.get("queues")
+			if typeof(g_vills) == TYPE_ARRAY and typeof(g_queues) == TYPE_ARRAY:
+				for gv in (g_vills as Array):
+					if typeof(gv) == TYPE_DICTIONARY and is_same(village, gv):
+						var actual := queued_train_settlers(g_queues, vid)
+						village["settlers_reserved"] = actual
+						return actual
+	return settlers_reserved(village)
+
+
 ## Ordu için kullanılabilir **boş** vatandaş =
 ## Değirmen tavanı − bina vatandaşı − ordu vatandaşı − rezerve.
 ## Negatif olabilir (aşırı rezervasyon); çağıran `army_capacity` ile kırpar.
-static func free_citizens(village: Dictionary) -> int:
+static func free_citizens(village: Dictionary, state: Dictionary = {}) -> int:
 	var cap := RE.max_population(VM.building_level(village, "farm"))
+	if str(village.get("bonus_type", "")) == "citizen":
+		cap = int(floor(float(cap) * 1.10 + 0.5))
 	var used := VM.population_used(village)
-	return cap - used - army_settlers(village) - settlers_reserved(village)
+	return cap - used - army_settlers(village) - effective_settlers_reserved(village, state)
 
 
 # =============================================================================
@@ -150,7 +208,7 @@ static func block_reason(village: Dictionary, unit_key: String, count: int, stat
 		if int((res as Dictionary).get(key, 0)) < int(cost.get(key, 0)):
 			return "not_enough_resources"
 
-	if free_citizens(village) < count * RE.unit_settlers(unit_key):
+	if free_citizens(village, state) < count * RE.unit_settlers(unit_key):
 		return "not_enough_citizens"
 	return ""
 
@@ -178,7 +236,7 @@ static func start(village: Dictionary, unit_key: String, count: int, state: Dict
 	_pay(village, cost)
 	if needs_armor:
 		GA.consume(village, count)                       # maliyet zaten kontrol edildi
-	village["settlers_reserved"] = settlers_reserved(village) + settlers
+	village["settlers_reserved"] = effective_settlers_reserved(village, state) + settlers
 
 	var item := {
 		"id": _next_id(state),

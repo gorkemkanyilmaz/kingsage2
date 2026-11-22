@@ -1371,6 +1371,7 @@ def _prepare_world_for_player(
             dedup_msgs.append(m)
         state["messages"] = dedup_msgs
 
+    _reconcile_state_settlers_reserved(state)
     state["active_village_id"] = active_vid
     state["player"] = {
         "id": 1,
@@ -1421,6 +1422,53 @@ def _rebuild_tiles(state: Dict[str, Any]) -> None:
     state["villages"] = clean_villages
     w_dict["tiles"] = tiles
     w_dict["villages"] = clean_villages
+
+
+UNIT_SETTLERS = {
+    "farmer": 1,
+    "spear": 1,
+    "sword": 1,
+    "axe": 1,
+    "bow": 1,
+    "spy": 2,
+    "light": 4,
+    "heavy": 6,
+    "ram": 5,
+    "kata": 8,
+    "snob": 100,
+}
+
+
+def _reconcile_state_settlers_reserved(state: Any) -> None:
+    if not isinstance(state, dict):
+        return
+    queues = state.get("queues")
+    villages = state.get("villages")
+    if not isinstance(queues, list) or not isinstance(villages, list):
+        return
+    reserved_by_vid: Dict[int, int] = {}
+    for q in queues:
+        if not isinstance(q, dict) or str(q.get("type", "")) != "train":
+            continue
+        try:
+            vid = int(q.get("village_id", -1) or -1)
+        except Exception:
+            vid = -1
+        if vid < 0:
+            continue
+        s = int(q.get("settlers", 0) or 0)
+        if s <= 0:
+            cnt = max(0, int(q.get("count", 0) or 0))
+            uk = str(q.get("key", ""))
+            s = cnt * UNIT_SETTLERS.get(uk, 1)
+        reserved_by_vid[vid] = reserved_by_vid.get(vid, 0) + max(0, s)
+    for v in villages:
+        if isinstance(v, dict):
+            try:
+                vid = int(v.get("id", -1) or -1)
+            except Exception:
+                vid = -1
+            v["settlers_reserved"] = reserved_by_vid.get(vid, 0)
 
 
 def _deduplicate_world_villages(w_data: Optional[Dict[str, Any]], preferred_owner: str = "", preferred_vid: int = -1) -> bool:
@@ -1738,6 +1786,10 @@ def merge_world_state(server_w: Optional[Dict[str, Any]], client_raw: Dict[str, 
     s_w_dict = s_state.setdefault("world", {})
     s_last = int(merged.get("last_saved_unix", 0) or 0)
     c_last = int(c_w.get("last_saved_unix", now) or now)
+    alliance_auth = bool(
+        (isinstance(client_raw, dict) and client_raw.get("alliance_authoritative"))
+        or c_w.get("alliance_authoritative")
+    )
 
     # 1. Profiller ve başlangıç bonusları (her oyuncunun verisi monotonik şekilde korunur)
     s_profs = s_w_dict.setdefault("player_profiles", {})
@@ -2124,6 +2176,23 @@ def merge_world_state(server_w: Optional[Dict[str, Any]], client_raw: Dict[str, 
                 act_c_alliance_key = str(a.get("name", "")).strip().lower()
                 break
 
+    if (alliance_auth or c_last >= s_last) and isinstance(c_state.get("alliances"), list) and act_name:
+        for akey in list(s_alliances.keys()):
+            if akey == act_c_alliance_key:
+                continue
+            sa_old = s_alliances[akey]
+            old_mems = sa_old.get("members") or []
+            has_act = any(isinstance(m, dict) and _matches_player(str(m.get("name", "")), act_name) for m in old_mems)
+            if has_act:
+                kept_mems = [m for m in old_mems if isinstance(m, dict) and not _matches_player(str(m.get("name", "")), act_name)]
+                if not kept_mems:
+                    del s_alliances[akey]
+                else:
+                    sa_old["members"] = kept_mems
+                    if _matches_player(str(sa_old.get("leader", "")), act_name):
+                        kept_mems[0]["is_leader"] = True
+                        sa_old["leader"] = str(kept_mems[0].get("name", ""))
+
     for c_a in (c_state.get("alliances") or []):
         if not isinstance(c_a, dict):
             continue
@@ -2285,7 +2354,8 @@ def merge_world_state(server_w: Optional[Dict[str, Any]], client_raw: Dict[str, 
         cleaned_reps.append(rep)
     s_state["reports"] = cleaned_reps[-250:]
 
-    # 7. Dünya meta & kayıtlı oyuncular & tek başlangıç köyü denetimi
+    # 7. Dünya meta & kayıtlı oyuncular & tek başlangıç köyü denetimi & eğitim nüfus rezervi tutarlılığı
+    _reconcile_state_settlers_reserved(s_state)
     _deduplicate_world_villages(merged, act_name)
     merged["last_saved_unix"] = now
     s_w_dict["last_saved_unix"] = now
@@ -3427,6 +3497,8 @@ def post_cloud_save(payload: Dict[str, Any], user: Dict[str, Any] = Depends(get_
                         (db_diamonds, json.dumps(db_scrolls, ensure_ascii=False), user["id"]),
                     )
 
+        if bool(payload.get("alliance_authoritative", False) or state_obj.get("alliance_authoritative", False)) and isinstance(state_obj, dict):
+            state_obj["alliance_authoritative"] = True
         merged_w = merge_world_state(server_w, state_obj, user["display_name"], now)
         auth_wallet = {"diamonds": db_diamonds, "scrolls": db_scrolls}
         merged_for_player = _prepare_world_for_player(merged_w, user["display_name"], auth_wallet)

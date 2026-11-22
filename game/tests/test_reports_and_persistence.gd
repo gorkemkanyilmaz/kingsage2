@@ -6,7 +6,10 @@ extends SceneTree
 
 const VillageModel := preload("res://scripts/model/VillageModel.gd")
 
+var _failed := false
+
 func _fail(msg: String) -> void:
+	_failed = true
 	printerr("[FAIL] test_reports_and_persistence: ", msg)
 	quit(1)
 
@@ -266,13 +269,16 @@ func _run() -> void:
 	var di_h := float(rbar.call("get_bar_height"))
 	var res_row: Control = rbar.find_child("ResourcesRow", true, false) as Control
 	var isl_sp: Control = rbar.find_child("IslandSpacer", true, false) as Control
-	_assert(di_h >= 162.0 + 62.0, "Dynamic Island modunda bar yüksekliği safe_top altına inmeliydi: %s" % str(di_h))
-	_assert(res_row != null and res_row.position.y >= 162.0, "Hammaddeler (ResourcesRow) Dynamic Island (162px) altında kalmalıydı, y=%s" % [str(res_row.position.y) if res_row != null else "null"])
+	_assert(di_h >= 190.0 and di_h <= 210.0, "Dynamic Island modunda bar yüksekliği kompakt olmalıydı: %s" % str(di_h))
+	_assert(res_row != null and res_row.global_position.y >= 128.0, "Hammaddeler (ResourcesRow) Dynamic Island pill (128px) altında kalmalıydı, global_y=%s" % [str(res_row.global_position.y) if res_row != null else "null"])
 	_assert(isl_sp != null and isl_sp.visible and isl_sp.position.x >= 340.0 and isl_sp.position.x + isl_sp.size.x <= 750.0, "IslandSpacer merkeze yakın konumlanmalıydı: x=%s w=%s" % [str(isl_sp.position.x) if isl_sp != null else "", str(isl_sp.size.x) if isl_sp != null else ""])
-	_assert(r_wing != null and btn_d.custom_minimum_size.x + btn_m.custom_minimum_size.x + 6.0 <= 320.0, "Dynamic Island modunda RightWing toplam minimum genişliği <= 320px olmalıydı")
+	_assert(r_wing != null and btn_d.global_position.x >= 714.0 and btn_d.custom_minimum_size.x + btn_m.custom_minimum_size.x <= 360.0, "Dynamic Island modunda RightWing büyük olup adanın sağında (x>=714) kalmalıydı")
 	gc.set("_safe_top_px", 0.0)
 	gc.set("_test_island_width", -1.0)
 	rbar.call("_apply_responsive_layout")
 
+	if _failed:
+		quit(1)
+		return
 	print("[PASS] test_reports_and_persistence: tüm kalıcılık, rapor, eğitim klavyesi ve sağ header kontrolleri geçti!")
 	quit(0)

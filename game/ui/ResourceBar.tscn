@@ -136,10 +136,10 @@ corner_radius_bottom_right = 2
 corner_radius_bottom_left = 2
 
 [node name="ResourceBar" type="PanelContainer"]
-custom_minimum_size = Vector2(0, 177)
+custom_minimum_size = Vector2(0, 159)
 anchors_preset = 10
 anchor_right = 1.0
-offset_bottom = 177.0
+offset_bottom = 159.0
 grow_horizontal = 2
 theme = ExtResource("2_theme")
 theme_override_styles/panel = SubResource("sb_bar")
@@ -147,20 +147,33 @@ script = ExtResource("1_rbar")
 
 [node name="VBox" type="VBoxContainer" parent="."]
 layout_mode = 2
-theme_override_constants/separation = 4
+theme_override_constants/separation = 6
 
 [node name="TopRow" type="HBoxContainer" parent="VBox"]
-custom_minimum_size = Vector2(0, 60)
+custom_minimum_size = Vector2(0, 74)
 layout_mode = 2
 theme_override_constants/separation = 8
 
-[node name="VillageInfo" type="HBoxContainer" parent="VBox/TopRow"]
+[node name="LeftWingWrap" type="MarginContainer" parent="VBox/TopRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 4
+mouse_filter = 2
+
+[node name="LeftWing" type="VBoxContainer" parent="VBox/TopRow/LeftWingWrap"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 4
+mouse_filter = 2
+theme_override_constants/separation = 3
+
+[node name="VillageInfo" type="HBoxContainer" parent="VBox/TopRow/LeftWingWrap/LeftWing"]
 layout_mode = 2
 size_flags_horizontal = 3
 size_flags_vertical = 4
 theme_override_constants/separation = 5
 
-[node name="CrestIcon" type="TextureRect" parent="VBox/TopRow/VillageInfo"]
+[node name="CrestIcon" type="TextureRect" parent="VBox/TopRow/LeftWingWrap/LeftWing/VillageInfo"]
 custom_minimum_size = Vector2(26, 26)
 layout_mode = 2
 size_flags_vertical = 4
@@ -169,7 +182,7 @@ texture = ExtResource("11_castle_crest")
 expand_mode = 1
 stretch_mode = 5
 
-[node name="BtnPrevVillage" type="Button" parent="VBox/TopRow/VillageInfo"]
+[node name="BtnPrevVillage" type="Button" parent="VBox/TopRow/LeftWingWrap/LeftWing/VillageInfo"]
 visible = false
 custom_minimum_size = Vector2(36, 36)
 layout_mode = 2
@@ -182,7 +195,7 @@ theme_override_styles/hover = SubResource("sb_nav_btn_hover")
 theme_override_styles/pressed = SubResource("sb_nav_btn_hover")
 text = "◀"
 
-[node name="VillageName" type="Label" parent="VBox/TopRow/VillageInfo"]
+[node name="VillageName" type="Label" parent="VBox/TopRow/LeftWingWrap/LeftWing/VillageInfo"]
 layout_mode = 2
 size_flags_vertical = 4
 mouse_filter = 0
@@ -192,7 +205,7 @@ theme_override_font_sizes/font_size = 22
 text = "Lord | 🏰 Başkent (0|0) ▾"
 vertical_alignment = 1
 
-[node name="BtnRenameVillage" type="Button" parent="VBox/TopRow/VillageInfo"]
+[node name="BtnRenameVillage" type="Button" parent="VBox/TopRow/LeftWingWrap/LeftWing/VillageInfo"]
 custom_minimum_size = Vector2(38, 36)
 layout_mode = 2
 size_flags_vertical = 4
@@ -205,7 +218,7 @@ theme_override_styles/hover = SubResource("sb_nav_btn_hover")
 theme_override_styles/pressed = SubResource("sb_nav_btn_hover")
 text = "✏️"
 
-[node name="BtnNextVillage" type="Button" parent="VBox/TopRow/VillageInfo"]
+[node name="BtnNextVillage" type="Button" parent="VBox/TopRow/LeftWingWrap/LeftWing/VillageInfo"]
 visible = false
 custom_minimum_size = Vector2(36, 36)
 layout_mode = 2
@@ -217,6 +230,29 @@ theme_override_styles/normal = SubResource("sb_nav_btn")
 theme_override_styles/hover = SubResource("sb_nav_btn_hover")
 theme_override_styles/pressed = SubResource("sb_nav_btn_hover")
 text = "▶"
+
+[node name="PointsRow" type="HBoxContainer" parent="VBox/TopRow/LeftWingWrap/LeftWing"]
+custom_minimum_size = Vector2(0, 26)
+layout_mode = 2
+size_flags_horizontal = 3
+mouse_filter = 2
+theme_override_constants/separation = 6
+
+[node name="PointsBox" type="PanelContainer" parent="VBox/TopRow/LeftWingWrap/LeftWing/PointsRow"]
+layout_mode = 2
+size_flags_horizontal = 0
+size_flags_vertical = 4
+mouse_filter = 0
+theme_override_styles/panel = SubResource("sb_points_badge")
+
+[node name="Points" type="Label" parent="VBox/TopRow/LeftWingWrap/LeftWing/PointsRow/PointsBox"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_colors/font_color = Color(0.98, 0.84, 0.42, 1)
+theme_override_fonts/font = ExtResource("7_nunito_bold")
+theme_override_font_sizes/font_size = 20
+text = "👑 0 P"
+vertical_alignment = 1
 
 [node name="LeftFlexSpacer" type="Control" parent="VBox/TopRow"]
 layout_mode = 2
@@ -236,7 +272,7 @@ alignment = 2
 theme_override_constants/separation = 10
 
 [node name="BtnDiamonds" type="Button" parent="VBox/TopRow/RightWing"]
-custom_minimum_size = Vector2(210, 56)
+custom_minimum_size = Vector2(224, 70)
 layout_mode = 2
 size_flags_vertical = 4
 theme_override_colors/font_color = Color(0.98, 0.97, 0.92, 1)
@@ -245,7 +281,7 @@ theme_override_styles/hover = SubResource("sb_market_btn_hover")
 theme_override_styles/pressed = SubResource("sb_market_btn_hover")
 
 [node name="BtnMarket" type="Button" parent="VBox/TopRow/RightWing"]
-custom_minimum_size = Vector2(218, 56)
+custom_minimum_size = Vector2(232, 70)
 layout_mode = 2
 size_flags_vertical = 4
 theme_override_colors/font_color = Color(0.98, 0.95, 0.86, 1)
@@ -256,29 +292,6 @@ theme_override_font_sizes/font_size = 24
 theme_override_styles/normal = SubResource("sb_market_btn")
 theme_override_styles/hover = SubResource("sb_market_btn_hover")
 theme_override_styles/pressed = SubResource("sb_market_btn_hover")
-
-[node name="PointsRow" type="HBoxContainer" parent="VBox"]
-custom_minimum_size = Vector2(0, 30)
-layout_mode = 2
-size_flags_horizontal = 3
-mouse_filter = 2
-theme_override_constants/separation = 6
-
-[node name="PointsBox" type="PanelContainer" parent="VBox/PointsRow"]
-layout_mode = 2
-size_flags_horizontal = 0
-size_flags_vertical = 4
-mouse_filter = 0
-theme_override_styles/panel = SubResource("sb_points_badge")
-
-[node name="Points" type="Label" parent="VBox/PointsRow/PointsBox"]
-layout_mode = 2
-mouse_filter = 2
-theme_override_colors/font_color = Color(0.98, 0.84, 0.42, 1)
-theme_override_fonts/font = ExtResource("7_nunito_bold")
-theme_override_font_sizes/font_size = 20
-text = "👑 0 P"
-vertical_alignment = 1
 
 [node name="ResourcesRow" type="HBoxContainer" parent="VBox"]
 custom_minimum_size = Vector2(0, 46)

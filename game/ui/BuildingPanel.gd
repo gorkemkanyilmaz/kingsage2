@@ -2082,7 +2082,19 @@ func _on_cancel_research_pressed(queue_id: int) -> void:
 #  BİRİM EĞİTİMİ SEKMESİ (TRAIN TAB)
 # =============================================================================
 
+func _train_state_ctx() -> Dictionary:
+	var gs = Engine.get_main_loop().root.get_node_or_null("GameState") if Engine.get_main_loop() is SceneTree else null
+	if gs != null and not gs.villages.is_empty():
+		var vid := int(_village.get("id", -1))
+		for gv in gs.villages:
+			if typeof(gv) == TYPE_DICTIONARY and (is_same(_village, gv) or int((gv as Dictionary).get("id", -1)) == vid):
+				_village = gv as Dictionary
+				return {"queues": gs.queues}
+	return {}
+
+
 func _calculate_max_trainable(u_key: String) -> int:
+	var st_ctx := _train_state_ctx()
 	var res = _village.get("resources", {})
 	var cur_w := int(res.get("wood", 0))
 	var cur_s := int(res.get("stone", 0))
@@ -2094,7 +2106,7 @@ func _calculate_max_trainable(u_key: String) -> int:
 	var u_i := maxi(1, int(single_cost.get("iron", 0)))
 	var u_settlers := maxi(1, RulesEngineScript.unit_settlers(u_key))
 
-	var free_cit := ArmyAPI.army_capacity(_village)
+	var free_cit := ArmyAPI.army_capacity(_village, st_ctx)
 
 	var limit_w := cur_w / u_w
 	var limit_s := cur_s / u_s
@@ -2108,13 +2120,21 @@ func _populate_train_list() -> void:
 	if train_list == null:
 		return
 
+	var st_ctx := _train_state_ctx()
 	var cur_barracks_lvl := int(_village.get("buildings", {}).get("barracks", 0))
-	var free_cit := ArmyAPI.army_capacity(_village)
+	var free_cit := ArmyAPI.army_capacity(_village, st_ctx)
 	var farm_lvl := VillageModel.building_level(_village, "farm")
 	var max_pop := RulesEngineScript.max_population(farm_lvl)
+	if str(_village.get("bonus_type", "")) == "citizen":
+		max_pop = int(floor(float(max_pop) * 1.10 + 0.5))
+	var bld_pop := VillageModel.population_used(_village)
+	var army_pop := ArmyAPI.army_settlers(_village)
+	var resv_pop := int(_village.get("settlers_reserved", 0))
 
 	if citizen_label != null:
-		citizen_label.text = "👥 Müsait Vatandaş: %d  (Toplam Değirmen Kapasitesi: %d)" % [free_cit, max_pop]
+		citizen_label.text = "👥 Müsait Vatandaş: %d  |  Bina: %d • Ordu: %d • Eğitim: %d  (Kapasite: %d)" % [
+			free_cit, bld_pop, army_pop, resv_pop, max_pop
+		]
 
 	var sig_parts: Array[String] = [str(cur_barracks_lvl)]
 	for u_key in BARRACKS_UNITS:
@@ -2485,7 +2505,11 @@ func _populate_train_list() -> void:
 					else:
 						calc_summary.add_theme_color_override("font_color", Color(1.0, 0.45, 0.42))
 						train_btn.disabled = true
-						train_btn.text = "Yetersiz Kaynak / Nüfus"
+						var avail_cit := ArmyAPI.army_capacity(_village, _train_state_ctx())
+						if tot_cit > avail_cit:
+							train_btn.text = "Yetersiz Nüfus (%d/%d)" % [avail_cit, tot_cit]
+						else:
+							train_btn.text = "Yetersiz Hammadde"
 
 			update_calc.call()
 			card.set_meta("update_calc", update_calc)

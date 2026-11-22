@@ -12,6 +12,7 @@ var _active_tab: String = "chat"
 var _non_member_tab: String = "create"
 var _last_rendered_alliance_id: int = -999
 var _is_member_view_rendered: bool = false
+var _suppress_state_refresh: bool = false
 var _create_name_input: LineEdit = null
 var _create_tag_input: LineEdit = null
 var _create_desc_input: TextEdit = null
@@ -96,6 +97,8 @@ func _capture_input_drafts() -> void:
 
 
 func _on_state_changed() -> void:
+	if _suppress_state_refresh:
+		return
 	var gs = Engine.get_main_loop().root.get_node_or_null("GameState") if Engine.get_main_loop() is SceneTree else null
 	if gs == null:
 		return
@@ -281,6 +284,8 @@ func _build_create_alliance_form(parent: Control, gs: Node, player_name: String)
 	create_btn.add_theme_font_size_override("font_size", 26)
 	_style_gold_btn(create_btn)
 	create_btn.pressed.connect(func():
+		if create_btn.disabled:
+			return
 		if gc_a != null and gc_a.has_method("dismiss_keyboard_for"):
 			gc_a.call("dismiss_keyboard_for", null)
 		var state: Dictionary = gs.to_dict()
@@ -292,14 +297,17 @@ func _build_create_alliance_form(parent: Control, gs: Node, player_name: String)
 			desc_input.text
 		)
 		if bool(res.get("ok", false)):
+			create_btn.disabled = true
 			_draft_create_name = ""
 			_draft_create_tag = ""
 			_draft_create_desc = ""
 			name_input.text = ""
 			tag_input.text = ""
 			desc_input.text = ""
+			_suppress_state_refresh = true
 			gs.from_dict(state)
-			_save_game()
+			_save_game(true)
+			_suppress_state_refresh = false
 			_active_tab = "chat"
 			refresh_view()
 		else:
@@ -360,11 +368,16 @@ func _build_browse_alliances_view(parent: Control, gs: Node, player_name: String
 			_style_gold_btn(accept_btn)
 			var a_id = int(ally.get("id", -1))
 			accept_btn.pressed.connect(func():
+				if accept_btn.disabled:
+					return
 				var st: Dictionary = gs.to_dict()
 				var res := AllianceModelScript.accept_invitation(st, player_name, a_id)
 				if bool(res.get("ok", false)):
+					accept_btn.disabled = true
+					_suppress_state_refresh = true
 					gs.from_dict(st)
-					_save_game()
+					_save_game(true)
+					_suppress_state_refresh = false
 					_active_tab = "chat"
 					refresh_view()
 			)
@@ -458,10 +471,15 @@ func _build_member_view(gs: Node, alliance: Dictionary, player_name: String) -> 
 	leave_btn.custom_minimum_size = Vector2(100, 42)
 	_style_danger_btn(leave_btn)
 	leave_btn.pressed.connect(func():
+		if leave_btn.disabled:
+			return
+		leave_btn.disabled = true
 		var state: Dictionary = gs.to_dict()
 		AllianceModelScript.leave_alliance(state, player_name)
+		_suppress_state_refresh = true
 		gs.from_dict(state)
-		_save_game()
+		_save_game(true)
+		_suppress_state_refresh = false
 		refresh_view()
 	)
 	ib_hbox.add_child(leave_btn)
@@ -640,8 +658,10 @@ func _build_chat_tab(parent: Control, gs: Node, alliance: Dictionary, player_nam
 		if bool(res.get("ok", false)):
 			_draft_chat_text = ""
 			chat_input.text = ""
+			_suppress_state_refresh = true
 			gs.from_dict(state)
-			_save_game()
+			_save_game(true)
+			_suppress_state_refresh = false
 			refresh_view()
 
 	send_btn.pressed.connect(on_send)
@@ -711,8 +731,10 @@ func _build_members_tab(parent: Control, gs: Node, alliance: Dictionary, player_
 			kick_btn.pressed.connect(func():
 				var st: Dictionary = gs.to_dict()
 				AllianceModelScript.kick_member(st, player_name, m_name)
+				_suppress_state_refresh = true
 				gs.from_dict(st)
-				_save_game()
+				_save_game(true)
+				_suppress_state_refresh = false
 				refresh_view()
 			)
 			hbox.add_child(kick_btn)
@@ -768,8 +790,10 @@ func _build_invite_tab(parent: Control, gs: Node, alliance: Dictionary, player_n
 		if bool(res.get("ok", false)):
 			_draft_invite_text = ""
 			input.text = ""
+			_suppress_state_refresh = true
 			gs.from_dict(st)
-			_save_game()
+			_save_game(true)
+			_suppress_state_refresh = false
 			msg_lbl.text = " %s başarıyla davet edildi!" % target
 			msg_lbl.add_theme_color_override("font_color", Color(0.40, 0.90, 0.50))
 		else:
@@ -904,7 +928,15 @@ func _style_danger_btn(btn: Button) -> void:
 	btn.add_theme_color_override("font_color", Color(1, 1, 1))
 
 
-func _save_game() -> void:
-	var sm = Engine.get_main_loop().root.get_node_or_null("SaveManager") if Engine.get_main_loop() is SceneTree else null
+func _save_game(is_alliance_mutation: bool = true) -> void:
+	var loop := Engine.get_main_loop()
+	if not (loop is SceneTree):
+		return
+	var wm := (loop as SceneTree).root.get_node_or_null("WorldManager")
+	if is_alliance_mutation and wm != null and wm.has_method("notify_local_alliance_mutation"):
+		wm.call("notify_local_alliance_mutation")
+	var sm := (loop as SceneTree).root.get_node_or_null("SaveManager")
 	if sm != null:
 		sm.save_game()
+	if is_alliance_mutation and wm != null and wm.has_method("save_active_world"):
+		wm.call("save_active_world", true)

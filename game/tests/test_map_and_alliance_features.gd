@@ -159,7 +159,7 @@ func _test_village_renaming_and_header_format() -> void:
 	root.add_child(rbar)
 	rbar.refresh()
 
-	var lbl: Label = rbar.get_node("VBox/TopRow/VillageInfo/VillageName")
+	var lbl: Label = rbar.find_child("VillageName", true, false) as Label
 	_assert(lbl != null, "VillageName label found")
 	if lbl != null:
 		_assert(lbl.text.contains("Lord Gorkem | 🏰 Başkent"), "Header matches format 'Lord Gorkem | 🏰 Başkent' (actual: %s)" % lbl.text)

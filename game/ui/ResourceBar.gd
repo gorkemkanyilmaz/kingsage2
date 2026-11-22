@@ -1,6 +1,6 @@
 extends PanelContainer
 
-const DESKTOP_BAR_HEIGHT := 177.0
+const DESKTOP_BAR_HEIGHT := 159.0
 const EconomyAPI := preload("res://scripts/sim/economy/EconomyAPI.gd")
 const RulesEngine := preload("res://scripts/rules/RulesEngine.gd")
 const ICON_WOOD: Texture2D = preload("res://assets/sprites/ui/nano_banana/sharp_icon_wood.tres")
@@ -18,6 +18,8 @@ const FONT_SEMIBOLD: Font = preload("res://assets/fonts/Nunito-SemiBold.ttf")
 var top_row: HBoxContainer
 var resources_row: HBoxContainer
 var vbox_root: VBoxContainer
+var left_wing_wrap: MarginContainer
+var left_wing: VBoxContainer
 var village_info_box: HBoxContainer
 var points_row: HBoxContainer
 var left_flex_spacer: Control
@@ -89,6 +91,10 @@ func _ensure_nodes() -> void:
 		top_row = find_child("TopRow", true, false) as HBoxContainer
 	if resources_row == null:
 		resources_row = find_child("ResourcesRow", true, false) as HBoxContainer
+	if left_wing_wrap == null:
+		left_wing_wrap = find_child("LeftWingWrap", true, false) as MarginContainer
+	if left_wing == null:
+		left_wing = find_child("LeftWing", true, false) as VBoxContainer
 	if village_info_box == null:
 		village_info_box = find_child("VillageInfo", true, false) as HBoxContainer
 	if points_row == null:
@@ -278,25 +284,25 @@ func _apply_responsive_layout() -> void:
 			island_w = float(gc.call("get_ios_dynamic_island_width"))
 
 	var has_island := island_w > 0.0
-	var effective_island_w := minf(island_w, 336.0) if has_island else 0.0
+	var effective_island_w := 348.0 if has_island else 0.0
 	var top_pad := 6.0
 	var bottom_pad := 7.0
-	var sep := 4
-	var top_row_h := 60.0
-	var points_row_h := 30.0
+	var sep := 6
+	var top_row_h := 74.0
+	var points_row_h := 26.0
 	var res_row_h := 66.0
 
 	if has_island:
-		top_pad = 6.0
-		bottom_pad = 8.0
-		sep = 4
-		top_row_h = maxf(68.0, safe_top - 32.0)
-		points_row_h = 28.0
+		top_row_h = 84.0
+		top_pad = clampf(safe_top - 122.0, 18.0, 40.0)
+		bottom_pad = 6.0
+		sep = 6
+		points_row_h = 26.0
 		res_row_h = 66.0
 	elif safe_top > 0.0:
 		top_pad = maxf(8.0, safe_top + 2.0)
 
-	var total_h := top_pad + top_row_h + float(sep) + points_row_h + float(sep) + res_row_h + bottom_pad
+	var total_h := top_pad + top_row_h + float(sep) + res_row_h + bottom_pad
 	_last_bar_height = total_h
 
 	var panel_sb := get_theme_stylebox("panel") as StyleBoxFlat
@@ -312,12 +318,26 @@ func _apply_responsive_layout() -> void:
 		mut_sb.content_margin_top = top_pad
 		mut_sb.content_margin_bottom = bottom_pad
 		mut_sb.content_margin_left = 10.0 if has_island else 14.0
-		mut_sb.content_margin_right = 10.0 if has_island else 14.0
+		mut_sb.content_margin_right = 8.0 if has_island else 14.0
 
 	if vbox_root != null:
 		vbox_root.add_theme_constant_override("separation", sep)
 	if top_row != null:
 		top_row.custom_minimum_size.y = top_row_h
+		top_row.add_theme_constant_override("separation", 6 if has_island else 8)
+	if left_wing_wrap != null:
+		left_wing_wrap.add_theme_constant_override("margin_left", 16 if has_island else 0)
+		left_wing_wrap.add_theme_constant_override("margin_right", 0)
+		left_wing_wrap.add_theme_constant_override("margin_top", 0)
+		left_wing_wrap.add_theme_constant_override("margin_bottom", 0)
+		left_wing_wrap.size_flags_horizontal = Control.SIZE_EXPAND_FILL if has_island else Control.SIZE_SHRINK_BEGIN
+		left_wing_wrap.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		left_wing_wrap.size_flags_stretch_ratio = 1.0
+		left_wing_wrap.clip_contents = has_island
+	if left_wing != null:
+		left_wing.add_theme_constant_override("separation", 3)
+		left_wing.size_flags_horizontal = Control.SIZE_EXPAND_FILL if has_island else Control.SIZE_SHRINK_BEGIN
+		left_wing.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	if points_row != null:
 		points_row.custom_minimum_size.y = points_row_h
 		points_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -329,8 +349,8 @@ func _apply_responsive_layout() -> void:
 	if village_info_box != null:
 		village_info_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL if has_island else Control.SIZE_SHRINK_BEGIN
 		village_info_box.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-		village_info_box.size_flags_stretch_ratio = 1.0
-		village_info_box.clip_contents = has_island
+		village_info_box.alignment = BoxContainer.ALIGNMENT_BEGIN
+		village_info_box.clip_contents = false
 		village_info_box.add_theme_constant_override("separation", 5 if has_island else 8)
 
 	if left_flex_spacer != null:
@@ -341,15 +361,15 @@ func _apply_responsive_layout() -> void:
 		island_spacer.custom_minimum_size = Vector2(effective_island_w, 0.0)
 
 	if right_wing != null:
-		right_wing.size_flags_horizontal = Control.SIZE_EXPAND_FILL if has_island else Control.SIZE_SHRINK_END
+		right_wing.size_flags_horizontal = Control.SIZE_SHRINK_END
 		right_wing.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-		right_wing.size_flags_stretch_ratio = 1.0
+		right_wing.alignment = BoxContainer.ALIGNMENT_END
 		right_wing.clip_contents = false
 		right_wing.add_theme_constant_override("separation", 6 if has_island else 10)
 
 	if crest_icon != null:
 		crest_icon.texture = ICON_CASTLE_CREST
-		crest_icon.custom_minimum_size = Vector2(28, 28) if has_island else Vector2(34, 34)
+		crest_icon.custom_minimum_size = Vector2(26, 26) if has_island else Vector2(32, 32)
 
 	if points_box != null:
 		points_box.visible = true
@@ -357,58 +377,55 @@ func _apply_responsive_layout() -> void:
 		points_box.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	if points_label != null:
 		points_label.add_theme_font_override("font", FONT_BOLD)
-		points_label.add_theme_font_size_override("font_size", 19 if has_island else 20)
+		points_label.add_theme_font_size_override("font_size", 18 if has_island else 19)
 		points_label.add_theme_color_override("font_color", Color(1.0, 0.89, 0.44))
 		points_label.add_theme_constant_override("outline_size", 2)
 		points_label.add_theme_color_override("font_outline_color", Color(0.05, 0.04, 0.02, 0.95))
 	if btn_prev != null:
-		btn_prev.custom_minimum_size = Vector2(30, 34) if has_island else Vector2(36, 38)
+		btn_prev.custom_minimum_size = Vector2(28, 32) if has_island else Vector2(36, 38)
 	if btn_next != null:
-		btn_next.custom_minimum_size = Vector2(30, 34) if has_island else Vector2(36, 38)
+		btn_next.custom_minimum_size = Vector2(28, 32) if has_island else Vector2(36, 38)
 	if btn_rename_village != null:
 		btn_rename_village.visible = true
 		btn_rename_village.disabled = false
 		btn_rename_village.mouse_filter = Control.MOUSE_FILTER_STOP
-		btn_rename_village.custom_minimum_size = Vector2(40, 40) if has_island else Vector2(42, 42)
-		btn_rename_village.add_theme_font_size_override("font_size", 21 if has_island else 23)
+		btn_rename_village.custom_minimum_size = Vector2(38, 38) if has_island else Vector2(42, 42)
+		btn_rename_village.add_theme_font_size_override("font_size", 20 if has_island else 23)
 	if btn_diamonds != null:
 		btn_diamonds.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-		btn_diamonds.custom_minimum_size = Vector2(150, 54) if has_island else Vector2(210, 60)
+		btn_diamonds.custom_minimum_size = Vector2(172, 72) if has_island else Vector2(224, 70)
 		btn_diamonds.text = ""
 		btn_diamonds.icon = null
 	if _diamonds_icon_rect != null:
-		var d_sz := 30 if has_island else 40
+		var d_sz := 38 if has_island else 42
 		_diamonds_icon_rect.custom_minimum_size = Vector2(d_sz, d_sz)
 	if _diamonds_count_lbl != null:
-		_diamonds_count_lbl.add_theme_font_size_override("font_size", 22 if has_island else 25)
+		_diamonds_count_lbl.add_theme_font_size_override("font_size", 25 if has_island else 27)
 	if _diamonds_sub_lbl != null:
-		_diamonds_sub_lbl.add_theme_font_size_override("font_size", 13 if has_island else 16)
+		_diamonds_sub_lbl.add_theme_font_size_override("font_size", 15 if has_island else 17)
 	if _diamonds_plus_badge != null:
-		var pb_sz := 24 if has_island else 30
+		var pb_sz := 28 if has_island else 32
 		_diamonds_plus_badge.custom_minimum_size = Vector2(pb_sz, pb_sz)
 	if btn_market != null:
 		btn_market.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-		btn_market.custom_minimum_size = Vector2(154, 54) if has_island else Vector2(218, 60)
+		btn_market.custom_minimum_size = Vector2(174, 72) if has_island else Vector2(232, 70)
 		btn_market.text = ""
 		btn_market.icon = null
 	if _market_icon_rect != null:
-		var m_sz := 32 if has_island else 42
+		var m_sz := 40 if has_island else 44
 		_market_icon_rect.custom_minimum_size = Vector2(m_sz, m_sz)
 	if _market_title_lbl != null:
-		_market_title_lbl.add_theme_font_size_override("font_size", 21 if has_island else 24)
+		_market_title_lbl.add_theme_font_size_override("font_size", 24 if has_island else 26)
 	if _market_sub_lbl != null:
 		_market_sub_lbl.text = "Dükkan" if has_island else "Parşömen & Paket"
-		_market_sub_lbl.add_theme_font_size_override("font_size", 13 if has_island else 16)
+		_market_sub_lbl.add_theme_font_size_override("font_size", 15 if has_island else 17)
 	if village_name_label != null:
-		village_name_label.clip_text = has_island
-		village_name_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS if has_island else TextServer.OVERRUN_NO_TRIMMING
-		village_name_label.custom_minimum_size.x = 120.0 if has_island else 0.0
-		village_name_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL if has_island else Control.SIZE_SHRINK_BEGIN
 		village_name_label.add_theme_font_override("font", FONT_BOLD)
-		village_name_label.add_theme_font_size_override("font_size", 23 if has_island else 26)
+		village_name_label.add_theme_font_size_override("font_size", 22 if has_island else 26)
 		village_name_label.add_theme_color_override("font_color", Color(1.0, 0.95, 0.82))
 		village_name_label.add_theme_constant_override("outline_size", 3)
 		village_name_label.add_theme_color_override("font_outline_color", Color(0.04, 0.04, 0.07, 0.95))
+		_update_village_name_fit(has_island)
 
 	for pair_sz in [
 		[wood_title_label, wood_label],
@@ -430,6 +447,24 @@ func _apply_responsive_layout() -> void:
 	if absf(offset_bottom - total_h) > 0.5:
 		offset_bottom = total_h
 	_applying_layout = false
+
+
+func _update_village_name_fit(has_island: bool) -> void:
+	if village_name_label == null:
+		return
+	if has_island:
+		var multi_vis := (btn_prev != null and btn_prev.visible)
+		var max_name_w := 190.0 if multi_vis else 248.0
+		var text_w := FONT_BOLD.get_string_size(village_name_label.text, HORIZONTAL_ALIGNMENT_LEFT, -1, 22).x
+		village_name_label.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+		village_name_label.clip_text = true
+		village_name_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+		village_name_label.custom_minimum_size.x = minf(ceilf(text_w) + 6.0, max_name_w)
+	else:
+		village_name_label.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+		village_name_label.clip_text = false
+		village_name_label.text_overrun_behavior = TextServer.OVERRUN_NO_TRIMMING
+		village_name_label.custom_minimum_size.x = 0.0
 
 
 func _is_tap_event(event: InputEvent) -> bool:
@@ -795,8 +830,9 @@ func _tooltip_text_for(key: String) -> Dictionary:
 			var pct := int(round(clampf(float(max_cur) / float(cap), 0.0, 1.0) * 100.0))
 			return {"title": "🏛️ DEPO DURUMU", "body": "Depo Seviyesi: Sv.%d • Azami Kapasite: %s\nEn Dolu Kaynak: %s / %s (%%%d dolu)\nKapasiteyi artırmak için köyde Depo binasını yükseltin." % [st_lvl, _fmt_num(cap), _fmt_num(max_cur), _fmt_num(cap), pct]}
 		"citizens":
-			var pop: Dictionary = EconomyAPI.population_summary(v)
-			return {"title": "👥 NÜFUS (BOŞ İŞÇİ)", "body": "Boş: %d  •  Kullanılan: %d  •  Toplam kapasite: %d (Değirmen Sv.%d)\nYeni bina inşası ve asker eğitimi için boş vatandaş gerekir." % [int(pop.get("free", 0)), int(pop.get("used", 0)), int(pop.get("max", 0)), int(b.get("farm", 0))]}
+			var st_ctx_t: Dictionary = {"queues": gs.get("queues")} if gs != null and typeof(gs.get("queues")) == TYPE_ARRAY else {}
+			var pop: Dictionary = EconomyAPI.population_summary(v, st_ctx_t)
+			return {"title": "👥 NÜFUS (BOŞ İŞÇİ)", "body": "Boş: %d  •  Bina: %d  •  Ordu: %d  •  Eğitim: %d\nToplam kapasite: %d (Değirmen Sv.%d)\nYeni bina inşası ve asker eğitimi için boş vatandaş gerekir." % [int(pop.get("free", 0)), int(pop.get("buildings_used", pop.get("used", 0))), int(pop.get("army_used", 0)), int(pop.get("reserved", 0)), int(pop.get("max", 0)), int(b.get("farm", 0))]}
 		_:
 			return {"title": "👑 LORD PUANI", "body": "Köyünüzün toplam puanı (parantez içi tüm köylerinizin toplamı).\nPuan; bina seviyeleri arttıkça yükselir ve sıralamayı belirler."}
 
@@ -1007,19 +1043,20 @@ func refresh() -> void:
 	var gc := _autoload("GameConfig")
 	var island_w := float(gc.call("get_ios_dynamic_island_width")) if gc != null and gc.has_method("get_ios_dynamic_island_width") else 0.0
 
-	if village_name_label != null:
-		if island_w > 0.0:
-			village_name_label.text = "%s (%d|%d)" % [v_name, vx, vy]
-		else:
-			village_name_label.text = "%s | 🏰 %s (%d|%d)" % [p_name, v_name, vx, vy]
-		village_name_label.tooltip_text = "%s | 🏰 %s (%d|%d)\nKöyleri görmek ve seçmek için dokun" % [p_name, v_name, vx, vy]
-
 	var villages_list: Array = gs.call("get_player_villages") if gs.has_method("get_player_villages") else []
 	var multi: bool = villages_list.size() > 1
 	if btn_prev != null:
 		btn_prev.visible = multi
 	if btn_next != null:
 		btn_next.visible = multi
+
+	if village_name_label != null:
+		if island_w > 0.0:
+			village_name_label.text = "%s (%d|%d)" % [v_name, vx, vy]
+		else:
+			village_name_label.text = "%s | 🏰 %s (%d|%d)" % [p_name, v_name, vx, vy]
+		village_name_label.tooltip_text = "%s | 🏰 %s (%d|%d)\nKöyleri görmek ve seçmek için dokun" % [p_name, v_name, vx, vy]
+		_update_village_name_fit(island_w > 0.0)
 
 	if points_label != null:
 		var v_pts := int(v.get("points", 0))
@@ -1053,7 +1090,8 @@ func refresh() -> void:
 	_apply_gauge(stone_bar, s, cap)
 	_apply_gauge(iron_bar, i, cap)
 
-	var pop: Dictionary = EconomyAPI.population_summary(v)
+	var st_ctx_r: Dictionary = {"queues": gs.get("queues")} if typeof(gs.get("queues")) == TYPE_ARRAY else {}
+	var pop: Dictionary = EconomyAPI.population_summary(v, st_ctx_r)
 	var free_pop := int(pop.get("free", 0))
 	var used_pop := int(pop.get("used", 0))
 	var max_pop := maxi(1, int(pop.get("max", 1)))
@@ -1127,7 +1165,8 @@ func _show_economy_modal() -> void:
 	var stone_hr := int(round(RulesEngine.production_per_hour("stone", int(b.get("stone", 0)))))
 	var iron_hr := int(round(RulesEngine.production_per_hour("iron", int(b.get("iron", 0)))))
 
-	var pop: Dictionary = EconomyAPI.population_summary(v)
+	var st_ctx_r: Dictionary = {"queues": gs.get("queues")} if typeof(gs.get("queues")) == TYPE_ARRAY else {}
+	var pop: Dictionary = EconomyAPI.population_summary(v, st_ctx_r)
 	var rlm: Dictionary = EconomyAPI.realm_summary(v)
 	var now := _get_sim_now_unix()
 	var prot_until := maxi(int(v.get("protection_until", 0)), int(v.get("protection_until_unix", 0)))
@@ -1279,8 +1318,8 @@ func _show_economy_modal() -> void:
 	stats_card.add_child(stats_vb)
 
 	var pop_lbl := Label.new()
-	pop_lbl.text = "👥 Vatandaş: %d Boş  /  %d Toplam  (Kullanılan: %d)" % [
-		int(pop.get("free", 0)), int(pop.get("max", 0)), int(pop.get("used", 0))
+	pop_lbl.text = "👥 Vatandaş: %d Boş / %d Toplam (Bina:%d • Ordu:%d • Eğitim:%d)" % [
+		int(pop.get("free", 0)), int(pop.get("max", 0)), int(pop.get("buildings_used", pop.get("used", 0))), int(pop.get("army_used", 0)), int(pop.get("reserved", 0))
 	]
 	pop_lbl.add_theme_font_override("font", FONT_SEMIBOLD)
 	pop_lbl.add_theme_font_size_override("font_size", 22)
@@ -1506,7 +1545,8 @@ func _show_village_switcher_modal() -> void:
 			info_vb.add_child(nm)
 
 			var v_res: Dictionary = v.get("resources", {})
-			var v_pop: Dictionary = EconomyAPI.population_summary(v)
+			var st_ctx_s: Dictionary = {"queues": gs.get("queues")} if typeof(gs.get("queues")) == TYPE_ARRAY else {}
+			var v_pop: Dictionary = EconomyAPI.population_summary(v, st_ctx_s)
 			var sub := Label.new()
 			sub.text = "🪵 %d  🪨 %d  ⛏️ %d  👥 %d Boş" % [
 				int(v_res.get("wood", 0)), int(v_res.get("stone", 0)), int(v_res.get("iron", 0)), int(v_pop.get("free", 0))

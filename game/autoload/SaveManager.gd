@@ -256,6 +256,9 @@ func load_game() -> bool:
 			cfg.sync_from_world(gs.world, loaded_now)
 		var saved_unix := int(parsed.get("savedAtUnix", 0))
 		_apply_offline_catchup(gs, saved_unix)
+		var TrainingScript := load("res://scripts/sim/army/Training.gd")
+		if TrainingScript != null:
+			TrainingScript.reconcile_state_settlers_reserved({"villages": gs.villages, "queues": gs.queues})
 	if cfg != null and typeof(parsed.get("config", {})) == TYPE_DICTIONARY:
 		cfg.from_dict(parsed["config"])
 		if gs != null and gs.world.has("starter_boost_until_unix") and cfg.has_method("sync_from_world"):

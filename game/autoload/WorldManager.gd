@@ -14,6 +14,7 @@ extends Node
 const WorldGeneratorScript := preload("res://scripts/world/WorldGenerator.gd")
 const VillageModelScript := preload("res://scripts/model/VillageModel.gd")
 const ConqueredModalScript := preload("res://ui/ConqueredModal.gd")
+const TrainingScript := preload("res://scripts/sim/army/Training.gd")
 
 const WORLDS_COUNT := 10
 const BASE_SEED := 1000
@@ -41,6 +42,8 @@ var _local_mutation_seq: int = 0
 var _last_cloud_save_seq: int = 0
 var _recent_teardown_until_unix: int = 0
 var _wallet_lock_until_unix: int = 0
+var _alliance_lock_until_unix: int = 0
+var _alliance_mutation_seq: int = 0
 var _is_applying_cloud_sync: bool = false
 var _suppress_reset_save: bool = false
 var suppress_auto_conquered_prompt: bool = false
@@ -60,6 +63,16 @@ func notify_local_wallet_mutation() -> void:
 	notify_local_mutation()
 	var now := int(Time.get_unix_time_from_system())
 	_wallet_lock_until_unix = now + 12
+
+
+func notify_local_alliance_mutation() -> void:
+	notify_local_mutation()
+	_alliance_mutation_seq = _local_mutation_seq
+	_alliance_lock_until_unix = int(Time.get_unix_time_from_system()) + 15
+	cancel_pending_cloud_poll()
+	var net := _find_autoload("NetworkManager")
+	if net != null and net.has_method("cancel_background_requests"):
+		net.call("cancel_background_requests")
 
 
 func _ready() -> void:
@@ -1449,6 +1462,7 @@ func _apply_to_game_state(w_data: Dictionary, player_name: String, active_vid: i
 	var now := int(Time.get_unix_time_from_system())
 	_restore_player_profile_from_world(state, player_name)
 	_ensure_starter_boost(state, int(w_data.get("created_unix", now)), now, player_name)
+	TrainingScript.reconcile_state_settlers_reserved(state)
 	state["active_village_id"] = active_vid
 	gs.from_dict(state)
 	gs.player["name"] = player_name
@@ -1529,6 +1543,8 @@ func save_active_world(force_cloud: bool = false, allow_cloud: bool = true) -> b
 	w_data["state"] = next_state
 	if now < _wallet_lock_until_unix:
 		w_data["wallet_authoritative"] = true
+	if now < _alliance_lock_until_unix:
+		w_data["alliance_authoritative"] = true
 
 	var p_name := str(gs.player.get("name", "Lord Gorkem"))
 	var reg_list: Array = w_data.get("registered_real_players", [])
@@ -1705,28 +1721,157 @@ func _preserve_own_village_progress_from_local(target_w: Dictionary, local_w: Di
 		t_state["queues"] = cleaned_q
 
 
+func _alliance_key(a: Dictionary) -> String:
+	var nm := str(a.get("name", "")).strip_edges().to_lower()
+	if not nm.is_empty():
+		return nm
+	return "id_" + str(int(a.get("id", 0)))
+
+
+func _player_alliance_key(allies: Array, p_name: String) -> String:
+	for a in allies:
+		if typeof(a) != TYPE_DICTIONARY:
+			continue
+		var ad := a as Dictionary
+		var mems = ad.get("members", [])
+		if typeof(mems) == TYPE_ARRAY:
+			for m in (mems as Array):
+				if typeof(m) == TYPE_DICTIONARY and _matches_player(str((m as Dictionary).get("name", "")), p_name):
+					return _alliance_key(ad)
+	return ""
+
+
+func _merge_alliance_chat(base_chat: Variant, inc_chat: Variant) -> Array:
+	var seen: Dictionary = {}
+	var out: Array = []
+	for src in [base_chat, inc_chat]:
+		if typeof(src) != TYPE_ARRAY:
+			continue
+		for item in (src as Array):
+			if typeof(item) != TYPE_DICTIONARY:
+				continue
+			var md := item as Dictionary
+			var sig := "%s|%s|%d" % [str(md.get("sender", "")), str(md.get("text", "")), int(md.get("timestamp_unix", 0))]
+			if not seen.has(sig):
+				seen[sig] = true
+				out.append(md.duplicate(true))
+	out.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
+		return int(a.get("timestamp_unix", 0)) < int(b.get("timestamp_unix", 0))
+	)
+	if out.size() > 150:
+		out = out.slice(out.size() - 150)
+	return out
+
+
+func _merge_alliances_arrays(local_allies: Array, cloud_allies: Array, p_name: String, prefer_local_player: bool) -> Array:
+	var merged_map: Dictionary = {}
+	var order: Array[String] = []
+	for ca in cloud_allies:
+		if typeof(ca) != TYPE_DICTIONARY:
+			continue
+		var cad := (ca as Dictionary).duplicate(true)
+		var ck := _alliance_key(cad)
+		if not merged_map.has(ck):
+			order.append(ck)
+		merged_map[ck] = cad
+
+	var local_my_key := _player_alliance_key(local_allies, p_name)
+	var cloud_my_key := _player_alliance_key(cloud_allies, p_name)
+
+	if prefer_local_player:
+		if local_my_key.is_empty() and not cloud_my_key.is_empty() and merged_map.has(cloud_my_key):
+			var rem_a: Dictionary = merged_map[cloud_my_key]
+			var mems: Array = rem_a.get("members", []) if typeof(rem_a.get("members")) == TYPE_ARRAY else []
+			var kept_mems: Array = []
+			for m in mems:
+				if typeof(m) == TYPE_DICTIONARY and not _matches_player(str((m as Dictionary).get("name", "")), p_name):
+					kept_mems.append(m)
+			if kept_mems.is_empty():
+				merged_map.erase(cloud_my_key)
+			else:
+				rem_a["members"] = kept_mems
+				if _matches_player(str(rem_a.get("leader", "")), p_name):
+					var nl: Dictionary = kept_mems[0]
+					nl["is_leader"] = true
+					rem_a["leader"] = str(nl.get("name", ""))
+				merged_map[cloud_my_key] = rem_a
+
+		for la in local_allies:
+			if typeof(la) != TYPE_DICTIONARY:
+				continue
+			var lad := (la as Dictionary).duplicate(true)
+			var lk := _alliance_key(lad)
+			if lk == local_my_key:
+				if merged_map.has(lk):
+					var prev_ca: Dictionary = merged_map[lk]
+					lad["chat_messages"] = _merge_alliance_chat(prev_ca.get("chat_messages", []), lad.get("chat_messages", []))
+					merged_map[lk] = lad
+				else:
+					order.append(lk)
+					merged_map[lk] = lad
+				if not cloud_my_key.is_empty() and cloud_my_key != lk and merged_map.has(cloud_my_key):
+					var old_ca: Dictionary = merged_map[cloud_my_key]
+					var old_mems: Array = old_ca.get("members", []) if typeof(old_ca.get("members")) == TYPE_ARRAY else []
+					var filt_mems: Array = []
+					for om in old_mems:
+						if typeof(om) == TYPE_DICTIONARY and not _matches_player(str((om as Dictionary).get("name", "")), p_name):
+							filt_mems.append(om)
+					if filt_mems.is_empty():
+						merged_map.erase(cloud_my_key)
+					else:
+						old_ca["members"] = filt_mems
+			elif not merged_map.has(lk):
+				var cr := int(lad.get("created_unix", 0))
+				if cr > 0 and int(Time.get_unix_time_from_system()) - cr <= 30:
+					order.append(lk)
+					merged_map[lk] = lad
+	else:
+		for la in local_allies:
+			if typeof(la) != TYPE_DICTIONARY:
+				continue
+			var lad := (la as Dictionary).duplicate(true)
+			var lk := _alliance_key(lad)
+			if merged_map.has(lk):
+				var existing_a: Dictionary = merged_map[lk]
+				existing_a["chat_messages"] = _merge_alliance_chat(existing_a.get("chat_messages", []), lad.get("chat_messages", []))
+
+	var out: Array = []
+	for k in order:
+		if merged_map.has(k):
+			out.append(merged_map[k])
+	return out
+
+
 func _merge_shared_world_data(local_w: Dictionary, cloud_w: Dictionary, p_name: String, local_ts: int, cloud_ts: int, from_save_response: bool, req_seq: int = -1) -> Dictionary:
 	var has_newer_local_mutation := (req_seq >= 0 and _local_mutation_seq > req_seq)
+	var now_m := int(Time.get_unix_time_from_system())
+	var protect_local_alliance := (now_m < _alliance_lock_until_unix) or (_alliance_mutation_seq > 0 and req_seq >= 0 and req_seq < _alliance_mutation_seq)
 	var local_has_v := _world_has_player_village_in_dict(local_w, p_name) or has_player_village(int(cloud_w.get("world_id", 1)), p_name)
 	var cloud_has_v := _world_has_player_village_in_dict(cloud_w, p_name)
 	var cloud_conquered := _world_has_conquest_defeat_in_dict(cloud_w, p_name)
 	var local_village_missing_in_cloud := (local_has_v and not cloud_has_v and not cloud_conquered)
+	var l_allies_early: Array = (local_w.get("state", {}) as Dictionary).get("alliances", []) if typeof(local_w.get("state")) == TYPE_DICTIONARY and typeof((local_w.get("state") as Dictionary).get("alliances")) == TYPE_ARRAY else []
 
 	if local_w.is_empty() or not local_has_v:
 		var out_c := cloud_w.duplicate(true)
 		_preserve_monotonic_progress_from_local(out_c, local_w, p_name, true)
 		_preserve_own_village_progress_from_local(out_c, local_w, p_name)
+		if protect_local_alliance and not l_allies_early.is_empty():
+			var out_c_st: Dictionary = out_c.get("state", {}) if typeof(out_c.get("state")) == TYPE_DICTIONARY else {}
+			var c_allies_e: Array = out_c_st.get("alliances", []) if typeof(out_c_st.get("alliances")) == TYPE_ARRAY else []
+			out_c_st["alliances"] = _merge_alliances_arrays(l_allies_early, c_allies_e, p_name, true)
+			out_c["state"] = out_c_st
 		return out_c
 
 	# Eğer sunucu bu kaydedişten hemen sonra döndüyse ve yerel ekstra mutasyon olmadıysa sunucunun ortak dünyası kanoniktir.
-	if from_save_response and not has_newer_local_mutation and not local_village_missing_in_cloud and _last_local_mutation_unix <= _last_cloud_save_unix:
+	if from_save_response and not has_newer_local_mutation and not local_village_missing_in_cloud and not protect_local_alliance and _last_local_mutation_unix <= _last_cloud_save_unix:
 		var out_s := cloud_w.duplicate(true)
 		_preserve_monotonic_progress_from_local(out_s, local_w, p_name, true)
 		_preserve_own_village_progress_from_local(out_s, local_w, p_name)
 		return out_s
 
-	# Yerel değişiklik sunucudan eskiyse veya eşitse doğrudan ortak dünyayı al (ama yerelde köy varken bulut boşsa köyü asla silme!).
-	if cloud_ts >= local_ts and not from_save_response and not has_newer_local_mutation and not local_village_missing_in_cloud:
+	# Yerel değişiklik sunucudan eskiyse veya eşitse doğrudan ortak dünyayı al (ama yerelde köy varken bulut boşsa veya ittifak kilidi aktifse yerel ilerlemeyi koru!).
+	if cloud_ts >= local_ts and not from_save_response and not has_newer_local_mutation and not local_village_missing_in_cloud and not protect_local_alliance:
 		var out_newer := cloud_w.duplicate(true)
 		_preserve_monotonic_progress_from_local(out_newer, local_w, p_name, true)
 		_preserve_own_village_progress_from_local(out_newer, local_w, p_name)
@@ -1874,7 +2019,10 @@ func _merge_shared_world_data(local_w: Dictionary, cloud_w: Dictionary, p_name: 
 	if int(l_state.get("active_village_id", -1)) > 0:
 		m_state["active_village_id"] = int(l_state["active_village_id"])
 
-	# Yerel yeni ittifaklar/sohbet/hareketler varsa birleştir
+	# Yerel yeni ittifakları / sohbet mesajlarını / ayrılışları sunucu verisiyle birleştir
+	var c_allies: Array = m_state.get("alliances", []) if typeof(m_state.get("alliances")) == TYPE_ARRAY else []
+	var l_allies: Array = l_state.get("alliances", []) if typeof(l_state.get("alliances")) == TYPE_ARRAY else []
+	m_state["alliances"] = _merge_alliances_arrays(l_allies, c_allies, p_name, true)
 	var tiles: Dictionary = {}
 	for v in combined_villages:
 		if typeof(v) == TYPE_DICTIONARY:
@@ -2021,8 +2169,12 @@ func _live_sync_game_state_from_world(merged_w: Dictionary, p_name: String) -> v
 		if _is_real_player_village_dict(v) and _matches_player(str((v as Dictionary).get("owner", "")), p_name):
 			owned_vids[int((v as Dictionary).get("id", 0))] = true
 
+	var alliance_locked := (now_sync < _alliance_lock_until_unix)
 	if typeof(st.get("alliances")) == TYPE_ARRAY:
-		gs.alliances = (st["alliances"] as Array).duplicate(true)
+		if alliance_locked:
+			gs.alliances = _merge_alliances_arrays(gs.alliances, st["alliances"] as Array, p_name, true)
+		else:
+			gs.alliances = (st["alliances"] as Array).duplicate(true)
 	if typeof(st.get("movements")) == TYPE_ARRAY:
 		if _last_local_mutation_unix > _last_cloud_save_unix or wallet_locked:
 			gs.movements = _merge_player_and_remote_movements(gs.movements, st["movements"] as Array, p_name, owned_vids)
@@ -2042,6 +2194,7 @@ func _live_sync_game_state_from_world(merged_w: Dictionary, p_name: String) -> v
 			if typeof(rq) == TYPE_DICTIONARY and not owned_vids.has(int((rq as Dictionary).get("village_id", 0))):
 				merged_queues.append((rq as Dictionary).duplicate(true))
 		gs.queues = merged_queues
+	TrainingScript.reconcile_state_settlers_reserved({"villages": gs.villages, "queues": gs.queues})
 	if typeof(st.get("messages")) == TYPE_ARRAY:
 		var msg_del_sync: Dictionary = {}
 		if typeof(gs.player.get("deleted_message_sigs")) == TYPE_ARRAY:
@@ -2284,6 +2437,8 @@ func apply_cloud_sync(res_data: Dictionary, from_save_response: bool = false, re
 			_save_meta()
 
 		_live_sync_game_state_from_world(merged_w, p_name)
+		if from_save_response and _alliance_mutation_seq > 0 and (req_seq < 0 or req_seq >= _alliance_mutation_seq):
+			_alliance_lock_until_unix = 0
 
 		if gs_sync != null and not from_save_response and not wallet_locked_now:
 			if res_data.has("diamonds") and res_data.get("diamonds") != null:
@@ -2618,6 +2773,8 @@ func wipe_all_local_data() -> void:
 	_last_cloud_save_unix = 0
 	_last_autosave_unix = 0
 	_wallet_lock_until_unix = 0
+	_alliance_lock_until_unix = 0
+	_alliance_mutation_seq = 0
 	_recent_teardown_until_unix = 0
 	suppress_auto_conquered_prompt = true
 

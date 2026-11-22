@@ -20,6 +20,7 @@ const BQ := preload("res://scripts/sim/economy/BuildQueue.gd")
 const PROD := preload("res://scripts/sim/economy/Production.gd")
 const POP := preload("res://scripts/sim/economy/Population.gd")
 const ROP := preload("res://scripts/sim/economy/RealmOfPower.gd")
+const TRAINING := preload("res://scripts/sim/army/Training.gd")
 
 
 # =============================================================================
@@ -124,12 +125,32 @@ static func cancel_build(village: Dictionary, item_id: int, state: Dictionary = 
 	return BQ.cancel_build(st, int(village.get("id", -1)), item_id, refund, sim_now(st), refund_extra)
 
 
-## Değirmen tavanı / boş vatandaş özeti.
-static func population_summary(village: Dictionary) -> Dictionary:
+## Değirmen tavanı / boş vatandaş özeti (binalar + ordu + aktif eğitim rezervi dahil).
+static func population_summary(village: Dictionary, state: Dictionary = {}) -> Dictionary:
+	var st := state
+	if st.is_empty():
+		var gs := _game_state()
+		if gs != null:
+			var g_vills = gs.get("villages")
+			var g_queues = gs.get("queues")
+			if typeof(g_vills) == TYPE_ARRAY and typeof(g_queues) == TYPE_ARRAY:
+				for gv in (g_vills as Array):
+					if typeof(gv) == TYPE_DICTIONARY and is_same(village, gv):
+						st = {"queues": g_queues}
+						break
+	var max_c := POP.max_citizens(village)
+	var bld_used := POP.used_citizens(village)
+	var army_used := TRAINING.army_settlers(village)
+	var reserved := TRAINING.effective_settlers_reserved(village, st)
+	var total_used := bld_used + army_used + reserved
+	var free_c := maxi(0, max_c - total_used)
 	return {
-		"max": POP.max_citizens(village),
-		"used": POP.used_citizens(village),
-		"free": POP.free_citizens(village),
+		"max": max_c,
+		"used": total_used,
+		"buildings_used": bld_used,
+		"army_used": army_used,
+		"reserved": reserved,
+		"free": free_c,
 	}
 
 
