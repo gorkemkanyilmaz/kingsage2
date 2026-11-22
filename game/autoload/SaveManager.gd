@@ -11,6 +11,10 @@ const SAVE_VERSION := 1
 const SAVE_PATH := "user://taht_ve_kilic_save.json"
 const WEB_SAVE_KEY := "tvk_save_game"
 
+var _saving_now: bool = false
+var _save_dirty: bool = false
+var _save_debounce_timer: Timer = null
+
 
 func _ready() -> void:
 	pass
@@ -135,8 +139,33 @@ func _event_bus() -> Node:
 
 # --- Kaydet -----------------------------------------------------------------
 
+## Çalışma zamanında hızlı peş peşe mutasyonlarda disk/JSON yükünü birleştirir; headless testlerde anında yazar.
+func request_save_game() -> void:
+	if DisplayServer.get_name() == "headless":
+		save_game(true)
+		return
+	_save_dirty = true
+	if _save_debounce_timer == null or not is_instance_valid(_save_debounce_timer):
+		_save_debounce_timer = Timer.new()
+		_save_debounce_timer.one_shot = true
+		_save_debounce_timer.wait_time = 0.6
+		_save_debounce_timer.timeout.connect(func():
+			if _save_dirty:
+				save_game(true)
+		)
+		add_child(_save_debounce_timer)
+	_save_debounce_timer.start(0.6)
+
+
 ## Oyun durumunu ve ayarları kaydeder.
-func save_game() -> bool:
+func save_game(skip_world_save: bool = false) -> bool:
+	if _saving_now:
+		return true
+	_saving_now = true
+	_save_dirty = false
+	if _save_debounce_timer != null and is_instance_valid(_save_debounce_timer):
+		_save_debounce_timer.stop()
+
 	var gs := _game_state()
 	var gc := _game_clock()
 	var cfg := _game_config()
@@ -149,11 +178,12 @@ func save_game() -> bool:
 		if gc != null:
 			gs.world["sim_time_seconds"] = gc.elapsed_seconds
 
-	var loop = Engine.get_main_loop()
-	if loop is SceneTree:
-		var wm = loop.root.get_node_or_null("WorldManager")
-		if wm != null and wm.has_method("save_active_world"):
-			wm.save_active_world()
+	if not skip_world_save:
+		var loop = Engine.get_main_loop()
+		if loop is SceneTree:
+			var wm = loop.root.get_node_or_null("WorldManager")
+			if wm != null and not bool(wm.get("_saving_active_world")) and wm.has_method("save_active_world"):
+				wm.save_active_world()
 
 	var payload := {
 		"saveVersion": SAVE_VERSION,
@@ -165,13 +195,16 @@ func save_game() -> bool:
 
 	var file := FileAccess.open(SAVE_PATH, FileAccess.WRITE)
 	if file == null:
+		_saving_now = false
 		push_error("SaveManager: kayıt dosyası açılamadı -> " + SAVE_PATH)
 		if bus != null and bus.has_signal("error_occurred"):
 			bus.error_occurred.emit("save_failed", "Kayıt dosyası yazılamadı.")
 		return false
-	file.store_string(JSON.stringify(payload, "\t"))
+	var compact_json := JSON.stringify(payload)
+	file.store_string(compact_json)
 	file.close()
-	_web_set(WEB_SAVE_KEY, JSON.stringify(payload))
+	_web_set(WEB_SAVE_KEY, compact_json)
+	_saving_now = false
 
 	if bus != null and bus.has_signal("game_saved"):
 		bus.game_saved.emit()
@@ -403,7 +436,7 @@ func _apply_offline_catchup(gs: Node, saved_unix: int) -> void:
 		for ev in action_events:
 			if typeof(ev) == TYPE_DICTIONARY:
 				if str(ev.get("type", "")) == "village_conquered" and bus.has_signal("village_conquered"):
-					bus.village_conquered.emit(int(ev.get("village_id", -1)), str(ev.get("owner", "")))
+					bus.village_conquered.emit(int(ev.get("village_id", -1)), str(ev.get("new_owner", ev.get("owner", ""))))
 				elif bus.has_signal("report_created"):
 					bus.report_created.emit(ev)
 

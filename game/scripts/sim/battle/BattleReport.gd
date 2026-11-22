@@ -204,18 +204,41 @@ static func _conquest_text(result: Dictionary) -> String:
 		return "Fetih: saldıran kaybetti."
 	if bool(result.get("is_raid", false)):
 		return "Fetih: talan saldırısında fetih yok."
+	if bool(result.get("conquest_blocked", false)):
+		return "Fetih: hedef köy fetih koruması altında olduğu için Güç Alanı düşmedi."
 	var had := int(result.get("count_had", 0))
 	if had <= 0:
 		return "Fetih: orduda Kont yok."
 	if bool(result.get("count_died", false)):
 		return "Fetih: Kont muharebede öldü."
-	if bool(result.get("conquered", false)):
-		return "Fetih: başarılı — köy ele geçirildi (Güç Alanı %s seviyesine düştü)." % _format_int(int(result.get("realm_of_power_after", 0)))
+	var realm_before := int(result.get("realm_of_power_before", -1))
+	var realm_loss := int(result.get("realm_loss_applied", result.get("realm_loss", 0)))
 	var realm_after := int(result.get("realm_of_power_after", -1))
+	if bool(result.get("conquered", false)):
+		if realm_before >= 0:
+			return "Fetih: başarılı — köy ele geçirildi! Güç Alanı %s → 0 (-%s), yeni Güç Alanı: %s (%%30)." % [
+				_format_int(realm_before),
+				_format_int(realm_loss),
+				_format_int(realm_after),
+			]
+		return "Fetih: başarılı — köy ele geçirildi (Güç Alanı %s seviyesine düştü)." % _format_int(realm_after)
 	if realm_after >= 0:
-		return "Fetih: Kont etkili (Güç Alanı -%s → %s)." % [
+		var est_min := int(result.get("est_attacks_min", 0))
+		var est_max := int(result.get("est_attacks_max", est_min))
+		var rem_txt := ""
+		if est_min > 0:
+			rem_txt = " Fethe tahmini %s." % (("%d Kont saldırısı daha" % est_min) if est_min == est_max else ("%d–%d Kont saldırısı daha" % [est_min, est_max]))
+		if realm_before >= 0:
+			return "Fetih: Kont etkili — Güç Alanı %s → %s (-%s).%s" % [
+				_format_int(realm_before),
+				_format_int(realm_after),
+				_format_int(realm_loss),
+				rem_txt,
+			]
+		return "Fetih: Kont etkili (Güç Alanı -%s → %s).%s" % [
 			_format_int(int(result.get("realm_loss", 0))),
 			_format_int(realm_after),
+			rem_txt,
 		]
 	return "Fetih: Kont hayatta; Güç Alanı düşürüldü (hedef değeri bilinmiyor)."
 

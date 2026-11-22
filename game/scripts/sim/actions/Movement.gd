@@ -162,16 +162,16 @@ static func _validate_support(
 
 
 static func _is_real_player_target(target: Dictionary) -> bool:
-	var owner := str(target.get("owner", "")).strip_edges()
+	var owner := str(target.get("owner", "")).strip_edges().to_lower()
 	return (
 		not bool(target.get("is_bot", false))
 		and not bool(target.get("is_barbarian", false))
-		and str(target.get("bonus_type", "")) == ""
 		and not owner.is_empty()
-		and owner != "Barbar"
-		and owner != "Terk Edilmiş"
-		and owner != "Soyguncular"
-		and owner != "Usta"
+		and owner != "barbar"
+		and owner != "terk edilmiş"
+		and owner != "terk edilmis"
+		and owner != "soyguncular"
+		and owner != "usta"
 	)
 
 

@@ -217,6 +217,8 @@ func _ready() -> void:
 			eb.realm_changed.connect(_on_realm_changed)
 		if eb.has_signal("village_switched") and not eb.village_switched.is_connected(_on_village_switched):
 			eb.village_switched.connect(_on_village_switched)
+		if eb.has_signal("village_conquered") and not eb.village_conquered.is_connected(_on_village_conquered_bar):
+			eb.village_conquered.connect(_on_village_conquered_bar)
 		if eb.has_signal("state_changed") and not eb.state_changed.is_connected(_on_state_changed_refresh):
 			eb.state_changed.connect(_on_state_changed_refresh)
 
@@ -968,6 +970,10 @@ func _on_realm_changed(village_id: int, _val: int) -> void:
 
 
 func _on_village_switched(_village_id: int) -> void:
+	refresh()
+
+
+func _on_village_conquered_bar(_village_id: int, _owner: String) -> void:
 	refresh()
 
 

@@ -38,6 +38,11 @@ var _ui_built: bool = false
 var _category: String = "build"
 var _target_id: Variant = null
 var _title_text: String = ""
+var _refresh_queued: bool = false
+var _tap_busy: bool = false
+var _timer_accum: float = 0.0
+var _rows_built_category: String = ""
+var _row_widgets: Dictionary = {}
 
 var _task_title_lbl: Label = null
 var _timer_lbl: Label = null
@@ -57,6 +62,15 @@ func _ready() -> void:
 	_refresh_all()
 
 
+func _exit_tree() -> void:
+	var sm := _get_store_manager()
+	if sm != null:
+		if sm.has_signal("diamonds_changed") and sm.diamonds_changed.is_connected(_on_store_num_changed):
+			sm.diamonds_changed.disconnect(_on_store_num_changed)
+		if sm.has_signal("scrolls_changed") and sm.scrolls_changed.is_connected(_on_store_dict_changed):
+			sm.scrolls_changed.disconnect(_on_store_dict_changed)
+
+
 func configure(category: String, target_id: Variant = null, title_text: String = "") -> void:
 	_category = category if category in ["build", "train", "research", "march"] else "build"
 	_target_id = target_id
@@ -70,9 +84,13 @@ func setup(category: String, target_id: Variant = null, title_text: String = "")
 	configure(category, target_id, title_text)
 
 
-func _process(_delta: float) -> void:
-	if not _ui_built:
+func _process(delta: float) -> void:
+	if not _ui_built or is_queued_for_deletion():
 		return
+	_timer_accum += delta
+	if _timer_accum < 0.25:
+		return
+	_timer_accum = 0.0
 	_update_live_timer()
 
 
@@ -151,12 +169,32 @@ func _connect_signals() -> void:
 			sm.scrolls_changed.connect(_on_store_dict_changed)
 
 
-func _on_store_num_changed(_amt: int) -> void:
+func _schedule_refresh() -> void:
+	if not _ui_built or is_queued_for_deletion():
+		return
+	if _refresh_queued:
+		return
+	_refresh_queued = true
+	call_deferred("_flush_deferred_refresh")
+
+
+func _flush_deferred_refresh() -> void:
+	_refresh_queued = false
+	if not _ui_built or is_queued_for_deletion() or not is_inside_tree():
+		return
 	_refresh_all()
+
+
+func _clear_tap_busy() -> void:
+	_tap_busy = false
+
+
+func _on_store_num_changed(_amt: int) -> void:
+	_schedule_refresh()
 
 
 func _on_store_dict_changed(_d: Dictionary) -> void:
-	_refresh_all()
+	_schedule_refresh()
 
 
 func _ensure_ui() -> void:
@@ -449,8 +487,21 @@ func _update_live_timer() -> void:
 
 
 func _populate_rows() -> void:
-	if _rows_vbox == null:
+	if _rows_vbox == null or is_queued_for_deletion():
 		return
+	if _rows_built_category == _category and not _row_widgets.is_empty():
+		var all_valid := true
+		for w_raw in _row_widgets.values():
+			var w: Dictionary = w_raw
+			if not is_instance_valid(w.get("card")) or not is_instance_valid(w.get("use_btn")):
+				all_valid = false
+				break
+		if all_valid:
+			_update_rows_in_place()
+			return
+
+	_row_widgets.clear()
+	_rows_built_category = _category
 	for c in _rows_vbox.get_children():
 		_rows_vbox.remove_child(c)
 		c.queue_free()
@@ -552,74 +603,118 @@ func _populate_rows() -> void:
 		o_lbl.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0))
 		info_vb.add_child(o_lbl)
 
-		var action_btn := Button.new()
-		action_btn.custom_minimum_size = Vector2(210, 52)
-		action_btn.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-		action_btn.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
-		action_btn.add_theme_font_override("font", FontNunitoBold)
-		action_btn.add_theme_font_size_override("font_size", 24)
-		action_btn.add_theme_constant_override("outline_size", 0)
-		action_btn.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0))
+		var use_btn := Button.new()
+		use_btn.name = "UseScrollBtn_" + s_id
+		use_btn.text = "⚡ Kullan (%s)" % short_dur
+		use_btn.custom_minimum_size = Vector2(210, 52)
+		use_btn.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		use_btn.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+		use_btn.add_theme_font_override("font", FontNunitoBold)
+		use_btn.add_theme_font_size_override("font_size", 24)
+		use_btn.add_theme_constant_override("outline_size", 0)
+		use_btn.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0))
+		var u_sb := StyleBoxFlat.new()
+		u_sb.bg_color = Color(0.18, 0.58, 0.30, 1.0)
+		u_sb.border_color = Color(0.56, 0.94, 0.66, 1.0)
+		u_sb.set_border_width_all(2)
+		u_sb.set_corner_radius_all(12)
+		use_btn.add_theme_stylebox_override("normal", u_sb)
+		var u_h := u_sb.duplicate() as StyleBoxFlat
+		u_h.bg_color = Color(0.24, 0.68, 0.38, 1.0)
+		use_btn.add_theme_stylebox_override("hover", u_h)
+		use_btn.add_theme_stylebox_override("pressed", u_h)
+		use_btn.add_theme_color_override("font_color", Color(1, 1, 1))
+		use_btn.pressed.connect(_on_use_scroll_pressed.bind(s_id))
+		use_btn.visible = (owned > 0)
+		hb.add_child(use_btn)
 
-		if owned > 0:
-			action_btn.name = "UseScrollBtn_" + s_id
-			action_btn.text = "⚡ Kullan (%s)" % short_dur
-			var u_sb := StyleBoxFlat.new()
-			u_sb.bg_color = Color(0.18, 0.58, 0.30, 1.0)
-			u_sb.border_color = Color(0.56, 0.94, 0.66, 1.0)
-			u_sb.set_border_width_all(2)
-			u_sb.set_corner_radius_all(12)
-			action_btn.add_theme_stylebox_override("normal", u_sb)
-			var u_h := u_sb.duplicate() as StyleBoxFlat
-			u_h.bg_color = Color(0.24, 0.68, 0.38, 1.0)
-			action_btn.add_theme_stylebox_override("hover", u_h)
-			action_btn.add_theme_stylebox_override("pressed", u_h)
-			action_btn.add_theme_color_override("font_color", Color(1, 1, 1))
-			action_btn.pressed.connect(_on_use_scroll_pressed.bind(s_id))
-			hb.add_child(action_btn)
+		var buy_more_btn := Button.new()
+		buy_more_btn.name = "BuyMoreScrollBtn_" + s_id
+		buy_more_btn.text = "+1 Al (💎 %d)" % cost
+		buy_more_btn.custom_minimum_size = Vector2(142, 52)
+		buy_more_btn.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		buy_more_btn.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+		buy_more_btn.add_theme_font_override("font", FontNunitoBold)
+		buy_more_btn.add_theme_font_size_override("font_size", 22)
+		var bm_sb := StyleBoxFlat.new()
+		bm_sb.bg_color = Color(0.14, 0.32, 0.54, 0.98)
+		bm_sb.border_color = Color(0.58, 0.88, 1.0, 0.95)
+		bm_sb.set_border_width_all(2)
+		bm_sb.set_corner_radius_all(12)
+		buy_more_btn.add_theme_stylebox_override("normal", bm_sb)
+		var bm_h := bm_sb.duplicate() as StyleBoxFlat
+		bm_h.bg_color = bm_sb.bg_color.lightened(0.12)
+		buy_more_btn.add_theme_stylebox_override("hover", bm_h)
+		buy_more_btn.add_theme_stylebox_override("pressed", bm_h)
+		buy_more_btn.add_theme_color_override("font_color", Color(0.95, 0.98, 1.0))
+		buy_more_btn.pressed.connect(_on_buy_more_scroll_pressed.bind(s_id, s_name, cost))
+		buy_more_btn.visible = (owned > 0)
+		hb.add_child(buy_more_btn)
 
-			var buy_more_btn := Button.new()
-			buy_more_btn.name = "BuyMoreScrollBtn_" + s_id
-			buy_more_btn.text = "+1 Al (💎 %d)" % cost
-			buy_more_btn.custom_minimum_size = Vector2(142, 52)
-			buy_more_btn.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-			buy_more_btn.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
-			buy_more_btn.add_theme_font_override("font", FontNunitoBold)
-			buy_more_btn.add_theme_font_size_override("font_size", 22)
-			var bm_sb := StyleBoxFlat.new()
-			bm_sb.bg_color = Color(0.14, 0.32, 0.54, 0.98)
-			bm_sb.border_color = Color(0.58, 0.88, 1.0, 0.95)
-			bm_sb.set_border_width_all(2)
-			bm_sb.set_corner_radius_all(12)
-			buy_more_btn.add_theme_stylebox_override("normal", bm_sb)
-			var bm_h := bm_sb.duplicate() as StyleBoxFlat
-			bm_h.bg_color = bm_sb.bg_color.lightened(0.12)
-			buy_more_btn.add_theme_stylebox_override("hover", bm_h)
-			buy_more_btn.add_theme_stylebox_override("pressed", bm_h)
-			buy_more_btn.add_theme_color_override("font_color", Color(0.95, 0.98, 1.0))
-			buy_more_btn.pressed.connect(_on_buy_more_scroll_pressed.bind(s_id, s_name, cost))
-			hb.add_child(buy_more_btn)
-		else:
-			action_btn.name = "QuickBuyScrollBtn_" + s_id
-			action_btn.text = "💎 %d Al & Kullan" % cost
-			var q_sb := StyleBoxFlat.new()
-			q_sb.bg_color = Color(0.76, 0.56, 0.14, 1.0)
-			q_sb.border_color = Color(1.0, 0.88, 0.44, 1.0)
-			q_sb.set_border_width_all(2)
-			q_sb.set_corner_radius_all(12)
-			action_btn.add_theme_stylebox_override("normal", q_sb)
-			var q_h := q_sb.duplicate() as StyleBoxFlat
-			q_h.bg_color = Color(0.88, 0.68, 0.20, 1.0)
-			action_btn.add_theme_stylebox_override("hover", q_h)
-			action_btn.add_theme_stylebox_override("pressed", q_h)
-			action_btn.add_theme_color_override("font_color", Color(0.14, 0.08, 0.02))
-			action_btn.pressed.connect(_on_quick_buy_use_pressed.bind(s_id, cost))
-			hb.add_child(action_btn)
+		var quick_btn := Button.new()
+		quick_btn.name = "QuickBuyScrollBtn_" + s_id
+		quick_btn.text = "💎 %d Al & Kullan" % cost
+		quick_btn.custom_minimum_size = Vector2(210, 52)
+		quick_btn.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		quick_btn.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+		quick_btn.add_theme_font_override("font", FontNunitoBold)
+		quick_btn.add_theme_font_size_override("font_size", 24)
+		quick_btn.add_theme_constant_override("outline_size", 0)
+		quick_btn.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0))
+		var q_sb := StyleBoxFlat.new()
+		q_sb.bg_color = Color(0.76, 0.56, 0.14, 1.0)
+		q_sb.border_color = Color(1.0, 0.88, 0.44, 1.0)
+		q_sb.set_border_width_all(2)
+		q_sb.set_corner_radius_all(12)
+		quick_btn.add_theme_stylebox_override("normal", q_sb)
+		var q_h := q_sb.duplicate() as StyleBoxFlat
+		q_h.bg_color = Color(0.88, 0.68, 0.20, 1.0)
+		quick_btn.add_theme_stylebox_override("hover", q_h)
+		quick_btn.add_theme_stylebox_override("pressed", q_h)
+		quick_btn.add_theme_color_override("font_color", Color(0.14, 0.08, 0.02))
+		quick_btn.pressed.connect(_on_quick_buy_use_pressed.bind(s_id, cost))
+		quick_btn.visible = (owned <= 0)
+		hb.add_child(quick_btn)
 
 		_rows_vbox.add_child(row_card)
+		_row_widgets[s_id] = {
+			"card": row_card,
+			"sb": r_sb,
+			"owned_lbl": o_lbl,
+			"use_btn": use_btn,
+			"buy_more_btn": buy_more_btn,
+			"quick_btn": quick_btn,
+		}
+
+
+func _update_rows_in_place() -> void:
+	for s_id_raw in _row_widgets.keys():
+		var s_id := str(s_id_raw)
+		var w: Dictionary = _row_widgets[s_id_raw]
+		var owned := _get_scroll_count(s_id)
+		var sb := w.get("sb") as StyleBoxFlat
+		if sb != null:
+			sb.border_color = Color(0.48, 0.86, 0.56, 0.85) if owned > 0 else Color(0.75, 0.62, 0.34, 0.78)
+		var o_lbl := w.get("owned_lbl") as Label
+		if o_lbl != null and is_instance_valid(o_lbl):
+			o_lbl.text = "Sahip: %d" % owned
+			o_lbl.add_theme_color_override("font_color", Color(0.48, 0.95, 0.58) if owned > 0 else Color(0.75, 0.74, 0.82))
+		var use_btn := w.get("use_btn") as Button
+		if use_btn != null and is_instance_valid(use_btn):
+			use_btn.visible = (owned > 0)
+		var buy_more_btn := w.get("buy_more_btn") as Button
+		if buy_more_btn != null and is_instance_valid(buy_more_btn):
+			buy_more_btn.visible = (owned > 0)
+		var quick_btn := w.get("quick_btn") as Button
+		if quick_btn != null and is_instance_valid(quick_btn):
+			quick_btn.visible = (owned <= 0)
 
 
 func _on_buy_more_scroll_pressed(scroll_id: String, scroll_name: String, cost: int) -> void:
+	if _tap_busy or is_queued_for_deletion():
+		return
+	_tap_busy = true
+	call_deferred("_clear_tap_busy")
 	var sm := _get_store_manager()
 	if sm == null or not sm.has_method("buy_scroll"):
 		_show_status("Mağaza servisi hazır değil.", false)
@@ -627,7 +722,7 @@ func _on_buy_more_scroll_pressed(scroll_id: String, scroll_name: String, cost: i
 	var b_res = sm.call("buy_scroll", scroll_id, 1)
 	if typeof(b_res) == TYPE_DICTIONARY and bool((b_res as Dictionary).get("ok", false)):
 		_show_status("✅ +1 %s envantere eklendi! '⚡ Kullan' ile hemen uygulayabilirsiniz." % scroll_name, true)
-		_refresh_all()
+		_schedule_refresh()
 	else:
 		if _get_diamonds() < cost:
 			_show_status("💎 Yetersiz elmas (%d gerekli)." % cost, false)
@@ -653,25 +748,34 @@ func _show_status(msg: String, is_ok: bool) -> void:
 	_status_panel.show()
 
 
-func _on_use_scroll_pressed(scroll_id: String) -> void:
+func _on_use_scroll_pressed(scroll_id: String, _skip_busy_guard: bool = false) -> void:
+	if not _skip_busy_guard:
+		if _tap_busy or is_queued_for_deletion():
+			return
+		_tap_busy = true
+		call_deferred("_clear_tap_busy")
 	var sm := _get_store_manager()
 	if sm == null or not sm.has_method("apply_scroll_to_queue"):
 		_show_status("Hızlandırma servisi hazır değil.", false)
 		return
 	var res = sm.call("apply_scroll_to_queue", scroll_id, _category, _target_id)
 	if typeof(res) == TYPE_DICTIONARY and bool((res as Dictionary).get("ok", false)):
-		if bool((res as Dictionary).get("completed", false)) or _find_target_item().is_empty():
-			queue_free()
+		if (_target_id != null and bool((res as Dictionary).get("completed", false))) or _find_target_item().is_empty():
+			call_deferred("queue_free")
 			return
 		var sec := int((res as Dictionary).get("reduced_seconds", 0))
 		_show_status("⚡ Süre %s kısaltıldı!" % _fmt_duration(sec), true)
-		_refresh_all()
+		_schedule_refresh()
 	else:
 		var err := str((res as Dictionary).get("error", "Parşömen uygulanamadı.")) if typeof(res) == TYPE_DICTIONARY else "Parşömen uygulanamadı."
 		_show_status(err, false)
 
 
 func _on_quick_buy_use_pressed(scroll_id: String, cost: int) -> void:
+	if _tap_busy or is_queued_for_deletion():
+		return
+	_tap_busy = true
+	call_deferred("_clear_tap_busy")
 	var sm := _get_store_manager()
 	if sm == null or not sm.has_method("buy_scroll"):
 		_show_status("Mağaza servisi hazır değil.", false)
@@ -683,7 +787,7 @@ func _on_quick_buy_use_pressed(scroll_id: String, cost: int) -> void:
 		else:
 			_show_status(str((b_res as Dictionary).get("error", "Satın alınamadı.")) if typeof(b_res) == TYPE_DICTIONARY else "Satın alınamadı.", false)
 		return
-	_on_use_scroll_pressed(scroll_id)
+	_on_use_scroll_pressed(scroll_id, true)
 
 
 func _on_open_market_pressed() -> void:

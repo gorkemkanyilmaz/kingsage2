@@ -604,9 +604,11 @@ func _build_villages() -> void:
 		var vx: int = int(v.get("x", 0))
 		var vy: int = int(v.get("y", 0))
 		var v_owner := str(v.get("owner", ""))
+		var p_norm := _norm_player_name(player_name)
+		var v_norm := _norm_player_name(v_owner)
 
 		# 3 Kategori Tespiti:
-		var is_own: bool = (v_owner == player_name) or (vid in player_village_ids)
+		var is_own: bool = (not bool(v.get("is_bot", false)) and not bool(v.get("is_barbarian", false)) and not p_norm.is_empty() and v_norm == p_norm) or (vid in player_village_ids)
 		var is_ally: bool = false
 		var v_tag := ""
 
@@ -965,16 +967,14 @@ func _compute_world_villages_sig(gs: Node) -> String:
 	if gs == null:
 		return ""
 	var parts: Array[String] = []
-	var src: Array = []
-	if gs.world is Dictionary and (gs.world as Dictionary).has("villages") and not ((gs.world as Dictionary)["villages"] as Array).is_empty():
-		src = (gs.world as Dictionary)["villages"]
-	else:
-		src = gs.villages
+	var src: Array = gs.villages if (gs.villages != null and not gs.villages.is_empty()) else (
+		(gs.world as Dictionary).get("villages", []) if (gs.world is Dictionary) else []
+	)
 	for v in src:
 		if typeof(v) == TYPE_DICTIONARY:
 			var vd := v as Dictionary
 			if not bool(vd.get("is_bot", false)) and not bool(vd.get("is_barbarian", false)):
-				parts.append("%d:%s:%d:%d:%d" % [int(vd.get("id", -1)), str(vd.get("owner", "")), int(vd.get("x", 0)), int(vd.get("y", 0)), int(vd.get("points", 0))])
+				parts.append("%d:%s:%s:%d:%d:%d" % [int(vd.get("id", -1)), str(vd.get("owner", "")), "1" if bool(vd.get("is_conquered", false)) else "0", int(vd.get("x", 0)), int(vd.get("y", 0)), int(vd.get("points", 0))])
 	return str(src.size()) + "|" + "|".join(parts)
 
 
@@ -1019,9 +1019,9 @@ func _on_village_clicked(target_v: Dictionary) -> void:
 
 	var active_vid: int = gs.active_village_id
 	var target_vid: int = int(target_v.get("id", -1))
-	var player_name := str(gs.player.get("name", "Kral"))
-	var target_owner := str(target_v.get("owner", ""))
-	var is_own_village: bool = (not player_name.is_empty() and target_owner == player_name)
+	var player_name := _norm_player_name(str(gs.player.get("name", "Kral")))
+	var target_owner := _norm_player_name(str(target_v.get("owner", "")))
+	var is_own_village: bool = (not bool(target_v.get("is_bot", false)) and not bool(target_v.get("is_barbarian", false)) and not player_name.is_empty() and target_owner == player_name)
 	if not is_own_village and gs.has_method("get_player_villages"):
 		for pv in gs.get_player_villages():
 			if int(pv.get("id", -1)) == target_vid:

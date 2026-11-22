@@ -282,7 +282,9 @@ func show_target(from_v: Dictionary, to_v: Dictionary) -> void:
 		var p_name := str(gs.player.get("name", "")) if gs != null else ""
 		var target_id := int(to_v.get("id", -1))
 		var from_id := int(from_v.get("id", -1))
-		var is_own := (not p_name.is_empty() and str(to_v.get("owner", "")) == p_name)
+		var norm_p := p_name.strip_edges().to_lower()
+		var norm_o := str(to_v.get("owner", "")).strip_edges().to_lower()
+		var is_own := (not bool(to_v.get("is_bot", false)) and not bool(to_v.get("is_barbarian", false)) and not norm_p.is_empty() and norm_o == norm_p)
 		if not is_own and gs != null and gs.has_method("get_player_villages"):
 			for pv in gs.get_player_villages():
 				if int((pv as Dictionary).get("id", -1)) == target_id:

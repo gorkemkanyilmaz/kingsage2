@@ -1088,7 +1088,6 @@ def _is_real_player_village(v: Any) -> bool:
     return (
         not bool(v.get("is_bot", False))
         and not bool(v.get("is_barbarian", False))
-        and str(v.get("bonus_type", "")) == ""
         and owner.lower() not in ("", "barbar", "terk edilmiş", "terk edilmis", "soyguncular", "usta")
     )
 
@@ -1845,6 +1844,12 @@ def merge_world_state(server_w: Optional[Dict[str, Any]], client_raw: Dict[str, 
                 all_conquered_target_vids.add(int(rdata.get("target_village_id", 0) or 0))
             if _report_sig(rep) not in s_report_sigs:
                 new_client_reports.append(rep)
+    for _cv in c_villages:
+        if isinstance(_cv, dict) and (bool(_cv.get("is_conquered", False)) or bool(str(_cv.get("conquered_by", "")).strip())):
+            all_conquered_target_vids.add(int(_cv.get("id", 0) or 0))
+    for _sv in s_villages:
+        if isinstance(_sv, dict) and (bool(_sv.get("is_conquered", False)) or bool(str(_sv.get("conquered_by", "")).strip())):
+            all_conquered_target_vids.add(int(_sv.get("id", 0) or 0))
 
     vid_remap: Dict[int, int] = {}
     remapped_preserve_server: set = set()
@@ -1858,7 +1863,7 @@ def merge_world_state(server_w: Optional[Dict[str, Any]], client_raw: Dict[str, 
     act_existing_starter = None
     for sv in s_villages:
         sv_id = int(sv.get("id", 0))
-        if _is_real_player_village(sv) and _matches_player(str(sv.get("owner", "")), act_name) and sv_id not in server_conquered_vids:
+        if _is_real_player_village(sv) and _matches_player(str(sv.get("owner", "")), act_name) and sv_id not in server_conquered_vids and not bool(sv.get("is_conquered", False)):
             act_existing_starter = sv
             break
 
@@ -1930,6 +1935,13 @@ def merge_world_state(server_w: Optional[Dict[str, Any]], client_raw: Dict[str, 
         if is_act_v:
             if vid in remapped_preserve_server and s_v is not None:
                 continue
+            is_c_conquered = bool(c_v.get("is_conquered", False)) or bool(str(c_v.get("conquered_by", "")).strip()) or (vid in all_conquered_target_vids)
+            if is_c_conquered:
+                c_v["is_bot"] = False
+                c_v["is_barbarian"] = False
+                c_v["is_conquered"] = True
+                if not str(c_v.get("conquered_by", "")).strip():
+                    c_v["conquered_by"] = act_name
             # Bayat client kaydı veya sunucudaki daha yüksek bina seviyesi / daha yeni köy ismi korunur
             if s_v is not None and isinstance(s_v, dict):
                 s_blds = s_v.get("buildings") if isinstance(s_v.get("buildings"), dict) else {}
@@ -3526,35 +3538,35 @@ def post_cloud_save(payload: Dict[str, Any], user: Dict[str, Any] = Depends(get_
                 (user["id"], player_save_json, now)
             )
 
-        # Oyuncunun birincil köyünü SQL villages tablosu ile senkron tut ki world_states ve villages asla ayrışmasın
+        # Oyuncunun tüm köylerini (başkent + fethedilen köyler) SQL villages tablosu ile senkron tut ki world_states ve villages asla ayrışmasın
         m_vills = (merged_w.get("state") or {}).get("villages") or []
-        act_primary_v = None
-        for mv in m_vills:
-            if _is_real_player_village(mv) and _matches_player(str(mv.get("owner", "")), user["display_name"]):
-                act_primary_v = mv
-                break
-        if isinstance(act_primary_v, dict) and int(act_primary_v.get("id", 0) or 0) > 0:
-            pv_id = int(act_primary_v["id"])
-            pv_name = str(act_primary_v.get("name") or "Başkent")[:40]
-            pv_x = int(act_primary_v.get("x", 100) or 100)
-            pv_y = int(act_primary_v.get("y", 100) or 100)
-            pv_pts = int(act_primary_v.get("points", 110) or 110)
-            pv_blds = json.dumps(act_primary_v.get("buildings") or {}, ensure_ascii=False)
-            pv_res = json.dumps(act_primary_v.get("resources") or {}, ensure_ascii=False)
-            pv_units = json.dumps(act_primary_v.get("units") or {}, ensure_ascii=False)
-            pv_prot = int(act_primary_v.get("protection_until_unix", 0) or 0)
-            pv_cprot = int(act_primary_v.get("conquest_protection_until_unix", 0) or 0)
+        act_player_vills = [
+            mv for mv in m_vills
+            if _is_real_player_village(mv) and _matches_player(str(mv.get("owner", "")), user["display_name"]) and int(mv.get("id", 0) or 0) > 0
+        ]
+        for act_pv in act_player_vills:
+            pv_id = int(act_pv["id"])
+            pv_name = str(act_pv.get("name") or "Başkent")[:40]
+            pv_x = int(act_pv.get("x", 100) or 100)
+            pv_y = int(act_pv.get("y", 100) or 100)
+            pv_pts = int(act_pv.get("points", 110) or 110)
+            pv_blds = json.dumps(act_pv.get("buildings") or {}, ensure_ascii=False)
+            pv_res = json.dumps(act_pv.get("resources") or {}, ensure_ascii=False)
+            pv_units = json.dumps(act_pv.get("units") or {}, ensure_ascii=False)
+            pv_prot = int(act_pv.get("protection_until_unix", 0) or 0)
+            pv_cprot = int(act_pv.get("conquest_protection_until_unix", 0) or 0)
             cursor.execute("SELECT id, is_bot FROM villages WHERE id = ?", (pv_id,))
             v_exist = cursor.fetchone()
-            if v_exist and int(v_exist["is_bot"] or 0) == 0:
+            if v_exist:
                 cursor.execute("""
                     UPDATE villages
                     SET world_id = ?, user_id = ?, name = ?, x = ?, y = ?, owner = ?, points = ?,
+                        is_bot = 0, is_barbarian = 0,
                         buildings_json = ?, resources_json = ?, units_json = ?, last_calc_unix = ?,
                         protection_until_unix = ?, conquest_protection_until_unix = ?
-                    WHERE id = ? AND is_bot = 0
+                    WHERE id = ?
                 """, (w_id, user["id"], pv_name, pv_x, pv_y, user["display_name"], pv_pts, pv_blds, pv_res, pv_units, now, pv_prot, pv_cprot, pv_id))
-            elif not v_exist:
+            else:
                 cursor.execute("""
                     INSERT INTO villages (
                         id, world_id, user_id, name, x, y, owner, points, is_bot, is_barbarian,

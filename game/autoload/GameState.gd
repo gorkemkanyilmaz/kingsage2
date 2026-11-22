@@ -186,18 +186,25 @@ func set_active_village(village_id: int) -> void:
 		_emit_state_changed()
 
 
+static func _norm_owner_lower(raw_name: String) -> String:
+	var n := raw_name.strip_edges()
+	while n.length() >= 10 and n.substr(0, 10).to_lower() == "lord lord ":
+		n = n.substr(5).strip_edges()
+	return n.to_lower()
+
+
 ## Oyuncunun sahip olduğu tüm köyleri döndürür.
 func get_player_villages() -> Array:
 	var list: Array = []
-	var p_name := str(player.get("name", "Kral")).strip_edges()
+	var p_low := _norm_owner_lower(str(player.get("name", "Kral")))
 	for v in villages:
 		if typeof(v) != TYPE_DICTIONARY:
 			continue
 		var vd: Dictionary = v
 		if bool(vd.get("is_bot", false)) or bool(vd.get("is_barbarian", false)):
 			continue
-		var v_owner := str(vd.get("owner", "")).strip_edges()
-		if not p_name.is_empty() and v_owner == p_name:
+		var v_low := _norm_owner_lower(str(vd.get("owner", "")))
+		if not p_low.is_empty() and v_low == p_low:
 			list.append(v)
 	return list
 
@@ -307,6 +314,8 @@ func from_dict(data: Dictionary) -> bool:
 	messages = _as_array(data.get("messages", []))
 	alliances = _as_array(data.get("alliances", []))
 	world = _as_dict(data.get("world", {}))
+	if world.has("villages"):
+		world["villages"] = villages
 	_emit_state_changed()
 	return true
 

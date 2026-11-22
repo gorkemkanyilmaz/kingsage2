@@ -1085,11 +1085,15 @@ func _populate_reports() -> void:
 		var rsig := _report_sig(r)
 		var rtype: String = str(r.get("type", "battle"))
 		var rdata: Dictionary = r.get("data", {}) if typeof(r.get("data")) == TYPE_DICTIONARY else {}
-		var t_name := str(rdata.get("target_name", "")).strip_edges()
-		var f_name := str(rdata.get("from_name", "")).strip_edges()
+		var t_name := str(rdata.get("target_name", rdata.get("defender_village_name", ""))).strip_edges()
+		var f_name := str(rdata.get("from_name", rdata.get("attacker_village_name", ""))).strip_edges()
 		var title := "Savaş Raporu"
 		var icon := ICON_BATTLE
 		var accent := Color(0.92, 0.36, 0.34)
+		var is_conquered_r := bool(rdata.get("conquered", false))
+		var count_had_r := int(rdata.get("count_had", 0))
+		var realm_loss_r := int(rdata.get("realm_loss", 0))
+		var realm_rem_r := int(rdata.get("realm_remaining", rdata.get("realm_after", 0)))
 		if rtype == "spy":
 			title = ("Casus Raporu • %s" % t_name) if not t_name.is_empty() else "Casusluk Raporu"
 			icon = ICON_SPY
@@ -1102,6 +1106,9 @@ func _populate_reports() -> void:
 			title = "Ticaret Teslimatı"
 			icon = ICON_TRADE
 			accent = Color(0.42, 0.88, 0.56)
+		elif is_conquered_r:
+			title = ("👑 FETİH • %s" % t_name) if not t_name.is_empty() else "👑 KÖY FETHEDİLDİ!"
+			accent = Color(0.98, 0.80, 0.30)
 		elif not t_name.is_empty():
 			var won := bool(rdata.get("attacker_won", false))
 			title = ("%s • %s" % ["Zafer" if won else "Savaş", t_name])
@@ -1109,6 +1116,8 @@ func _populate_reports() -> void:
 		var is_unread := bool(r.get("unread", false)) and not read_sigs.has(rsig)
 		var badge_tag := "● YENİ" if is_unread else "✓ Okundu"
 		var subtitle := "%s • %s" % [badge_tag, Time.get_datetime_string_from_unix_time(int(r.get("unix", 0)))]
+		if rtype == "battle" and not is_conquered_r and count_had_r > 0 and realm_loss_r > 0:
+			subtitle += " • 👑 -%s P (Kalan: %s)" % [_format_number(realm_loss_r), _format_number(realm_rem_r)]
 		report_list.add_child(_make_report_card(r, icon, title, subtitle, accent, is_unread))
 
 
@@ -1520,17 +1529,176 @@ func _render_battle_report(parent: Control, rep: Dictionary) -> void:
 		w_sb.border_color = Color(0.95, 0.70, 0.35, 1.0)
 		w_sb.set_border_width_all(2)
 		w_sb.set_corner_radius_all(14)
-		w_sb.content_margin_all(14)
+		w_sb.set_content_margin_all(14)
 		wall_box.add_theme_stylebox_override("panel", w_sb)
 
 		var w_lbl := Label.new()
-		w_lbl.text = " SUR HASARI: Şahmerdanlar surlara vurdu! (Seviye %d  Seviye %d | Hasar: %%%d)" % [wall_before, wall_after, int(round(wall_pct))]
+		w_lbl.text = " SUR HASARI: Şahmerdanlar surlara vurdu! (Seviye %d → Seviye %d | Hasar: %%%d)" % [wall_before, wall_after, int(round(wall_pct))]
 		w_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		w_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		w_lbl.add_theme_font_override("font", FontNunitoBold)
 		w_lbl.add_theme_font_size_override("font_size", 26)
 		w_lbl.add_theme_color_override("font_color", Color(1.0, 0.90, 0.65))
 		wall_box.add_child(w_lbl)
 		parent.add_child(wall_box)
+
+	var count_had: int = int(data.get("count_had", raw.get("count_had", att_units.get("snob", 0))))
+	var realm_loss_v: int = int(data.get("realm_loss", raw.get("realm_loss_applied", raw.get("realm_loss", 0))))
+	var conquest_blocked: bool = bool(data.get("conquest_blocked", raw.get("conquest_blocked", false)))
+	if count_had > 0 or conquered or conquest_blocked or realm_loss_v > 0:
+		parent.add_child(_make_conquest_card(data, raw, attacker_won, is_raid, conquered, conquest_blocked, count_had, realm_loss_v))
+
+
+func _make_conquest_card(
+	data: Dictionary, raw: Dictionary, attacker_won: bool, is_raid: bool,
+	conquered: bool, conquest_blocked: bool, _count_had: int, realm_loss_v: int
+) -> PanelContainer:
+	var pc := PanelContainer.new()
+	pc.name = "ConquestReportCard"
+	var sb := StyleBoxFlat.new()
+	if conquered:
+		sb.bg_color = Color(0.14, 0.28, 0.14, 0.98)
+		sb.border_color = Color(1.0, 0.84, 0.34, 1.0)
+	elif conquest_blocked or not attacker_won or bool(data.get("count_died", raw.get("count_died", false))):
+		sb.bg_color = Color(0.24, 0.13, 0.15, 0.96)
+		sb.border_color = Color(0.92, 0.45, 0.38, 0.95)
+	else:
+		sb.bg_color = Color(0.14, 0.12, 0.22, 0.98)
+		sb.border_color = Color(0.95, 0.78, 0.36, 0.95)
+	sb.set_border_width_all(2)
+	sb.set_corner_radius_all(16)
+	sb.set_content_margin_all(16)
+	pc.add_theme_stylebox_override("panel", sb)
+
+	var vb := VBoxContainer.new()
+	vb.add_theme_constant_override("separation", 10)
+	pc.add_child(vb)
+
+	var hdr := Label.new()
+	hdr.text = "👑 FETİH VE GÜÇ ALANI (KONT)"
+	hdr.add_theme_font_override("font", FontNunitoBold)
+	hdr.add_theme_font_size_override("font_size", 28)
+	hdr.add_theme_color_override("font_color", Color(1.0, 0.90, 0.56))
+	vb.add_child(hdr)
+
+	var count_died := bool(data.get("count_died", raw.get("count_died", false)))
+	var has_statue := bool(data.get("defender_has_statue", raw.get("defender_has_statue", false)))
+	var realm_before := int(data.get("realm_before", raw.get("realm_of_power_before", -1)))
+	var realm_after := int(data.get("realm_after", raw.get("realm_of_power_after", -1)))
+	var realm_remaining := int(data.get("realm_remaining", 0 if conquered else maxi(0, realm_after)))
+	var realm_post_conquest := int(data.get("realm_post_conquest", realm_after if conquered else -1))
+	var realm_cap := int(data.get("realm_cap", raw.get("realm_cap", 0)))
+	if realm_cap <= 0:
+		realm_cap = maxi(realm_before, maxi(realm_after, 1))
+	var realm_half := int(data.get("realm_half_cap", raw.get("realm_half_cap", maxi(1, int(floor(float(realm_cap) / 2.0))))))
+	var drop_min := int(data.get("realm_drop_min", raw.get("realm_drop_min", mini(1750 if has_statue else 2250, realm_half))))
+	var drop_max := int(data.get("realm_drop_max", raw.get("realm_drop_max", mini(2250 if has_statue else 2750, realm_half))))
+	var est_min := int(data.get("est_attacks_min", raw.get("est_attacks_min", 0)))
+	var est_max := int(data.get("est_attacks_max", raw.get("est_attacks_max", 0)))
+	if not conquered and realm_remaining > 0 and est_min <= 0 and drop_max > 0 and drop_min > 0:
+		est_min = maxi(1, int(ceil(float(realm_remaining) / float(drop_max))))
+		est_max = maxi(1, int(ceil(float(realm_remaining) / float(drop_min))))
+	var hourly_regen := int(data.get("realm_hourly_regen", int(floor(float(realm_cap) * 0.01 + 0.5))))
+
+	var status_lbl := Label.new()
+	status_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	status_lbl.add_theme_font_override("font", FontNunitoBold)
+	status_lbl.add_theme_font_size_override("font_size", 24)
+	if conquered:
+		status_lbl.text = "✅ Güç Alanı 0'a düştü — Köy başarıyla fethedildi ve krallığınıza katıldı!"
+		status_lbl.add_theme_color_override("font_color", Color(0.56, 1.0, 0.64))
+	elif conquest_blocked:
+		status_lbl.text = "🛡️ Hedef köy Fetih Koruması altında olduğu için Güç Alanı düşmedi."
+		status_lbl.add_theme_color_override("font_color", Color(1.0, 0.80, 0.56))
+	elif is_raid:
+		status_lbl.text = "⚠️ Yağma (talan) saldırısında fetih uygulanmaz. Fetih için 'Normal Saldırı' gönderin."
+		status_lbl.add_theme_color_override("font_color", Color(1.0, 0.84, 0.52))
+	elif not attacker_won:
+		status_lbl.text = "⚔️ Taarruz kaybedildiği için Kont köyün Güç Alanını düşüremedi."
+		status_lbl.add_theme_color_override("font_color", Color(1.0, 0.68, 0.65))
+	elif count_died:
+		status_lbl.text = "💀 Saldıran kayıp oranı %50+ veya refakatsiz kaldığı için Kont muharebede öldü."
+		status_lbl.add_theme_color_override("font_color", Color(1.0, 0.68, 0.65))
+	elif realm_loss_v > 0:
+		status_lbl.text = "💥 Kont köyün Güç Alanını -%s puan düşürdü!" % _format_number(realm_loss_v)
+		status_lbl.add_theme_color_override("font_color", Color(0.98, 0.92, 0.68))
+	else:
+		status_lbl.text = "👑 Kont saldırısı kaydedildi."
+		status_lbl.add_theme_color_override("font_color", Color(0.92, 0.90, 0.84))
+	vb.add_child(status_lbl)
+
+	if realm_before >= 0 or realm_after >= 0 or realm_loss_v > 0:
+		if realm_before >= 0:
+			vb.add_child(_make_stat_line("Önceki Güç Alanı:", "%s / %s P" % [_format_number(realm_before), _format_number(realm_cap)], Color(0.76, 0.88, 1.0)))
+		if realm_loss_v > 0:
+			vb.add_child(_make_stat_line("Kont Hasarı (Azaltılan):", "-%s P" % _format_number(realm_loss_v), Color(1.0, 0.82, 0.34)))
+		if conquered:
+			var post_txt := "0 P (Fethedildi!)"
+			if realm_post_conquest > 0:
+				post_txt = "0 P → Yeni Güç Alanı: %s P (%%30 — Fethedildi!)" % _format_number(realm_post_conquest)
+			vb.add_child(_make_stat_line("Kalan Güç Alanı:", post_txt, Color(0.55, 1.0, 0.65)))
+		elif realm_after >= 0:
+			vb.add_child(_make_stat_line("Kalan Güç Alanı:", "%s / %s P" % [_format_number(realm_remaining), _format_number(realm_cap)], Color(0.98, 0.64, 0.48)))
+
+		if realm_cap > 0 and (not conquered) and realm_after >= 0:
+			var rpb := ProgressBar.new()
+			rpb.custom_minimum_size = Vector2(0, 14)
+			rpb.max_value = float(realm_cap)
+			rpb.value = clampf(float(realm_remaining), 0.0, float(realm_cap))
+			rpb.show_percentage = false
+			var rpb_bg := StyleBoxFlat.new()
+			rpb_bg.bg_color = Color(0.08, 0.07, 0.11, 0.96)
+			rpb_bg.set_corner_radius_all(7)
+			var rpb_fg := StyleBoxFlat.new()
+			rpb_fg.bg_color = Color(0.95, 0.62, 0.24, 1.0)
+			rpb_fg.set_corner_radius_all(7)
+			rpb.add_theme_stylebox_override("background", rpb_bg)
+			rpb.add_theme_stylebox_override("fill", rpb_fg)
+			vb.add_child(rpb)
+
+	if not conquered and realm_remaining > 0 and est_min > 0:
+		var est_pill := PanelContainer.new()
+		est_pill.name = "ConquestEstimateBox"
+		var ep_sb := StyleBoxFlat.new()
+		ep_sb.bg_color = Color(0.24, 0.18, 0.08, 0.96)
+		ep_sb.border_color = Color(1.0, 0.82, 0.32, 0.98)
+		ep_sb.set_border_width_all(2)
+		ep_sb.set_corner_radius_all(12)
+		ep_sb.set_content_margin_all(12)
+		est_pill.add_theme_stylebox_override("panel", ep_sb)
+		var est_lbl := Label.new()
+		est_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		est_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		est_lbl.add_theme_font_override("font", FontNunitoBold)
+		est_lbl.add_theme_font_size_override("font_size", 25)
+		est_lbl.add_theme_color_override("font_color", Color(1.0, 0.94, 0.62))
+		if est_min == est_max:
+			est_lbl.text = "🎯 Tahmini Kalan Saldırı: %d Kont saldırısı daha" % est_min
+		else:
+			est_lbl.text = "🎯 Tahmini Kalan Saldırı: %d–%d Kont saldırısı daha" % [est_min, est_max]
+		est_pill.add_child(est_lbl)
+		vb.add_child(est_pill)
+
+	if _count_had > 0 and not conquered:
+		var cap_note := ""
+		var base_hi := 2250 if has_statue else 2750
+		if drop_max < base_hi:
+			cap_note = " (tavan sınırı: köy puanının yarısı %s P)" % _format_number(realm_half)
+		elif has_statue:
+			cap_note = " (hedefte Anıt var)"
+		var foot := Label.new()
+		foot.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		foot.add_theme_font_size_override("font_size", 20)
+		foot.add_theme_color_override("font_color", Color(0.78, 0.76, 0.72))
+		foot.text = "KingsAge Kuralı: Saldırı başına %s–%s P düşüş%s • Saatlik yenilenme: +%s P/saat (%%1) • Her saldırıda en fazla 1 Kont etkilidir." % [
+			_format_number(drop_min),
+			_format_number(drop_max),
+			cap_note,
+			_format_number(hourly_regen),
+		]
+		vb.add_child(foot)
+
+	return pc
 
 
 func _make_side_card(title: String, name_str: String, border_color: Color) -> PanelContainer:

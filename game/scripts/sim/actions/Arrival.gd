@@ -100,13 +100,15 @@ static func _resolve_battle(
 	# --- Fetih / Güç Alanı ---
 	var conquest_protected := Protection.is_conquest_protected(target, now_unix)
 	var conquered := bool(result.get("conquered", false)) and not is_raid and not conquest_protected
+	var count_survived := bool(result.get("count_survived", false))
+	var conquest_blocked := conquest_protected and not is_raid and bool(result.get("attacker_won", false)) and count_survived
 
 	var events: Array = []
 	if conquered:
 		var conquest_event := _apply_conquest(state, origin, target, result, now_unix)
 		events.append(conquest_event)
 	else:
-		if bool(result.get("conquered", false)) and conquest_protected:
+		if conquest_blocked:
 			events.append({
 				"type": "conquest_blocked",
 				"village_id": to_id,
@@ -116,10 +118,10 @@ static func _resolve_battle(
 		if not conquest_protected and realm_after >= 0:
 			target["realm_of_power"] = clampi(realm_after, 0, maxi(0, points))
 		else:
-			target["realm_of_power"] = clampi(int(target.get("realm_of_power", 0)), 0, maxi(0, points))
+			target["realm_of_power"] = clampi(int(target.get("realm_of_power", maxi(0, points))), 0, maxi(0, points))
 
 	# --- Savaş raporu ---
-	_add_report(state, "battle", from_id, now_unix, _battle_report_data(result, attacker, defender, movement, is_raid))
+	_add_report(state, "battle", from_id, now_unix, _battle_report_data(result, attacker, defender, movement, is_raid, conquered, conquest_blocked, target))
 
 	events.append({
 		"type": "battle_resolved",
@@ -149,22 +151,51 @@ static func _resolve_battle(
 static func _apply_conquest(
 	state: Dictionary, origin: Dictionary, target: Dictionary, result: Dictionary, now_unix: int
 ) -> Dictionary:
+	var target_id := int(target.get("id", 0))
 	var points := int(target.get("points", 0))
 	var realm_after := int(result.get("realm_of_power_after", -1))
 	if realm_after < 0:
 		realm_after = int(floor(float(points) * POST_CONQUEST_RATIO + 0.5))
 	var former_owner := str(target.get("owner", ""))
-	target["owner"] = str(origin.get("owner", ""))
-	target["is_bot"] = bool(origin.get("is_bot", false))
+	var new_owner := str(origin.get("owner", "")).strip_edges()
+	var origin_is_bot := bool(origin.get("is_bot", false))
+	if new_owner.is_empty() and not origin_is_bot and typeof(state.get("player")) == TYPE_DICTIONARY:
+		new_owner = str((state["player"] as Dictionary).get("name", "")).strip_edges()
+	var cprot_until := now_unix + Protection.conquest_protection_days() * Protection.DAY_SECONDS
+	target["owner"] = new_owner
+	target["is_bot"] = origin_is_bot
 	target["is_barbarian"] = false
+	target["is_conquered"] = true
+	target["conquered_by"] = new_owner
+	target["conquered_unix"] = now_unix
+	target["former_owner"] = former_owner
 	target["protection_until"] = 0
-	target["conquest_protection_until"] = now_unix + Protection.conquest_protection_days() * Protection.DAY_SECONDS
+	target["protection_until_unix"] = 0
+	target["conquest_protection_until"] = cprot_until
+	target["conquest_protection_until_unix"] = cprot_until
 	target["realm_of_power"] = clampi(realm_after, 0, maxi(0, points))
+	target["support"] = []
+	target["settlers_reserved"] = 0
+	target.erase("next_bot_think_unix")
+
+	# Eski sahibine ait bekleyen kuyrukları temizle (köy el değiştirdi).
+	var queues = state.get("queues", null)
+	if typeof(queues) == TYPE_ARRAY:
+		var q_arr := queues as Array
+		for i in range(q_arr.size() - 1, -1, -1):
+			var q = q_arr[i]
+			if typeof(q) == TYPE_DICTIONARY and int((q as Dictionary).get("village_id", -1)) == target_id:
+				q_arr.remove_at(i)
+
+	if typeof(state.get("world")) == TYPE_DICTIONARY and (state["world"] as Dictionary).has("villages"):
+		(state["world"] as Dictionary)["villages"] = state.get("villages", [])
+
 	return {
 		"type": "village_conquered",
-		"village_id": int(target.get("id", 0)),
+		"village_id": target_id,
 		"former_owner": former_owner,
-		"new_owner": str(target.get("owner", "")),
+		"owner": new_owner,
+		"new_owner": new_owner,
 		"realm_of_power": int(target.get("realm_of_power", 0)),
 	}
 
@@ -374,6 +405,9 @@ static func _defender_payload(target: Dictionary, movement: Dictionary) -> Dicti
 	if def_points <= 0:
 		def_points = int(target.get("points", 0))
 	var def_owner := str(target.get("owner", ""))
+	var raw_rop := int(target.get("realm_of_power", -1))
+	if not target.has("realm_of_power") or raw_rop < 0:
+		raw_rop = mini(maxi(0, def_points), 10000)
 	return {
 		"name": def_owner if not def_owner.is_empty() else "Savunan",
 		"village_name": str(target.get("name", "")),
@@ -382,7 +416,7 @@ static func _defender_payload(target: Dictionary, movement: Dictionary) -> Dicti
 		"wall_level": _building_level(target, "wall"),
 		"has_statue": bool(target.get("has_statue", false)),
 		"points": def_points,
-		"realm_of_power": int(target.get("realm_of_power", -1)),
+		"realm_of_power": raw_rop,
 		"resources": _normalize_resources(target.get("resources", {})),
 	}
 
@@ -397,13 +431,42 @@ static func _spy_phase_data(result: Dictionary) -> Dictionary:
 
 
 static func _battle_report_data(
-	result: Dictionary, attacker: Dictionary, defender: Dictionary, movement: Dictionary, is_raid: bool
+	result: Dictionary, attacker: Dictionary, defender: Dictionary, movement: Dictionary, is_raid: bool,
+	actual_conquered: bool = false, conquest_blocked: bool = false, target: Dictionary = {}
 ) -> Dictionary:
-	var built: Dictionary = BR.build(result, attacker, defender)
+	var raw_copy: Dictionary = result.duplicate(true)
+	raw_copy["conquered"] = actual_conquered
+	raw_copy["conquest_blocked"] = conquest_blocked
+	var realm_before := int(result.get("realm_of_power_before", int(defender.get("realm_of_power", 0))))
+	var realm_cap := maxi(1, int(result.get("realm_cap", mini(maxi(1, int(defender.get("points", 0))), 10000))))
+	var realm_half_cap := maxi(1, int(result.get("realm_half_cap", int(floor(float(realm_cap) / 2.0)))))
+	var realm_drop_min := int(result.get("realm_drop_min", mini(1750, realm_half_cap)))
+	var realm_drop_max := int(result.get("realm_drop_max", mini(2750, realm_half_cap)))
+	var has_statue := bool(result.get("defender_has_statue", bool(defender.get("has_statue", false))))
+	var realm_after := int(target.get("realm_of_power", result.get("realm_of_power_after", 0))) if not target.is_empty() else int(result.get("realm_of_power_after", 0))
+	var realm_loss := 0 if conquest_blocked else int(result.get("realm_loss_applied", result.get("realm_loss", 0)))
+	var realm_remaining := 0 if actual_conquered else maxi(0, realm_after)
+	var realm_post_conquest := realm_after if actual_conquered else -1
+	var est_min := 0
+	var est_max := 0
+	if not actual_conquered and realm_remaining > 0:
+		est_min = maxi(1, int(ceil(float(realm_remaining) / float(maxi(1, realm_drop_max)))))
+		est_max = maxi(1, int(ceil(float(realm_remaining) / float(maxi(1, realm_drop_min)))))
+	if conquest_blocked:
+		raw_copy["realm_loss"] = 0
+		raw_copy["realm_loss_applied"] = 0
+		raw_copy["realm_of_power_after"] = realm_after
+		raw_copy["est_attacks_min"] = est_min
+		raw_copy["est_attacks_max"] = est_max
+		raw_copy["realm_before"] = realm_before
+
+	var built: Dictionary = BR.build(raw_copy, attacker, defender)
 	var data: Dictionary = built.duplicate(true)
 	data["type"] = "battle"
 	data["target_village_id"] = int(movement.get("to_village_id", 0))
 	data["from_village_id"] = int(movement.get("from_village_id", 0))
+	data["target_name"] = str(defender.get("village_name", ""))
+	data["from_name"] = str(attacker.get("village_name", ""))
 	data["attacker_name"] = str(attacker.get("name", "Saldıran"))
 	data["defender_name"] = str(defender.get("name", "Savunan"))
 	data["attacker_village_name"] = str(attacker.get("village_name", ""))
@@ -417,13 +480,29 @@ static func _battle_report_data(
 	data["defender_alive"] = (result.get("defender_alive", {}) as Dictionary).duplicate(true)
 	data["loot"] = _normalize_resources(result.get("loot", {}))
 	data["carry_capacity"] = int(result.get("carry_capacity", 0))
-	data["conquered"] = bool(result.get("conquered", false))
+	data["conquered"] = actual_conquered
+	data["conquest_blocked"] = conquest_blocked
+	data["conquest_blocked_reason"] = "conquest_protection" if conquest_blocked else ""
+	data["count_had"] = int(result.get("count_had", int((attacker.get("units", {}) as Dictionary).get("snob", 0))))
+	data["count_survived"] = bool(result.get("count_survived", false))
+	data["count_died"] = bool(result.get("count_died", false))
 	data["wall_damage_pct"] = float(result.get("wall_damage_pct", 0.0))
 	data["wall_level_before"] = int(result.get("wall_level_before", 0))
 	data["wall_level_after"] = int(result.get("wall_level_after", 0))
-	data["realm_before"] = int(result.get("realm_of_power_before", 0))
-	data["realm_after"] = int(result.get("realm_of_power_after", 0))
-	data["raw"] = result
+	data["realm_before"] = maxi(0, realm_before)
+	data["realm_after"] = maxi(0, realm_after)
+	data["realm_remaining"] = realm_remaining
+	data["realm_post_conquest"] = realm_post_conquest
+	data["realm_loss"] = maxi(0, realm_loss)
+	data["realm_cap"] = realm_cap
+	data["realm_half_cap"] = realm_half_cap
+	data["realm_drop_min"] = realm_drop_min
+	data["realm_drop_max"] = realm_drop_max
+	data["defender_has_statue"] = has_statue
+	data["est_attacks_min"] = est_min
+	data["est_attacks_max"] = est_max
+	data["realm_hourly_regen"] = int(floor(float(realm_cap) * 0.01 + 0.5))
+	data["raw"] = raw_copy
 	return data
 
 

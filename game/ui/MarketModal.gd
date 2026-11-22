@@ -140,6 +140,8 @@ func _make_medallion(tex: Texture2D, accent: Color, badge_txt: String = "", badg
 var _ui_built: bool = false
 var _current_tab: String = "build"
 var _pending_pack_id: String = ""
+var _refresh_queued: bool = false
+var _tap_busy: bool = false
 
 var _card: PanelContainer = null
 var _diamond_label: Label = null
@@ -158,6 +160,19 @@ func _ready() -> void:
 	_ensure_ui()
 	_connect_signals()
 	_refresh_all()
+
+
+func _exit_tree() -> void:
+	var sm := _get_store_manager()
+	if sm != null:
+		if sm.has_signal("diamonds_changed") and sm.diamonds_changed.is_connected(_on_store_changed):
+			sm.diamonds_changed.disconnect(_on_store_changed)
+		if sm.has_signal("scrolls_changed") and sm.scrolls_changed.is_connected(_on_store_dict_changed):
+			sm.scrolls_changed.disconnect(_on_store_dict_changed)
+		if sm.has_signal("products_updated") and sm.products_updated.is_connected(_on_store_dict_changed):
+			sm.products_updated.disconnect(_on_store_dict_changed)
+		if sm.has_signal("purchase_completed") and sm.purchase_completed.is_connected(_on_purchase_completed):
+			sm.purchase_completed.disconnect(_on_purchase_completed)
 
 
 func open_tab(tab_key: String = "build") -> void:
@@ -261,14 +276,34 @@ func _connect_signals() -> void:
 			sm.purchase_completed.connect(_on_purchase_completed)
 
 
-func _on_store_changed(_amt: int) -> void:
+func _schedule_refresh() -> void:
+	if not _ui_built or is_queued_for_deletion():
+		return
+	if _refresh_queued:
+		return
+	_refresh_queued = true
+	call_deferred("_flush_deferred_refresh")
+
+
+func _flush_deferred_refresh() -> void:
+	_refresh_queued = false
+	if not _ui_built or is_queued_for_deletion() or not is_inside_tree():
+		return
 	_refresh_diamond_pill()
+	_refresh_tabs()
 	_refresh_list()
+
+
+func _clear_tap_busy() -> void:
+	_tap_busy = false
+
+
+func _on_store_changed(_amt: int) -> void:
+	_schedule_refresh()
 
 
 func _on_store_dict_changed(_d: Dictionary) -> void:
-	_refresh_diamond_pill()
-	_refresh_list()
+	_schedule_refresh()
 
 
 func _on_purchase_completed(ok: bool, _product_id: String, diamonds_added: int, message: String) -> void:
@@ -277,7 +312,7 @@ func _on_purchase_completed(ok: bool, _product_id: String, diamonds_added: int, 
 		_show_status("💎 +%d Elmas hesabınıza eklendi!" % diamonds_added, true)
 	else:
 		_show_status(message if not message.is_empty() else "Satın alma tamamlanamadı.", false)
-	_refresh_all()
+	_schedule_refresh()
 
 
 func _ensure_ui() -> void:
@@ -782,6 +817,10 @@ func _populate_scrolls_tab(cat: String) -> void:
 
 
 func _on_use_scroll_from_market(scroll_id: String, scroll_name: String, cat: String) -> void:
+	if _tap_busy or is_queued_for_deletion():
+		return
+	_tap_busy = true
+	call_deferred("_clear_tap_busy")
 	var sm := _get_store_manager()
 	if sm == null or not sm.has_method("apply_scroll_to_queue"):
 		_show_status("Hızlandırma servisi hazır değil.", false)
@@ -795,7 +834,7 @@ func _on_use_scroll_from_market(scroll_id: String, scroll_name: String, cat: Str
 			_show_status("⚡ %s kullanıldı ve işlem anında tamamlandı!" % scroll_name, true)
 		else:
 			_show_status("⚡ %s kullanıldı! Süre %s kısaltıldı." % [scroll_name, dur_str], true)
-		_refresh_all()
+		_schedule_refresh()
 	else:
 		var err := str((res as Dictionary).get("error", "Şu anda bu kategoride hızlandırılacak aktif bir işlem yok.")) if typeof(res) == TYPE_DICTIONARY else "Hızlandırılacak aktif işlem yok."
 		_show_status(err, false)
@@ -948,6 +987,10 @@ func _populate_resources_tab() -> void:
 
 
 func _on_buy_resource_pack_pressed(pack_id: String, pack_name: String, cost: int) -> void:
+	if _tap_busy or is_queued_for_deletion():
+		return
+	_tap_busy = true
+	call_deferred("_clear_tap_busy")
 	var sm := _get_store_manager()
 	if sm == null or not sm.has_method("buy_resource_pack"):
 		_show_status("Mağaza servisi hazır değil.", false)
@@ -964,7 +1007,7 @@ func _on_buy_resource_pack_pressed(pack_id: String, pack_name: String, cost: int
 			parts.append("+%d Demir" % int(added["iron"]))
 		var summary := ", ".join(parts) if not parts.is_empty() else pack_name
 		_show_status("📦 %s köy ambarınıza eklendi!" % summary, true)
-		_refresh_all()
+		_schedule_refresh()
 	else:
 		var err := str((res as Dictionary).get("error", "Kaynak paketi alınamadı.")) if typeof(res) == TYPE_DICTIONARY else "Kaynak paketi alınamadı."
 		if _get_diamonds() < cost:
@@ -974,6 +1017,10 @@ func _on_buy_resource_pack_pressed(pack_id: String, pack_name: String, cost: int
 
 
 func _on_buy_scroll_pressed(scroll_id: String, scroll_name: String, cost: int) -> void:
+	if _tap_busy or is_queued_for_deletion():
+		return
+	_tap_busy = true
+	call_deferred("_clear_tap_busy")
 	var sm := _get_store_manager()
 	if sm == null or not sm.has_method("buy_scroll"):
 		_show_status("Mağaza servisi hazır değil.", false)
@@ -981,7 +1028,7 @@ func _on_buy_scroll_pressed(scroll_id: String, scroll_name: String, cost: int) -
 	var res = sm.call("buy_scroll", scroll_id, 1)
 	if typeof(res) == TYPE_DICTIONARY and bool((res as Dictionary).get("ok", false)):
 		_show_status("✅ %s envanterinize eklendi!" % scroll_name, true)
-		_refresh_all()
+		_schedule_refresh()
 	else:
 		var err := str((res as Dictionary).get("error", "")) if typeof(res) == TYPE_DICTIONARY else ""
 		if _get_diamonds() < cost:

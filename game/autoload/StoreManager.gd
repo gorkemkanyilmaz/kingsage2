@@ -250,6 +250,7 @@ var _products_poll_timer: Timer = null
 var _last_seen_diamonds: int = -1
 var _last_seen_scrolls_json: String = ""
 var _suppress_bus_sync: bool = false
+var _applying_scroll: bool = false
 
 
 func _ready() -> void:
@@ -456,11 +457,17 @@ func _emit_wallet_and_state(save_now: bool = true) -> void:
 	if wm != null and wm.has_method("notify_local_wallet_mutation"):
 		wm.call("notify_local_wallet_mutation")
 	if save_now:
-		if wm != null and wm.has_method("save_active_world"):
-			wm.call("save_active_world", true)
+		if wm != null:
+			if wm.has_method("request_save_active_world"):
+				wm.call("request_save_active_world", true)
+			elif wm.has_method("save_active_world"):
+				wm.call("save_active_world", true)
 		var sm := _autoload("SaveManager")
-		if sm != null and sm.has_method("save_game"):
-			sm.save_game()
+		if sm != null:
+			if sm.has_method("request_save_game"):
+				sm.call("request_save_game")
+			elif sm.has_method("save_game"):
+				sm.save_game()
 	var d := get_diamonds()
 	var s := _normalized_scrolls()
 	_last_seen_diamonds = d
@@ -470,7 +477,11 @@ func _emit_wallet_and_state(save_now: bool = true) -> void:
 	var bus := _autoload("EventBus")
 	if bus != null and bus.has_signal("state_changed"):
 		_suppress_bus_sync = true
+		if wm != null:
+			wm.set("_suppress_tick_autosave", true)
 		bus.state_changed.emit()
+		if wm != null:
+			wm.set("_suppress_tick_autosave", false)
 		_suppress_bus_sync = false
 
 
@@ -609,6 +620,8 @@ func buy_resource_pack(pack_id: String) -> Dictionary:
 
 
 func apply_scroll_to_queue(scroll_id: String, category: String, target_id: Variant = null) -> Dictionary:
+	if _applying_scroll:
+		return {"ok": false, "error": "İşlem devam ediyor..."}
 	var def := get_scroll_def(scroll_id)
 	if def.is_empty():
 		return {"ok": false, "error": "Bilinmeyen parşömen."}
@@ -625,12 +638,14 @@ func apply_scroll_to_queue(scroll_id: String, category: String, target_id: Varia
 	var scroll_secs := maxi(1, int(def.get("seconds", 0)))
 	var now := _current_sim_now()
 
+	_applying_scroll = true
+	var out: Dictionary = {"ok": false, "error": "Desteklenmeyen hızlandırma kategorisi."}
 	if category in ["build", "train", "research"]:
-		return _apply_scroll_to_village_queue(gs, scroll_id, category, scroll_secs, target_id, now)
-	if category == "march":
-		return _apply_scroll_to_march(gs, scroll_id, scroll_secs, target_id, now)
-
-	return {"ok": false, "error": "Desteklenmeyen hızlandırma kategorisi."}
+		out = _apply_scroll_to_village_queue(gs, scroll_id, category, scroll_secs, target_id, now)
+	elif category == "march":
+		out = _apply_scroll_to_march(gs, scroll_id, scroll_secs, target_id, now)
+	_applying_scroll = false
+	return out
 
 
 func _find_queue_target_index(items: Array, target_id: Variant) -> int:
@@ -846,6 +861,9 @@ func _apply_scroll_to_march(gs: Node, scroll_id: String, scroll_secs: int, targe
 
 	var completed := (new_arrive <= now)
 	var used_mid: Variant = target_m.get("id", target_id)
+	var wm_mut := _autoload("WorldManager")
+	if wm_mut != null and wm_mut.has_method("notify_local_mutation"):
+		wm_mut.call("notify_local_mutation")
 	_consume_scroll(gs, scroll_id, "march", used_mid, active_vid)
 	if completed:
 		_trigger_simulation(gs, now)
@@ -883,10 +901,9 @@ func _consume_scroll(gs: Node, scroll_id: String, category: String = "", target_
 func _trigger_simulation(gs: Node, now: int) -> void:
 	if GameLoopScript.instance != null and GameLoopScript.instance.now_unix() > 0:
 		var gl_now := int(GameLoopScript.instance.now_unix())
-		var dt := maxf(0.1, float(now - gl_now) + 0.1)
-		GameLoopScript.instance.simulate(dt)
+		if now > gl_now:
+			GameLoopScript.instance.set("_now_unix", float(now))
 
-	# Hala now veya öncesinde bitmesi gereken hareket/kuyruk kaldıysa doğrudan simüle et
 	var needs_direct := false
 	if typeof(gs.get("movements")) == TYPE_ARRAY:
 		for m in (gs.get("movements") as Array):
@@ -898,7 +915,7 @@ func _trigger_simulation(gs: Node, now: int) -> void:
 			if typeof(q) == TYPE_DICTIONARY and int((q as Dictionary).get("finish_unix", now + 999)) <= now:
 				needs_direct = true
 				break
-	if not needs_direct and GameLoopScript.instance != null and GameLoopScript.instance.now_unix() > 0:
+	if not needs_direct:
 		return
 
 	var st: Dictionary = gs.call("to_dict")
@@ -919,14 +936,20 @@ func _trigger_simulation(gs: Node, now: int) -> void:
 				if typeof(ev) == TYPE_ARRAY:
 					events.append_array(ev)
 
+	var wm := _autoload("WorldManager")
+	if wm != null:
+		wm.set("_suppress_tick_autosave", true)
 	gs.call("from_dict", st)
 	_emit_fallback_events(events)
+	if wm != null:
+		wm.set("_suppress_tick_autosave", false)
 
 
 func _emit_fallback_events(events: Array) -> void:
 	var bus := _autoload("EventBus")
 	if bus == null:
 		return
+	var wm := _autoload("WorldManager")
 	for e in events:
 		if typeof(e) != TYPE_DICTIONARY:
 			continue
@@ -942,6 +965,17 @@ func _emit_fallback_events(events: Array) -> void:
 			"unit_trained", "training_completed":
 				if bus.has_signal("unit_trained"):
 					bus.unit_trained.emit(vid, str(ev.get("unit_key", ev.get("key", ""))), int(ev.get("count", 0)))
+			"village_conquered":
+				var conq_owner := str(ev.get("new_owner", ev.get("owner", "")))
+				if wm != null:
+					if wm.has_method("notify_local_conquest_mutation"):
+						wm.call("notify_local_conquest_mutation", vid, conq_owner)
+					elif wm.has_method("notify_local_mutation"):
+						wm.call("notify_local_mutation")
+				if bus.has_signal("village_conquered"):
+					bus.village_conquered.emit(vid, conq_owner)
+				if wm != null and wm.has_method("request_save_active_world"):
+					wm.call("request_save_active_world", true)
 			"battle_resolved":
 				if bus.has_signal("battle_resolved"):
 					bus.battle_resolved.emit(ev)

@@ -14,6 +14,14 @@ var auth_token: String = ""
 
 var _http: HTTPRequest
 var _bg_requests: Array[HTTPRequest] = []
+var _cloud_save_in_flight: bool = false
+var _pending_cloud_save: Dictionary = {}
+var _store_req_queue: Array[Dictionary] = []
+var _store_req_in_flight: bool = false
+
+
+func has_pending_or_inflight_cloud_save() -> bool:
+	return _cloud_save_in_flight or not _pending_cloud_save.is_empty()
 
 
 func _untrack_bg_request(req: HTTPRequest) -> void:
@@ -346,8 +354,39 @@ func pull_shared_world_from_cloud(callback: Callable = Callable()) -> void:
 	sync_state_from_cloud(auth_token, callback, req_seq)
 
 
+func _flush_pending_cloud_save() -> void:
+	if _cloud_save_in_flight or _pending_cloud_save.is_empty():
+		return
+	var next_save := _pending_cloud_save.duplicate(false)
+	_pending_cloud_save.clear()
+	var tok := str(next_save.get("token", ""))
+	if tok.is_empty():
+		return
+	var st_val = next_save.get("state_dict", {})
+	if typeof(st_val) != TYPE_DICTIONARY:
+		return
+	var cb: Callable = next_save.get("callback", Callable())
+	var rseq := int(next_save.get("req_seq", -1))
+	save_state_to_cloud(tok, st_val as Dictionary, cb, rseq)
+
+
 func save_state_to_cloud(token: String, state_dict: Dictionary, callback: Callable = Callable(), req_seq: int = -1) -> void:
+	if token.strip_edges().is_empty():
+		if callback.is_valid():
+			callback.call(false)
+		return
+	if _cloud_save_in_flight:
+		_pending_cloud_save = {
+			"token": token,
+			"state_dict": state_dict.duplicate(true),
+			"callback": callback,
+			"req_seq": req_seq,
+		}
+		return
+
+	_cloud_save_in_flight = true
 	var req := HTTPRequest.new()
+	req.use_threads = not OS.has_feature("web")
 	add_child(req)
 	req.timeout = 10.0
 
@@ -357,6 +396,26 @@ func save_state_to_cloud(token: String, state_dict: Dictionary, callback: Callab
 	]
 
 	var payload := JSON.stringify(state_dict)
+	var done := [false]
+
+	var finish_cloud_save := func(ok: bool, res_data: Dictionary):
+		if bool(done[0]):
+			return
+		done[0] = true
+		_cloud_save_in_flight = false
+		if is_instance_valid(req):
+			req.queue_free()
+		if ok:
+			var loop = Engine.get_main_loop()
+			if loop is SceneTree:
+				var wm = loop.root.get_node_or_null("WorldManager")
+				if wm != null and wm.has_method("apply_cloud_sync"):
+					wm.apply_cloud_sync(res_data, true, req_seq)
+		if callback.is_valid():
+			callback.call(ok)
+		if ok and not res_data.is_empty():
+			sync_completed.emit(true, res_data)
+		call_deferred("_flush_pending_cloud_save")
 
 	req.request_completed.connect(func(result: int, response_code: int, _hdrs: PackedStringArray, body: PackedByteArray):
 		var success := (result == HTTPRequest.RESULT_SUCCESS and response_code == 200)
@@ -366,19 +425,25 @@ func save_state_to_cloud(token: String, state_dict: Dictionary, callback: Callab
 			var test_json := JSON.new()
 			if test_json.parse(json_str) == OK and typeof(test_json.data) == TYPE_DICTIONARY:
 				res_data = test_json.data
-				var loop = Engine.get_main_loop()
-				if loop is SceneTree:
-					var wm = loop.root.get_node_or_null("WorldManager")
-					if wm != null and wm.has_method("apply_cloud_sync"):
-						wm.apply_cloud_sync(res_data, true, req_seq)
-		if callback.is_valid():
-			callback.call(success)
-		if success and not res_data.is_empty():
-			sync_completed.emit(true, res_data)
-		req.queue_free()
+		finish_cloud_save.call(success, res_data)
 	)
 
-	req.request(server_url + "/api/game/save", headers, HTTPClient.METHOD_POST, payload)
+	var watchdog := Timer.new()
+	watchdog.one_shot = true
+	watchdog.wait_time = 12.0
+	watchdog.timeout.connect(func():
+		if bool(done[0]):
+			return
+		if is_instance_valid(req):
+			req.cancel_request()
+		finish_cloud_save.call(false, {})
+	)
+	req.add_child(watchdog)
+	watchdog.start()
+
+	var req_err := req.request(server_url + "/api/game/save", headers, HTTPClient.METHOD_POST, payload)
+	if req_err != OK and not bool(done[0]):
+		finish_cloud_save.call(false, {})
 
 
 func delete_account_online(callback: Callable = Callable()) -> void:
@@ -421,8 +486,42 @@ func delete_account_online(callback: Callable = Callable()) -> void:
 # Yetkili Çevrimiçi API Çağrıları (Authoritative Server Action API)
 # =============================================================================
 
+func _is_serialized_store_endpoint(endpoint: String) -> bool:
+	return endpoint in ["/api/store/use_scroll", "/api/store/buy_scroll", "/api/store/buy_resources"]
+
+
+func _drain_store_req_queue() -> void:
+	if _store_req_in_flight or _store_req_queue.is_empty():
+		return
+	var next_item := _store_req_queue.pop_front() as Dictionary
+	_store_req_in_flight = true
+	_dispatch_api_request(
+		str(next_item.get("endpoint", "")),
+		int(next_item.get("method", HTTPClient.METHOD_POST)),
+		next_item.get("payload", {}) as Dictionary,
+		next_item.get("callback", Callable()) as Callable,
+		true
+	)
+
+
 func api_request(endpoint: String, method: int, payload: Dictionary = {}, callback: Callable = Callable()) -> void:
+	if method == HTTPClient.METHOD_POST and _is_serialized_store_endpoint(endpoint):
+		if _store_req_queue.size() >= 32:
+			_store_req_queue.pop_front()
+		_store_req_queue.append({
+			"endpoint": endpoint,
+			"method": method,
+			"payload": payload.duplicate(true),
+			"callback": callback,
+		})
+		_drain_store_req_queue()
+		return
+	_dispatch_api_request(endpoint, method, payload, callback, false)
+
+
+func _dispatch_api_request(endpoint: String, method: int, payload: Dictionary, callback: Callable, is_store_queued: bool) -> void:
 	var req := HTTPRequest.new()
+	req.use_threads = not OS.has_feature("web")
 	add_child(req)
 	req.timeout = 10.0
 
@@ -438,6 +537,19 @@ func api_request(endpoint: String, method: int, payload: Dictionary = {}, callba
 		headers.append("Authorization: Bearer " + token)
 
 	var body_str := JSON.stringify(payload) if (method == HTTPClient.METHOD_POST and not payload.is_empty()) else ""
+	var done := [false]
+
+	var finish_req := func(success: bool, res_json: Dictionary):
+		if bool(done[0]):
+			return
+		done[0] = true
+		if is_instance_valid(req):
+			req.queue_free()
+		if callback.is_valid():
+			callback.call(success, res_json)
+		if is_store_queued:
+			_store_req_in_flight = false
+			call_deferred("_drain_store_req_queue")
 
 	req.request_completed.connect(func(result: int, response_code: int, _hdrs: PackedStringArray, body: PackedByteArray):
 		var success := (result == HTTPRequest.RESULT_SUCCESS and response_code >= 200 and response_code < 300)
@@ -446,13 +558,25 @@ func api_request(endpoint: String, method: int, payload: Dictionary = {}, callba
 		var test_json := JSON.new()
 		if test_json.parse(json_str) == OK and typeof(test_json.data) == TYPE_DICTIONARY:
 			res_json = test_json.data
-
-		if callback.is_valid():
-			callback.call(success, res_json)
-		req.queue_free()
+		finish_req.call(success, res_json)
 	)
 
-	req.request(server_url + endpoint, headers, method, body_str)
+	var watchdog := Timer.new()
+	watchdog.one_shot = true
+	watchdog.wait_time = 12.0
+	watchdog.timeout.connect(func():
+		if bool(done[0]):
+			return
+		if is_instance_valid(req):
+			req.cancel_request()
+		finish_req.call(false, {"_watchdog_timeout": true})
+	)
+	req.add_child(watchdog)
+	watchdog.start()
+
+	var req_err := req.request(server_url + endpoint, headers, method, body_str)
+	if req_err != OK and not bool(done[0]):
+		finish_req.call(false, {"_request_error": req_err})
 
 
 func api_join_world(world_id: int, target_x: int, target_y: int, callback: Callable) -> void:

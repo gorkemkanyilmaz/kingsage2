@@ -505,7 +505,10 @@ func _on_building_completed(village_id: int, key: String, level: int) -> void:
 		building_panel.refresh()
 	var sm = Engine.get_main_loop().root.get_node_or_null("SaveManager") if Engine.get_main_loop() is SceneTree else null
 	if sm != null:
-		sm.save_game()
+		if sm.has_method("request_save_game"):
+			sm.call("request_save_game")
+		else:
+			sm.save_game()
 
 
 func refresh_all() -> void:

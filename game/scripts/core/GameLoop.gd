@@ -236,8 +236,13 @@ func simulate(delta_seconds: float) -> Array:
 					if typeof(produced_rem) == TYPE_ARRAY:
 						events.append_array(produced_rem)
 
+	var wm_sim := _autoload("WorldManager")
+	if wm_sim != null:
+		wm_sim.set("_suppress_tick_autosave", true)
 	gs.from_dict(state)
 	_emit_events(events)
+	if wm_sim != null:
+		wm_sim.set("_suppress_tick_autosave", false)
 
 	# Periyodik otomatik kayıt (her 30 saniyede bir son damga kaydedilir)
 	# Manuel test zamanı (set_now_unix) kullanıldığında disk kaydıyla sim_now_unix'i bozma.
@@ -260,6 +265,11 @@ func _emit_events(events: Array) -> void:
 	var bus := _autoload("EventBus")
 	if bus == null:
 		return
+	var wm := _autoload("WorldManager")
+	if wm != null:
+		wm.set("_suppress_tick_autosave", true)
+	var needs_save := false
+	var needs_immediate_conquest_save := false
 	for e in events:
 		if typeof(e) != TYPE_DICTIONARY:
 			continue
@@ -268,68 +278,83 @@ func _emit_events(events: Array) -> void:
 		match str(ev.get("type", "")):
 			"building_completed":
 				bus.building_completed.emit(vid, str(ev.get("key", "")), int(ev.get("level", 0)))
-				var wm_bc := _autoload("WorldManager")
-				if wm_bc != null:
-					if wm_bc.has_method("notify_local_mutation"):
-						wm_bc.call("notify_local_mutation")
-					if wm_bc.has_method("save_active_world"):
-						wm_bc.call("save_active_world", true)
+				if wm != null and wm.has_method("notify_local_mutation"):
+					wm.call("notify_local_mutation")
+				needs_save = true
 				bus.state_changed.emit()
 			"building_torn_down":
 				bus.building_torn_down.emit(vid, str(ev.get("key", "")))
-				var wm_td := _autoload("WorldManager")
-				if wm_td != null:
-					if wm_td.has_method("notify_local_teardown"):
-						wm_td.call("notify_local_teardown", vid, str(ev.get("key", "")))
-					if wm_td.has_method("save_active_world"):
-						wm_td.call("save_active_world", true)
+				if wm != null and wm.has_method("notify_local_teardown"):
+					wm.call("notify_local_teardown", vid, str(ev.get("key", "")))
+				needs_save = true
 				bus.state_changed.emit()
 			"realm_of_power_changed":
 				bus.realm_of_power_changed.emit(vid, int(ev.get("value", 0)))
 			"research_completed":
 				bus.research_completed.emit(vid, str(ev.get("unit_key", ev.get("key", ""))))
-				var wm_rc := _autoload("WorldManager")
-				if wm_rc != null:
-					if wm_rc.has_method("notify_local_mutation"):
-						wm_rc.call("notify_local_mutation")
-					if wm_rc.has_method("save_active_world"):
-						wm_rc.call("save_active_world", true)
+				if wm != null and wm.has_method("notify_local_mutation"):
+					wm.call("notify_local_mutation")
+				needs_save = true
 				bus.state_changed.emit()
 			"unit_trained", "training_completed":
 				bus.unit_trained.emit(vid, str(ev.get("unit_key", ev.get("key", ""))), int(ev.get("count", 0)))
-				var wm_ut := _autoload("WorldManager")
-				if wm_ut != null:
-					if wm_ut.has_method("notify_local_mutation"):
-						wm_ut.call("notify_local_mutation")
-					if wm_ut.has_method("save_active_world"):
-						wm_ut.call("save_active_world")
+				if wm != null and wm.has_method("notify_local_mutation"):
+					wm.call("notify_local_mutation")
+				needs_save = true
 				bus.state_changed.emit()
 			"village_conquered":
-				bus.village_conquered.emit(vid, str(ev.get("owner", "")))
+				var conq_owner := str(ev.get("new_owner", ev.get("owner", "")))
+				if wm != null and wm.has_method("notify_local_conquest_mutation"):
+					wm.call("notify_local_conquest_mutation", vid, conq_owner)
+				elif wm != null and wm.has_method("notify_local_mutation"):
+					wm.call("notify_local_mutation")
+				bus.village_conquered.emit(vid, conq_owner)
 				bus.state_changed.emit()
-				var wm = _autoload("WorldManager")
-				if wm != null and wm.has_method("save_active_world"):
-					wm.save_active_world()
+				needs_immediate_conquest_save = true
 			"battle_resolved":
+				if wm != null and wm.has_method("notify_local_mutation"):
+					wm.call("notify_local_mutation")
+				needs_save = true
 				bus.battle_resolved.emit(ev)
 				bus.report_created.emit(ev)
 				bus.state_changed.emit()
 			"spy_resolved":
+				if wm != null and wm.has_method("notify_local_mutation"):
+					wm.call("notify_local_mutation")
+				needs_save = true
 				bus.spy_mission_resolved.emit(ev)
 				bus.report_created.emit(ev)
 				bus.state_changed.emit()
 			"movement_returned":
+				if wm != null and wm.has_method("notify_local_mutation"):
+					wm.call("notify_local_mutation")
+				needs_save = true
 				bus.army_returned.emit(ev)
 				bus.resources_changed.emit(vid)
 				bus.state_changed.emit()
 			"trade_delivered":
+				if wm != null and wm.has_method("notify_local_mutation"):
+					wm.call("notify_local_mutation")
+				needs_save = true
 				bus.resources_changed.emit(vid)
 				bus.state_changed.emit()
 			"support_arrived":
+				if wm != null and wm.has_method("notify_local_mutation"):
+					wm.call("notify_local_mutation")
+				needs_save = true
 				bus.army_arrived.emit(ev)
 				bus.state_changed.emit()
 			_:
 				pass
+	if wm != null:
+		wm.set("_suppress_tick_autosave", false)
+		if needs_immediate_conquest_save and wm.has_method("save_active_world"):
+			wm.call("save_active_world", true)
+		elif needs_save:
+			if wm.has_method("request_save_active_world"):
+				wm.call("request_save_active_world", true)
+			elif wm.has_method("save_active_world"):
+				wm.call("save_active_world", true)
 
 
 # =============================================================================

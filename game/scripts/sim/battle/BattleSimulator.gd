@@ -205,23 +205,36 @@ static func simulate(attacker: Dictionary, defender: Dictionary, options: Dictio
 		count_dies = true
 	var count_survived := snob_alive > 0 and not count_dies
 
+	var realm_before := int(defender.get("realm_of_power", -1))
+	var realm_cap := mini(maxi(1, def_points), _realm_max_points)
+	var realm_half_cap := maxi(1, int(floor(float(realm_cap) / 2.0)))
+	var realm_loss_range: Array = _realm_loss_memorial if def_has_statue else _realm_loss_normal
+	var realm_lo := int(realm_loss_range[0])
+	var realm_hi: int = maxi(realm_lo, int(realm_loss_range[1]))
+	var realm_drop_min := mini(realm_lo, realm_half_cap)
+	var realm_drop_max := mini(realm_hi, realm_half_cap)
+
 	var realm_loss := 0
+	var realm_loss_applied := 0
 	var realm_after := -1
 	var conquered := false
 	if attacker_won and count_survived and not is_raid:
-		var loss_range: Array = _realm_loss_memorial if def_has_statue else _realm_loss_normal
-		var lo := int(loss_range[0])
-		var hi: int = maxi(lo, int(loss_range[1]))
-		var max_pts: int = mini(maxi(1, def_points), _realm_max_points)
-		var village_cap: int = maxi(1, int(floor(float(max_pts) / 2.0)))
-		realm_loss = rng.randi_range(lo, hi)
-		realm_loss = mini(realm_loss, village_cap)  # cap: köyün maks Güç Alanının yarısı (en az 2 saldırı)
-		var current := int(defender.get("realm_of_power", -1))
-		if current >= 0:
-			realm_after = maxi(0, current - realm_loss)
+		realm_loss = rng.randi_range(realm_lo, realm_hi)
+		realm_loss = mini(realm_loss, realm_half_cap)  # cap: köyün maks Güç Alanının yarısı (en az 2 saldırı)
+		if realm_before >= 0:
+			realm_loss_applied = mini(realm_before, realm_loss)
+			realm_after = maxi(0, realm_before - realm_loss)
 			if realm_after <= 0:
 				conquered = true
-				realm_after = _round_half_up(float(max_pts) * float(_post_conquest_percent) / 100.0)
+				realm_after = _round_half_up(float(realm_cap) * float(_post_conquest_percent) / 100.0)
+
+	var est_attacks_min := 0
+	var est_attacks_max := 0
+	if not conquered:
+		var basis_realm := realm_after if realm_after >= 0 else realm_before
+		if basis_realm > 0:
+			est_attacks_min = maxi(1, int(ceil(float(basis_realm) / float(maxi(1, realm_drop_max)))))
+			est_attacks_max = maxi(1, int(ceil(float(basis_realm) / float(maxi(1, realm_drop_min)))))
 
 	# ========================================================================
 	#  Faz kayıtları
@@ -283,7 +296,16 @@ static func simulate(attacker: Dictionary, defender: Dictionary, options: Dictio
 			"count_died": count_dies,
 			"count_consumed": conquered,
 			"realm_loss": realm_loss,
+			"realm_loss_applied": realm_loss_applied,
+			"realm_of_power_before": realm_before,
 			"realm_of_power_after": realm_after,
+			"realm_cap": realm_cap,
+			"realm_half_cap": realm_half_cap,
+			"realm_drop_min": realm_drop_min,
+			"realm_drop_max": realm_drop_max,
+			"est_attacks_min": est_attacks_min,
+			"est_attacks_max": est_attacks_max,
+			"defender_has_statue": def_has_statue,
 			"conquered": conquered,
 		},
 	})
@@ -312,7 +334,16 @@ static func simulate(attacker: Dictionary, defender: Dictionary, options: Dictio
 		"carry_capacity": carry_capacity,
 		"hideout_capacity": hideout_capacity,
 		"realm_loss": realm_loss,
+		"realm_loss_applied": realm_loss_applied,
+		"realm_of_power_before": realm_before,
 		"realm_of_power_after": realm_after,
+		"realm_cap": realm_cap,
+		"realm_half_cap": realm_half_cap,
+		"realm_drop_min": realm_drop_min,
+		"realm_drop_max": realm_drop_max,
+		"est_attacks_min": est_attacks_min,
+		"est_attacks_max": est_attacks_max,
+		"defender_has_statue": def_has_statue,
 		"count_survived": count_survived,
 		"count_died": count_dies,
 		"count_had": snob_count,
