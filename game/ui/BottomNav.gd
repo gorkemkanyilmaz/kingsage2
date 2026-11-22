@@ -19,32 +19,45 @@ signal tab_selected(tab_name: String)
 
 const FontNunitoBold: Font = preload("res://assets/fonts/Nunito-Bold.ttf")
 const IncomingAttackAlert := preload("res://ui/IncomingAttackAlert.gd")
+const GameLoopScript := preload("res://scripts/core/GameLoop.gd")
 
 var _alarm_pulse_accum: float = 0.0
+var _alarm_scan_accum: float = 0.75
+var _has_incoming_alarm: bool = false
+var _btn_tinted: bool = false
 
 
 func _process(delta: float) -> void:
 	if btn_village == null or not is_instance_valid(btn_village):
 		return
+	_alarm_scan_accum += maxf(delta, 0.0)
+	if _alarm_scan_accum >= 0.75:
+		_alarm_scan_accum = 0.0
+		_refresh_incoming_alarm_state()
+	if not _has_incoming_alarm:
+		_alarm_pulse_accum = 0.0
+		if _btn_tinted:
+			btn_village.modulate = Color.WHITE
+			_btn_tinted = false
+		return
+	_alarm_pulse_accum += maxf(delta, 0.0)
+	var pulse := 0.5 + 0.5 * sin(_alarm_pulse_accum * 6.0)
+	var g_b := lerpf(0.35, 1.0, 1.0 - pulse)
+	btn_village.modulate = Color(1.0, g_b, g_b, 1.0)
+	_btn_tinted = true
+
+
+func _refresh_incoming_alarm_state() -> void:
 	var gs = Engine.get_main_loop().root.get_node_or_null("GameState") if Engine.get_main_loop() is SceneTree else null
 	if gs == null:
-		btn_village.modulate = Color.WHITE
+		_has_incoming_alarm = false
 		return
 	var now_u := int(Time.get_unix_time_from_system())
-	var gl_script := load("res://scripts/core/GameLoop.gd")
-	if gl_script != null and gl_script.instance != null and gl_script.instance.has_method("now_unix"):
-		var glu := int(gl_script.instance.now_unix())
+	if GameLoopScript.instance != null and GameLoopScript.instance.has_method("now_unix"):
+		var glu := int(GameLoopScript.instance.now_unix())
 		if glu > 0:
 			now_u = glu
-	var incoming := IncomingAttackAlert.get_incoming_attacks(gs, now_u)
-	if incoming.is_empty():
-		_alarm_pulse_accum = 0.0
-		btn_village.modulate = Color.WHITE
-	else:
-		_alarm_pulse_accum += delta
-		var pulse := 0.5 + 0.5 * sin(_alarm_pulse_accum * 6.0)
-		var g_b := lerpf(0.35, 1.0, 1.0 - pulse)
-		btn_village.modulate = Color(1.0, g_b, g_b, 1.0)
+	_has_incoming_alarm = not IncomingAttackAlert.get_incoming_attacks(gs, now_u).is_empty()
 
 
 func _ready() -> void:
@@ -91,6 +104,7 @@ func _setup_badge_labels() -> void:
 
 func _on_event_update(_arg = null) -> void:
 	_update_badges()
+	_refresh_incoming_alarm_state()
 
 
 func update_badge() -> void:

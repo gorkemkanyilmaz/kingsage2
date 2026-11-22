@@ -6,7 +6,7 @@ on:
       build_number:
         description: "TestFlight Build Number (e.g. 1, 2, 3, 4, 5, 6)"
         required: true
-        default: "25"
+        default: "26"
       runner:
         description: "GitHub macOS Runner"
         required: true
@@ -105,6 +105,20 @@ jobs:
 
       - name: Import Godot Assets & Export iOS Project
         run: |
+          python3 - <<'PY'
+          import glob, re
+          patched = 0
+          targets = sorted(glob.glob("game/assets/sprites/village/animated_bg/*.webp.import")) + sorted(glob.glob("game/assets/sprites/map/harita-*.jpg.import"))
+          for imp_path in targets:
+              with open(imp_path, "r", encoding="utf-8") as f:
+                  txt = f.read()
+              new_txt = re.sub(r"compress/mode=\d+", "compress/mode=2", txt)
+              if new_txt != txt:
+                  with open(imp_path, "w", encoding="utf-8") as f:
+                      f.write(new_txt)
+                  patched += 1
+          print(f"Patched {patched} animated_bg + map .import files to VRAM Compressed (ETC2/ASTC) for iOS")
+          PY
           "$GODOT_BIN" --headless --path game --import
           set +e
           "$GODOT_BIN" --headless --path game --export-release "iOS" ../build/ios/TahtVeKilic.xcodeproj

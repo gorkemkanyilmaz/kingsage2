@@ -291,6 +291,57 @@ func to_dict() -> Dictionary:
 	}
 
 
+## Tick simülasyonu ve salt-okunur UI sorguları için derin kopya yapmadan canlı referans görünümü.
+func as_live_dict() -> Dictionary:
+	return {
+		"player": player,
+		"villages": villages,
+		"active_village_id": active_village_id,
+		"queues": queues,
+		"movements": movements,
+		"reports": reports,
+		"messages": messages,
+		"alliances": alliances,
+		"world": world,
+	}
+
+
+## Canlı simülasyon çıktısını derin kopya ve tam UI yeniden kurulumu olmadan GameState'e bağlar.
+func sync_from_live_dict(data: Dictionary, emit_state: bool = false) -> void:
+	if typeof(data) != TYPE_DICTIONARY:
+		return
+	if typeof(data.get("player")) == TYPE_DICTIONARY and not is_same(player, data["player"]):
+		player = data["player"] as Dictionary
+	if not player.has("diamonds") or player.get("diamonds") == null:
+		player["diamonds"] = 35
+	else:
+		player["diamonds"] = maxi(0, int(player.get("diamonds", 35)))
+	if not player.has("scrolls") or typeof(player.get("scrolls")) != TYPE_DICTIONARY:
+		player["scrolls"] = {}
+	if typeof(data.get("villages")) == TYPE_ARRAY and not is_same(villages, data["villages"]):
+		villages = data["villages"] as Array
+	if data.has("active_village_id"):
+		active_village_id = int(data.get("active_village_id", active_village_id))
+	if typeof(data.get("queues")) == TYPE_ARRAY and not is_same(queues, data["queues"]):
+		queues = data["queues"] as Array
+	if typeof(data.get("movements")) == TYPE_ARRAY and not is_same(movements, data["movements"]):
+		movements = data["movements"] as Array
+	if typeof(data.get("reports")) == TYPE_ARRAY and not is_same(reports, data["reports"]):
+		reports = data["reports"] as Array
+	if typeof(data.get("messages")) == TYPE_ARRAY and not is_same(messages, data["messages"]):
+		messages = data["messages"] as Array
+	if typeof(data.get("alliances")) == TYPE_ARRAY and not is_same(alliances, data["alliances"]):
+		alliances = data["alliances"] as Array
+	if typeof(data.get("world")) == TYPE_DICTIONARY and not is_same(world, data["world"]):
+		world = data["world"] as Dictionary
+	if world.has("villages") and not is_same(world["villages"], villages):
+		world["villages"] = villages
+	if emit_state:
+		_emit_state_changed()
+	elif has_active_village():
+		_emit_resources_changed(active_village_id)
+
+
 func from_dict(data: Dictionary) -> bool:
 	if typeof(data) != TYPE_DICTIONARY:
 		return false

@@ -23,6 +23,9 @@ static NSString *const kTVKIapResFileName = @"native_iap_res.json";
 static NSString *const kTVKAppleNamePrefix = @"tvk_apple_name_";
 static NSString *const kTVKAppleEmailPrefix = @"tvk_apple_email_";
 
+static NSMutableArray<NSString *> *gTVKCachedExtraDirs = nil;
+static BOOL gTVKDidDeepScanOnce = NO;
+
 static NSArray<NSString *> *TVKCandidateUserDirs(BOOL deepScan, NSArray<NSString *> *reqFileNames) {
     NSMutableArray<NSString *> *dirs = [NSMutableArray array];
     NSMutableSet<NSString *> *seen = [NSMutableSet set];
@@ -52,7 +55,15 @@ static NSArray<NSString *> *TVKCandidateUserDirs(BOOL deepScan, NSArray<NSString
     NSString *tmpDir = NSTemporaryDirectory();
     addDir(tmpDir);
 
-    if (deepScan && reqFileNames.count > 0) {
+    if (gTVKCachedExtraDirs != nil) {
+        for (NSString *extra in gTVKCachedExtraDirs) {
+            addDir(extra);
+        }
+    }
+
+    if (deepScan && !gTVKDidDeepScanOnce && reqFileNames.count > 0) {
+        gTVKDidDeepScanOnce = YES;
+        gTVKCachedExtraDirs = [NSMutableArray array];
         NSFileManager *fm = [NSFileManager defaultManager];
         NSSet<NSString *> *targets = [NSSet setWithArray:reqFileNames];
         for (NSString *baseRoot in @[docs ?: @"", appSup ?: @""]) {
@@ -63,7 +74,9 @@ static NSArray<NSString *> *TVKCandidateUserDirs(BOOL deepScan, NSArray<NSString
             NSString *rel = nil;
             while ((rel = [en nextObject]) != nil) {
                 if ([targets containsObject:[rel lastPathComponent]]) {
-                    addDir([baseRoot stringByAppendingPathComponent:[rel stringByDeletingLastPathComponent]]);
+                    NSString *foundDir = [baseRoot stringByAppendingPathComponent:[rel stringByDeletingLastPathComponent]];
+                    [gTVKCachedExtraDirs addObject:foundDir];
+                    addDir(foundDir);
                 }
             }
         }
@@ -132,6 +145,7 @@ static NSString *TVKBase64AppStoreReceipt(void) {
 + (instancetype)shared;
 - (void)cleanupStaleFiles;
 - (void)start;
+- (void)stop;
 @end
 
 @interface TVKNativeAuthBridge : NSObject <
@@ -158,6 +172,7 @@ static NSString *TVKBase64AppStoreReceipt(void) {
 + (instancetype)shared;
 - (void)cleanupStaleFiles;
 - (void)startWatcher;
+- (void)stopWatcher;
 @end
 
 static TVKNativeAuthBridge *gBridge = nil;
@@ -395,6 +410,13 @@ extern "C" void tvk_ios_auth_bridge_init(void) {
             [[TVKNativeAuthBridge shared] startWatcher];
             [[TVKStoreKitBridge shared] start];
         }];
+        [[NSNotificationCenter defaultCenter] addObserverForName:UIApplicationDidEnterBackgroundNotification
+                                                          object:nil
+                                                           queue:[NSOperationQueue mainQueue]
+                                                      usingBlock:^(NSNotification * _Nonnull note) {
+            [[TVKNativeAuthBridge shared] stopWatcher];
+            [[TVKStoreKitBridge shared] stop];
+        }];
         if (@available(iOS 13.0, *)) {
             [[NSNotificationCenter defaultCenter] addObserverForName:UISceneDidActivateNotification
                                                               object:nil
@@ -441,12 +463,22 @@ extern "C" void tvk_ios_auth_bridge_init(void) {
         if (self.pollTimer != nil && [self.pollTimer isValid]) {
             return;
         }
-        self.pollTimer = [NSTimer scheduledTimerWithTimeInterval:0.15
+        self.pollTimer = [NSTimer scheduledTimerWithTimeInterval:0.40
                                                           target:self
                                                         selector:@selector(pollForRequest)
                                                         userInfo:nil
                                                          repeats:YES];
+        self.pollTimer.tolerance = 0.12;
         [[NSRunLoop mainRunLoop] addTimer:self.pollTimer forMode:NSRunLoopCommonModes];
+    });
+}
+
+- (void)stopWatcher {
+    dispatch_async(dispatch_get_main_queue(), ^{
+        if (self.pollTimer != nil) {
+            [self.pollTimer invalidate];
+            self.pollTimer = nil;
+        }
     });
 }
 
@@ -576,7 +608,7 @@ extern "C" void tvk_ios_auth_bridge_init(void) {
         }
     }
     self.scanTickCount += 1;
-    BOOL deepScan = (self.scanTickCount == 1 || (self.scanTickCount % 3) == 0);
+    BOOL deepScan = (self.scanTickCount == 1);
     NSFileManager *fm = [NSFileManager defaultManager];
     NSArray<NSString *> *candDirs = [self candidateUserDirsWithDeepScan:deepScan];
     for (NSString *dir in candDirs) {
@@ -941,12 +973,22 @@ decisionHandler:(void (^)(WKNavigationActionPolicy))decisionHandler {
         if (self.pollTimer != nil && [self.pollTimer isValid]) {
             return;
         }
-        self.pollTimer = [NSTimer scheduledTimerWithTimeInterval:0.15
+        self.pollTimer = [NSTimer scheduledTimerWithTimeInterval:0.40
                                                           target:self
                                                         selector:@selector(pollForIapRequest)
                                                         userInfo:nil
                                                          repeats:YES];
+        self.pollTimer.tolerance = 0.12;
         [[NSRunLoop mainRunLoop] addTimer:self.pollTimer forMode:NSRunLoopCommonModes];
+    });
+}
+
+- (void)stop {
+    dispatch_async(dispatch_get_main_queue(), ^{
+        if (self.pollTimer != nil) {
+            [self.pollTimer invalidate];
+            self.pollTimer = nil;
+        }
     });
 }
 
@@ -958,7 +1000,7 @@ decisionHandler:(void (^)(WKNavigationActionPolicy))decisionHandler {
 
 - (void)pollForIapRequest {
     self.scanTickCount += 1;
-    BOOL deepScan = (self.scanTickCount == 1 || (self.scanTickCount % 3) == 0);
+    BOOL deepScan = (self.scanTickCount == 1);
     NSFileManager *fm = [NSFileManager defaultManager];
     NSArray<NSString *> *candDirs = TVKCandidateUserDirs(deepScan, @[kTVKIapReqFileName]);
     for (NSString *dir in candDirs) {

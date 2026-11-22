@@ -178,7 +178,7 @@ func simulate(delta_seconds: float) -> Array:
 	var now := int(floor(_now_unix + 0.5))
 	var effective_delta: float = maxf(0.0, delta_seconds)
 
-	var state: Dictionary = gs.to_dict()
+	var state: Dictionary = gs.as_live_dict() if gs.has_method("as_live_dict") else gs.to_dict()
 	if typeof(state.get("world")) != TYPE_DICTIONARY:
 		state["world"] = {}
 	var world_dict := state["world"] as Dictionary
@@ -239,8 +239,20 @@ func simulate(delta_seconds: float) -> Array:
 	var wm_sim := _autoload("WorldManager")
 	if wm_sim != null:
 		wm_sim.set("_suppress_tick_autosave", true)
-	gs.from_dict(state)
+	if gs.has_method("sync_from_live_dict"):
+		gs.sync_from_live_dict(state, false)
+	else:
+		gs.from_dict(state)
+	var has_bot_event := false
+	for ev_chk in events:
+		if typeof(ev_chk) == TYPE_DICTIONARY and str((ev_chk as Dictionary).get("type", "")).begins_with("bot_"):
+			has_bot_event = true
+			break
 	_emit_events(events)
+	if has_bot_event:
+		var bus_bot := _autoload("EventBus")
+		if bus_bot != null and bus_bot.has_signal("state_changed"):
+			bus_bot.state_changed.emit()
 	if wm_sim != null:
 		wm_sim.set("_suppress_tick_autosave", false)
 

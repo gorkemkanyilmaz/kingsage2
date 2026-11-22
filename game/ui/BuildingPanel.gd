@@ -78,6 +78,7 @@ var _special_box: PanelContainer = null
 var _special_vbox: VBoxContainer = null
 var _last_research_sig: String = ""
 var _last_train_sig: String = ""
+var _active_info_accum: float = 0.0
 var _tab_act_sb: StyleBox = null
 var _tab_inact_sb: StyleBox = null
 
@@ -977,7 +978,7 @@ func _on_bus_state_changed() -> void:
 		refresh()
 
 
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
 	if not visible:
 		if _focused_train_line != null or absf(offset_bottom - (-256.0)) > 0.5:
 			_focused_train_unit = ""
@@ -985,15 +986,21 @@ func _process(_delta: float) -> void:
 			_focused_train_spin = null
 			_kb_scroll_done_for = ""
 			_restore_keyboard_lift()
+		_active_info_accum = 0.0
 		return
-	if _current_tab == Tab.UPGRADE:
+	if _current_tab == Tab.TRAIN:
+		_update_keyboard_lift()
+	elif absf(offset_bottom - (-256.0)) > 0.5 or _kb_was_open_on_mobile:
 		_restore_keyboard_lift()
+	_active_info_accum += maxf(delta, 0.0)
+	if _active_info_accum < 0.5:
+		return
+	_active_info_accum = 0.0
+	if _current_tab == Tab.UPGRADE:
 		_update_active_build_info()
 	elif _current_tab == Tab.RESEARCH:
-		_restore_keyboard_lift()
 		_update_active_research_info()
 	elif _current_tab == Tab.TRAIN:
-		_update_keyboard_lift()
 		_update_active_train_info()
 
 
@@ -1117,7 +1124,7 @@ func refresh() -> void:
 	if _village.is_empty():
 		return
 
-	var state: Dictionary = gs.to_dict() if gs != null else {}
+	var state: Dictionary = (gs.as_live_dict() if gs.has_method("as_live_dict") else gs.to_dict()) if gs != null else {}
 	var b_data: Dictionary = RulesEngineScript.building_data(_current_key)
 	var b_name: String = str(b_data.get("name", _current_key))
 	var cur_lvl: int = int(_village.get("buildings", {}).get(_current_key, 0))
@@ -1654,7 +1661,7 @@ func _populate_research_list() -> void:
 		return
 
 	var gs = Engine.get_main_loop().root.get_node_or_null("GameState") if Engine.get_main_loop() is SceneTree else null
-	var state: Dictionary = gs.to_dict() if gs != null else {}
+	var state: Dictionary = (gs.as_live_dict() if gs.has_method("as_live_dict") else gs.to_dict()) if gs != null else {}
 	var vid := int(_village.get("id", -1))
 	var cur_barracks_lvl := int(_village.get("buildings", {}).get("barracks", 0))
 
@@ -2884,7 +2891,7 @@ func _update_special_building_actions(_cur_lvl: int) -> void:
 
 	_special_box.show()
 	var gs = Engine.get_main_loop().root.get_node_or_null("GameState") if Engine.get_main_loop() is SceneTree else null
-	var state: Dictionary = gs.to_dict() if gs != null else {}
+	var state: Dictionary = (gs.as_live_dict() if gs.has_method("as_live_dict") else gs.to_dict()) if gs != null else {}
 	var res_dict: Dictionary = _village.get("resources", {})
 	var cur_w := int(res_dict.get("wood", 0))
 	var cur_s := int(res_dict.get("stone", 0))

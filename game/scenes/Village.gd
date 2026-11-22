@@ -178,6 +178,13 @@ var _q_speedup_have_sb: StyleBoxFlat = null
 var _q_speedup_have_hover: StyleBoxFlat = null
 var _q_speedup_buy_sb: StyleBoxFlat = null
 var _q_speedup_buy_hover: StyleBoxFlat = null
+var _q_row_card_sbs: Dictionary = {}
+var _cached_gs: Node = null
+var _cached_bg_cache: Node = null
+var _queue_ui_accum: float = 0.0
+var _alarm_scan_accum: float = 0.0
+var _cached_incoming_attacks: Array[Dictionary] = []
+var _alarm_visual_active: bool = false
 
 
 func _ensure_nodes() -> void:
@@ -287,14 +294,13 @@ func _ready() -> void:
 			bus.state_changed.connect(_on_state_changed)
 
 
-	var gs_init = Engine.get_main_loop().root.get_node_or_null("GameState") if Engine.get_main_loop() is SceneTree else null
+	var gs_init = _resolve_game_state()
 	if gs_init != null:
 		_rendered_village_id = int(gs_init.active_village_id)
 
 	refresh_all()
 	_update_queue_ui()
-	_update_incoming_attack_alarm(0.0)
-	_update_incoming_attack_alarm(0.0)
+	_update_incoming_attack_alarm(0.0, true)
 	_init_animated_background()
 
 	var wm_init = Engine.get_main_loop().root.get_node_or_null("WorldManager") if Engine.get_main_loop() is SceneTree else null
@@ -349,12 +355,23 @@ const BG_FRAME_TIME: float = 1.0 / BG_FPS
 const BG_LOOP_DURATION: float = float(BG_TOTAL_FRAMES) / BG_FPS
 
 
+func _resolve_game_state() -> Node:
+	if _cached_gs != null and is_instance_valid(_cached_gs):
+		return _cached_gs
+	var loop := Engine.get_main_loop()
+	if loop is SceneTree and (loop as SceneTree).root != null:
+		_cached_gs = (loop as SceneTree).root.get_node_or_null("GameState")
+	return _cached_gs
+
+
 func _init_animated_background() -> void:
 	if background == null:
 		return
-	var cache = Engine.get_main_loop().root.get_node_or_null("VillageBackgroundCache") if Engine.get_main_loop() is SceneTree else null
-	if cache != null:
-		var tex = cache.get_frame(_bg_frame_idx)
+	var loop := Engine.get_main_loop()
+	if loop is SceneTree and (loop as SceneTree).root != null:
+		_cached_bg_cache = (loop as SceneTree).root.get_node_or_null("VillageBackgroundCache")
+	if _cached_bg_cache != null:
+		var tex = _cached_bg_cache.get_frame(_bg_frame_idx)
 		if tex != null:
 			background.texture = tex
 	elif ResourceLoader.exists("res://assets/sprites/village/animated_bg/f_000.webp"):
@@ -362,25 +379,31 @@ func _init_animated_background() -> void:
 
 
 func _process(delta: float) -> void:
-	_update_queue_ui()
-	_update_incoming_attack_alarm(delta)
+	_queue_ui_accum += maxf(delta, 0.0)
+	if _queue_ui_accum >= 0.5:
+		_queue_ui_accum = 0.0
+		_update_queue_ui()
+	_update_incoming_attack_alarm(delta, false)
 	_progress_timer += delta
 	if _progress_timer >= 0.5:
 		_progress_timer = 0.0
 		_update_building_views_progress()
 
-	# Arka plan animasyonu: İlk 8 saniye (192 kare, 24 FPS) döngüsü — son 2 saniye kırpılmış orijinal hız
+	# Arka plan animasyonu: İlk 8 saniye (192 kare, 24 FPS) döngüsü — tam kare sayısı ve akıcılık korunur
 	if background != null:
 		_bg_frame_timer += delta
 		if _bg_frame_timer >= BG_FRAME_TIME:
 			var steps: int = int(_bg_frame_timer / BG_FRAME_TIME)
 			_bg_frame_timer = fposmod(_bg_frame_timer, BG_FRAME_TIME)
-			var cache = Engine.get_main_loop().root.get_node_or_null("VillageBackgroundCache") if Engine.get_main_loop() is SceneTree else null
-			if cache != null:
-				var total: int = mini(BG_TOTAL_FRAMES, cache.get_frame_count())
+			if _cached_bg_cache == null or not is_instance_valid(_cached_bg_cache):
+				var loop := Engine.get_main_loop()
+				if loop is SceneTree and (loop as SceneTree).root != null:
+					_cached_bg_cache = (loop as SceneTree).root.get_node_or_null("VillageBackgroundCache")
+			if _cached_bg_cache != null:
+				var total: int = mini(BG_TOTAL_FRAMES, _cached_bg_cache.get_frame_count())
 				if total > 0:
 					_bg_frame_idx = (_bg_frame_idx + steps) % total
-					var tex = cache.get_frame(_bg_frame_idx)
+					var tex = _cached_bg_cache.get_frame(_bg_frame_idx)
 					if tex != null:
 						background.texture = tex
 
@@ -423,14 +446,14 @@ func _on_resources_changed(village_id: int) -> void:
 
 
 func _on_state_changed() -> void:
-	var gs = Engine.get_main_loop().root.get_node_or_null("GameState") if Engine.get_main_loop() is SceneTree else null
+	var gs = _resolve_game_state()
 	if gs != null and int(gs.active_village_id) != _rendered_village_id:
 		_rendered_village_id = int(gs.active_village_id)
 		if building_panel != null and building_panel.visible:
 			building_panel.hide()
 	refresh_all()
 	_update_queue_ui()
-	_update_incoming_attack_alarm(0.0)
+	_update_incoming_attack_alarm(0.0, true)
 
 
 func _setup_village_nodes() -> void:
@@ -500,7 +523,7 @@ func _on_building_completed(village_id: int, key: String, level: int) -> void:
 
 	refresh_all()
 	_update_queue_ui()
-	_update_incoming_attack_alarm(0.0)
+	_update_incoming_attack_alarm(0.0, true)
 	if building_panel.visible:
 		building_panel.refresh()
 	var sm = Engine.get_main_loop().root.get_node_or_null("SaveManager") if Engine.get_main_loop() is SceneTree else null
@@ -586,7 +609,7 @@ func _get_building_icon(key: String) -> String:
 func _on_building_started(_village_id: int, _key: String, _level: int) -> void:
 	refresh_all()
 	_update_queue_ui()
-	_update_incoming_attack_alarm(0.0)
+	_update_incoming_attack_alarm(0.0, true)
 	if building_panel.visible:
 		building_panel.refresh()
 
@@ -833,11 +856,14 @@ func _draw_queue_row(row: HBoxContainer) -> void:
 	if row == null:
 		return
 	var accent: Color = row.get_meta("accent_color", Color(0.90, 0.74, 0.34))
-	var card_sb := StyleBoxFlat.new()
-	card_sb.bg_color = Color(0.13, 0.11, 0.17, 0.95)
-	card_sb.border_color = Color(accent.r * 0.75, accent.g * 0.75, accent.b * 0.75, 0.65)
-	card_sb.set_border_width_all(1)
-	card_sb.set_corner_radius_all(10)
+	var card_sb: StyleBoxFlat = _q_row_card_sbs.get(accent, null) as StyleBoxFlat
+	if card_sb == null:
+		card_sb = StyleBoxFlat.new()
+		card_sb.bg_color = Color(0.13, 0.11, 0.17, 0.95)
+		card_sb.border_color = Color(accent.r * 0.75, accent.g * 0.75, accent.b * 0.75, 0.65)
+		card_sb.set_border_width_all(1)
+		card_sb.set_corner_radius_all(10)
+		_q_row_card_sbs[accent] = card_sb
 	row.draw_style_box(card_sb, Rect2(Vector2(-6.0, -4.0), row.size + Vector2(12.0, 8.0)))
 	row.draw_rect(Rect2(Vector2(-6.0, -2.0), Vector2(5.0, row.size.y + 4.0)), accent)
 
@@ -950,8 +976,10 @@ func _bind_queue_row(row: HBoxContainer, activity: Dictionary, now: int) -> void
 		_:
 			accent_col = Color(0.94, 0.76, 0.34)
 			if cat_icon != null: cat_icon.texture = IconScrollBuild
-	row.set_meta("accent_color", accent_col)
-	row.queue_redraw()
+	var prev_accent: Variant = row.get_meta("accent_color", Color(-1, -1, -1, -1))
+	if not (prev_accent is Color) or (prev_accent as Color) != accent_col:
+		row.set_meta("accent_color", accent_col)
+		row.queue_redraw()
 
 	var item_id: int = int(data.get("id", -1))
 	var meta_key := "%s_%d" % [category, item_id]
@@ -1423,31 +1451,41 @@ func _on_attack_alarm_banner_pressed() -> void:
 		IncomingAttackAlert.show_modal(self, incoming, true)
 
 
-func _update_incoming_attack_alarm(delta: float) -> void:
+func _update_incoming_attack_alarm(delta: float, force_scan: bool = false) -> void:
 	_ensure_attack_alarm_ui()
-	var gs = Engine.get_main_loop().root.get_node_or_null("GameState") if Engine.get_main_loop() is SceneTree else null
+	var gs = _resolve_game_state()
 	if gs == null or not gs.has_active_village():
-		if _attack_alarm_overlay != null:
-			_attack_alarm_overlay.visible = false
-		if _attack_alarm_banner != null:
-			_attack_alarm_banner.visible = false
-		if village_area != null:
-			village_area.modulate = Color.WHITE
-		IncomingAttackAlert.close_modal(self)
+		_cached_incoming_attacks.clear()
+		if _alarm_visual_active:
+			_alarm_visual_active = false
+			if _attack_alarm_overlay != null:
+				_attack_alarm_overlay.visible = false
+			if _attack_alarm_banner != null:
+				_attack_alarm_banner.visible = false
+			if village_area != null:
+				village_area.modulate = Color.WHITE
+			IncomingAttackAlert.close_modal(self)
 		return
 
-	var incoming := IncomingAttackAlert.get_incoming_attacks(gs, _current_now())
+	_alarm_scan_accum += maxf(delta, 0.0)
+	if force_scan or _alarm_scan_accum >= 0.75:
+		_alarm_scan_accum = 0.0
+		_cached_incoming_attacks = IncomingAttackAlert.get_incoming_attacks(gs, _current_now())
+	var incoming := _cached_incoming_attacks
 	if incoming.is_empty():
 		_attack_flash_time = 0.0
-		if _attack_alarm_overlay != null:
-			_attack_alarm_overlay.visible = false
-		if _attack_alarm_banner != null:
-			_attack_alarm_banner.visible = false
-		if village_area != null:
-			village_area.modulate = Color.WHITE
-		IncomingAttackAlert.close_modal(self)
+		if _alarm_visual_active:
+			_alarm_visual_active = false
+			if _attack_alarm_overlay != null:
+				_attack_alarm_overlay.visible = false
+			if _attack_alarm_banner != null:
+				_attack_alarm_banner.visible = false
+			if village_area != null:
+				village_area.modulate = Color.WHITE
+			IncomingAttackAlert.close_modal(self)
 		return
 
+	_alarm_visual_active = true
 	_attack_flash_time += maxf(delta, 0.0)
 	var pulse := 0.5 + 0.5 * sin(_attack_flash_time * 6.0)
 

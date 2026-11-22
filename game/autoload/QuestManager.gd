@@ -32,6 +32,11 @@ var _ui_built: bool = false
 var _expanded: bool = true
 var _open_modal_quest_id: String = ""
 var _last_hud_sig: String = ""
+var _has_claimable_quest: bool = false
+var _hud_check_accum: float = 0.25
+var _pulse_accum: float = 0.0
+var _badge_tinted: bool = false
+var _last_res_refresh_sec: float = -10.0
 var _toast_until_sec: float = 0.0
 var _elapsed_sec: float = 0.0
 var _last_scene_id: int = 0
@@ -657,6 +662,9 @@ func _on_game_event() -> void:
 
 
 func _on_resources_event(_vid: int) -> void:
+	if _elapsed_sec - _last_res_refresh_sec < 2.0 and _elapsed_sec >= _last_res_refresh_sec:
+		return
+	_last_res_refresh_sec = _elapsed_sec
 	refresh_quests(false)
 
 
@@ -750,41 +758,47 @@ func _process(delta: float) -> void:
 			visible = false
 		return
 
-	var should_show := is_quest_hud_visible()
-	if visible != should_show:
-		visible = should_show
-		if should_show:
-			_sync_live_positions()
-			refresh_quests(true)
+	_hud_check_accum += maxf(delta, 0.0)
+	if _hud_check_accum >= 0.25:
+		_hud_check_accum = 0.0
+		var should_show := is_quest_hud_visible()
+		if visible != should_show:
+			visible = should_show
+			if should_show:
+				_sync_live_positions()
+				refresh_quests(true)
 
-	if should_show or (_toast_panel != null and _toast_panel.visible):
-		var loop := Engine.get_main_loop()
-		var cur_sid := 0
-		if loop is SceneTree and (loop as SceneTree).current_scene != null:
-			cur_sid = (loop as SceneTree).current_scene.get_instance_id()
-		var anchor_y := _get_top_anchor_y()
-		if cur_sid != _last_scene_id or absf(anchor_y - _last_top_y) > 0.5:
-			_last_scene_id = cur_sid
-			_sync_live_positions()
+		if should_show or (_toast_panel != null and _toast_panel.visible):
+			var loop := Engine.get_main_loop()
+			var cur_sid := 0
+			if loop is SceneTree and (loop as SceneTree).current_scene != null:
+				cur_sid = (loop as SceneTree).current_scene.get_instance_id()
+			var anchor_y := _get_top_anchor_y()
+			if cur_sid != _last_scene_id or absf(anchor_y - _last_top_y) > 0.5:
+				_last_scene_id = cur_sid
+				_sync_live_positions()
 
-	if should_show and _tracker_panel != null:
-		# Paneli ve başlığı canlı parıltıyla güncelle
-		_update_claimable_pulse()
+	if visible and _tracker_panel != null:
+		# Paneli ve başlığı yalnızca hazır ödül varsa önbellekli bayrak üzerinden parlat
+		_update_claimable_pulse(delta)
 
 
-func _update_claimable_pulse() -> void:
-	if _btn_header == null:
+func _update_claimable_pulse(delta: float = 0.0) -> void:
+	if _btn_header == null or _header_badge == null:
 		return
-	var has_ready := false
-	for item in get_visible_quests():
-		if bool(item["progress"].get("completed", false)):
-			has_ready = true
-			break
-	if has_ready and _header_badge != null:
-		var w := 0.78 + 0.22 * sin(_elapsed_sec * 5.2)
-		_header_badge.modulate = Color(w, 1.0, w, 1.0)
-	elif _header_badge != null:
-		_header_badge.modulate = Color(1, 1, 1, 1)
+	if not _has_claimable_quest:
+		if _badge_tinted:
+			_header_badge.modulate = Color(1, 1, 1, 1)
+			_badge_tinted = false
+		_pulse_accum = 0.0
+		return
+	_pulse_accum += maxf(delta, 0.0)
+	if _pulse_accum < 0.066 and _badge_tinted:
+		return
+	_pulse_accum = 0.0
+	var w := 0.78 + 0.22 * sin(_elapsed_sec * 5.2)
+	_header_badge.modulate = Color(w, 1.0, w, 1.0)
+	_badge_tinted = true
 
 
 # =============================================================================
@@ -936,13 +950,14 @@ func get_quest_def(quest_id: String) -> Dictionary:
 	return {}
 
 
-func get_quest_progress(quest_id: String, gs_override: Node = null) -> Dictionary:
+func get_quest_progress(quest_id: String, gs_override: Node = null, skip_sync: bool = false) -> Dictionary:
 	var gs := gs_override if gs_override != null else _gs()
 	var q := get_quest_def(quest_id)
 	if q.is_empty() or gs == null or not gs.has_active_village():
 		return {"current": 0, "target": 1, "completed": false, "claimed": false}
 
-	_sync_live_stats(gs)
+	if not skip_sync:
+		_sync_live_stats(gs)
 	var q_data := _ensure_quest_data(gs)
 	var claimed_arr: Array = q_data["claimed"]
 	var stats: Dictionary = q_data["stats"]
@@ -986,7 +1001,7 @@ func get_quest_progress(quest_id: String, gs_override: Node = null) -> Dictionar
 			current = b_ok + r_ok
 		"in_alliance":
 			var pname_a := str(gs.player.get("name", ""))
-			var al := AllianceModelScript.get_player_alliance(gs.to_dict(), pname_a)
+			var al := AllianceModelScript.get_player_alliance({"alliances": gs.alliances}, pname_a)
 			current = 0 if al.is_empty() else 1
 		"wall_farm_mid":
 			var w_ok := 1 if _max_building_level(p_vills, "wall") >= 5 else 0
@@ -1058,6 +1073,7 @@ func get_visible_quests(gs_override: Node = null) -> Array:
 	var gs := gs_override if gs_override != null else _gs()
 	if gs == null or not gs.has_active_village():
 		return []
+	_sync_live_stats(gs)
 	var out: Array = []
 	var q_data := _ensure_quest_data(gs)
 	var claimed_arr: Array = q_data["claimed"]
@@ -1068,7 +1084,7 @@ func get_visible_quests(gs_override: Node = null) -> Array:
 			continue
 		out.append({
 			"def": q,
-			"progress": get_quest_progress(qid, gs),
+			"progress": get_quest_progress(qid, gs, true),
 		})
 		if out.size() >= 3:
 			break
@@ -1681,15 +1697,13 @@ func _apply_detail_modal_widths() -> float:
 	if vp.x < 100.0:
 		vp = Vector2(1080, 1920)
 	var w := clampf(vp.x - 80.0, 720.0, 940.0)
-	var inner_w := w - 58.0
+	var inner_w := w - 52.0
 	if _detail_modal != null:
 		_detail_modal.custom_minimum_size = Vector2(w, 0.0)
 	if _modal_title != null:
-		var tw := maxf(320.0, inner_w - 160.0)
-		_modal_title.custom_minimum_size = Vector2(tw, 0.0)
-		_modal_title.size.x = tw
+		_modal_title.custom_minimum_size = Vector2(maxf(320.0, inner_w - 134.0), 0.0)
 	if _modal_vizier_text != null:
-		var vw := maxf(360.0, inner_w - 196.0)
+		var vw := maxf(360.0, inner_w - 188.0)
 		_modal_vizier_text.custom_minimum_size = Vector2(vw, 110.0)
 		_modal_vizier_text.size.x = vw
 	if _modal_req_label != null:
@@ -1727,6 +1741,7 @@ func refresh_quests(force: bool = false) -> void:
 		sig_parts.append("%s:%d/%d" % [str(def["id"]), int(pr["current"]), int(pr["target"])])
 
 	var sig := "|".join(sig_parts)
+	_has_claimable_quest = (ready_cnt > 0)
 	if not force and sig == _last_hud_sig:
 		return
 	_last_hud_sig = sig

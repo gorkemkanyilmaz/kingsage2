@@ -8,7 +8,7 @@ const FPS: float = 24.0
 const TARGET_FPS: float = 24.0
 const FRAME_DURATION: float = 1.0 / FPS
 const LOOP_DURATION: float = float(FRAME_COUNT) / FPS
-const FRAMES_PER_TICK: int = 6
+const FRAMES_PER_TICK: int = 3
 
 var frames: Array[Texture2D] = []
 var is_fully_loaded: bool = false

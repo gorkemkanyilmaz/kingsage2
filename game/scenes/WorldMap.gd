@@ -88,6 +88,17 @@ var _detail_cancel_note: Label
 var _last_village_click_ms: int = -10000
 var _cached_active_vid: int = -1
 var _cached_own_sig: String = ""
+var _mov_redraw_accum: float = 0.0
+var _status_bar_accum: float = 0.0
+var _had_movements_drawn: bool = false
+var _map_speedup_have_sb: StyleBoxFlat = null
+var _map_speedup_have_hover: StyleBoxFlat = null
+var _map_speedup_buy_sb: StyleBoxFlat = null
+var _map_speedup_buy_hover: StyleBoxFlat = null
+var _detail_speedup_have_sb: StyleBoxFlat = null
+var _detail_speedup_have_hover: StyleBoxFlat = null
+var _detail_speedup_buy_sb: StyleBoxFlat = null
+var _detail_speedup_buy_hover: StyleBoxFlat = null
 
 
 func _ready() -> void:
@@ -294,14 +305,28 @@ func _collect_my_movements(gs: Node) -> Array:
 
 
 func _process(delta: float) -> void:
+	var gs = Engine.get_main_loop().root.get_node_or_null("GameState") if Engine.get_main_loop() is SceneTree else null
+	var has_movs := (gs != null and typeof(gs.movements) == TYPE_ARRAY and not (gs.movements as Array).is_empty())
 	if movements_layer != null:
-		movements_layer.queue_redraw()
+		if has_movs:
+			_mov_redraw_accum += maxf(delta, 0.0)
+			if _mov_redraw_accum >= 0.066 or not _had_movements_drawn:
+				_mov_redraw_accum = 0.0
+				movements_layer.queue_redraw()
+			_had_movements_drawn = true
+		elif _had_movements_drawn:
+			movements_layer.queue_redraw()
+			_had_movements_drawn = false
+			_mov_redraw_accum = 0.0
 
-	_refresh_movement_status_bar()
+	_status_bar_accum += maxf(delta, 0.0)
+	if _status_bar_accum >= 0.5:
+		_status_bar_accum = 0.0
+		_refresh_movement_status_bar()
+		if movement_detail_panel != null and movement_detail_panel.visible:
+			_update_movement_detail_timer()
+
 	_check_incoming_attack_alert(delta)
-
-	if movement_detail_panel != null and movement_detail_panel.visible:
-		_update_movement_detail_timer()
 
 
 var _attack_check_accum: float = 0.0
@@ -979,6 +1004,9 @@ func _compute_world_villages_sig(gs: Node) -> String:
 
 
 func _on_world_state_changed() -> void:
+	_refresh_movement_status_bar()
+	if movements_layer != null:
+		movements_layer.queue_redraw()
 	var gs = Engine.get_main_loop().root.get_node_or_null("GameState") if Engine.get_main_loop() is SceneTree else null
 	if gs == null:
 		return
@@ -1546,16 +1574,47 @@ func _refresh_movement_status_bar() -> void:
 		var sm := _get_store_manager()
 		var cnt := int(sm.call("get_category_scroll_total", "march")) if sm != null and sm.has_method("get_category_scroll_total") else 0
 		bottom_march_speedup_btn.text = "⚡ Hızlandır (%d)" % cnt if cnt > 0 else "⚡ Hızlandır"
-		var sb := StyleBoxFlat.new()
-		sb.bg_color = Color(0.16, 0.48, 0.26, 0.98) if cnt > 0 else Color(0.14, 0.28, 0.52, 0.98)
-		sb.border_color = Color(0.96, 0.80, 0.36, 1.0)
-		sb.set_border_width_all(2)
-		sb.set_corner_radius_all(12)
-		var sb_h := sb.duplicate() as StyleBoxFlat
-		sb_h.bg_color = sb.bg_color.lightened(0.12)
+		_ensure_map_speedup_styles()
+		var sb := _map_speedup_have_sb if cnt > 0 else _map_speedup_buy_sb
+		var sb_h := _map_speedup_have_hover if cnt > 0 else _map_speedup_buy_hover
 		bottom_march_speedup_btn.add_theme_stylebox_override("normal", sb)
 		bottom_march_speedup_btn.add_theme_stylebox_override("hover", sb_h)
 		bottom_march_speedup_btn.add_theme_stylebox_override("pressed", sb_h)
+
+
+func _ensure_map_speedup_styles() -> void:
+	if _map_speedup_have_sb == null:
+		_map_speedup_have_sb = StyleBoxFlat.new()
+		_map_speedup_have_sb.bg_color = Color(0.16, 0.48, 0.26, 0.98)
+		_map_speedup_have_sb.border_color = Color(0.96, 0.80, 0.36, 1.0)
+		_map_speedup_have_sb.set_border_width_all(2)
+		_map_speedup_have_sb.set_corner_radius_all(12)
+		_map_speedup_have_hover = _map_speedup_have_sb.duplicate() as StyleBoxFlat
+		_map_speedup_have_hover.bg_color = _map_speedup_have_sb.bg_color.lightened(0.12)
+	if _map_speedup_buy_sb == null:
+		_map_speedup_buy_sb = StyleBoxFlat.new()
+		_map_speedup_buy_sb.bg_color = Color(0.14, 0.28, 0.52, 0.98)
+		_map_speedup_buy_sb.border_color = Color(0.96, 0.80, 0.36, 1.0)
+		_map_speedup_buy_sb.set_border_width_all(2)
+		_map_speedup_buy_sb.set_corner_radius_all(12)
+		_map_speedup_buy_hover = _map_speedup_buy_sb.duplicate() as StyleBoxFlat
+		_map_speedup_buy_hover.bg_color = _map_speedup_buy_sb.bg_color.lightened(0.12)
+	if _detail_speedup_have_sb == null:
+		_detail_speedup_have_sb = StyleBoxFlat.new()
+		_detail_speedup_have_sb.bg_color = Color(0.16, 0.44, 0.24, 0.98)
+		_detail_speedup_have_sb.border_color = Color(0.95, 0.80, 0.36, 0.98)
+		_detail_speedup_have_sb.set_border_width_all(2)
+		_detail_speedup_have_sb.set_corner_radius_all(14)
+		_detail_speedup_have_hover = _detail_speedup_have_sb.duplicate() as StyleBoxFlat
+		_detail_speedup_have_hover.bg_color = _detail_speedup_have_sb.bg_color.lightened(0.12)
+	if _detail_speedup_buy_sb == null:
+		_detail_speedup_buy_sb = StyleBoxFlat.new()
+		_detail_speedup_buy_sb.bg_color = Color(0.12, 0.25, 0.46, 0.98)
+		_detail_speedup_buy_sb.border_color = Color(0.95, 0.80, 0.36, 0.98)
+		_detail_speedup_buy_sb.set_border_width_all(2)
+		_detail_speedup_buy_sb.set_corner_radius_all(14)
+		_detail_speedup_buy_hover = _detail_speedup_buy_sb.duplicate() as StyleBoxFlat
+		_detail_speedup_buy_hover.bg_color = _detail_speedup_buy_sb.bg_color.lightened(0.12)
 
 
 func _on_track_movement_pressed() -> void:
@@ -2046,13 +2105,9 @@ func _refresh_detail_speedup_button() -> void:
 	var sm := _get_store_manager()
 	var cnt := int(sm.call("get_category_scroll_total", "march")) if sm != null and sm.has_method("get_category_scroll_total") else 0
 	_detail_btn_speedup.text = "⚡ Hızlandır (%d)" % cnt if cnt > 0 else "🛒 Parşömen Al"
-	var sb := StyleBoxFlat.new()
-	sb.bg_color = Color(0.16, 0.44, 0.24, 0.98) if cnt > 0 else Color(0.12, 0.25, 0.46, 0.98)
-	sb.border_color = Color(0.95, 0.80, 0.36, 0.98)
-	sb.set_border_width_all(2)
-	sb.set_corner_radius_all(14)
-	var sb_h := sb.duplicate() as StyleBoxFlat
-	sb_h.bg_color = sb.bg_color.lightened(0.12)
+	_ensure_map_speedup_styles()
+	var sb := _detail_speedup_have_sb if cnt > 0 else _detail_speedup_buy_sb
+	var sb_h := _detail_speedup_have_hover if cnt > 0 else _detail_speedup_buy_hover
 	_detail_btn_speedup.add_theme_stylebox_override("normal", sb)
 	_detail_btn_speedup.add_theme_stylebox_override("hover", sb_h)
 	_detail_btn_speedup.add_theme_stylebox_override("pressed", sb_h)

@@ -34,9 +34,10 @@ var worlds_meta: Array = []
 var _last_autosave_unix: int = 0
 var _last_cloud_save_unix: int = 0
 
-const CLOUD_POLL_INTERVAL_SEC := 8.0
+const CLOUD_POLL_INTERVAL_SEC := 15.0
 var _cloud_poll_accum: float = 0.0
 var _cloud_poll_in_flight: bool = false
+var _last_cloud_poll_sig_by_world: Dictionary = {}
 var _last_local_mutation_unix: int = 0
 var _local_mutation_seq: int = 0
 var _last_cloud_save_seq: int = 0
@@ -61,6 +62,7 @@ var suppress_auto_conquered_prompt: bool = false
 func notify_local_mutation() -> void:
 	_local_mutation_seq += 1
 	_last_local_mutation_unix = int(Time.get_unix_time_from_system())
+	_last_cloud_poll_sig_by_world.clear()
 
 
 func notify_local_teardown(_vid: int = -1, _key: String = "") -> void:
@@ -2525,6 +2527,50 @@ func _inject_server_village_into_world(w_data: Dictionary, sv_dict: Dictionary, 
 	return true
 
 
+func _compute_cloud_poll_sig(res_data: Dictionary, cloud_w: Dictionary, cloud_ts: int) -> String:
+	var st: Dictionary = cloud_w.get("state", {}) if typeof(cloud_w.get("state")) == TYPE_DICTIONARY else {}
+	var vills: Array = st.get("villages", []) if typeof(st.get("villages")) == TYPE_ARRAY else []
+	var movs: Array = st.get("movements", []) if typeof(st.get("movements")) == TYPE_ARRAY else []
+	var qs: Array = st.get("queues", []) if typeof(st.get("queues")) == TYPE_ARRAY else []
+	var reps: Array = st.get("reports", []) if typeof(st.get("reports")) == TYPE_ARRAY else []
+	var msgs: Array = st.get("messages", []) if typeof(st.get("messages")) == TYPE_ARRAY else []
+	var allys: Array = st.get("alliances", []) if typeof(st.get("alliances")) == TYPE_ARRAY else []
+	var def_p = cloud_w.get("defeated_players", {})
+	var def_cnt := (def_p as Dictionary).size() if typeof(def_p) == TYPE_DICTIONARY else 0
+	var human_parts: Array[String] = []
+	for rv in vills:
+		if typeof(rv) == TYPE_DICTIONARY:
+			var vd := rv as Dictionary
+			if not bool(vd.get("is_bot", false)) and not bool(vd.get("is_barbarian", false)):
+				human_parts.append("%d:%s:%d:%d:%s" % [int(vd.get("id", -1)), str(vd.get("owner", "")), int(vd.get("points", 0)), 1 if bool(vd.get("is_conquered", false)) else 0, str(vd.get("name", ""))])
+	var mov_parts: Array[String] = []
+	for rm in movs:
+		if typeof(rm) == TYPE_DICTIONARY:
+			var md := rm as Dictionary
+			mov_parts.append("%d:%s:%d" % [int(md.get("id", -1)), str(md.get("state", "")), int(md.get("arrive_unix", 0))])
+	var ally_parts: Array[String] = []
+	for ra in allys:
+		if typeof(ra) == TYPE_DICTIONARY:
+			var ad := ra as Dictionary
+			var mems = ad.get("members", [])
+			ally_parts.append("%s:%d" % [str(ad.get("id", ad.get("tag", ""))), (mems as Array).size() if typeof(mems) == TYPE_ARRAY else 0])
+	return "%s|%d|%s|%d|%d|%d|%d|%d|%d|%d|%s|%s|%s" % [
+		str(res_data.get("updated_unix", 0)),
+		cloud_ts,
+		str(res_data.get("diamonds", "")),
+		vills.size(),
+		movs.size(),
+		qs.size(),
+		reps.size(),
+		msgs.size(),
+		allys.size(),
+		def_cnt,
+		",".join(human_parts),
+		",".join(mov_parts),
+		",".join(ally_parts),
+	]
+
+
 func apply_cloud_sync(res_data: Dictionary, from_save_response: bool = false, req_seq: int = -1) -> bool:
 	if _suppress_reset_save:
 		return false
@@ -2543,11 +2589,18 @@ func apply_cloud_sync(res_data: Dictionary, from_save_response: bool = false, re
 	var gs_sync := _find_game_state()
 	var wallet_locked_now := (int(Time.get_unix_time_from_system()) < _wallet_lock_until_unix)
 	if gs_sync != null and not from_save_response and not wallet_locked_now:
+		var wallet_changed := false
 		if res_data.has("diamonds") and res_data.get("diamonds") != null:
-			gs_sync.player["diamonds"] = maxi(0, int(res_data.get("diamonds", 35)))
+			var next_d := maxi(0, int(res_data.get("diamonds", 35)))
+			if int(gs_sync.player.get("diamonds", -1)) != next_d:
+				gs_sync.player["diamonds"] = next_d
+				wallet_changed = true
 		if typeof(res_data.get("scrolls")) == TYPE_DICTIONARY:
-			gs_sync.player["scrolls"] = (res_data.get("scrolls") as Dictionary).duplicate(true)
-		if res_data.has("diamonds") or res_data.has("scrolls"):
+			var next_s := res_data.get("scrolls") as Dictionary
+			if gs_sync.player.get("scrolls", {}) != next_s:
+				gs_sync.player["scrolls"] = next_s.duplicate(true)
+				wallet_changed = true
+		if wallet_changed:
 			gs_sync._emit_state_changed()
 
 	var raw_cs = res_data.get("cloud_state", null)
@@ -2591,6 +2644,14 @@ func apply_cloud_sync(res_data: Dictionary, from_save_response: bool = false, re
 				request_save_active_world(true)
 			return true
 
+		var poll_sig := _compute_cloud_poll_sig(res_data, cloud_w, cloud_ts)
+		var now_poll_chk := int(Time.get_unix_time_from_system())
+		var eff_ts_pre := maxi(local_ts, _last_local_mutation_unix)
+		if not from_save_response and local_has and w_id == current_world_id and eff_ts_pre <= cloud_ts and (req_seq < 0 or req_seq == _local_mutation_seq) and now_poll_chk >= _conquest_lock_until_unix and now_poll_chk >= _alliance_lock_until_unix and str(_last_cloud_poll_sig_by_world.get(w_id, "")) == poll_sig:
+			var chk_v_dict: Dictionary = {"state": gs_sync.as_live_dict()} if (gs_sync != null and gs_sync.has_method("as_live_dict") and gs_sync.has_active_village()) else local_w
+			if not _has_local_conquered_village_missing_in_cloud(chk_v_dict, cloud_w, p_name):
+				return true
+
 		# Anlık RAM GameState verisini yerel snapshot'a bindir ki az önce yapılan yükseltme/isim değişikliği disk gecikmesi yüzünden ezilmesin
 		var effective_local_w := local_w.duplicate(true)
 		var effective_local_ts := local_ts
@@ -2633,11 +2694,18 @@ func apply_cloud_sync(res_data: Dictionary, from_save_response: bool = false, re
 			_conquest_lock_until_unix = 0
 
 		if gs_sync != null and not from_save_response and not wallet_locked_now:
+			var w_changed_after := false
 			if res_data.has("diamonds") and res_data.get("diamonds") != null:
-				gs_sync.player["diamonds"] = maxi(0, int(res_data.get("diamonds", 35)))
+				var nd2 := maxi(0, int(res_data.get("diamonds", 35)))
+				if int(gs_sync.player.get("diamonds", -1)) != nd2:
+					gs_sync.player["diamonds"] = nd2
+					w_changed_after = true
 			if typeof(res_data.get("scrolls")) == TYPE_DICTIONARY:
-				gs_sync.player["scrolls"] = (res_data.get("scrolls") as Dictionary).duplicate(true)
-			if res_data.has("diamonds") or res_data.has("scrolls"):
+				var ns2 := res_data.get("scrolls") as Dictionary
+				if gs_sync.player.get("scrolls", {}) != ns2:
+					gs_sync.player["scrolls"] = ns2.duplicate(true)
+					w_changed_after = true
+			if w_changed_after:
 				gs_sync._emit_state_changed()
 
 		var has_newer_mut := (req_seq >= 0 and _local_mutation_seq > req_seq)
@@ -2652,6 +2720,8 @@ func apply_cloud_sync(res_data: Dictionary, from_save_response: bool = false, re
 					_last_cloud_save_unix = int(Time.get_unix_time_from_system())
 					_last_cloud_save_seq = _local_mutation_seq
 					net.save_state_to_cloud(net.auth_token, merged_w, Callable(), _local_mutation_seq)
+		else:
+			_last_cloud_poll_sig_by_world[w_id] = poll_sig
 		return true
 
 	var sv = res_data.get("server_village", null)
@@ -2977,6 +3047,7 @@ func wipe_all_local_data() -> void:
 	_save_flush_accum = 0.0
 	_save_first_dirty_accum = 0.0
 	_cached_world_meta_by_id.clear()
+	_last_cloud_poll_sig_by_world.clear()
 	suppress_auto_conquered_prompt = true
 
 	if DirAccess.dir_exists_absolute(WORLDS_DIR):
