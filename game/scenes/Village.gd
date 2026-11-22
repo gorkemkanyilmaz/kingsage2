@@ -402,10 +402,19 @@ func _process(delta: float) -> void:
 			if _cached_bg_cache != null:
 				var total: int = mini(BG_TOTAL_FRAMES, _cached_bg_cache.get_frame_count())
 				if total > 0:
-					_bg_frame_idx = (_bg_frame_idx + steps) % total
-					var tex = _cached_bg_cache.get_frame(_bg_frame_idx)
-					if tex != null:
-						background.texture = tex
+					if DisplayServer.get_name() == "headless" or bool(_cached_bg_cache.get("is_fully_loaded")):
+						var step_clamped := mini(steps, 2) if DisplayServer.get_name() != "headless" else steps
+						_bg_frame_idx = (_bg_frame_idx + step_clamped) % total
+						var tex = _cached_bg_cache.get_frame(_bg_frame_idx)
+						if tex != null:
+							background.texture = tex
+					else:
+						var next_idx := (_bg_frame_idx + 1) % total
+						if _cached_bg_cache.has_method("is_frame_ready") and bool(_cached_bg_cache.call("is_frame_ready", next_idx)):
+							_bg_frame_idx = next_idx
+							var tex_ready = _cached_bg_cache.get_frame(_bg_frame_idx)
+							if tex_ready != null:
+								background.texture = tex_ready
 
 
 func _update_building_views_progress() -> void:

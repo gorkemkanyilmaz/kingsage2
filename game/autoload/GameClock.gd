@@ -37,7 +37,10 @@ var _app_backgrounded: bool = false
 
 func _ready() -> void:
 	start()
-	boost_fps()
+	if DisplayServer.get_name() != "headless":
+		boost_fps(12.0)
+	else:
+		boost_fps()
 
 
 func _input(event: InputEvent) -> void:
