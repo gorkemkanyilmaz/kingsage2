@@ -230,6 +230,13 @@ func _apply_royal_styles() -> void:
 func _refresh_notifications_button() -> void:
 	if btn_toggle_notifications == null:
 		return
+	if OS.has_feature("web"):
+		var n_card: Node = btn_toggle_notifications
+		while n_card != null and str(n_card.name) != "NotificationsCard":
+			n_card = n_card.get_parent()
+		if n_card is CanvasItem:
+			(n_card as CanvasItem).visible = false
+		return
 	var nm := _autoload("NotificationManager")
 	var enabled := true
 	if nm != null and nm.has_method("is_notifications_enabled"):

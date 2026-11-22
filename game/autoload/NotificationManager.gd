@@ -16,6 +16,8 @@ const SETTINGS_FILE := "user://notif_settings.json"
 const NOTIF_REQ_USER_PATH := "user://native_notif_req.json"
 const NOTIF_STATUS_USER_PATH := "user://native_notif_status.json"
 const NOTIF_OPENED_USER_PATH := "user://native_notif_opened.json"
+## Web (Vercel tarayıcı) sürümünde bildirim gösterilmez; bildirimler yalnızca native iOS uygulamasında çalışır.
+const WEB_NOTIFICATIONS_ENABLED := false
 
 const DEFAULT_FALLBACK_NAMES := {
 	"main": "Kale",
@@ -195,7 +197,7 @@ func request_permission(force_prompt: bool = false) -> void:
 	if _is_ios_device():
 		_send_ios_notif_req({"action": "request_permission"})
 		_start_ios_status_poll()
-	elif OS.has_feature("web"):
+	elif OS.has_feature("web") and WEB_NOTIFICATIONS_ENABLED:
 		JavaScriptBridge.eval("""
 			(function() {
 				if (typeof Notification !== 'undefined' && Notification.permission === 'default' && Notification.requestPermission) {
@@ -493,7 +495,7 @@ func sync_local_notifications_now() -> void:
 			"action": "sync_local",
 			"items": items,
 		})
-	elif OS.has_feature("web"):
+	elif OS.has_feature("web") and WEB_NOTIFICATIONS_ENABLED:
 		_sync_web_local_timers(items)
 
 
@@ -555,6 +557,8 @@ func _sync_web_local_timers(items: Array[Dictionary]) -> void:
 
 func notify_web_background_event(notif_type: String, title: String, body: String, route: String = "village", village_id: int = -1, dedup_key: String = "") -> void:
 	if not notifications_enabled:
+		return
+	if not WEB_NOTIFICATIONS_ENABLED:
 		return
 	if not OS.has_feature("web") or DisplayServer.get_name() == "headless":
 		return
