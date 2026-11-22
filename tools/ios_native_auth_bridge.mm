@@ -636,7 +636,7 @@ extern "C" void tvk_ios_auth_bridge_init(void) {
             self.activeDir = dir;
             self.activeReqId = [req[@"req_id"] isKindOfClass:[NSString class]] ? req[@"req_id"] : @"";
             self.activeProvider = [req[@"provider"] isKindOfClass:[NSString class]] ? [req[@"provider"] lowercaseString] : @"apple";
-            self.activeOAuthUrl = [req[@"oauth_url"] isKindOfClass:[NSString class]] ? req[@"oauth_url"] : @"https://tahtkilic.vercel.app/api/auth/oauth_page";
+            self.activeOAuthUrl = [req[@"oauth_url"] isKindOfClass:[NSString class]] ? req[@"oauth_url"] : @"https://92.5.113.251.nip.io/tahtkilic/api/auth/oauth_page";
 
             // Remove mirrored duplicate request files with the same req_id
             for (NSString *otherDir in candDirs) {

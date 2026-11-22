@@ -260,7 +260,7 @@ func _get_server_base_url() -> String:
 		var net = loop.root.get_node_or_null("NetworkManager")
 		if net != null and not str(net.server_url).strip_edges().is_empty():
 			return str(net.server_url).trim_suffix("/")
-	return "https://tahtkilic.vercel.app"
+	return "https://92.5.113.251.nip.io/tahtkilic"
 
 
 func _show_waiting_sheet(parent_node: Node, title_text: String, status_text: String, is_apple: bool, on_cancel: Callable = Callable()) -> Label:

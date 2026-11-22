@@ -67,7 +67,7 @@ except ImportError:
 if IS_VERCEL:
     DB_PATH = "/tmp/kingsage_serverless.db"
 else:
-    DB_PATH = os.path.join(os.path.dirname(__file__), "..", "kingsage.db")
+    DB_PATH = os.getenv("TVK_DB_PATH") or os.path.join(os.path.dirname(__file__), "..", "kingsage.db")
 
 
 
@@ -148,8 +148,9 @@ def get_db() -> DBConnection:
         conn = psycopg2.connect(db_url, connect_timeout=5)
         return DBConnection(conn, True)
     else:
-        conn = sqlite3.connect(DB_PATH, check_same_thread=False)
+        conn = sqlite3.connect(DB_PATH, timeout=20.0, check_same_thread=False)
         conn.row_factory = sqlite3.Row
+        conn.execute("PRAGMA busy_timeout=15000;")
         if not IS_VERCEL:
             conn.execute("PRAGMA journal_mode=WAL;")
         else:
@@ -4611,7 +4612,7 @@ def oauth_page(
             return;
           }}
         }}
-        const res = await fetch("/api/auth/oauth_submit", {{
+        const res = await fetch("oauth_submit", {{
           method: "POST",
           headers: {{ "Content-Type": "application/json" }},
           body: JSON.stringify({{ session: SESS, provider: PROV, email: cleanEmail, name: "", cancelled: false }})
@@ -4640,7 +4641,7 @@ def oauth_page(
       }};
       document.getElementById("cancelBtn").onclick = async () => {{
         try {{
-          await fetch("/api/auth/oauth_submit", {{
+          await fetch("oauth_submit", {{
             method: "POST",
             headers: {{ "Content-Type": "application/json" }},
             body: JSON.stringify({{ session: SESS, provider: PROV, cancelled: true }})

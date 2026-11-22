@@ -6,7 +6,7 @@ signal sync_completed(success: bool, data: Dictionary)
 signal auth_completed(success: bool, profile: Dictionary)
 signal server_status_changed(reachable: bool, data: Dictionary)
 
-const DEFAULT_SERVER_URL := "https://tahtkilic.vercel.app"
+const DEFAULT_SERVER_URL := "https://92.5.113.251.nip.io/tahtkilic"
 
 var server_url: String = DEFAULT_SERVER_URL
 var is_server_reachable: bool = false
@@ -51,7 +51,7 @@ func _notification(what: int) -> void:
 func _ready() -> void:
 	if OS.has_feature("web"):
 		var web_origin = JavaScriptBridge.eval("window.location.origin")
-		if web_origin != null and str(web_origin).begins_with("http"):
+		if web_origin != null and (str(web_origin).contains("localhost") or str(web_origin).contains("127.0.0.1")):
 			server_url = str(web_origin)
 	_http = HTTPRequest.new()
 	add_child(_http)

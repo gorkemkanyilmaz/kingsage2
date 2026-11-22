@@ -714,7 +714,7 @@ func _push_bg_fetch_config_to_ios() -> void:
 		return
 	var net := _autoload("NetworkManager")
 	var auth := _autoload("AuthManager")
-	var srv := str(net.get("server_url")) if net != null else "https://tahtkilic.vercel.app"
+	var srv := str(net.get("server_url")) if net != null else "https://92.5.113.251.nip.io/tahtkilic"
 	var tok := str(net.get("auth_token")) if net != null else ""
 	if tok.is_empty() and auth != null:
 		tok = str(auth.get("auth_token"))
