@@ -137,6 +137,7 @@ func _update_report_badge() -> void:
 
 	var del_sigs := {}
 	var read_sigs := {}
+	var unread_toggled := {}
 	if typeof(gs.player) == TYPE_DICTIONARY:
 		var p_dict: Dictionary = gs.player
 		if typeof(p_dict.get("deleted_report_sigs")) == TYPE_ARRAY:
@@ -145,6 +146,9 @@ func _update_report_badge() -> void:
 		if typeof(p_dict.get("read_report_sigs")) == TYPE_ARRAY:
 			for s in (p_dict["read_report_sigs"] as Array):
 				read_sigs[str(s)] = true
+		if typeof(p_dict.get("unread_toggled_sigs")) == TYPE_ARRAY:
+			for s in (p_dict["unread_toggled_sigs"] as Array):
+				unread_toggled[str(s)] = true
 
 	var seen_sigs := {}
 	var pname_l := player_name.strip_edges().to_lower()
@@ -154,8 +158,6 @@ func _update_report_badge() -> void:
 			if typeof(rep) != TYPE_DICTIONARY:
 				continue
 			var r := rep as Dictionary
-			if not bool(r.get("unread", false)):
-				continue
 			var rtype := str(r.get("type", "battle"))
 			var vid := int(r.get("village_id", -1))
 			var rdata: Dictionary = r.get("data", {}) if typeof(r.get("data")) == TYPE_DICTIONARY else {}
@@ -164,7 +166,8 @@ func _update_report_badge() -> void:
 			var f_vid := int(rdata.get("from_village_id", -1))
 			var t_vid := int(rdata.get("target_village_id", -1))
 			var sig := "%s:%d:%d:%d:%d" % [rtype, vid, int(r.get("unix", r.get("created_unix", 0))), t_vid, f_vid]
-			if del_sigs.has(sig) or read_sigs.has(sig) or seen_sigs.has(sig):
+			var is_read_for_player := read_sigs.has(sig) and not unread_toggled.has(sig)
+			if del_sigs.has(sig) or is_read_for_player or seen_sigs.has(sig):
 				continue
 			var is_att := (f_vid in player_vids) or (not pname_l.is_empty() and a_owner.to_lower() == pname_l)
 			var is_def := (t_vid in player_vids) or (not pname_l.is_empty() and d_owner.to_lower() == pname_l)

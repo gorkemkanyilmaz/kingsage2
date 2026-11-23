@@ -662,7 +662,9 @@ func _on_game_event() -> void:
 
 
 func _on_resources_event(_vid: int) -> void:
-	if _elapsed_sec - _last_res_refresh_sec < 2.0 and _elapsed_sec >= _last_res_refresh_sec:
+	if not visible:
+		return
+	if _elapsed_sec - _last_res_refresh_sec < 10.0 and _elapsed_sec >= _last_res_refresh_sec:
 		return
 	_last_res_refresh_sec = _elapsed_sec
 	refresh_quests(false)

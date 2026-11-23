@@ -876,17 +876,42 @@ static func _report_sig(r: Dictionary) -> String:
 	]
 
 
+static func _is_viewer_defender(r: Dictionary, player_name: String, player_vids: Array) -> bool:
+	var rtype := str(r.get("type", "battle"))
+	if rtype == "spy_incoming":
+		return true
+	if rtype == "spy":
+		return false
+	var rdata: Dictionary = r.get("data", {}) if typeof(r.get("data")) == TYPE_DICTIONARY else {}
+	var a_owner := str(rdata.get("attacker_name", rdata.get("attacker_owner", ""))).strip_edges().to_lower()
+	var d_owner := str(rdata.get("defender_name", "")).strip_edges().to_lower()
+	var f_vid := int(rdata.get("from_village_id", -1))
+	var t_vid := int(rdata.get("target_village_id", -1))
+	var pname_l := player_name.strip_edges().to_lower()
+	var p_bare := pname_l.substr(5).strip_edges() if pname_l.begins_with("lord ") else pname_l
+	var a_bare := a_owner.substr(5).strip_edges() if a_owner.begins_with("lord ") else a_owner
+	var d_bare := d_owner.substr(5).strip_edges() if d_owner.begins_with("lord ") else d_owner
+	var is_att := (f_vid in player_vids) or (not pname_l.is_empty() and (a_owner == pname_l or (not p_bare.is_empty() and a_bare == p_bare)))
+	var is_def := (t_vid in player_vids) or (not pname_l.is_empty() and (d_owner == pname_l or (not p_bare.is_empty() and d_bare == p_bare)))
+	if is_def and not is_att:
+		return true
+	return false
+
+
 static func _report_belongs_to_player(r: Dictionary, player_name: String, player_vids: Array) -> bool:
 	var rtype := str(r.get("type", "battle"))
 	var vid := int(r.get("village_id", -1))
 	var rdata: Dictionary = r.get("data", {}) if typeof(r.get("data")) == TYPE_DICTIONARY else {}
-	var a_owner := str(rdata.get("attacker_name", rdata.get("attacker_owner", ""))).strip_edges()
-	var d_owner := str(rdata.get("defender_name", "")).strip_edges()
+	var a_owner := str(rdata.get("attacker_name", rdata.get("attacker_owner", ""))).strip_edges().to_lower()
+	var d_owner := str(rdata.get("defender_name", "")).strip_edges().to_lower()
 	var f_vid := int(rdata.get("from_village_id", -1))
 	var t_vid := int(rdata.get("target_village_id", -1))
 	var pname_l := player_name.strip_edges().to_lower()
-	var is_att := (f_vid in player_vids) or (not pname_l.is_empty() and a_owner.to_lower() == pname_l)
-	var is_def := (t_vid in player_vids) or (not pname_l.is_empty() and d_owner.to_lower() == pname_l)
+	var p_bare := pname_l.substr(5).strip_edges() if pname_l.begins_with("lord ") else pname_l
+	var a_bare := a_owner.substr(5).strip_edges() if a_owner.begins_with("lord ") else a_owner
+	var d_bare := d_owner.substr(5).strip_edges() if d_owner.begins_with("lord ") else d_owner
+	var is_att := (f_vid in player_vids) or (not pname_l.is_empty() and (a_owner == pname_l or (not p_bare.is_empty() and a_bare == p_bare)))
+	var is_def := (t_vid in player_vids) or (not pname_l.is_empty() and (d_owner == pname_l or (not p_bare.is_empty() and d_bare == p_bare)))
 	if rtype == "spy_incoming":
 		# Saldiran savunanin kendi casus-uyari raporunu gormesin (cift rapor hatasi)
 		return (not is_att) and ((vid in player_vids) or is_def)
@@ -1079,6 +1104,7 @@ func _populate_reports() -> void:
 		report_list.add_child(_make_empty_state())
 		return
 
+	var unread_toggled := _get_sig_set(gs, "unread_toggled_sigs")
 	# En yeni raporlar en üstte görünsün
 	for i in range(player_reports.size() - 1, -1, -1):
 		var r: Dictionary = player_reports[i]
@@ -1094,26 +1120,55 @@ func _populate_reports() -> void:
 		var count_had_r := int(rdata.get("count_had", 0))
 		var realm_loss_r := int(rdata.get("realm_loss", 0))
 		var realm_rem_r := int(rdata.get("realm_remaining", rdata.get("realm_after", 0)))
+		var is_def_view := _is_viewer_defender(r, player_name, player_vids)
 		if rtype == "spy":
-			title = ("Casus Raporu • %s" % t_name) if not t_name.is_empty() else "Casusluk Raporu"
+			var spy_failed := bool(rdata.get("failed", false)) or int(rdata.get("spy_survivors", 0)) <= 0
+			if spy_failed:
+				title = ("💀 Casusluk Başarısız • %s" % t_name) if not t_name.is_empty() else "💀 Casusluk Başarısız"
+				accent = Color(0.92, 0.36, 0.34)
+			else:
+				title = ("🕵️ Casus Raporu • %s" % t_name) if not t_name.is_empty() else "🕵️ Casusluk Raporu"
+				accent = Color(0.45, 0.78, 1.0)
 			icon = ICON_SPY
-			accent = Color(0.45, 0.78, 1.0)
 		elif rtype == "spy_incoming":
-			title = ("Casus Tespit Edildi • %s" % f_name) if not f_name.is_empty() else "Savunma İstihbaratı"
+			var att_owner := str(rdata.get("attacker_owner", rdata.get("attacker_name", ""))).strip_edges()
+			var att_from := ("%s (%s)" % [att_owner, f_name]) if (not att_owner.is_empty() and not f_name.is_empty() and att_owner != f_name) else (att_owner if not att_owner.is_empty() else f_name)
+			var all_dead := bool(rdata.get("all_killed", false)) or int(rdata.get("spy_survivors", 0)) <= 0
+			if all_dead:
+				title = ("🛡️ Casus Saldırısı Engellendi • %s" % att_from) if not att_from.is_empty() else "🛡️ Casus Saldırısı Engellendi"
+				accent = Color(0.32, 0.86, 0.48)
+			else:
+				title = ("⚠️ Casus Saldırısı • %s" % att_from) if not att_from.is_empty() else "⚠️ Savunma İstihbaratı"
+				accent = Color(0.95, 0.65, 0.25)
 			icon = ICON_SPY
-			accent = Color(0.95, 0.65, 0.25)
 		elif rtype == "trade":
 			title = "Ticaret Teslimatı"
 			icon = ICON_TRADE
 			accent = Color(0.42, 0.88, 0.56)
+		elif rtype == "support":
+			title = ("🛡️ Destek Birliği • %s" % t_name) if not t_name.is_empty() else "🛡️ Destek Birliği"
+			icon = ICON_BATTLE
+			accent = Color(0.38, 0.82, 0.96)
 		elif is_conquered_r:
-			title = ("👑 FETİH • %s" % t_name) if not t_name.is_empty() else "👑 KÖY FETHEDİLDİ!"
-			accent = Color(0.98, 0.80, 0.30)
-		elif not t_name.is_empty():
-			var won := bool(rdata.get("attacker_won", false))
-			title = ("%s • %s" % ["Zafer" if won else "Savaş", t_name])
+			if is_def_view:
+				title = ("💀 KÖYÜNÜZ FETHEDİLDİ (Kaybettiniz) • %s" % t_name) if not t_name.is_empty() else "💀 KÖYÜNÜZ FETHEDİLDİ (Kaybettiniz)"
+				accent = Color(0.92, 0.28, 0.28)
+			else:
+				title = ("👑 FETİH ZAFERİ (Kazandınız) • %s" % t_name) if not t_name.is_empty() else "👑 KÖY FETHEDİLDİ (Kazandınız)"
+				accent = Color(0.98, 0.80, 0.30)
+		else:
+			var att_won := bool(rdata.get("attacker_won", false))
+			var viewer_won := (not att_won) if is_def_view else att_won
+			if is_def_view:
+				var att_p := str(rdata.get("attacker_name", "")).strip_edges()
+				var opp_lbl := ("%s (%s)" % [att_p, f_name]) if (not att_p.is_empty() and not f_name.is_empty() and att_p != f_name) else (att_p if not att_p.is_empty() else t_name)
+				title = "🛡️ Savunma: Kazandınız • %s" % opp_lbl if viewer_won else "💀 Savunma: Kaybettiniz • %s" % opp_lbl
+			else:
+				var tgt_lbl := t_name if not t_name.is_empty() else str(rdata.get("defender_name", "Hedef"))
+				title = "⚔️ Saldırı: Kazandınız • %s" % tgt_lbl if viewer_won else "💀 Saldırı: Kaybettiniz • %s" % tgt_lbl
+			accent = Color(0.32, 0.86, 0.48) if viewer_won else Color(0.92, 0.36, 0.34)
 
-		var is_unread := bool(r.get("unread", false)) and not read_sigs.has(rsig)
+		var is_unread := (not read_sigs.has(rsig)) or unread_toggled.has(rsig)
 		var badge_tag := "● YENİ" if is_unread else "✓ Okundu"
 		var subtitle := "%s • %s" % [badge_tag, Time.get_datetime_string_from_unix_time(int(r.get("unix", 0)))]
 		if rtype == "battle" and not is_conquered_r and count_had_r > 0 and realm_loss_r > 0:
@@ -1406,10 +1461,20 @@ func _render_battle_report(parent: Control, rep: Dictionary) -> void:
 	var is_raid: bool = bool(data.get("is_raid", raw.get("is_raid", false)))
 	var conquered: bool = bool(data.get("conquered", raw.get("conquered", false)))
 
-	# 1. ZAFER / YENİLGİ BÜYÜK BAŞLIK KARTI
+	var gs: Node = Engine.get_main_loop().root.get_node_or_null("GameState") if Engine.get_main_loop() is SceneTree else null
+	var player_name := str(gs.player.get("name", "Kral")) if gs != null else "Kral"
+	var player_vids: Array = []
+	if gs != null and "villages" in gs and gs.villages is Array:
+		for v in gs.villages:
+			if typeof(v) == TYPE_DICTIONARY and str((v as Dictionary).get("owner", "")) == player_name:
+				player_vids.append(int((v as Dictionary).get("id", -1)))
+	var is_def_view := _is_viewer_defender(rep, player_name, player_vids)
+	var viewer_won: bool = (not attacker_won) if is_def_view else attacker_won
+
+	# 1. ZAFER / YENİLGİ BÜYÜK BAŞLIK KARTI (Oyuncu Perspektifine Göre)
 	var banner := PanelContainer.new()
 	var b_sb := StyleBoxFlat.new()
-	if attacker_won:
+	if viewer_won:
 		b_sb.bg_color = Color(0.12, 0.42, 0.20, 0.95)
 		b_sb.border_color = Color(0.55, 0.92, 0.60, 1.0)
 	else:
@@ -1430,31 +1495,56 @@ func _render_battle_report(parent: Control, rep: Dictionary) -> void:
 	banner_vbox.add_theme_constant_override("separation", 6)
 
 	var title_lbl := Label.new()
-	title_lbl.text = (" ZAFER!" if attacker_won else " YENİLGİ") if not is_raid else (" YAĞMA AKINI TAMAMLANDI" if attacker_won else " YAĞMA PÜSKÜRTÜLDÜ")
+	if is_def_view:
+		if conquered:
+			title_lbl.text = "💀 KÖYÜNÜZ FETHEDİLDİ — KAYBETTİNİZ!"
+		elif viewer_won:
+			title_lbl.text = "🛡️ SAVUNMA ZAFERİ — KAZANDINIZ!"
+		else:
+			title_lbl.text = "💀 SAVUNMA YENİLGİSİ — KAYBETTİNİZ!"
+	else:
+		if conquered:
+			title_lbl.text = "👑 FETİH ZAFERİ — KAZANDINIZ!"
+		elif not is_raid:
+			title_lbl.text = "⚔️ SALDIRI ZAFERİ — KAZANDINIZ!" if viewer_won else "💀 SALDIRI YENİLGİSİ — KAYBETTİNİZ!"
+		else:
+			title_lbl.text = "⚔️ YAĞMA ZAFERİ — KAZANDINIZ!" if viewer_won else "💀 YAĞMA PÜSKÜRTÜLDÜ — KAYBETTİNİZ!"
 	title_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title_lbl.add_theme_font_override("font", FontNunitoBold)
-	title_lbl.add_theme_font_size_override("font_size", 40)
+	title_lbl.add_theme_font_size_override("font_size", 36)
 	title_lbl.add_theme_constant_override("outline_size", 4)
 	title_lbl.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.95))
-	title_lbl.add_theme_color_override("font_color", Color(1.0, 0.95, 0.70) if attacker_won else Color(1.0, 0.80, 0.80))
+	title_lbl.add_theme_color_override("font_color", Color(1.0, 0.95, 0.70) if viewer_won else Color(1.0, 0.80, 0.80))
 	banner_vbox.add_child(title_lbl)
 
 	var subtitle_lbl := Label.new()
-	if conquered:
-		subtitle_lbl.text = " KÖY BAŞARIYLA FETHEDİLDİ VE KRALLIĞINIZA KATILDI!"
-	elif attacker_won:
-		subtitle_lbl.text = "Düşman hatları yarıldı, garnizon ezildi ve zafer kazanıldı!"
+	if is_def_view:
+		if conquered:
+			subtitle_lbl.text = "Savunma hatlarınız düştü ve köyünüz düşman kontrolüne geçti."
+		elif viewer_won:
+			subtitle_lbl.text = "Savunma İstatistikleri: Gelen düşman taarruzu garnizonunuz tarafından başarıyla püskürtüldü!"
+		else:
+			subtitle_lbl.text = "Savunma İstatistikleri: Saldıran ordu savunma hatlarınızı aşarak garnizonunuzu mağlup etti."
 	else:
-		subtitle_lbl.text = "Savunan kuvvetler üstün geldi, taarruz başarısızlıkla sonuçlandı."
+		if conquered:
+			subtitle_lbl.text = "KÖY BAŞARIYLA FETHEDİLDİ VE KRALLIĞINIZA KATILDI!"
+		elif viewer_won:
+			subtitle_lbl.text = "Saldırı İstatistikleri: Düşman hatları yarıldı, garnizon ezildi ve zafer kazanıldı!"
+		else:
+			subtitle_lbl.text = "Saldırı İstatistikleri: Savunan kuvvetler üstün geldi, taarruzunuz başarısızlıkla sonuçlandı."
 	subtitle_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	subtitle_lbl.add_theme_font_size_override("font_size", 24)
+	subtitle_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	subtitle_lbl.add_theme_font_size_override("font_size", 23)
 	subtitle_lbl.add_theme_color_override("font_color", Color(1.0, 1.0, 1.0, 0.95))
 	banner_vbox.add_child(subtitle_lbl)
 
-	# İstatistik Hapları (Moral & Şans & Zaman)
+	# İstatistik Hapları (Perspektif & Moral & Şans & Zaman)
 	var stats_hbox := HBoxContainer.new()
 	stats_hbox.alignment = BoxContainer.ALIGNMENT_CENTER
-	stats_hbox.add_theme_constant_override("separation", 16)
+	stats_hbox.add_theme_constant_override("separation", 12)
+
+	var role_pill := _make_pill("🛡️ Savunma Raporu" if is_def_view else "⚔️ Saldırı Raporu", Color(0.14, 0.30, 0.45, 0.90) if is_def_view else Color(0.42, 0.24, 0.14, 0.90))
+	stats_hbox.add_child(role_pill)
 
 	var morale: float = float(data.get("morale", raw.get("morale", 1.0)))
 	var luck: float = float(data.get("luck", raw.get("luck", 0.0)))
@@ -1474,11 +1564,15 @@ func _render_battle_report(parent: Control, rep: Dictionary) -> void:
 	# 2. TARAFLAR KARŞILAŞTIRMASI (DUEL CARDS)
 	var att_name: String = str(data.get("attacker_name", "Saldıran"))
 	var def_name: String = str(data.get("defender_name", "Savunan"))
+	var att_v_name: String = str(data.get("from_name", data.get("attacker_village_name", ""))).strip_edges()
+	var def_v_name: String = str(data.get("target_name", data.get("defender_village_name", ""))).strip_edges()
+	var att_disp := ("%s (%s)" % [att_name, att_v_name]) if (not att_v_name.is_empty() and att_v_name != att_name) else att_name
+	var def_disp := ("%s (%s)" % [def_name, def_v_name]) if (not def_v_name.is_empty() and def_v_name != def_name) else def_name
 
 	var duel_box := HBoxContainer.new()
 	duel_box.add_theme_constant_override("separation", 14)
 
-	var att_card := _make_side_card(" SALDIRAN", att_name, Color(0.18, 0.35, 0.60, 0.9))
+	var att_card := _make_side_card("⚔️ SALDIRAN" + (" (SİZ)" if not is_def_view else ""), att_disp, Color(0.18, 0.35, 0.60, 0.9))
 	att_card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	duel_box.add_child(att_card)
 
@@ -1490,13 +1584,13 @@ func _render_battle_report(parent: Control, rep: Dictionary) -> void:
 	vs_lbl.add_theme_color_override("font_color", Color(1.0, 0.85, 0.40))
 	duel_box.add_child(vs_lbl)
 
-	var def_card := _make_side_card(" SAVUNAN", def_name, Color(0.55, 0.22, 0.20, 0.9))
+	var def_card := _make_side_card("🛡️ SAVUNAN" + (" (SİZ)" if is_def_view else ""), def_disp, Color(0.55, 0.22, 0.20, 0.9))
 	def_card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	duel_box.add_child(def_card)
 
 	parent.add_child(duel_box)
 
-	# 3. GÖRSEL BİRLİK TABLOLARI (SALDIRAN VE SAVUNAN)
+	# 3. GÖRSEL BİRLİK TABLOLARI (Oyuncunun Kendi Tarafı Öncelikli)
 	var att_units: Dictionary = data.get("attacker_units", raw.get("attacker_units", {}))
 	var att_losses: Dictionary = data.get("attacker_losses", raw.get("attacker_losses", {}))
 	var att_alive: Dictionary = data.get("attacker_alive", raw.get("attacker_alive", {}))
@@ -1505,11 +1599,20 @@ func _render_battle_report(parent: Control, rep: Dictionary) -> void:
 	var def_losses: Dictionary = data.get("defender_losses", raw.get("defender_losses", {}))
 	var def_alive: Dictionary = data.get("defender_alive", raw.get("defender_alive", {}))
 
-	var army_section := _make_army_table_card("Saldıran Ordusu Kayıp & Kalan Tablosu", att_units, att_losses, att_alive, Color(0.20, 0.30, 0.50, 0.95))
-	parent.add_child(army_section)
-
-	var def_army_section := _make_army_table_card("Savunan Garnizonu Kayıp & Kalan Tablosu", def_units, def_losses, def_alive, Color(0.45, 0.20, 0.20, 0.95))
-	parent.add_child(def_army_section)
+	var army_section := _make_army_table_card(
+		"⚔️ Saldıran Ordunuz (Saldırı İstatistikleri)" if not is_def_view else "⚔️ Saldıran Düşman Ordusu Kayıp & Kalan Tablosu",
+		att_units, att_losses, att_alive, Color(0.20, 0.30, 0.50, 0.95)
+	)
+	var def_army_section := _make_army_table_card(
+		"🛡️ Savunan Garnizonunuz (Savunma İstatistikleri)" if is_def_view else "🛡️ Savunan Garnizonu Kayıp & Kalan Tablosu",
+		def_units, def_losses, def_alive, Color(0.45, 0.20, 0.20, 0.95)
+	)
+	if is_def_view:
+		parent.add_child(def_army_section)
+		parent.add_child(army_section)
+	else:
+		parent.add_child(army_section)
+		parent.add_child(def_army_section)
 
 	# 4. GANİMET & YAĞMA KARTI
 	var loot: Dictionary = data.get("loot", raw.get("loot", {}))
@@ -1966,49 +2069,84 @@ func _make_pill(txt: String, bg_col: Color) -> PanelContainer:
 
 func _render_spy_report(parent: Control, rep: Dictionary) -> void:
 	var data: Dictionary = rep.get("data", {})
+	var rtype := str(rep.get("type", "spy"))
+	var survivors: int = int(data.get("spy_survivors", 0))
+	var losses: int = int(data.get("spy_losses", 0))
+	var def_spies: int = int(data.get("defence_spies", 0))
+	var creeping: bool = bool(data.get("creeping", false))
+	var is_failed: bool = bool(data.get("failed", false)) or (rtype == "spy" and survivors <= 0)
+	var is_incoming: bool = (rtype == "spy_incoming")
+
 	var banner := PanelContainer.new()
 	var sb := StyleBoxFlat.new()
-	sb.bg_color = Color(0.12, 0.25, 0.40, 0.95)
-	sb.border_color = Color(0.45, 0.75, 1.0, 1.0)
+	if is_failed:
+		sb.bg_color = Color(0.46, 0.12, 0.14, 0.95)
+		sb.border_color = Color(0.95, 0.45, 0.40, 1.0)
+	elif is_incoming:
+		sb.bg_color = Color(0.14, 0.36, 0.20, 0.95) if survivors <= 0 else Color(0.42, 0.26, 0.10, 0.95)
+		sb.border_color = Color(0.52, 0.92, 0.60, 1.0) if survivors <= 0 else Color(0.96, 0.72, 0.34, 1.0)
+	else:
+		sb.bg_color = Color(0.12, 0.25, 0.40, 0.95)
+		sb.border_color = Color(0.45, 0.75, 1.0, 1.0)
 	sb.set_border_width_all(2)
 	sb.set_corner_radius_all(16)
 	sb.set_content_margin_all(16)
 	banner.add_theme_stylebox_override("panel", sb)
 
 	var vb := VBoxContainer.new()
+	vb.add_theme_constant_override("separation", 8)
 	var t_lbl := Label.new()
-	t_lbl.text = " CASUSLUK VE İSTİHBARAT RAPORU"
+	if is_failed:
+		t_lbl.text = "💀 CASUS SALDIRISI BAŞARISIZ — TÜM CASUSLAR ÖLDÜ!"
+	elif is_incoming:
+		t_lbl.text = "🛡️ DÜŞMAN CASUS SALDIRISI ENGELLENDİ!" if survivors <= 0 else "⚠️ KÖYÜNÜZE CASUS SALDIRISI TESPİT EDİLDİ!"
+	else:
+		t_lbl.text = "🕵️ CASUSLUK VE İSTİHBARAT RAPORU"
 	t_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	t_lbl.add_theme_font_override("font", FontNunitoBold)
-	t_lbl.add_theme_font_size_override("font_size", 34)
-	t_lbl.add_theme_color_override("font_color", Color(0.85, 0.95, 1.0))
+	t_lbl.add_theme_font_size_override("font_size", 32)
+	t_lbl.add_theme_color_override("font_color", Color(1.0, 0.90, 0.85) if is_failed else Color(0.85, 0.95, 1.0))
 	vb.add_child(t_lbl)
 
-	var survivors: int = int(data.get("spy_survivors", 0))
-	var losses: int = int(data.get("spy_losses", 0))
-	var def_spies: int = int(data.get("defence_spies", 0))
-	var creeping: bool = bool(data.get("creeping", false))
-
 	var sub := Label.new()
-	sub.text = "Hedef: %s | Casuslarımız: %d Sağ / %d Kayıp | Savunan Casus: %d%s" % [
-		str(data.get("target_name", "Köy")),
-		survivors, losses, def_spies,
-		" (Gizli Sızma)" if creeping else ""
-	]
+	sub.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	if is_incoming:
+		var att_owner := str(data.get("attacker_owner", data.get("attacker_name", "Düşman"))).strip_edges()
+		var att_v_name := str(data.get("from_name", data.get("attacker_village_name", "Köy"))).strip_edges()
+		var tgt_name := str(data.get("target_name", "Köyünüz")).strip_edges()
+		if survivors <= 0:
+			sub.text = "%s (%s) oyuncusu %s köyünüze casus saldırısı düzenledi!\nGönderilen tüm düşman casusları (%d) savunmanız tarafından yakalanıp imha edildi; düşman hiçbir askeri ve maden bilgisine erişemedi." % [att_owner, att_v_name, tgt_name, losses]
+		else:
+			sub.text = "%s (%s) oyuncusu %s köyünüze casus saldırısı düzenledi!\nDüşman Casusları: %d Sağ Kurtuldu / %d Yakalandı | Savunan Casuslarımız: %d" % [att_owner, att_v_name, tgt_name, survivors, losses, def_spies]
+	elif is_failed:
+		sub.text = "Hedef: %s | Gönderilen Casus: %d | Sağ Kalan: 0 (Kayıp: %d)\nCasus saldırısı yaptınız ancak karşı tarafın casus savunması nedeniyle tüm casuslarınız öldü! Köydeki hiçbir askeri ve maden bilgisine erişilemedi." % [
+			str(data.get("target_name", "Köy")),
+			losses,
+			losses
+		]
+	else:
+		sub.text = "Hedef: %s | Casuslarımız: %d Sağ / %d Kayıp | Savunan Casus: %d%s" % [
+			str(data.get("target_name", "Köy")),
+			survivors, losses, def_spies,
+			" (Gizli Sızma)" if creeping else ""
+		]
 	sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	sub.add_theme_font_size_override("font_size", 24)
-	sub.add_theme_color_override("font_color", Color(1.0, 1.0, 1.0, 0.85))
+	sub.add_theme_color_override("font_color", Color(1.0, 1.0, 1.0, 0.92))
 	vb.add_child(sub)
 
 	banner.add_child(vb)
 	parent.add_child(banner)
 
-	if data.has("resources"):
+	if is_failed or is_incoming:
+		return
+
+	if data.has("resources") and typeof(data["resources"]) == TYPE_DICTIONARY and not (data["resources"] as Dictionary).is_empty():
 		var res: Dictionary = data["resources"]
 		var res_card := _make_loot_card(res, 0)
 		parent.add_child(res_card)
 
-	if data.has("units"):
+	if data.has("units") and typeof(data["units"]) == TYPE_DICTIONARY and not (data["units"] as Dictionary).is_empty():
 		var u_card := _make_army_table_card("Keşfedilen Birlikler (Köy İçi)", data["units"], {}, data["units"], Color(0.2, 0.35, 0.55))
 		parent.add_child(u_card)
 

@@ -1474,8 +1474,14 @@ func _on_bottom_march_speedup_pressed() -> void:
 	var my_movs := _collect_my_movements(gs)
 	if my_movs.is_empty():
 		return
-	var active_m: Dictionary = my_movs[0]
+	var owned_movs: Array = []
 	for m in my_movs:
+		if typeof(m) == TYPE_DICTIONARY and _is_player_owned_movement(m as Dictionary, gs):
+			owned_movs.append(m)
+	if owned_movs.is_empty():
+		return
+	var active_m: Dictionary = owned_movs[0]
+	for m in owned_movs:
 		var st := str(m.get("state", "outgoing"))
 		var tp := str(m.get("type", ""))
 		if st == "outgoing" and tp != "return":
@@ -1524,15 +1530,22 @@ func _refresh_movement_status_bar() -> void:
 	for m in my_movements:
 		var st := str(m.get("state", "outgoing"))
 		var tp := str(m.get("type", ""))
-		if st == "outgoing" and tp != "return":
+		if st == "outgoing" and tp != "return" and _is_player_owned_movement(m, gs):
 			active_m = m
 			break
+	if not _is_player_owned_movement(active_m, gs):
+		for m in my_movements:
+			if _is_player_owned_movement(m, gs):
+				active_m = m
+				break
 
+	var is_owned_march := _is_player_owned_movement(active_m, gs)
 	var m_type := str(active_m.get("type", "attack"))
 	var m_state := str(active_m.get("state", "outgoing"))
 	var is_returning := (m_state == "returning" or m_type == "return")
 	var is_trade := (m_type == "trade")
 	var is_spy := (m_type == "spy")
+	var is_support := (m_type == "support")
 	var depart_unix := int(active_m.get("depart_unix", now))
 	var arrive_unix := int(active_m.get("arrive_unix", now))
 	var total_dur := maxi(1, arrive_unix - depart_unix)
@@ -1540,18 +1553,35 @@ func _refresh_movement_status_bar() -> void:
 	var pct := clampf(float(total_dur - rem_secs) / float(total_dur) * 100.0, 0.0, 100.0)
 	var time_str := _fmt_duration(rem_secs)
 
-	if is_returning:
+	if not is_owned_march:
+		if m_type == "attack" or m_type == "raid":
+			movement_status_label.text = "🚨 Gelen Saldırı! Varışa Kalan Süre: %s (Toplam %d)" % [time_str, my_movements.size()]
+			movement_status_label.add_theme_color_override("font_color", Color(1.0, 0.38, 0.36))
+		elif is_support:
+			movement_status_label.text = "🛡️ Gelen Destek Birliği! Kalan Süre: %s (Toplam %d)" % [time_str, my_movements.size()]
+			movement_status_label.add_theme_color_override("font_color", Color(0.45, 0.92, 0.62))
+		else:
+			movement_status_label.text = "⚖️ Gelen Sevkiyat! Kalan Süre: %s (Toplam %d)" % [time_str, my_movements.size()]
+			movement_status_label.add_theme_color_override("font_color", Color(1.0, 0.85, 0.3))
+	elif is_returning:
 		movement_status_label.text = "↩ Birlik Dönüş Yolunda! Üsse Kalan Süre: %s (Toplam %d)" % [time_str, my_movements.size()]
 		movement_status_label.add_theme_color_override("font_color", Color(0.3, 0.9, 1.0))
 	elif is_trade:
 		movement_status_label.text = "⚖️ Katır Kervanı Sevkiyatta! Kalan Süre: %s (Toplam %d)" % [time_str, my_movements.size()]
 		movement_status_label.add_theme_color_override("font_color", Color(1.0, 0.85, 0.3))
+	elif is_support:
+		movement_status_label.text = "🛡️ Destek Birliği Yolda! Kalan Süre: %s (Toplam %d)" % [time_str, my_movements.size()]
+		movement_status_label.add_theme_color_override("font_color", Color(0.45, 0.92, 0.62))
 	elif is_spy:
 		movement_status_label.text = "🕵️ Casus Seferde! Hedefe Kalan Süre: %s (Toplam %d)" % [time_str, my_movements.size()]
 		movement_status_label.add_theme_color_override("font_color", Color(0.65, 0.88, 1.0))
 	else:
 		movement_status_label.text = "⚔️ Ordu Seferde! Hedefe Kalan Süre: %s (Toplam %d)" % [time_str, my_movements.size()]
 		movement_status_label.add_theme_color_override("font_color", Color(1.0, 0.5, 0.3))
+
+	var top_sp_btn := movement_status_bar.find_child("TopMarchSpeedupBtn", true, false) as Button
+	if top_sp_btn != null:
+		top_sp_btn.visible = is_owned_march
 
 	if bottom_march_bar != null:
 		var to_id := int(active_m.get("to_village_id", 0))
@@ -1560,26 +1590,39 @@ func _refresh_movement_status_bar() -> void:
 		var orig_v := _find_any_village(from_id, gs)
 		var tgt_name := str(tgt_v.get("name", "Köy #%d" % to_id))
 		var orig_name := str(orig_v.get("name", "Köy #%d" % from_id))
-		if is_returning:
+		if not is_owned_march:
+			if m_type == "attack" or m_type == "raid":
+				bottom_march_title_label.text = "🚨 Gelen Saldırı: %s → %s" % [orig_name, tgt_name]
+			elif is_support:
+				bottom_march_title_label.text = "🛡️ Gelen Destek: %s → %s" % [orig_name, tgt_name]
+			else:
+				bottom_march_title_label.text = "⚖️ Gelen Kervan: %s → %s" % [orig_name, tgt_name]
+		elif is_returning:
 			bottom_march_title_label.text = "↩ Dönüş → %s" % tgt_name
 		elif is_spy:
 			bottom_march_title_label.text = "🕵️ Casus → %s" % tgt_name
 		elif is_trade:
 			bottom_march_title_label.text = "⚖️ Kervan → %s" % tgt_name
+		elif is_support:
+			bottom_march_title_label.text = "🛡️ Destek: %s → %s" % [orig_name, tgt_name]
 		else:
 			bottom_march_title_label.text = "⚔️ Sefer: %s → %s" % [orig_name, tgt_name]
 		bottom_march_timer_label.text = "⏱ %s" % time_str
 		bottom_march_progress.value = pct
 
-		var sm := _get_store_manager()
-		var cnt := int(sm.call("get_category_scroll_total", "march")) if sm != null and sm.has_method("get_category_scroll_total") else 0
-		bottom_march_speedup_btn.text = "⚡ Hızlandır (%d)" % cnt if cnt > 0 else "⚡ Hızlandır"
-		_ensure_map_speedup_styles()
-		var sb := _map_speedup_have_sb if cnt > 0 else _map_speedup_buy_sb
-		var sb_h := _map_speedup_have_hover if cnt > 0 else _map_speedup_buy_hover
-		bottom_march_speedup_btn.add_theme_stylebox_override("normal", sb)
-		bottom_march_speedup_btn.add_theme_stylebox_override("hover", sb_h)
-		bottom_march_speedup_btn.add_theme_stylebox_override("pressed", sb_h)
+		if not is_owned_march:
+			bottom_march_speedup_btn.hide()
+		else:
+			bottom_march_speedup_btn.show()
+			var sm := _get_store_manager()
+			var cnt := int(sm.call("get_category_scroll_total", "march")) if sm != null and sm.has_method("get_category_scroll_total") else 0
+			bottom_march_speedup_btn.text = "⚡ Hızlandır (%d)" % cnt if cnt > 0 else "⚡ Hızlandır"
+			_ensure_map_speedup_styles()
+			var sb := _map_speedup_have_sb if cnt > 0 else _map_speedup_buy_sb
+			var sb_h := _map_speedup_have_hover if cnt > 0 else _map_speedup_buy_hover
+			bottom_march_speedup_btn.add_theme_stylebox_override("normal", sb)
+			bottom_march_speedup_btn.add_theme_stylebox_override("hover", sb_h)
+			bottom_march_speedup_btn.add_theme_stylebox_override("pressed", sb_h)
 
 
 func _ensure_map_speedup_styles() -> void:
@@ -2060,7 +2103,12 @@ func _refresh_movement_detail_content() -> void:
 		empty_lbl.add_theme_font_size_override("font_size", 24)
 		_detail_units_grid.add_child(empty_lbl)
 
-	if is_returning:
+	var is_owned_detail := _is_player_owned_movement(m, gs)
+	if not is_owned_detail:
+		_detail_btn_cancel.hide()
+		_detail_cancel_note.text = " Gelen saldırı veya sevkiyat yalnızca gönderen oyuncu tarafından hızlandırılabilir veya iptal edilebilir."
+		_detail_cancel_note.show()
+	elif is_returning:
 		_detail_btn_cancel.hide()
 		_detail_cancel_note.text = " Birlikler geri dönüş yolundadır, tekrar iptal edilemez."
 		_detail_cancel_note.show()

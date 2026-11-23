@@ -156,8 +156,8 @@ static func _validate_support(
 	var availability := _units_available(origin, clean)
 	if not bool(availability.get("ok", false)):
 		return availability
-	if not _is_friendly(state, origin, target):
-		return _fail("foreign_target", "Destek yalnızca kendi/ittifak köyüne gönderilebilir.")
+	if not _is_friendly(state, origin, target) and not _is_real_player_target(target):
+		return _fail("foreign_target", "Destek yalnızca kendi köylerinize, ittifak üyesine veya gerçek oyuncu köyüne gönderilebilir.")
 	return _ok()
 
 
@@ -172,6 +172,8 @@ static func _is_real_player_target(target: Dictionary) -> bool:
 		and owner != "terk edilmis"
 		and owner != "soyguncular"
 		and owner != "usta"
+		and owner != "yabancı"
+		and owner != "yabanci"
 	)
 
 
@@ -290,8 +292,115 @@ static func send_support(
 	_deduct_units(origin, clean)
 
 	var movement := _build(state, TYPE_SUPPORT, origin, target, clean, _zero_carry(), now_unix, {})
+	movement["from_village_name"] = str(origin.get("name", ""))
 	_append_movement(state, movement)
 	return {"ok": true, "code": "", "message": "", "movement": movement, "events": []}
+
+
+## Konuşlanmış destek birliğini geri çeker (gönderen oyuncu) veya geri gönderir (destek alan köy sahibi).
+## Birlikler `target_village_id` garnizonundan ve `support` listesinden düşülür, `from_village_id` köyüne
+## bir `return` (geri dönüş) seferi başlatılır.
+static func recall_support(
+	state: Dictionary,
+	target_village_id: int,
+	from_village_id: int,
+	now_unix: int,
+	support_index: int = -1
+) -> Dictionary:
+	var target := _find_village(state, target_village_id)
+	if target.is_empty():
+		return _fail("target_not_found", "Destek köyü bulunamadı.")
+	var origin := _find_village(state, from_village_id)
+	var support_raw = target.get("support", null)
+	if typeof(support_raw) != TYPE_ARRAY or (support_raw as Array).is_empty():
+		return _fail("support_not_found", "Köyde geri çağrılacak destek birliği yok.")
+
+	var sup_arr: Array = support_raw
+	var match_idx := -1
+	if support_index >= 0 and support_index < sup_arr.size():
+		var cand = sup_arr[support_index]
+		if typeof(cand) == TYPE_DICTIONARY and (from_village_id <= 0 or int((cand as Dictionary).get("from_village_id", 0)) == from_village_id):
+			match_idx = support_index
+	if match_idx < 0:
+		for i in range(sup_arr.size()):
+			var entry = sup_arr[i]
+			if typeof(entry) == TYPE_DICTIONARY and int((entry as Dictionary).get("from_village_id", 0)) == from_village_id:
+				match_idx = i
+				break
+	if match_idx < 0:
+		return _fail("support_not_found", "Belirtilen köye ait destek birliği bulunamadı.")
+
+	var sup_entry: Dictionary = sup_arr[match_idx]
+	var actual_from_id := int(sup_entry.get("from_village_id", from_village_id))
+	if origin.is_empty() and actual_from_id > 0:
+		origin = _find_village(state, actual_from_id)
+
+	var sup_units := normalize_units(sup_entry.get("units", {}))
+	var target_units: Dictionary = target.get("units", {}) if typeof(target.get("units")) == TYPE_DICTIONARY else {}
+	var returning_units: Dictionary = {}
+	for u_key in sup_units.keys():
+		var req_cnt := int(sup_units.get(u_key, 0))
+		if req_cnt <= 0:
+			continue
+		var have_cnt := maxi(0, int(target_units.get(u_key, 0)))
+		var take_cnt := mini(req_cnt, have_cnt) if have_cnt > 0 else req_cnt
+		target_units[u_key] = maxi(0, have_cnt - req_cnt)
+		if take_cnt > 0:
+			returning_units[u_key] = take_cnt
+	target["units"] = target_units
+
+	var dismissed_key := "%d:%d" % [actual_from_id, int(sup_entry.get("arrive_unix", 0))]
+	var dis_list: Array = target.get("dismissed_support_keys", []) if typeof(target.get("dismissed_support_keys")) == TYPE_ARRAY else []
+	if not dis_list.has(dismissed_key):
+		dis_list.append(dismissed_key)
+	target["dismissed_support_keys"] = dis_list
+	sup_arr.remove_at(match_idx)
+
+	if _sum(returning_units) <= 0:
+		return {"ok": true, "code": "", "message": "Destek kaydı temizlendi.", "movement": {}, "events": []}
+
+	var from_x := int(target.get("x", 100))
+	var from_y := int(target.get("y", 100))
+	var to_x := int(origin.get("x", 100)) if not origin.is_empty() else from_x
+	var to_y := int(origin.get("y", 100)) if not origin.is_empty() else from_y
+	var slowest := Travel.slowest_speed(returning_units)
+	var travel_secs := maxi(1, int(round(Travel.travel_seconds(from_x, from_y, to_x, to_y, slowest))))
+	var mov_id := next_id(state)
+	var ret_owner := str(origin.get("owner", str(sup_entry.get("owner", "")))) if not origin.is_empty() else str(sup_entry.get("owner", ""))
+
+	var ret_movement := {
+		"id": mov_id,
+		"village_id": actual_from_id,
+		"owner": ret_owner,
+		"type": TYPE_RETURN,
+		"state": "returning",
+		"support_return": true,
+		"from_village_id": target_village_id,
+		"from_x": from_x,
+		"from_y": from_y,
+		"to_village_id": actual_from_id,
+		"to_x": to_x,
+		"to_y": to_y,
+		"units": returning_units.duplicate(true),
+		"carry": _zero_carry(),
+		"depart_unix": now_unix,
+		"arrive_unix": now_unix + travel_secs,
+		"return_unix": now_unix + travel_secs,
+		"base_travel_seconds": travel_secs,
+	}
+	_append_movement(state, ret_movement)
+	return {
+		"ok": true,
+		"code": "",
+		"message": "Destek birlikleri geri dönüşe geçti.",
+		"movement": ret_movement,
+		"events": [{
+			"type": "support_recalled",
+			"village_id": actual_from_id,
+			"from_support_village_id": target_village_id,
+			"units": returning_units.duplicate(true),
+		}],
+	}
 
 
 ## Ticaret (katır): hammadde transferi (`docs/14`). Kaynaklar gönderimde düşülür.

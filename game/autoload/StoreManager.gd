@@ -775,24 +775,24 @@ func _is_player_movement(m: Dictionary, active_vid: int, player_name: String, ow
 	var m_state := str(m.get("state", "outgoing"))
 	var m_type := str(m.get("type", ""))
 	var is_ret := (m_state == "returning" or m_type == "return")
-	if not p_norm.is_empty() and not owner.is_empty() and owner == p_norm:
-		return true
+	if not p_norm.is_empty() and not owner.is_empty():
+		return owner == p_norm
 	var v_id := int(m.get("village_id", -1))
 	var f_id := int(m.get("from_village_id", -1))
 	var t_id := int(m.get("to_village_id", -1))
 	if not owned_vids.is_empty():
+		if not is_ret and f_id > 0:
+			return owned_vids.has(f_id)
+		if is_ret and t_id > 0:
+			return owned_vids.has(t_id)
 		if owned_vids.has(v_id):
 			return true
-		if not is_ret and owned_vids.has(f_id):
-			return true
-		if is_ret and owned_vids.has(t_id):
-			return true
 	if active_vid > 0:
+		if not is_ret and f_id > 0:
+			return f_id == active_vid
+		if is_ret and t_id > 0:
+			return t_id == active_vid
 		if v_id == active_vid:
-			return true
-		if not is_ret and f_id == active_vid:
-			return true
-		if is_ret and t_id == active_vid:
 			return true
 	return false
 

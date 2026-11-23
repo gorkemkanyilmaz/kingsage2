@@ -349,6 +349,7 @@ var _progress_timer: float = 0.0
 var _bg_frame_idx: int = 0
 var _bg_frame_timer: float = 0.0
 var _rendered_village_id: int = -1
+var _last_buildings_refresh_sig: String = ""
 const BG_TOTAL_FRAMES: int = 192 # 192 kare, 24 FPS = kesintisiz 8.0 saniyelik orijinal akıcı döngü
 const BG_FPS: float = 24.0
 const BG_FRAME_TIME: float = 1.0 / BG_FPS
@@ -448,10 +449,29 @@ func _ensure_game_loop() -> void:
 
 
 func _on_resources_changed(village_id: int) -> void:
-	var gs = Engine.get_main_loop().root.get_node_or_null("GameState") if Engine.get_main_loop() is SceneTree else null
+	var gs = _resolve_game_state()
 	if gs == null or not gs.has_active_village() or village_id != gs.active_village_id:
 		return
-	refresh_all()
+	# ResourceBar zaten EventBus.resources_changed sinyaline doğrudan bağlıdır ve Village._process
+	# aktif inşaat ilerlemelerini 0.5sn'de bir günceller. Pasif 1sn kaynak tick'lerinde yalnızca
+	# bina seviyeleri veya inşaat kuyruğu değiştiyse 15 BuildingView'u baştan yenile.
+	var v: Dictionary = gs.get_active_village()
+	var blds: Dictionary = v.get("buildings", {}) if typeof(v.get("buildings")) == TYPE_DICTIONARY else {}
+	var b_q_count := 0
+	for item in gs.queues:
+		if typeof(item) == TYPE_DICTIONARY and int((item as Dictionary).get("village_id", -1)) == village_id and str((item as Dictionary).get("type", "")) == "build":
+			b_q_count += 1
+	var b_sig := "%d:%d:%d:%d:%d:%d" % [
+		village_id,
+		b_q_count,
+		int(blds.get("main", 0)),
+		int(blds.get("barracks", 0)),
+		int(blds.get("storage", 0)),
+		blds.hash()
+	]
+	if b_sig != _last_buildings_refresh_sig:
+		_last_buildings_refresh_sig = b_sig
+		refresh_all()
 
 
 func _on_state_changed() -> void:
@@ -1496,17 +1516,16 @@ func _update_incoming_attack_alarm(delta: float, force_scan: bool = false) -> vo
 
 	_alarm_visual_active = true
 	_attack_flash_time += maxf(delta, 0.0)
-	var pulse := 0.5 + 0.5 * sin(_attack_flash_time * 6.0)
+	var pulse := 0.5 + 0.5 * sin(_attack_flash_time * 1.8)
 
 	if _attack_alarm_overlay != null:
 		_attack_alarm_overlay.visible = true
 	if _attack_red_tint != null:
-		_attack_red_tint.color = Color(0.88, 0.04, 0.04, lerpf(0.05, 0.25, pulse))
+		_attack_red_tint.color = Color(0.88, 0.04, 0.04, lerpf(0.008, 0.045, pulse))
 	if _attack_red_frame != null:
-		_attack_red_frame.modulate.a = lerpf(0.35, 1.0, pulse)
+		_attack_red_frame.modulate.a = lerpf(0.10, 0.28, pulse)
 	if village_area != null:
-		var g_b := lerpf(0.76, 1.0, 1.0 - pulse)
-		village_area.modulate = Color(1.0, g_b, g_b, 1.0)
+		village_area.modulate = Color.WHITE
 
 	var first := incoming[0]
 	var rem_sec := int(first.get("remaining_sec", 0))

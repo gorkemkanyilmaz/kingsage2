@@ -1378,7 +1378,8 @@ def _prepare_world_for_player(
                         tut_completed = True
                         break
 
-    # Oyuncu için silinen raporları gizle ve okunanların unread bayrağını senkronize et
+    # Oyuncu için silinen raporları gizle ve okunanların unread bayrağını oyuncuya özel hesapla
+    prof_unread_toggled = {str(x) for x in (found_prof.get("unread_toggled_sigs") or []) if str(x)}
     if isinstance(state.get("reports"), list):
         filtered_reps = []
         for rep in state["reports"]:
@@ -1387,8 +1388,7 @@ def _prepare_world_for_player(
             rsig_str = _report_sig_str(rep)
             if rsig_str in del_sig_set:
                 continue
-            if rsig_str in read_sig_set:
-                rep["unread"] = False
+            rep["unread"] = (rsig_str not in read_sig_set) or (rsig_str in prof_unread_toggled)
             filtered_reps.append(rep)
         state["reports"] = filtered_reps
 
@@ -2049,14 +2049,26 @@ def merge_world_state(server_w: Optional[Dict[str, Any]], client_raw: Dict[str, 
             c_act_sups = {_sup_key(it): it for it in c_sup if isinstance(it, dict) and (int(it.get("from_village_id", 0) or 0) in acting_client_vids_before or _matches_player(str(it.get("owner", "")), act_name))}
 
             # Aktif oyuncudan yeni gelen destekleri ekle, geri çekilenleri düş
+            c_dismissed = set(str(x) for x in (c_v.get("dismissed_support_keys") or []) if str(x))
+            s_dismissed = set(str(x) for x in (s_v.get("dismissed_support_keys") or []) if str(x))
+            all_dismissed = c_dismissed | s_dismissed
             v_units = dict(s_v.get("units") or {})
-            kept_sups = [it for it in s_sup if _sup_key(it) not in s_act_sups or _sup_key(it) in c_act_sups]
-            for sk, sit in s_act_sups.items():
-                if sk not in c_act_sups:
-                    for uk, cnt in (sit.get("units") or {}).items():
+            kept_sups = []
+            for it in s_sup:
+                sk = _sup_key(it)
+                d_key = f"{sk[0]}:{sk[1]}" if len(sk) >= 2 else ""
+                if d_key in all_dismissed:
+                    for uk, cnt in (it.get("units") or {}).items():
                         v_units[uk] = max(0, int(v_units.get(uk, 0) or 0) - int(cnt or 0))
+                    continue
+                if sk in s_act_sups and sk not in c_act_sups:
+                    for uk, cnt in (it.get("units") or {}).items():
+                        v_units[uk] = max(0, int(v_units.get(uk, 0) or 0) - int(cnt or 0))
+                    continue
+                kept_sups.append(it)
             for ck, cit in c_act_sups.items():
-                if ck not in s_act_sups:
+                d_key = f"{ck[0]}:{ck[1]}" if len(ck) >= 2 else ""
+                if ck not in s_act_sups and d_key not in all_dismissed:
                     cit_copy = copy.deepcopy(cit)
                     fv = int(cit_copy.get("from_village_id", 0) or 0)
                     if fv in vid_remap:
@@ -2065,6 +2077,8 @@ def merge_world_state(server_w: Optional[Dict[str, Any]], client_raw: Dict[str, 
                     for uk, cnt in (cit_copy.get("units") or {}).items():
                         v_units[uk] = int(v_units.get(uk, 0) or 0) + int(cnt or 0)
             s_v["support"] = kept_sups
+            if all_dismissed:
+                s_v["dismissed_support_keys"] = list(all_dismissed)[-100:]
             s_v["units"] = v_units
 
             # Aktif oyuncunun bu köye yönelik YENİ savaş veya ticaret raporu varsa kayıpları/hammaddeyi uygula
@@ -2209,14 +2223,19 @@ def merge_world_state(server_w: Optional[Dict[str, Any]], client_raw: Dict[str, 
         if sig not in seen_mov:
             seen_mov.add(sig)
             merged_movements.append(mc)
-    # Diğer gerçek oyuncuların sunucudaki hareketlerini koru (aktif oyuncunun kendi hareketlerinde client %100 otoriterdir)
+    # Diğer gerçek oyuncuların sunucudaki hareketlerini koru (destek geri gönderme hareketleri hedef oyuncu henüz görmediyse de korunur)
     for m in (s_state.get("movements") or []):
         if not isinstance(m, dict):
             continue
-        if _is_acting_player_movement(m):
+        is_remote_sup_return = (
+            bool(m.get("support_return", False))
+            and int(m.get("from_village_id", 0) or 0) not in all_acting_vids
+            and int(m.get("arrive_unix", 0) or 0) > now
+        )
+        if _is_acting_player_movement(m) and not is_remote_sup_return:
             continue
         sig = _movement_sig(m)
-        if sig not in seen_mov and (int(m.get("arrive_unix", 0) or 0) > now or int(m.get("to_village_id", 0) or 0) not in acting_vids_now):
+        if sig not in seen_mov and (is_remote_sup_return or int(m.get("arrive_unix", 0) or 0) > now or int(m.get("to_village_id", 0) or 0) not in acting_vids_now):
             seen_mov.add(sig)
             merged_movements.append(m)
     s_state["movements"] = merged_movements
@@ -2376,23 +2395,13 @@ def merge_world_state(server_w: Optional[Dict[str, Any]], client_raw: Dict[str, 
             if fv in vid_remap:
                 rc["data"]["from_village_id"] = vid_remap[fv]
         rsig = _report_sig(rc)
-        rsig_str = _report_sig_str(rc)
         if rsig not in rep_idx_by_sig:
             rep_idx_by_sig[rsig] = len(s_reps)
-            if rsig_str in act_read_sigs:
-                rc["unread"] = False
+            rc["unread"] = True
             s_reps.append(rc)
         else:
             existing_rep = s_reps[rep_idx_by_sig[rsig]]
-            rep_vid = int(existing_rep.get("village_id", 0) or 0)
-            if rep_vid in acting_vids_now or rsig_str in act_read_sigs:
-                if rsig_str in act_read_sigs:
-                    existing_rep["unread"] = False
-                elif c_has_act_village and c_last >= s_last and "unread" in rc:
-                    existing_rep["unread"] = bool(rc.get("unread", False))
-    for rep in s_reps:
-        if isinstance(rep, dict) and _report_sig_str(rep) in act_read_sigs:
-            rep["unread"] = False
+            existing_rep["unread"] = True
     # Yalnızca aktif oyuncuya ait olup silinmiş raporları kanonik listeden de temizle (ortak çoklu oyuncu raporları diğer oyuncuda kalır, _prepare_world_for_player gizler)
     cleaned_reps: List[Dict[str, Any]] = []
     for rep in s_reps:

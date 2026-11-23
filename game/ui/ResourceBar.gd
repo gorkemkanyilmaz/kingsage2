@@ -783,13 +783,14 @@ func _on_economy_box_gui_input(event: InputEvent, bound_key: String = "", bound_
 				key = str(pair[0])
 				src = ctrl
 				break
-	if event is InputEventScreenTouch:
-		_last_tooltip_touch_msec = Time.get_ticks_msec()
-		_last_tooltip_touch_key = key
-	elif event is InputEventMouseButton:
-		if _last_tooltip_touch_key == key and _last_tooltip_touch_msec > 0 and (Time.get_ticks_msec() - _last_tooltip_touch_msec) < 150:
-			accept_event()
-			return
+	var now_ms := Time.get_ticks_msec()
+	# iOS'ta tek bir dokunuş aynı karede hem InputEventMouseButton hem InputEventScreenTouch ürettiği için
+	# ikinci olayı yoksay; aksi halde açılan pencere aynı karede tekrar kapanır.
+	if _last_tooltip_touch_msec > 0 and (now_ms - _last_tooltip_touch_msec) < 220:
+		accept_event()
+		return
+	_last_tooltip_touch_msec = now_ms
+	_last_tooltip_touch_key = key
 	accept_event()
 	if is_instance_valid(_tooltip_layer) and _last_tooltip_key == key and _tooltip_opened_by_tap:
 		_hide_resource_tooltip()
@@ -850,13 +851,19 @@ func _ensure_resource_box_titles() -> void:
 			(box as PanelContainer).add_theme_stylebox_override("panel", csb)
 		if bar != null:
 			bar.custom_minimum_size.y = 6.0
+			bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		var inner_vbox := box.get_node_or_null("VBox") as Control
+		if inner_vbox != null:
+			inner_vbox.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		var row := box.find_child("Row", true, false) as HBoxContainer
 		if row == null:
 			continue
+		row.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		row.add_theme_constant_override("separation", 6)
 		var ico := row.get_node_or_null("Icon") as TextureRect
 		if ico != null:
 			ico.custom_minimum_size = Vector2(30, 30)
+			ico.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		var stack := row.get_node_or_null("TextStack") as VBoxContainer
 		if stack == null:
 			stack = VBoxContainer.new()
@@ -886,6 +893,7 @@ func _ensure_resource_box_titles() -> void:
 				val_lbl.get_parent().remove_child(val_lbl)
 			stack.add_child(val_lbl)
 		if val_lbl != null:
+			val_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
 			val_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 			val_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 			val_lbl.add_theme_font_override("font", FONT_BOLD)

@@ -883,8 +883,11 @@ func _save_game() -> void:
 	var loop := Engine.get_main_loop()
 	if loop is SceneTree and (loop as SceneTree).root != null:
 		var sm := (loop as SceneTree).root.get_node_or_null("SaveManager")
-		if sm != null and sm.has_method("save_game"):
-			sm.save_game()
+		if sm != null:
+			if sm.has_method("request_save_game"):
+				sm.call("request_save_game")
+			elif sm.has_method("save_game"):
+				sm.save_game()
 
 
 func _current_scene_node() -> Node:
@@ -1248,7 +1251,8 @@ func _refresh_tutorial(force: bool, scene_node: Node = null, scene_name: String 
 		_btn_next.show()
 
 	var q_all := _active_queues(gs)
-	if not q_all.is_empty():
+	var hide_decree_for_market_lesson := (_current_step == Step.UPGRADE_WOOD_CAMP and _is_market_scroll_lesson_active(gs))
+	if not q_all.is_empty() and not hide_decree_for_market_lesson:
 		var head: Dictionary = q_all[0]
 		var qt := str(head.get("type", ""))
 		match qt:
@@ -1301,8 +1305,8 @@ func _get_step_copy(scene_node: Node, _scene_name: String, gs: Node) -> Dictiona
 			return {
 				"chapter": "BÖLÜM 1/5 • KÖY DÜZENİ",
 				"title": "Hazine, Nüfus ve Elmas Pazarı",
-				"dialogue": "[b][color=#FFD86B]Lordum,[/color][/b] üst şeritte [b]Odun, Taş, Demir[/b] stokunuz ile [b]Boş Vatandaş[/b] sayınız yer alır. Sağ üstteki [b][color=#78D8FF]💎 Elmas Pazarı[/color][/b] düğmesinden hızlandırma parşömenleri alabilirsiniz; başlangıç hazinenizde [b][color=#78F096]35 💎 Elmas[/color][/b] var!",
-				"objective": "Üst kaynak çubuğunu ve 💎 Elmas Pazarı düğmesini inceleyip devam edin.",
+				"dialogue": "[b][color=#FFD86B]Lordum,[/color][/b] üst şeritte [b]Odun, Taş, Demir[/b] stokunuz ile [b]Boş Vatandaş[/b] sayınız yer alır. Sağ üstteki [b][color=#78D8FF]Elmas Pazarı[/color][/b] düğmesinden hızlandırma parşömenleri alabilirsiniz; başlangıç hazinenizde [b][color=#78F096]35 Elmas[/color][/b] var!",
+				"objective": "Üst kaynak çubuğunu ve Elmas Pazarı düğmesini inceleyip devam edin.",
 				"next_text": "Anladım ➔",
 				"hint": "Devam Et"
 			}
@@ -1369,7 +1373,7 @@ func _get_step_copy(scene_node: Node, _scene_name: String, gs: Node) -> Dictiona
 								return {
 									"chapter": "BÖLÜM 2/5 • EKONOMİ",
 									"title": "İnşaat Parşömenleri Sekmesi",
-									"dialogue": "[b][color=#FFD86B]Lordum,[/color][/b] Kraliyet Elmas Pazarı açıldı! İnşaat sürelerini kısaltan parşömenleri görmek için [b]'🔨 İnşaat'[/b] sekmesine dokunun.",
+									"dialogue": "[b][color=#FFD86B]Lordum,[/color][/b] Kraliyet Elmas Pazarı açıldı! İnşaat sürelerini kısaltan parşömenleri görmek için [b]'İnşaat'[/b] sekmesine dokunun.",
 									"objective": "Pazarda 'İnşaat' sekmesine dokunun.",
 									"next_text": "",
 									"hint": "İnşaat Sekmesi"
@@ -1377,16 +1381,16 @@ func _get_step_copy(scene_node: Node, _scene_name: String, gs: Node) -> Dictiona
 							return {
 								"chapter": "BÖLÜM 2/5 • EKONOMİ",
 								"title": "10 Dk İnşaat Parşömeni Alın",
-								"dialogue": "[b][color=#FFD86B]Lordum,[/color][/b] bu parşömen aktif inşaat süresini [b]10 dakika[/b] kısaltır. Şimdi [b]5 💎 Elmas[/b] karşılığında [b]'10 Dk İnşaat Parşömeni'[/b] satın alın!",
-								"objective": "'10 Dk İnşaat' parşömenini (💎 5) satın alın.",
+								"dialogue": "[b][color=#FFD86B]Lordum,[/color][/b] bu parşömen aktif inşaat süresini [b]10 dakika[/b] kısaltır. Şimdi [b]5 Elmas[/b] karşılığında [b]'10 Dk İnşaat Parşömeni'[/b] satın alın!",
+								"objective": "'10 Dk İnşaat' parşömenini (5 Elmas) satın alın.",
 								"next_text": "",
-								"hint": "Satın Al (5 💎)"
+								"hint": "Satın Al (5 Elmas)"
 							}
 						return {
 							"chapter": "BÖLÜM 2/5 • EKONOMİ",
 							"title": "Elmas Pazarı ile Hızlandırma",
-							"dialogue": "[b][color=#FFD86B]Lordum,[/color][/b] hazinenizde [b][color=#78D8FF]%d 💎 Elmas[/color][/b] var! Sağ üstteki Elmas Pazarı'ndan [b]5 💎[/b] karşılığında [b]'10 Dk İnşaat Parşömeni'[/b] alın ve inşaatı anında hızlandırın!" % diamonds,
-							"objective": "Sağ üstteki 💎 Elmas Pazarı butonuna dokunun.",
+							"dialogue": "[b][color=#FFD86B]Lordum,[/color][/b] hazinenizde [b][color=#78D8FF]%d Elmas[/color][/b] var! Sağ üstteki [b][color=#78D8FF]Elmas Pazarı[/color][/b] butonundan [b]5 Elmas[/b] karşılığında [b]'10 Dk İnşaat Parşömeni'[/b] alın ve inşaatı anında hızlandırın!" % diamonds,
+							"objective": "Sağ üstteki Elmas Pazarı butonuna dokunun.",
 							"next_text": "",
 							"hint": "Elmas Pazarı"
 						}
@@ -1404,16 +1408,16 @@ func _get_step_copy(scene_node: Node, _scene_name: String, gs: Node) -> Dictiona
 						return {
 							"chapter": "BÖLÜM 2/5 • EKONOMİ",
 							"title": "Parşömeni Uygulayın",
-							"dialogue": "[b][color=#FFD86B]Lordum,[/color][/b] yeşil [b]'⚡ Kullan (10 Dk)'[/b] butonuna dokunun; Oduncu Kampı Sv.2 anında tamamlanacak!",
-							"objective": "'⚡ Kullan (10 Dk)' butonuna dokunun.",
+							"dialogue": "[b][color=#FFD86B]Lordum,[/color][/b] yeşil [b]'Kullan (10 Dk)'[/b] butonuna dokunun; Oduncu Kampı Sv.2 anında tamamlanacak!",
+							"objective": "'Kullan (10 Dk)' butonuna dokunun.",
 							"next_text": "",
 							"hint": "Parşömeni Kullan"
 						}
 					return {
 						"chapter": "BÖLÜM 2/5 • EKONOMİ",
 						"title": "İnşaatı Parşömenle Hızlandırın",
-						"dialogue": "[b][color=#FFD86B]Lordum,[/color][/b] parşömenimiz hazır! Şimdi aktif inşaat satırındaki [b][color=#78F096]'⚡ Hızlandır'[/color][/b] butonuna basarak hızlandırma penceresini açın.",
-						"objective": "'⚡ Hızlandır' butonuna dokunun.",
+						"dialogue": "[b][color=#FFD86B]Lordum,[/color][/b] parşömenimiz hazır! Şimdi aktif inşaat satırındaki [b][color=#78F096]'Hızlandır'[/color][/b] butonuna basarak hızlandırma penceresini açın.",
+						"objective": "'Hızlandır' butonuna dokunun.",
 						"next_text": "",
 						"hint": "Hızlandır"
 					}
@@ -1437,7 +1441,7 @@ func _get_step_copy(scene_node: Node, _scene_name: String, gs: Node) -> Dictiona
 			return {
 				"chapter": "BÖLÜM 2/5 • EKONOMİ",
 				"title": "Oduncu Kampını Seviye 2'ye Yükseltin",
-				"dialogue": "[b][color=#FFD86B]Lordum,[/color][/b] Seviye 2 saatlik üretimi [b]120'den 134'e[/b] çıkarır. İnşaatı başlatmak için yeşil yükseltme butonuna dokunun.",
+				"dialogue": "[b][color=#FFD86B]Lordum,[/color][/b] Seviye 2 temel saatlik üretimi [b]120'den 134'e[/b] çıkarır (aktif [b][color=#78F096]2× Başlangıç Hızı Bonusu[/color][/b] sayesinde aşağıdaki tabloda saatlik üretim [b]240'tan 268'e[/b] yükselir). İnşaatı başlatmak için yeşil yükseltme butonuna dokunun.",
 				"objective": "Oduncu Kampı'nı Seviye 2'ye yükseltin.",
 				"next_text": "",
 				"hint": "Yükselt (Sv. 2)"
@@ -1659,7 +1663,7 @@ func _get_step_copy(scene_node: Node, _scene_name: String, gs: Node) -> Dictiona
 				return {
 					"chapter": "BÖLÜM 5/5 • KIŞLA VE ORDU",
 					"title": "Araştırma Sekmesine Geçin",
-					"dialogue": "[b][color=#FFD86B]Lordum,[/color][/b] Kışla'nın üst sekmelerinden [b]'📜 Birim Araştır'[/b] bölümüne dokunarak askeri teknolojileri açın.",
+					"dialogue": "[b][color=#FFD86B]Lordum,[/color][/b] Kışla'nın üst sekmelerinden [b]'Birim Araştır'[/b] bölümüne dokunarak askeri teknolojileri açın.",
 					"objective": "'Birim Araştır' sekmesine dokunun.",
 					"next_text": "",
 					"hint": "Araştır Sekmesi"
@@ -1667,8 +1671,8 @@ func _get_step_copy(scene_node: Node, _scene_name: String, gs: Node) -> Dictiona
 			return {
 				"chapter": "BÖLÜM 5/5 • KIŞLA VE ORDU",
 				"title": "Silahtar Birliğini Araştırın",
-				"dialogue": "[b][color=#FFD86B]Lordum,[/color][/b] [b]🛡️ Silahtar[/b] hızlı, ekonomik ve köyümüzün ilk savunma kalkanıdır. Araştırmayı başlatın!",
-				"objective": "Silahtar satırındaki '🔬 Araştır' butonuna dokunun.",
+				"dialogue": "[b][color=#FFD86B]Lordum,[/color][/b] [b]Silahtar[/b] hızlı, ekonomik ve köyümüzün ilk savunma kalkanıdır. Araştırmayı başlatın!",
+				"objective": "Silahtar satırındaki 'Araştır' butonuna dokunun.",
 				"next_text": "",
 				"hint": "Silahtar Araştır"
 			}
@@ -1699,7 +1703,7 @@ func _get_step_copy(scene_node: Node, _scene_name: String, gs: Node) -> Dictiona
 				return {
 					"chapter": "BÖLÜM 5/5 • 10 SİLAHTAR",
 					"title": "Eğitim Sekmesine Geçin",
-					"dialogue": "[b][color=#FFD86B]Lordum,[/color][/b] üst sekmeden [b]'⚔️ Birim Eğit'[/b] bölümüne geçerek Silahtar yetiştirmeye başlayabilirsiniz.",
+					"dialogue": "[b][color=#FFD86B]Lordum,[/color][/b] üst sekmeden [b]'Birim Eğit'[/b] bölümüne geçerek Silahtar yetiştirmeye başlayabilirsiniz.",
 					"objective": "'Birim Eğit' sekmesine dokunun (%d/10 Silahtar)." % have,
 					"next_text": "",
 					"hint": "Eğitim Sekmesi"
@@ -1720,8 +1724,8 @@ func _get_step_copy(scene_node: Node, _scene_name: String, gs: Node) -> Dictiona
 			return {
 				"chapter": "BÖLÜM 5/5 • 10 SİLAHTAR",
 				"title": "Eğitimi Başlatın!",
-				"dialogue": "[b][color=#FFD86B]Lordum,[/color][/b] [b]%d Silahtar[/b] için kılıçlar ve kalkanlar hazır! Yeşil '⚔️ Eğit' butonuna basarak emri verin." % spin_val,
-				"objective": "Silahtar kartındaki '⚔️ Eğit' butonuna dokunun.",
+				"dialogue": "[b][color=#FFD86B]Lordum,[/color][/b] [b]%d Silahtar[/b] için kılıçlar ve kalkanlar hazır! Yeşil 'Eğit' butonuna basarak emri verin." % spin_val,
+				"objective": "Silahtar kartındaki 'Eğit' butonuna dokunun.",
 				"next_text": "",
 				"hint": "10 Silahtar Eğit"
 			}
@@ -1794,11 +1798,18 @@ func _resolve_target_control(scene_node: Node, scene_name: String, gs: Node) -> 
 				var spd_btn := _find_speedup_btn(scene_node, bp)
 				if spd_btn != null and spd_btn.is_visible_in_tree():
 					return spd_btn
-		if _btn_speedup != null and _btn_speedup.visible:
-			return _btn_speedup
+				if scene_node != null and scene_node.has_method("_update_queue_ui"):
+					scene_node.call("_update_queue_ui")
+					spd_btn = _find_speedup_btn(scene_node, bp)
+					if spd_btn != null and spd_btn.is_visible_in_tree():
+						return spd_btn
+				var btn_mkt_fallback := _find_market_btn(scene_node)
+				if btn_mkt_fallback != null and btn_mkt_fallback.is_visible_in_tree():
+					return btn_mkt_fallback
+		return _find_market_btn(scene_node)
 
 	# Aktif kuyruk varsa ve Royal Decree hızlandırma butonu görünürse doğrudan onu işaret et
-	if _btn_speedup != null and _btn_speedup.visible and _current_step in [
+	if _btn_speedup != null and _btn_speedup.visible and not (_current_step == Step.UPGRADE_WOOD_CAMP and _is_market_scroll_lesson_active(gs)) and _current_step in [
 		Step.UPGRADE_WOOD_CAMP,
 		Step.COMPLETE_BARRACKS_PREREQS,
 		Step.BUILD_BARRACKS_LV1,
@@ -1876,8 +1887,12 @@ func _resolve_target_control(scene_node: Node, scene_name: String, gs: Node) -> 
 		Step.OPEN_ALLIANCE:
 			if bp_vis:
 				return bp.get_node_or_null("VBox/Header/CloseButton") as Control
-			if scene_node != null and scene_node.has_node("BtnAlliance"):
-				return scene_node.get_node("BtnAlliance") as Control
+			if scene_node != null:
+				if scene_node.has_method("_sync_top_bar_layout"):
+					scene_node.call("_sync_top_bar_layout")
+				var btn_ally := (scene_node.get_node("BtnAlliance") if scene_node.has_node("BtnAlliance") else scene_node.find_child("BtnAlliance", true, false)) as Control
+				if btn_ally != null:
+					return btn_ally
 
 		Step.ALLIANCE_TOUR:
 			if scene_name == "Alliance.tscn" and scene_node != null and scene_node.has_node("MainContainer/Header"):
@@ -2006,7 +2021,8 @@ func _update_visual_animations(delta: float, scene_node: Node, scene_name: Strin
 	var t_rect := Rect2()
 	if has_target:
 		t_rect = _snap_rect(target_ctrl.get_global_rect())
-		if t_rect.size.x < 12.0 or t_rect.size.y < 12.0 or (t_rect.position.length_squared() < 2.0 and target_ctrl != _dim_top):
+		var is_unlaid_goto := (target_ctrl.name.begins_with("GotoBtn_") and t_rect.position.x < vp_size.x * 0.45)
+		if is_unlaid_goto or t_rect.size.x < 12.0 or t_rect.size.y < 12.0 or (t_rect.position.length_squared() < 2.0 and target_ctrl != _dim_top):
 			if _last_valid_target_rect.size.x >= 12.0 and _last_valid_target_rect.size.y >= 12.0:
 				t_rect = _snap_rect(_last_valid_target_rect)
 			else:
@@ -2164,14 +2180,16 @@ func _update_visual_animations(delta: float, scene_node: Node, scene_name: Strin
 		_hand_sprite.modulate = Color(flash, flash, 0.72 + 0.28 * blink_wave, 0.58 + 0.42 * blink_wave)
 		_hand_sprite.show()
 
-		var flip := (aim_pt.x > vp_size.x - 125.0)
-		_hand_sprite.flip_h = flip
-		# İşaret parmağı ucu (98x98 boyutunda ~ (10, 11) veya çevrilince (88, 11))
-		var tip_offset := Vector2(88.0 if flip else 10.0, 11.0)
-		var poke_dir := Vector2(-0.707, 0.707) if flip else Vector2(0.707, 0.707)
-		var hand_pos := (aim_pt - tip_offset) + poke_dir * poke
-		hand_pos.x = roundf(clampf(hand_pos.x, 4.0, vp_size.x - 102.0))
-		hand_pos.y = roundf(clampf(hand_pos.y, 4.0, vp_size.y - 102.0))
+		# Sağ kenardaki butonlarda (Elmas Pazarı, İttifak vb.) eldivenin sola kayıp komşu butonun üzerine
+		# binmesini önlemek için flip_h kullanmadan doğrudan buton merkezi/sol-orta noktasına işaret et.
+		_hand_sprite.flip_h = false
+		var clamped_aim_x := clampf(aim_pt.x, finger_rect.position.x + 14.0, minf(finger_rect.end.x - 14.0, vp_size.x - 96.0))
+		var effective_aim := Vector2(clamped_aim_x, aim_pt.y)
+		var tip_offset := Vector2(10.0, 11.0)
+		var poke_dir := Vector2(0.707, 0.707)
+		var hand_pos := (effective_aim - tip_offset) + poke_dir * poke
+		hand_pos.x = roundf(clampf(hand_pos.x, 4.0, vp_size.x - 100.0))
+		hand_pos.y = roundf(clampf(hand_pos.y, 4.0, vp_size.y - 100.0))
 		_hand_sprite.position = hand_pos
 
 		# Yüzen İpucu Baloncuğu (kart içi butonlarda metni kapatmamak için gizle)

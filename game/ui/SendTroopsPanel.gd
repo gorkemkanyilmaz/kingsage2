@@ -454,6 +454,12 @@ func _is_target_friendly() -> bool:
 	return MovementScript._is_friendly(state, _from_village, _to_village)
 
 
+func _is_target_supportable() -> bool:
+	var gs = Engine.get_main_loop().root.get_node_or_null("GameState") if Engine.get_main_loop() is SceneTree else null
+	var state: Dictionary = gs.to_dict() if gs != null else {}
+	return MovementScript._is_friendly(state, _from_village, _to_village) or MovementScript._is_real_player_target(_to_village)
+
+
 func _switch_tab(tab: String) -> void:
 	_current_tab = tab
 	if tab == "troops":
@@ -465,9 +471,9 @@ func _switch_tab(tab: String) -> void:
 			if btn_support != null:
 				btn_support.show()
 		else:
-			if btn_support != null:
-				btn_support.hide()
 			btn_attack.show()
+			if btn_support != null:
+				btn_support.visible = _is_target_supportable()
 		btn_tab_trade.text = " Hammadde Gönder (Katır)"
 	else:
 		scroll_troops.hide()
@@ -476,7 +482,7 @@ func _switch_tab(tab: String) -> void:
 		if btn_support != null:
 			btn_support.hide()
 		btn_trade.show()
-		btn_tab_trade.text = " Birlik Gönder (Saldırı)"
+		btn_tab_trade.text = " Birlik Gönder (Saldırı / Destek)"
 	refresh()
 
 
@@ -557,8 +563,14 @@ func _refresh_troops_mode(state: Dictionary, from_x: int, from_y: int, to_x: int
 			warning_label.hide()
 		return
 
+	var can_support_target := is_friendly or MovementScript._is_real_player_target(_to_village)
 	if btn_support != null:
-		btn_support.hide()
+		if can_support_target:
+			btn_support.show()
+			var sup_chk2: Dictionary = MovementScript.can_send(state, from_id, to_id, MovementScript.TYPE_SUPPORT, selected_units, {}, now)
+			btn_support.disabled = not bool(sup_chk2.get("ok", false))
+		else:
+			btn_support.hide()
 	var is_only_spies: bool = total_selected > 0 and int(selected_units.get("spy", 0)) == total_selected
 	var check_type: String = MovementScript.TYPE_SPY if is_only_spies else MovementScript.TYPE_ATTACK
 	btn_attack.show()

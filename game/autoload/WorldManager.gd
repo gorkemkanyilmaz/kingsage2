@@ -2452,6 +2452,10 @@ func _live_sync_game_state_from_world(merged_w: Dictionary, p_name: String) -> v
 		if typeof(gs.player.get("read_report_sigs")) == TYPE_ARRAY:
 			for rs in (gs.player["read_report_sigs"] as Array):
 				sync_read_set[str(rs)] = true
+		var sync_unread_toggled: Dictionary = {}
+		if typeof(gs.player.get("unread_toggled_sigs")) == TYPE_ARRAY:
+			for uts in (gs.player["unread_toggled_sigs"] as Array):
+				sync_unread_toggled[str(uts)] = true
 		var sync_reps: Array = []
 		for rr in (st["reports"] as Array):
 			if typeof(rr) != TYPE_DICTIONARY:
@@ -2460,8 +2464,7 @@ func _live_sync_game_state_from_world(merged_w: Dictionary, p_name: String) -> v
 			var rrsig := _report_sig_str(rrd)
 			if sync_del_set.has(rrsig):
 				continue
-			if sync_read_set.has(rrsig):
-				rrd["unread"] = false
+			rrd["unread"] = (not sync_read_set.has(rrsig)) or sync_unread_toggled.has(rrsig)
 			sync_reps.append(rrd)
 		gs.reports = sync_reps
 	if typeof(st.get("world")) == TYPE_DICTIONARY:

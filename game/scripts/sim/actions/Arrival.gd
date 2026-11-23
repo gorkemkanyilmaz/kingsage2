@@ -230,8 +230,8 @@ static func _resolve_spy(state: Dictionary, movement: Dictionary, now_unix: int)
 	var losses := int(spy_data.get("spy_losses", 0))
 	var defence_spies := int(spy_data.get("defence_spies", 0))
 	var success := survivors > 0
-	# Normal casusluk GÖRÜNÜR → savunan rapor alır; gizli casusluk GÖRÜNMEZ (kaynak: units_espionage.txt).
-	var defender_notified := success and not creeping
+	# Normal casusluk GÖRÜNÜR → savunan rapor alır; tüm casuslar yakalanıp öldürüldüğünde de savunan haberdar olur.
+	var defender_notified := (not creeping) or (not success)
 
 	var events: Array = [{
 		"type": "spy_resolved",
@@ -246,7 +246,6 @@ static func _resolve_spy(state: Dictionary, movement: Dictionary, now_unix: int)
 		"defender_notified": defender_notified,
 	}]
 
-	# Casusluk raporu — yalnızca başarılıysa (docs/07 §4). Savunan birim kaybetmez.
 	if success:
 		_add_report(state, "spy", from_id, now_unix,
 			_spy_report_data(state, target, defender, spy_data, movement, creeping))
@@ -254,6 +253,23 @@ static func _resolve_spy(state: Dictionary, movement: Dictionary, now_unix: int)
 		if defender_notified:
 			_add_report(state, "spy_incoming", to_id, now_unix,
 				_spy_incoming_data(target, origin, spy_data, movement))
+	else:
+		# Tüm casuslar öldü: saldırana başarısız casusluk raporu (hiçbir askeri/maden bilgisi olmadan), savunana yakalama raporu.
+		_add_report(state, "spy", from_id, now_unix, {
+			"from_village_id": from_id,
+			"from_name": str(origin.get("name", "")),
+			"attacker_owner": str(origin.get("owner", "")),
+			"target_village_id": to_id,
+			"target_name": str(target.get("name", "")),
+			"defender_name": str(target.get("owner", "")),
+			"spy_survivors": 0,
+			"spy_losses": losses,
+			"defence_spies": 0,
+			"creeping": creeping,
+			"failed": true,
+		})
+		_add_report(state, "spy_incoming", to_id, now_unix,
+			_spy_incoming_data(target, origin, spy_data, movement))
 
 	var survivors_units := {}
 	if survivors > 0:
@@ -283,9 +299,12 @@ static func _resolve_support(state: Dictionary, movement: Dictionary, now_unix: 
 	if typeof(support_list) != TYPE_ARRAY:
 		support_list = []
 		target["support"] = support_list
+	var orig_owner := str(origin.get("owner", str(movement.get("owner", "")))) if not origin.is_empty() else str(movement.get("owner", ""))
+	var orig_vname := str(origin.get("name", "")) if not origin.is_empty() else str(movement.get("from_village_name", ""))
 	(support_list as Array).append({
 		"from_village_id": from_id,
-		"owner": str(origin.get("owner", "")) if not origin.is_empty() else "",
+		"from_village_name": orig_vname,
+		"owner": orig_owner,
 		"village_id": to_id,
 		"units": units.duplicate(true),
 		"arrive_unix": now_unix,
@@ -599,16 +618,23 @@ static func _visible_resources(resources: Dictionary, capacity: int) -> Dictiona
 static func _spy_incoming_data(
 	target: Dictionary, origin: Dictionary, spy_data: Dictionary, movement: Dictionary
 ) -> Dictionary:
+	var surv := int(spy_data.get("spy_survivors", 0))
 	return {
 		"type": "spy_incoming",
 		"village_id": int(target.get("id", 0)),
+		"from_village_id": int(origin.get("id", 0)),
+		"from_name": str(origin.get("name", "")),
 		"attacker_village_id": int(origin.get("id", 0)),
+		"attacker_village_name": str(origin.get("name", "")),
 		"attacker_owner": str(origin.get("owner", "")),
 		"target_village_id": int(target.get("id", 0)),
-		"spy_survivors": int(spy_data.get("spy_survivors", 0)),
+		"target_name": str(target.get("name", "")),
+		"defender_name": str(target.get("owner", "")),
+		"spy_survivors": surv,
 		"spy_losses": int(spy_data.get("spy_losses", 0)),
 		"defence_spies": int(spy_data.get("defence_spies", 0)),
-		"creeping": false,
+		"creeping": bool(movement.get("creeping", false)),
+		"all_killed": (surv <= 0),
 	}
 
 

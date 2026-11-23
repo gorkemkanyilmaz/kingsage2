@@ -80,7 +80,6 @@ func _connect_signals() -> void:
 			"building_torn_down",
 			"army_sent",
 			"movement_cancelled",
-			"resources_changed",
 			"state_changed",
 			"game_loaded",
 		]:
@@ -482,7 +481,10 @@ func sync_local_notifications_now() -> void:
 
 	var sig_parts: Array[String] = []
 	for it in items:
-		sig_parts.append("%s@%d" % [str(it.get("id", "")), int(it.get("trigger_unix", 0))])
+		var trig_u := int(it.get("trigger_unix", 0))
+		if str(it.get("type", "")) == "storage_full":
+			trig_u = (trig_u / 30) * 30
+		sig_parts.append("%s@%d" % [str(it.get("id", "")), trig_u])
 	var sig := "|".join(sig_parts)
 	if sig == _last_sync_hash:
 		return
