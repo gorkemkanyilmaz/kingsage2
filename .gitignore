@@ -21,27 +21,44 @@ research/text-tr/
 
 # ---------- AI uretimi UI gorselleri (nano_banana) ----------
 # Ham AI ciktilari + buyuk .tres ImageTexture kopyalari (~148 MB).
-# Bunlar henuz bir sahneye baglanmadi / optimize edilmedi -> surum kontrolunde tutulmaz.
-# Diskte kalirlar. Kullanimda olan ikonlar haric tutulur:
+# Diskte kalirlar. Kullanimda olan .png ikonlari + .import dosyalari repoda tutulur:
 game/assets/sprites/ui/nano_banana/*
-!game/assets/sprites/ui/nano_banana/sharp_icon_wood.tres
-!game/assets/sprites/ui/nano_banana/sharp_icon_stone.tres
-!game/assets/sprites/ui/nano_banana/sharp_icon_iron.tres
-!game/assets/sprites/ui/nano_banana/sharp_icon_citizens.tres
-!game/assets/sprites/ui/nano_banana/sharp_icon_storage.tres
-!game/assets/sprites/ui/nano_banana/sharp_icon_tab_village.tres
-!game/assets/sprites/ui/nano_banana/sharp_icon_diamond.tres
-!game/assets/sprites/ui/nano_banana/sharp_icon_castle_crest.tres
-!game/assets/sprites/ui/nano_banana/sharp_icon_alliance_shield.tres
-!game/assets/sprites/ui/nano_banana/sharp_ui_royal_btn_bg.tres
-!game/assets/sprites/ui/nano_banana/sharp_scroll_build.tres
-!game/assets/sprites/ui/nano_banana/sharp_scroll_train.tres
-!game/assets/sprites/ui/nano_banana/sharp_scroll_research.tres
-!game/assets/sprites/ui/nano_banana/sharp_scroll_march.tres
-!game/assets/sprites/ui/nano_banana/sharp_pack_diamond_chest.tres
-!game/assets/sprites/ui/nano_banana/sharp_pack_resource_caravan.tres
-!game/assets/sprites/ui/nano_banana/sharp_icon_report_seal.tres
-!game/assets/sprites/ui/nano_banana/sharp_icon_market.tres
+!game/assets/sprites/ui/nano_banana/sharp_icon_wood.png
+!game/assets/sprites/ui/nano_banana/sharp_icon_wood.png.import
+!game/assets/sprites/ui/nano_banana/sharp_icon_stone.png
+!game/assets/sprites/ui/nano_banana/sharp_icon_stone.png.import
+!game/assets/sprites/ui/nano_banana/sharp_icon_iron.png
+!game/assets/sprites/ui/nano_banana/sharp_icon_iron.png.import
+!game/assets/sprites/ui/nano_banana/sharp_icon_citizens.png
+!game/assets/sprites/ui/nano_banana/sharp_icon_citizens.png.import
+!game/assets/sprites/ui/nano_banana/sharp_icon_storage.png
+!game/assets/sprites/ui/nano_banana/sharp_icon_storage.png.import
+!game/assets/sprites/ui/nano_banana/sharp_icon_tab_village.png
+!game/assets/sprites/ui/nano_banana/sharp_icon_tab_village.png.import
+!game/assets/sprites/ui/nano_banana/sharp_icon_diamond.png
+!game/assets/sprites/ui/nano_banana/sharp_icon_diamond.png.import
+!game/assets/sprites/ui/nano_banana/sharp_icon_castle_crest.png
+!game/assets/sprites/ui/nano_banana/sharp_icon_castle_crest.png.import
+!game/assets/sprites/ui/nano_banana/sharp_icon_alliance_shield.png
+!game/assets/sprites/ui/nano_banana/sharp_icon_alliance_shield.png.import
+!game/assets/sprites/ui/nano_banana/sharp_ui_royal_btn_bg.png
+!game/assets/sprites/ui/nano_banana/sharp_ui_royal_btn_bg.png.import
+!game/assets/sprites/ui/nano_banana/sharp_scroll_build.png
+!game/assets/sprites/ui/nano_banana/sharp_scroll_build.png.import
+!game/assets/sprites/ui/nano_banana/sharp_scroll_train.png
+!game/assets/sprites/ui/nano_banana/sharp_scroll_train.png.import
+!game/assets/sprites/ui/nano_banana/sharp_scroll_research.png
+!game/assets/sprites/ui/nano_banana/sharp_scroll_research.png.import
+!game/assets/sprites/ui/nano_banana/sharp_scroll_march.png
+!game/assets/sprites/ui/nano_banana/sharp_scroll_march.png.import
+!game/assets/sprites/ui/nano_banana/sharp_pack_diamond_chest.png
+!game/assets/sprites/ui/nano_banana/sharp_pack_diamond_chest.png.import
+!game/assets/sprites/ui/nano_banana/sharp_pack_resource_caravan.png
+!game/assets/sprites/ui/nano_banana/sharp_pack_resource_caravan.png.import
+!game/assets/sprites/ui/nano_banana/sharp_icon_report_seal.png
+!game/assets/sprites/ui/nano_banana/sharp_icon_report_seal.png.import
+!game/assets/sprites/ui/nano_banana/sharp_icon_market.png
+!game/assets/sprites/ui/nano_banana/sharp_icon_market.png.import
 
 # ---------- Isletim sistemi ----------
 Thumbs.db
