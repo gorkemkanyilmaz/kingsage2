@@ -2223,8 +2223,8 @@ func _merge_shared_world_data(local_w: Dictionary, cloud_w: Dictionary, p_name: 
 
 func _is_own_movement_dict(m: Dictionary, p_name: String, owned_vids: Dictionary) -> bool:
 	var m_owner := str(m.get("owner", "")).strip_edges()
-	if not m_owner.is_empty() and _matches_player(m_owner, p_name):
-		return true
+	if not m_owner.is_empty() and not p_name.strip_edges().is_empty():
+		return _matches_player(m_owner, p_name)
 	var m_vid := int(m.get("village_id", -1))
 	if owned_vids.has(m_vid):
 		return true
@@ -2235,21 +2235,23 @@ func _is_own_movement_dict(m: Dictionary, p_name: String, owned_vids: Dictionary
 
 
 func _merge_player_and_remote_movements(local_movs: Array, remote_movs: Array, p_name: String, owned_vids: Dictionary) -> Array:
-	var returned_origin_ids: Dictionary = {}
-	var returned_seeds: Dictionary = {}
+	var returned_origin_keys: Dictionary = {}
+	var returned_seed_keys: Dictionary = {}
 	for src_arr in [local_movs, remote_movs]:
 		for item in src_arr:
 			if typeof(item) != TYPE_DICTIONARY:
 				continue
 			var md := item as Dictionary
 			if str(md.get("state", "")) == "returning" or str(md.get("type", "")) == "return":
+				var ret_home_vid := int(md.get("to_village_id", md.get("village_id", 0)))
 				var omid := int(md.get("origin_movement_id", 0))
 				if omid > 0:
-					returned_origin_ids[omid] = true
+					returned_origin_keys["%d:%d" % [ret_home_vid, omid]] = true
 				var bseed := int(md.get("battle_seed", 0))
 				if bseed > 0:
-					returned_seeds[bseed] = true
+					returned_seed_keys["%d:%d" % [ret_home_vid, bseed]] = true
 
+	var now_u := int(Time.get_unix_time_from_system())
 	var out: Array = []
 	var seen_keys: Dictionary = {}
 	# Kendi hareketlerimizde yerel liste otoriterdir
@@ -2260,21 +2262,28 @@ func _merge_player_and_remote_movements(local_movs: Array, remote_movs: Array, p
 		if not _is_own_movement_dict(md, p_name, owned_vids):
 			continue
 		var is_ret := (str(md.get("state", "")) == "returning" or str(md.get("type", "")) == "return")
+		var from_id := int(md.get("from_village_id", md.get("village_id", 0)))
 		var mid := int(md.get("id", 0))
 		var bseed := int(md.get("battle_seed", 0))
-		if not is_ret and ((mid > 0 and returned_origin_ids.has(mid)) or (bseed > 0 and returned_seeds.has(bseed))):
+		if not is_ret and ((mid > 0 and returned_origin_keys.has("%d:%d" % [from_id, mid])) or (bseed > 0 and returned_seed_keys.has("%d:%d" % [from_id, bseed]))):
 			continue
 		var k := "own_%d_%s_%d" % [mid, "ret" if is_ret else "out", bseed]
 		if not seen_keys.has(k):
 			seen_keys[k] = true
 			out.append(md)
 
-	# Diğer oyuncuların hareketlerini sunucudan ekle
+	# Diğer oyuncuların hareketlerini sunucudan ekle (yabancı dönüş veya süresi dolmuş hareketleri filtrele)
 	for rm in remote_movs:
 		if typeof(rm) != TYPE_DICTIONARY:
 			continue
 		var rmd := (rm as Dictionary).duplicate(true)
 		if _is_own_movement_dict(rmd, p_name, owned_vids):
+			continue
+		var r_ret := (str(rmd.get("state", "")) == "returning" or str(rmd.get("type", "")) == "return")
+		if r_ret and not bool(rmd.get("support_return", false)):
+			continue
+		var r_arr := int(rmd.get("arrive_unix", 0))
+		if r_arr <= now_u:
 			continue
 		var r_key := "rem_%d_%d_%s_%d" % [int(rmd.get("from_village_id", 0)), int(rmd.get("to_village_id", 0)), str(rmd.get("type", "")), int(rmd.get("depart_unix", 0))]
 		if not seen_keys.has(r_key):
@@ -2347,6 +2356,7 @@ func _live_sync_game_state_from_world(merged_w: Dictionary, p_name: String) -> v
 			gs.player["quests"] = (merged_live_p["quests"] as Dictionary).duplicate(true)
 			gs.player["read_report_sigs"] = (merged_live_p.get("read_report_sigs", []) as Array).duplicate(true)
 			gs.player["deleted_report_sigs"] = (merged_live_p.get("deleted_report_sigs", []) as Array).duplicate(true)
+			gs.player["unread_toggled_sigs"] = (merged_live_p.get("unread_toggled_sigs", []) as Array).duplicate(true)
 			gs.player["read_message_sigs"] = (merged_live_p.get("read_message_sigs", []) as Array).duplicate(true)
 			gs.player["deleted_message_sigs"] = (merged_live_p.get("deleted_message_sigs", []) as Array).duplicate(true)
 

@@ -543,6 +543,8 @@ static func _spy_report_data(
 	var visible_total := _sum(visible)
 	var data := {
 		"type": "spy",
+		"from_village_id": int(movement.get("from_village_id", movement.get("village_id", 0))),
+		"attacker_owner": str(movement.get("owner", "")),
 		"target_village_id": int(target.get("id", 0)),
 		"target_name": str(target.get("name", "")),
 		"target_owner": str(target.get("owner", "")),

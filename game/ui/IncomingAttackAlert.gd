@@ -64,19 +64,20 @@ static func get_incoming_attacks(gs: Node, now_unix: int, only_village_id: int =
 	if owned_vids.is_empty():
 		return result
 
-	var returned_origin_ids: Dictionary = {}
-	var returned_seeds: Dictionary = {}
+	var returned_origin_keys: Dictionary = {}
+	var returned_seed_keys: Dictionary = {}
 	for raw_m in (movs as Array):
 		if typeof(raw_m) != TYPE_DICTIONARY:
 			continue
 		var md := raw_m as Dictionary
 		if str(md.get("state", "")) == "returning" or str(md.get("type", "")) == "return":
+			var ret_home_vid := int(md.get("to_village_id", md.get("village_id", 0)))
 			var omid := int(md.get("origin_movement_id", 0))
 			if omid > 0:
-				returned_origin_ids[omid] = true
+				returned_origin_keys["%d:%d" % [ret_home_vid, omid]] = true
 			var bseed := int(md.get("battle_seed", 0))
 			if bseed > 0:
-				returned_seeds[bseed] = true
+				returned_seed_keys["%d:%d" % [ret_home_vid, bseed]] = true
 
 	var seen_sigs: Dictionary = {}
 	for raw_m in (movs as Array):
@@ -106,7 +107,7 @@ static func get_incoming_attacks(gs: Node, now_unix: int, only_village_id: int =
 
 		var mid := int(m.get("id", 0))
 		var bseed := int(m.get("battle_seed", 0))
-		if (mid > 0 and returned_origin_ids.has(mid)) or (bseed > 0 and returned_seeds.has(bseed)):
+		if (mid > 0 and returned_origin_keys.has("%d:%d" % [from_id, mid])) or (bseed > 0 and returned_seed_keys.has("%d:%d" % [from_id, bseed])):
 			continue
 
 		var arr_u := int(m.get("arrive_unix", 0))

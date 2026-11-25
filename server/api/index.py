@@ -1418,6 +1418,38 @@ def _prepare_world_for_player(
         state["messages"] = dedup_msgs
 
     _reconcile_state_settlers_reserved(state)
+    # Diğer oyuncuların süresi dolmuş veya dönüş yolundaki (destek iadesi hariç) hareketlerini bu oyuncuya gönderme
+    if isinstance(state.get("movements"), list):
+        now_prep = int(time.time())
+        owned_vids_set = set(owned_vids)
+        filtered_movs: List[Dict[str, Any]] = []
+        for raw_mv in state["movements"]:
+            if not isinstance(raw_mv, dict):
+                continue
+            mv_owner = str(raw_mv.get("owner", "")).strip()
+            fv = int(raw_mv.get("from_village_id", raw_mv.get("village_id", 0)) or 0)
+            tv = int(raw_mv.get("to_village_id", 0) or 0)
+            mv_vid = int(raw_mv.get("village_id", 0) or 0)
+            m_st = str(raw_mv.get("state", "outgoing"))
+            m_tp = str(raw_mv.get("type", ""))
+            is_ret_mv = (m_st == "returning" or m_tp == "return")
+            if mv_owner and norm_p:
+                is_own_mv = _matches_player(mv_owner, norm_p)
+            else:
+                is_own_mv = (mv_vid in owned_vids_set) or (tv in owned_vids_set if is_ret_mv else fv in owned_vids_set)
+            if is_own_mv:
+                filtered_movs.append(raw_mv)
+                continue
+            if is_ret_mv:
+                continue
+            if tv not in owned_vids_set:
+                continue
+            if m_tp == "spy" and bool(raw_mv.get("creeping", False)):
+                continue
+            if int(raw_mv.get("arrive_unix", 0) or 0) <= now_prep:
+                continue
+            filtered_movs.append(raw_mv)
+        state["movements"] = filtered_movs
     state["active_village_id"] = active_vid
     state["player"] = {
         "id": 1,
@@ -2165,8 +2197,8 @@ def merge_world_state(server_w: Optional[Dict[str, Any]], client_raw: Dict[str, 
 
     def _is_acting_player_movement(mov: Dict[str, Any]) -> bool:
         m_owner = str(mov.get("owner", "")).strip()
-        if m_owner and _matches_player(m_owner, act_name):
-            return True
+        if m_owner and act_name:
+            return _matches_player(m_owner, act_name)
         m_vid = int(mov.get("village_id", 0) or 0)
         if m_vid in all_acting_vids:
             return True
@@ -2179,19 +2211,22 @@ def merge_world_state(server_w: Optional[Dict[str, Any]], client_raw: Dict[str, 
             return tv_raw in all_acting_vids
         return fv_raw in all_acting_vids
 
-    # Dönüşe geçmiş (returning) hareketlerin orijinal gidiş ID veya battle_seed değerlerini topla
-    returned_origin_ids = set()
-    returned_seeds = set()
+    # Dönüşe geçmiş (returning) hareketlerin orijinal gidiş ID veya battle_seed değerlerini ev köyüne göre topla
+    returned_origin_keys = set()
+    returned_seed_keys = set()
     for m in (c_state.get("movements") or []):
         if not isinstance(m, dict):
             continue
         if str(m.get("state", "")) == "returning" or str(m.get("type", "")) == "return":
+            ret_home_vid = int(m.get("to_village_id", m.get("village_id", 0)) or 0)
+            if ret_home_vid in vid_remap:
+                ret_home_vid = vid_remap[ret_home_vid]
             orig_mid = int(m.get("origin_movement_id", 0) or 0)
             if orig_mid > 0:
-                returned_origin_ids.add(orig_mid)
+                returned_origin_keys.add((ret_home_vid, orig_mid))
             b_seed = int(m.get("battle_seed", 0) or 0)
             if b_seed > 0:
-                returned_seeds.add(b_seed)
+                returned_seed_keys.add((ret_home_vid, b_seed))
 
     merged_movements: List[Dict[str, Any]] = []
     seen_mov = set()
@@ -2202,23 +2237,26 @@ def merge_world_state(server_w: Optional[Dict[str, Any]], client_raw: Dict[str, 
             continue
         mc = copy.deepcopy(m)
         is_ret = (str(mc.get("state", "")) == "returning" or str(mc.get("type", "")) == "return")
-        mid = int(mc.get("id", 0) or 0)
-        b_seed = int(mc.get("battle_seed", 0) or 0)
-        if not is_ret and ((mid > 0 and mid in returned_origin_ids) or (b_seed > 0 and b_seed in returned_seeds)):
-            continue
         fv = int(mc.get("from_village_id", 0) or 0)
         tv = int(mc.get("to_village_id", 0) or 0)
         v_orig = int(mc.get("village_id", 0) or 0)
         if fv in vid_remap:
-            mc["from_village_id"] = vid_remap[fv]
+            fv = vid_remap[fv]
+            mc["from_village_id"] = fv
         if tv in vid_remap:
-            mc["to_village_id"] = vid_remap[tv]
+            tv = vid_remap[tv]
+            mc["to_village_id"] = tv
         if v_orig in vid_remap:
-            mc["village_id"] = vid_remap[v_orig]
+            v_orig = vid_remap[v_orig]
+            mc["village_id"] = v_orig
+        mid = int(mc.get("id", 0) or 0)
+        b_seed = int(mc.get("battle_seed", 0) or 0)
+        if not is_ret and ((mid > 0 and (fv, mid) in returned_origin_keys) or (b_seed > 0 and (fv, b_seed) in returned_seed_keys)):
+            continue
         if mid > 0 and _is_acting_player_movement(mc):
-            if (mid, is_ret) in seen_acting_mov_ids:
+            if (mid, is_ret, fv) in seen_acting_mov_ids:
                 continue
-            seen_acting_mov_ids.add((mid, is_ret))
+            seen_acting_mov_ids.add((mid, is_ret, fv))
         sig = _movement_sig(mc)
         if sig not in seen_mov:
             seen_mov.add(sig)
@@ -2234,8 +2272,12 @@ def merge_world_state(server_w: Optional[Dict[str, Any]], client_raw: Dict[str, 
         )
         if _is_acting_player_movement(m) and not is_remote_sup_return:
             continue
+        m_is_ret = (str(m.get("state", "")) == "returning" or str(m.get("type", "")) == "return")
+        m_arr = int(m.get("arrive_unix", 0) or 0)
+        if not is_remote_sup_return and (m_arr <= now or m_is_ret):
+            continue
         sig = _movement_sig(m)
-        if sig not in seen_mov and (is_remote_sup_return or int(m.get("arrive_unix", 0) or 0) > now or int(m.get("to_village_id", 0) or 0) not in acting_vids_now):
+        if sig not in seen_mov:
             seen_mov.add(sig)
             merged_movements.append(m)
     s_state["movements"] = merged_movements

@@ -22,6 +22,7 @@ const IncomingAttackAlert := preload("res://ui/IncomingAttackAlert.gd")
 const GameLoopScript := preload("res://scripts/core/GameLoop.gd")
 
 var _alarm_pulse_accum: float = 0.0
+var _alarm_redraw_accum: float = 0.0
 var _alarm_scan_accum: float = 0.75
 var _has_incoming_alarm: bool = false
 var _btn_tinted: bool = false
@@ -36,12 +37,17 @@ func _process(delta: float) -> void:
 		_refresh_incoming_alarm_state()
 	if not _has_incoming_alarm:
 		_alarm_pulse_accum = 0.0
+		_alarm_redraw_accum = 0.0
 		if _btn_tinted:
 			btn_village.modulate = Color.WHITE
 			_btn_tinted = false
 		return
 	_alarm_pulse_accum += maxf(delta, 0.0)
-	var pulse := 0.5 + 0.5 * sin(_alarm_pulse_accum * 6.0)
+	_alarm_redraw_accum += maxf(delta, 0.0)
+	if _btn_tinted and _alarm_redraw_accum < 0.10:
+		return
+	_alarm_redraw_accum = 0.0
+	var pulse := 0.5 + 0.5 * sin(_alarm_pulse_accum * 2.4)
 	var g_b := lerpf(0.35, 1.0, 1.0 - pulse)
 	btn_village.modulate = Color(1.0, g_b, g_b, 1.0)
 	_btn_tinted = true
@@ -128,11 +134,12 @@ func _update_report_badge() -> void:
 			report_badge.visible = false
 		return
 
+	var pname_l := _norm_player_lower(str(gs.player.get("name", "Kral")))
 	var player_name := str(gs.player.get("name", "Kral"))
 	var player_vids: Array = []
 	if "villages" in gs and gs.villages is Array:
 		for v in gs.villages:
-			if typeof(v) == TYPE_DICTIONARY and str((v as Dictionary).get("owner", "")) == player_name:
+			if typeof(v) == TYPE_DICTIONARY and _norm_player_lower(str((v as Dictionary).get("owner", ""))) == pname_l:
 				player_vids.append(int((v as Dictionary).get("id", -1)))
 
 	var del_sigs := {}
@@ -151,7 +158,6 @@ func _update_report_badge() -> void:
 				unread_toggled[str(s)] = true
 
 	var seen_sigs := {}
-	var pname_l := player_name.strip_edges().to_lower()
 	var unread := 0
 	if "reports" in gs and gs.reports is Array:
 		for rep in gs.reports:
@@ -159,18 +165,18 @@ func _update_report_badge() -> void:
 				continue
 			var r := rep as Dictionary
 			var rtype := str(r.get("type", "battle"))
-			var vid := int(r.get("village_id", -1))
+			var vid := int(r.get("village_id", 0))
 			var rdata: Dictionary = r.get("data", {}) if typeof(r.get("data")) == TYPE_DICTIONARY else {}
-			var a_owner := str(rdata.get("attacker_name", rdata.get("attacker_owner", ""))).strip_edges()
-			var d_owner := str(rdata.get("defender_name", "")).strip_edges()
-			var f_vid := int(rdata.get("from_village_id", -1))
-			var t_vid := int(rdata.get("target_village_id", -1))
+			var a_owner := _norm_player_lower(str(rdata.get("attacker_name", rdata.get("attacker_owner", ""))))
+			var d_owner := _norm_player_lower(str(rdata.get("defender_name", "")))
+			var f_vid := int(rdata.get("from_village_id", 0))
+			var t_vid := int(rdata.get("target_village_id", 0))
 			var sig := "%s:%d:%d:%d:%d" % [rtype, vid, int(r.get("unix", r.get("created_unix", 0))), t_vid, f_vid]
 			var is_read_for_player := read_sigs.has(sig) and not unread_toggled.has(sig)
 			if del_sigs.has(sig) or is_read_for_player or seen_sigs.has(sig):
 				continue
-			var is_att := (f_vid in player_vids) or (not pname_l.is_empty() and a_owner.to_lower() == pname_l)
-			var is_def := (t_vid in player_vids) or (not pname_l.is_empty() and d_owner.to_lower() == pname_l)
+			var is_att := (f_vid in player_vids) or (not pname_l.is_empty() and a_owner == pname_l)
+			var is_def := (t_vid in player_vids) or (not pname_l.is_empty() and d_owner == pname_l)
 			var belongs := false
 			if rtype == "spy_incoming":
 				belongs = (not is_att) and ((vid in player_vids) or is_def)

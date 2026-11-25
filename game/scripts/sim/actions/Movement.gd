@@ -518,7 +518,16 @@ static func next_id(state: Dictionary) -> int:
 	if typeof(movements) == TYPE_ARRAY:
 		for entry in (movements as Array):
 			if typeof(entry) == TYPE_DICTIONARY:
-				max_id = maxi(max_id, int((entry as Dictionary).get("id", 0)))
+				var md := entry as Dictionary
+				max_id = maxi(max_id, int(md.get("id", 0)))
+				max_id = maxi(max_id, int(md.get("origin_movement_id", 0)))
+	var w_val = state.get("world", null)
+	if typeof(w_val) == TYPE_DICTIONARY:
+		var w := w_val as Dictionary
+		max_id = maxi(max_id, int(w.get("next_movement_id", 0)))
+		var next_val := max_id + 1
+		w["next_movement_id"] = next_val
+		return next_val
 	return max_id + 1
 
 

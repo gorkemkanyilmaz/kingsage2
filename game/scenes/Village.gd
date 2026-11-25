@@ -164,6 +164,8 @@ var _attack_red_frame: Panel = null
 var _attack_alarm_banner: Button = null
 var _attack_banner_sb: StyleBoxFlat = null
 var _attack_flash_time: float = 0.0
+var _alarm_visual_accum: float = 0.0
+var _last_alarm_banner_text: String = ""
 
 var _game_loop: Node = null
 var _building_nodes: Dictionary = {}
@@ -672,25 +674,29 @@ func _update_queue_ui() -> void:
 
 	# 1) Gelen Saldırılar / Akınlar ( En yüksek öncelik)
 	var incoming_count := 0
-	var returned_origin_ids: Dictionary = {}
-	var returned_seeds: Dictionary = {}
+	var returned_origin_keys: Dictionary = {}
+	var returned_seed_keys: Dictionary = {}
 	for m in gs.movements:
 		if typeof(m) == TYPE_DICTIONARY:
 			var md_chk := m as Dictionary
 			if str(md_chk.get("state", "")) == "returning" or str(md_chk.get("type", "")) == "return":
+				var ret_home_vid := int(md_chk.get("to_village_id", md_chk.get("village_id", 0)))
 				var omid := int(md_chk.get("origin_movement_id", 0))
 				if omid > 0:
-					returned_origin_ids[omid] = true
+					returned_origin_keys["%d:%d" % [ret_home_vid, omid]] = true
 				var bseed := int(md_chk.get("battle_seed", 0))
 				if bseed > 0:
-					returned_seeds[bseed] = true
+					returned_seed_keys["%d:%d" % [ret_home_vid, bseed]] = true
 
 	for m in gs.movements:
 		if typeof(m) == TYPE_DICTIONARY:
-			var to_id = int((m as Dictionary).get("to_village_id", -1))
-			var from_id_inc = int((m as Dictionary).get("from_village_id", -1))
-			var m_type = str((m as Dictionary).get("type", ""))
-			var m_state = str((m as Dictionary).get("state", ""))
+			var md_inc := m as Dictionary
+			var to_id = int(md_inc.get("to_village_id", -1))
+			var from_id_inc = int(md_inc.get("from_village_id", -1))
+			var m_type = str(md_inc.get("type", ""))
+			var m_state = str(md_inc.get("state", ""))
+			if m_type == "spy" and bool(md_inc.get("creeping", false)):
+				continue
 			if to_id == vid and from_id_inc != vid and m_state == "outgoing" and (m_type in ["attack", "raid", "spy"]):
 				activities.append({
 					"category": "incoming_attack",
@@ -712,7 +718,7 @@ func _update_queue_ui() -> void:
 			var is_ret := (m_state == "returning" or m_type == "return")
 			var mid := int(m_dict.get("id", 0))
 			var bseed := int(m_dict.get("battle_seed", 0))
-			if not is_ret and ((mid > 0 and returned_origin_ids.has(mid)) or (bseed > 0 and returned_seeds.has(bseed))):
+			if not is_ret and ((mid > 0 and returned_origin_keys.has("%d:%d" % [from_id, mid])) or (bseed > 0 and returned_seed_keys.has("%d:%d" % [from_id, bseed]))):
 				continue
 			if (from_id == vid and not is_ret and m_state == "outgoing") or (is_ret and (to_id == vid or vill_id == vid)):
 				var act_dedup_k := "%d_%s_%d" % [mid, "ret" if is_ret else "out", bseed]
@@ -1427,11 +1433,11 @@ func _ensure_attack_alarm_ui() -> void:
 		_attack_red_frame.set_anchors_preset(Control.PRESET_FULL_RECT)
 		_attack_red_frame.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		var fsb := StyleBoxFlat.new()
+		fsb.draw_center = false
 		fsb.bg_color = Color(0.0, 0.0, 0.0, 0.0)
-		fsb.border_color = Color(1.0, 0.10, 0.10, 1.0)
-		fsb.set_border_width_all(16)
-		fsb.shadow_color = Color(1.0, 0.04, 0.04, 0.85)
-		fsb.shadow_size = 22
+		fsb.border_color = Color(1.0, 0.12, 0.12, 1.0)
+		fsb.set_border_width_all(10)
+		fsb.shadow_size = 0
 		_attack_red_frame.add_theme_stylebox_override("panel", fsb)
 		_attack_alarm_overlay.add_child(_attack_red_frame)
 
@@ -1452,12 +1458,11 @@ func _ensure_attack_alarm_ui() -> void:
 		_attack_alarm_banner.visible = false
 		_attack_alarm_banner.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 		_attack_banner_sb = StyleBoxFlat.new()
-		_attack_banner_sb.bg_color = Color(0.68, 0.08, 0.08, 0.96)
-		_attack_banner_sb.border_color = Color(1.0, 0.48, 0.36, 1.0)
+		_attack_banner_sb.bg_color = Color(0.72, 0.08, 0.08, 0.96)
+		_attack_banner_sb.border_color = Color(1.0, 0.55, 0.38, 1.0)
 		_attack_banner_sb.set_border_width_all(3)
 		_attack_banner_sb.set_corner_radius_all(14)
-		_attack_banner_sb.shadow_color = Color(0.95, 0.05, 0.05, 0.78)
-		_attack_banner_sb.shadow_size = 12
+		_attack_banner_sb.shadow_size = 0
 		var bhov := _attack_banner_sb.duplicate() as StyleBoxFlat
 		bhov.bg_color = Color(0.84, 0.12, 0.12, 1.0)
 		bhov.border_color = Color(1.0, 0.82, 0.46, 1.0)
@@ -1485,6 +1490,8 @@ func _update_incoming_attack_alarm(delta: float, force_scan: bool = false) -> vo
 	var gs = _resolve_game_state()
 	if gs == null or not gs.has_active_village():
 		_cached_incoming_attacks.clear()
+		_alarm_visual_accum = 0.0
+		_last_alarm_banner_text = ""
 		if _alarm_visual_active:
 			_alarm_visual_active = false
 			if _attack_alarm_overlay != null:
@@ -1503,6 +1510,8 @@ func _update_incoming_attack_alarm(delta: float, force_scan: bool = false) -> vo
 	var incoming := _cached_incoming_attacks
 	if incoming.is_empty():
 		_attack_flash_time = 0.0
+		_alarm_visual_accum = 0.0
+		_last_alarm_banner_text = ""
 		if _alarm_visual_active:
 			_alarm_visual_active = false
 			if _attack_alarm_overlay != null:
@@ -1514,16 +1523,22 @@ func _update_incoming_attack_alarm(delta: float, force_scan: bool = false) -> vo
 			IncomingAttackAlert.close_modal(self)
 		return
 
+	var dt_pos := maxf(delta, 0.0)
+	_attack_flash_time += dt_pos
+	_alarm_visual_accum += dt_pos
+	if _alarm_visual_active and not force_scan and _alarm_visual_accum < 0.10:
+		return
+	_alarm_visual_accum = 0.0
 	_alarm_visual_active = true
-	_attack_flash_time += maxf(delta, 0.0)
+
 	var pulse := 0.5 + 0.5 * sin(_attack_flash_time * 1.8)
 
 	if _attack_alarm_overlay != null:
 		_attack_alarm_overlay.visible = true
 	if _attack_red_tint != null:
-		_attack_red_tint.color = Color(0.88, 0.04, 0.04, lerpf(0.008, 0.045, pulse))
+		_attack_red_tint.color = Color(0.88, 0.04, 0.04, lerpf(0.008, 0.042, pulse))
 	if _attack_red_frame != null:
-		_attack_red_frame.modulate.a = lerpf(0.10, 0.28, pulse)
+		_attack_red_frame.modulate.a = lerpf(0.08, 0.24, pulse)
 	if village_area != null:
 		village_area.modulate = Color.WHITE
 
@@ -1532,13 +1547,15 @@ func _update_incoming_attack_alarm(delta: float, force_scan: bool = false) -> vo
 	var rem_min := int(first.get("remaining_min", 1))
 	if _attack_alarm_banner != null:
 		_attack_alarm_banner.visible = true
-		if rem_sec < 60:
-			_attack_alarm_banner.text = "🚨 SALDIRI ALARMI! < 1 dk (%ds) — Vezir Detayı" % rem_sec
-		else:
-			_attack_alarm_banner.text = "🚨 SALDIRI ALARMI! %d dk kaldı (%s) — Vezir" % [rem_min, IncomingAttackAlert.fmt_countdown(rem_sec)]
-		if _attack_banner_sb != null:
-			_attack_banner_sb.bg_color = Color(lerpf(0.56, 0.86, pulse), 0.07, 0.07, 0.97)
-			_attack_banner_sb.border_color = Color(1.0, lerpf(0.34, 0.88, pulse), lerpf(0.28, 0.42, pulse), 1.0)
+		var next_banner_txt := (
+			"🚨 SALDIRI ALARMI! < 1 dk (%ds) — Vezir Detayı" % rem_sec
+			if rem_sec < 60
+			else "🚨 SALDIRI ALARMI! %d dk kaldı (%s) — Vezir" % [rem_min, IncomingAttackAlert.fmt_countdown(rem_sec)]
+		)
+		if next_banner_txt != _last_alarm_banner_text:
+			_last_alarm_banner_text = next_banner_txt
+			_attack_alarm_banner.text = next_banner_txt
+		_attack_alarm_banner.self_modulate = Color(1.0, lerpf(0.88, 1.0, pulse), lerpf(0.88, 1.0, pulse), 1.0)
 
 	var tm: Node = Engine.get_main_loop().root.get_node_or_null("TutorialManager") if Engine.get_main_loop() is SceneTree else null
 	var tut_active: bool = tm != null and tm.has_method("is_tutorial_active") and bool(tm.call("is_tutorial_active"))

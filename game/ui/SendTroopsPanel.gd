@@ -880,8 +880,16 @@ func _dispatch(type: String, protection_confirmed: bool = false) -> void:
 	if bool(res.get("ok", false)) and gs != null:
 		gs.from_dict(state)
 		var wm = Engine.get_main_loop().root.get_node_or_null("WorldManager") if Engine.get_main_loop() is SceneTree else null
+		if wm != null:
+			if wm.has_method("notify_local_mutation"):
+				wm.call("notify_local_mutation")
+			if wm.has_method("cancel_pending_cloud_poll"):
+				wm.call("cancel_pending_cloud_poll")
+		var net = Engine.get_main_loop().root.get_node_or_null("NetworkManager") if Engine.get_main_loop() is SceneTree else null
+		if net != null and net.has_method("cancel_background_requests"):
+			net.call("cancel_background_requests")
 		if wm != null and wm.has_method("save_active_world"):
-			wm.save_active_world()
+			wm.save_active_world(true)
 		else:
 			var sm = Engine.get_main_loop().root.get_node_or_null("SaveManager") if Engine.get_main_loop() is SceneTree else null
 			if sm != null and sm.has_method("save_game"):

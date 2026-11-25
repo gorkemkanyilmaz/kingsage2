@@ -81,6 +81,7 @@ var _detail_route_lbl: Label
 var _detail_status_lbl: Label
 var _detail_timer_lbl: Label
 var _detail_sub_timer_lbl: Label
+var _detail_units_title: Label
 var _detail_units_grid: GridContainer
 var _detail_btn_speedup: Button
 var _detail_btn_cancel: Button
@@ -248,18 +249,19 @@ func _norm_player_name(raw_name: String) -> String:
 func _collect_my_movements(gs: Node) -> Array:
 	if gs == null or typeof(gs.movements) != TYPE_ARRAY or gs.movements.is_empty():
 		return []
-	var returned_origin_ids: Dictionary = {}
-	var returned_seeds: Dictionary = {}
+	var returned_origin_keys: Dictionary = {}
+	var returned_seed_keys: Dictionary = {}
 	for raw_m in gs.movements:
 		if typeof(raw_m) == TYPE_DICTIONARY:
 			var md := raw_m as Dictionary
 			if str(md.get("state", "")) == "returning" or str(md.get("type", "")) == "return":
+				var ret_home_vid := int(md.get("to_village_id", md.get("village_id", 0)))
 				var omid := int(md.get("origin_movement_id", 0))
 				if omid > 0:
-					returned_origin_ids[omid] = true
+					returned_origin_keys["%d:%d" % [ret_home_vid, omid]] = true
 				var bseed := int(md.get("battle_seed", 0))
 				if bseed > 0:
-					returned_seeds[bseed] = true
+					returned_seed_keys["%d:%d" % [ret_home_vid, bseed]] = true
 
 	var active_v: Dictionary = gs.get_active_village() if gs.has_active_village() else {}
 	var active_vid: int = int(active_v.get("id", gs.active_village_id))
@@ -273,30 +275,35 @@ func _collect_my_movements(gs: Node) -> Array:
 			if typeof(pv) == TYPE_DICTIONARY:
 				my_vids[int((pv as Dictionary).get("id", -1))] = true
 
+	var now := _effective_now()
 	var out: Array = []
 	var seen_ids: Dictionary = {}
 	for raw_m in gs.movements:
 		if typeof(raw_m) != TYPE_DICTIONARY:
 			continue
 		var m := raw_m as Dictionary
-		var m_owner := _norm_player_name(str(m.get("owner", "")))
 		var from_id := int(m.get("from_village_id", m.get("village_id", 0)))
 		var to_id := int(m.get("to_village_id", 0))
-		var vill_id := int(m.get("village_id", 0))
-		var is_ret := (str(m.get("state", "")) == "returning" or str(m.get("type", "")) == "return")
+		var m_type := str(m.get("type", ""))
+		var m_state := str(m.get("state", "outgoing"))
+		var is_ret := (m_state == "returning" or m_type == "return")
 		var mid := int(m.get("id", 0))
 		var bseed := int(m.get("battle_seed", 0))
-		if not is_ret and ((mid > 0 and returned_origin_ids.has(mid)) or (bseed > 0 and returned_seeds.has(bseed))):
+		if not is_ret and ((mid > 0 and returned_origin_keys.has("%d:%d" % [from_id, mid])) or (bseed > 0 and returned_seed_keys.has("%d:%d" % [from_id, bseed]))):
 			continue
-		var is_mine := (
-			(not p_norm.is_empty() and not m_owner.is_empty() and m_owner == p_norm)
-			or my_vids.has(from_id)
-			or my_vids.has(to_id)
-			or my_vids.has(vill_id)
-		)
-		if not is_mine:
-			continue
-		var dk := "%d_%s_%d" % [mid, "ret" if is_ret else "out", bseed]
+		var is_owned := _is_player_owned_movement(m, gs)
+		if is_owned:
+			pass
+		else:
+			if is_ret:
+				continue
+			if not my_vids.has(to_id):
+				continue
+			if m_type == "spy" and bool(m.get("creeping", false)):
+				continue
+			if int(m.get("arrive_unix", 0)) <= now:
+				continue
+		var dk := "%d_%s_%d_%d" % [mid, "ret" if is_ret else "out", bseed, from_id]
 		if mid > 0 and seen_ids.has(dk):
 			continue
 		seen_ids[dk] = true
@@ -1185,12 +1192,16 @@ func _on_draw_movements() -> void:
 		movements_layer.draw_arc(current_march_pos, pulse_r, 0.0, TAU, 32, Color(0, 0, 0, 0.70), 6.5, true)
 		movements_layer.draw_arc(current_march_pos, pulse_r, 0.0, TAU, 32, line_color, 3.5, true)
 
-		var units_dict: Dictionary = m.get("units", {}) if typeof(m.get("units")) == TYPE_DICTIONARY else {}
-		_draw_marching_soldiers(movements_layer, current_march_pos, line_dir, m_type, is_returning, is_trade, units_dict, anim_t, line_color)
+		var is_owned_draw := _is_player_owned_movement(m, gs)
+		var is_support := (m_type == "support")
+		var hide_enemy_intel := (not is_owned_draw and not is_trade and not is_support)
+		var units_dict: Dictionary = m.get("units", {}) if (not hide_enemy_intel and typeof(m.get("units")) == TYPE_DICTIONARY) else {}
+		var draw_units := {"spear": 1} if hide_enemy_intel else units_dict
+		_draw_marching_soldiers(movements_layer, current_march_pos, line_dir, m_type, is_returning, is_trade, draw_units, anim_t, line_color)
 		# Uzun rotada arka takip birliği (kolon yürüyüş derinliği)
 		if vis_dist * progress > 76.0:
 			var trail_pos := current_march_pos - line_dir * 54.0
-			_draw_marching_soldiers(movements_layer, trail_pos, line_dir, m_type, is_returning, is_trade, units_dict, anim_t + 0.4, Color(line_color.r, line_color.g, line_color.b, 0.85))
+			_draw_marching_soldiers(movements_layer, trail_pos, line_dir, m_type, is_returning, is_trade, draw_units, anim_t + 0.4, Color(line_color.r, line_color.g, line_color.b, 0.85))
 
 		# 4) Kalan Varış Zamanı Plaketi (süre 00:00 olduğunda rakip/ev köyüne varır)
 		var rem_secs := maxi(0, arrive_unix - now)
@@ -1199,10 +1210,14 @@ func _on_draw_movements() -> void:
 		for uk in units_dict.keys():
 			total_units += int(units_dict.get(uk, 0))
 		var banner_txt := ""
-		if is_returning:
+		if hide_enemy_intel:
+			banner_txt = ("🚨 Casus %s" % time_str) if m_type == "spy" else ("🚨 Saldırı %s" % time_str)
+		elif is_returning:
 			banner_txt = "↩ Dönüş %s (%d)" % [time_str, total_units]
 		elif is_trade:
 			banner_txt = "⚖ Katır %s" % time_str
+		elif is_support:
+			banner_txt = "🛡 Destek %s (%d)" % [time_str, total_units]
 		else:
 			banner_txt = "⚔ Varış %s (%d)" % [time_str, total_units]
 
@@ -1557,12 +1572,18 @@ func _refresh_movement_status_bar() -> void:
 		if m_type == "attack" or m_type == "raid":
 			movement_status_label.text = "🚨 Gelen Saldırı! Varışa Kalan Süre: %s (Toplam %d)" % [time_str, my_movements.size()]
 			movement_status_label.add_theme_color_override("font_color", Color(1.0, 0.38, 0.36))
+		elif is_spy:
+			movement_status_label.text = "🚨 Gelen Casus Saldırısı! Varışa Kalan Süre: %s (Toplam %d)" % [time_str, my_movements.size()]
+			movement_status_label.add_theme_color_override("font_color", Color(1.0, 0.48, 0.34))
 		elif is_support:
 			movement_status_label.text = "🛡️ Gelen Destek Birliği! Kalan Süre: %s (Toplam %d)" % [time_str, my_movements.size()]
 			movement_status_label.add_theme_color_override("font_color", Color(0.45, 0.92, 0.62))
-		else:
+		elif is_trade:
 			movement_status_label.text = "⚖️ Gelen Sevkiyat! Kalan Süre: %s (Toplam %d)" % [time_str, my_movements.size()]
 			movement_status_label.add_theme_color_override("font_color", Color(1.0, 0.85, 0.3))
+		else:
+			movement_status_label.text = "🚨 Gelen Hareket! Kalan Süre: %s (Toplam %d)" % [time_str, my_movements.size()]
+			movement_status_label.add_theme_color_override("font_color", Color(1.0, 0.55, 0.35))
 	elif is_returning:
 		movement_status_label.text = "↩ Birlik Dönüş Yolunda! Üsse Kalan Süre: %s (Toplam %d)" % [time_str, my_movements.size()]
 		movement_status_label.add_theme_color_override("font_color", Color(0.3, 0.9, 1.0))
@@ -1593,10 +1614,14 @@ func _refresh_movement_status_bar() -> void:
 		if not is_owned_march:
 			if m_type == "attack" or m_type == "raid":
 				bottom_march_title_label.text = "🚨 Gelen Saldırı: %s → %s" % [orig_name, tgt_name]
+			elif is_spy:
+				bottom_march_title_label.text = "🚨 Gelen Casus: %s → %s" % [orig_name, tgt_name]
 			elif is_support:
 				bottom_march_title_label.text = "🛡️ Gelen Destek: %s → %s" % [orig_name, tgt_name]
-			else:
+			elif is_trade:
 				bottom_march_title_label.text = "⚖️ Gelen Kervan: %s → %s" % [orig_name, tgt_name]
+			else:
+				bottom_march_title_label.text = "🚨 Gelen Hareket: %s → %s" % [orig_name, tgt_name]
 		elif is_returning:
 			bottom_march_title_label.text = "↩ Dönüş → %s" % tgt_name
 		elif is_spy:
@@ -1759,15 +1784,30 @@ func _check_movement_click(screen_click_pos: Vector2) -> void:
 			return
 
 
+func _layout_movement_detail_panel() -> void:
+	if movement_detail_panel == null:
+		return
+	var vp := size
+	if vp.x < 100.0 or vp.y < 100.0:
+		vp = get_viewport_rect().size
+	if vp.x < 100.0 or vp.y < 100.0:
+		vp = Vector2(1080.0, 1920.0)
+	var w := clampf(vp.x - 56.0, 520.0, 960.0)
+	var h := clampf(vp.y - 260.0, 520.0, 780.0)
+	movement_detail_panel.set_anchors_preset(Control.PRESET_TOP_LEFT)
+	movement_detail_panel.custom_minimum_size = Vector2(w, h)
+	movement_detail_panel.size = Vector2(w, h)
+	movement_detail_panel.position = Vector2((vp.x - w) * 0.5, (vp.y - h) * 0.5)
+
+
 func _create_movement_detail_panel() -> void:
 	if movement_detail_panel != null:
 		return
 
 	movement_detail_panel = PanelContainer.new()
 	movement_detail_panel.name = "MovementDetailModal"
-	movement_detail_panel.custom_minimum_size = Vector2(980, 720)
-	movement_detail_panel.size = Vector2(980, 720)
-	movement_detail_panel.position = Vector2(50, 560)
+	movement_detail_panel.clip_contents = true
+	_layout_movement_detail_panel()
 	movement_detail_panel.z_index = 1100
 	movement_detail_panel.z_as_relative = false
 	movement_detail_panel.mouse_filter = Control.MOUSE_FILTER_STOP
@@ -1779,22 +1819,28 @@ func _create_movement_detail_panel() -> void:
 	panel_sb.set_corner_radius_all(20)
 	panel_sb.shadow_size = 20
 	panel_sb.shadow_color = Color(0, 0, 0, 0.75)
-	panel_sb.content_margin_left = 28
-	panel_sb.content_margin_right = 28
-	panel_sb.content_margin_top = 22
-	panel_sb.content_margin_bottom = 24
+	panel_sb.content_margin_left = 24
+	panel_sb.content_margin_right = 24
+	panel_sb.content_margin_top = 20
+	panel_sb.content_margin_bottom = 20
 	movement_detail_panel.add_theme_stylebox_override("panel", panel_sb)
 
 	var main_vbox := VBoxContainer.new()
-	main_vbox.add_theme_constant_override("separation", 16)
+	main_vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	main_vbox.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	main_vbox.add_theme_constant_override("separation", 12)
 	movement_detail_panel.add_child(main_vbox)
 
 	# 1) Üst Başlık & Kapat Butonu
 	var header_hbox := HBoxContainer.new()
+	header_hbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	header_hbox.add_theme_constant_override("separation", 10)
 	_detail_title_lbl = Label.new()
 	_detail_title_lbl.text = "⚔️ Sefer Detayları"
+	_detail_title_lbl.clip_text = true
+	_detail_title_lbl.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	_detail_title_lbl.add_theme_font_override("font", FontNunitoBold)
-	_detail_title_lbl.add_theme_font_size_override("font_size", 32)
+	_detail_title_lbl.add_theme_font_size_override("font_size", 28)
 	_detail_title_lbl.add_theme_constant_override("outline_size", 3)
 	_detail_title_lbl.add_theme_color_override("font_outline_color", Color(0, 0, 0, 1.0))
 	_detail_title_lbl.add_theme_color_override("font_color", Color(1.0, 0.92, 0.75))
@@ -1802,69 +1848,106 @@ func _create_movement_detail_panel() -> void:
 	header_hbox.add_child(_detail_title_lbl)
 
 	var btn_close := Button.new()
+	btn_close.name = "DetailTopCloseButton"
 	btn_close.text = "✕"
-	btn_close.custom_minimum_size = Vector2(50, 50)
+	btn_close.custom_minimum_size = Vector2(52, 52)
+	btn_close.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	btn_close.add_theme_font_override("font", FontNunitoBold)
-	btn_close.add_theme_font_size_override("font_size", 30)
+	btn_close.add_theme_font_size_override("font_size", 28)
+	btn_close.add_theme_color_override("font_color", Color(1.0, 1.0, 1.0))
+	btn_close.add_theme_color_override("font_hover_color", Color(1.0, 1.0, 1.0))
+	btn_close.add_theme_color_override("font_pressed_color", Color(1.0, 0.92, 0.75))
+	var top_close_sb := StyleBoxFlat.new()
+	top_close_sb.bg_color = Color(0.45, 0.12, 0.14, 1.0)
+	top_close_sb.border_color = Color(1.0, 0.65, 0.55, 1.0)
+	top_close_sb.set_border_width_all(2)
+	top_close_sb.set_corner_radius_all(12)
+	var top_close_hov := top_close_sb.duplicate() as StyleBoxFlat
+	top_close_hov.bg_color = Color(0.62, 0.18, 0.20, 1.0)
+	btn_close.add_theme_stylebox_override("normal", top_close_sb)
+	btn_close.add_theme_stylebox_override("hover", top_close_hov)
+	btn_close.add_theme_stylebox_override("pressed", top_close_hov)
 	btn_close.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 	btn_close.pressed.connect(func(): movement_detail_panel.hide())
 	header_hbox.add_child(btn_close)
 	main_vbox.add_child(header_hbox)
 
+	var body_scroll := ScrollContainer.new()
+	body_scroll.name = "DetailBodyScroll"
+	body_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	body_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	body_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	main_vbox.add_child(body_scroll)
+
+	var body_vbox := VBoxContainer.new()
+	body_vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	body_vbox.add_theme_constant_override("separation", 12)
+	body_scroll.add_child(body_vbox)
+
 	# 2) Rota ve Köy Bilgi Kartı
 	var route_panel := PanelContainer.new()
+	route_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	var route_sb := StyleBoxFlat.new()
 	route_sb.bg_color = Color(0.08, 0.07, 0.10, 0.90)
 	route_sb.border_color = Color(0.85, 0.72, 0.42, 0.60)
 	route_sb.set_border_width_all(1)
 	route_sb.set_corner_radius_all(14)
-	route_sb.content_margin_left = 18
-	route_sb.content_margin_right = 18
-	route_sb.content_margin_top = 12
-	route_sb.content_margin_bottom = 12
+	route_sb.content_margin_left = 16
+	route_sb.content_margin_right = 16
+	route_sb.content_margin_top = 10
+	route_sb.content_margin_bottom = 10
 	route_panel.add_theme_stylebox_override("panel", route_sb)
 
 	var route_vbox := VBoxContainer.new()
+	route_vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	route_vbox.add_theme_constant_override("separation", 6)
 
 	_detail_route_lbl = Label.new()
+	_detail_route_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_detail_route_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_detail_route_lbl.add_theme_font_override("font", FontNunitoBold)
-	_detail_route_lbl.add_theme_font_size_override("font_size", 26)
+	_detail_route_lbl.add_theme_font_size_override("font_size", 24)
 	_detail_route_lbl.add_theme_constant_override("outline_size", 3)
 	_detail_route_lbl.add_theme_color_override("font_outline_color", Color(0, 0, 0, 1.0))
 	_detail_route_lbl.add_theme_color_override("font_color", Color(1.0, 0.95, 0.85))
 	route_vbox.add_child(_detail_route_lbl)
 
 	_detail_status_lbl = Label.new()
+	_detail_status_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_detail_status_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_detail_status_lbl.add_theme_font_override("font", FontNunitoBold)
-	_detail_status_lbl.add_theme_font_size_override("font_size", 24)
+	_detail_status_lbl.add_theme_font_size_override("font_size", 23)
 	_detail_status_lbl.add_theme_constant_override("outline_size", 3)
 	_detail_status_lbl.add_theme_color_override("font_outline_color", Color(0, 0, 0, 1.0))
 	route_vbox.add_child(_detail_status_lbl)
 
 	route_panel.add_child(route_vbox)
-	main_vbox.add_child(route_panel)
+	body_vbox.add_child(route_panel)
 
 	# 3) Kalan Süre Kartı (Canlı Sayaç)
 	var time_panel := PanelContainer.new()
+	time_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	var time_sb := StyleBoxFlat.new()
 	time_sb.bg_color = Color(0.06, 0.05, 0.08, 0.95)
 	time_sb.border_color = Color(0.35, 0.85, 1.0, 0.85)
 	time_sb.set_border_width_all(2)
 	time_sb.set_corner_radius_all(14)
-	time_sb.content_margin_left = 18
-	time_sb.content_margin_right = 18
+	time_sb.content_margin_left = 16
+	time_sb.content_margin_right = 16
 	time_sb.content_margin_top = 10
 	time_sb.content_margin_bottom = 10
 	time_panel.add_theme_stylebox_override("panel", time_sb)
 
 	var time_vbox := VBoxContainer.new()
+	time_vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	time_vbox.add_theme_constant_override("separation", 4)
 
 	_detail_timer_lbl = Label.new()
 	_detail_timer_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_detail_timer_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_detail_timer_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_detail_timer_lbl.add_theme_font_override("font", FontNunitoBold)
-	_detail_timer_lbl.add_theme_font_size_override("font_size", 38)
+	_detail_timer_lbl.add_theme_font_size_override("font_size", 34)
 	_detail_timer_lbl.add_theme_constant_override("outline_size", 4)
 	_detail_timer_lbl.add_theme_color_override("font_outline_color", Color(0, 0, 0, 1.0))
 	_detail_timer_lbl.add_theme_color_override("font_color", Color(1.0, 0.88, 0.40))
@@ -1872,55 +1955,58 @@ func _create_movement_detail_panel() -> void:
 
 	_detail_sub_timer_lbl = Label.new()
 	_detail_sub_timer_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_detail_sub_timer_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_detail_sub_timer_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_detail_sub_timer_lbl.add_theme_font_override("font", FontNunitoBold)
-	_detail_sub_timer_lbl.add_theme_font_size_override("font_size", 24)
+	_detail_sub_timer_lbl.add_theme_font_size_override("font_size", 22)
 	_detail_sub_timer_lbl.add_theme_constant_override("outline_size", 3)
 	_detail_sub_timer_lbl.add_theme_color_override("font_outline_color", Color(0, 0, 0, 1.0))
 	_detail_sub_timer_lbl.add_theme_color_override("font_color", Color(0.85, 0.85, 0.85))
 	time_vbox.add_child(_detail_sub_timer_lbl)
 
 	time_panel.add_child(time_vbox)
-	main_vbox.add_child(time_panel)
+	body_vbox.add_child(time_panel)
 
 	# 4) Seferdeki Birlikler Başlığı ve Izgara
-	var units_title := Label.new()
-	units_title.text = " Seferdeki Birlikler / Sevkiyat:"
-	units_title.add_theme_font_override("font", FontNunitoBold)
-	units_title.add_theme_font_size_override("font_size", 26)
-	units_title.add_theme_constant_override("outline_size", 3)
-	units_title.add_theme_color_override("font_outline_color", Color(0, 0, 0, 1.0))
-	units_title.add_theme_color_override("font_color", Color(1.0, 0.90, 0.65))
-	main_vbox.add_child(units_title)
+	_detail_units_title = Label.new()
+	_detail_units_title.text = " Seferdeki Birlikler / Sevkiyat:"
+	_detail_units_title.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_detail_units_title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_detail_units_title.add_theme_font_override("font", FontNunitoBold)
+	_detail_units_title.add_theme_font_size_override("font_size", 24)
+	_detail_units_title.add_theme_constant_override("outline_size", 3)
+	_detail_units_title.add_theme_color_override("font_outline_color", Color(0, 0, 0, 1.0))
+	_detail_units_title.add_theme_color_override("font_color", Color(1.0, 0.90, 0.65))
+	body_vbox.add_child(_detail_units_title)
 
-	var scroll := ScrollContainer.new()
-	scroll.custom_minimum_size = Vector2(0, 180)
-	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	_detail_units_grid = GridContainer.new()
 	_detail_units_grid.columns = 2
-	_detail_units_grid.add_theme_constant_override("h_separation", 16)
+	_detail_units_grid.add_theme_constant_override("h_separation", 12)
 	_detail_units_grid.add_theme_constant_override("v_separation", 10)
 	_detail_units_grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	scroll.add_child(_detail_units_grid)
-	main_vbox.add_child(scroll)
+	body_vbox.add_child(_detail_units_grid)
 
 	# 5) İptal Durum Bildirimi
 	_detail_cancel_note = Label.new()
 	_detail_cancel_note.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_detail_cancel_note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_detail_cancel_note.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_detail_cancel_note.add_theme_font_override("font", FontNunitoBold)
-	_detail_cancel_note.add_theme_font_size_override("font_size", 24)
+	_detail_cancel_note.add_theme_font_size_override("font_size", 21)
 	_detail_cancel_note.add_theme_constant_override("outline_size", 3)
 	_detail_cancel_note.add_theme_color_override("font_outline_color", Color(0, 0, 0, 1.0))
 	_detail_cancel_note.add_theme_color_override("font_color", Color(0.35, 0.95, 1.0))
-	main_vbox.add_child(_detail_cancel_note)
+	body_vbox.add_child(_detail_cancel_note)
 
 	# 6) Butonlar (Hızlandır, İptal Et & Kapat)
 	var btns_hbox := HBoxContainer.new()
+	btns_hbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	btns_hbox.add_theme_constant_override("separation", 12)
 
 	_detail_btn_speedup = Button.new()
 	_detail_btn_speedup.name = "DetailSpeedupButton"
 	_detail_btn_speedup.text = "⚡ Hızlandır"
-	_detail_btn_speedup.custom_minimum_size = Vector2(220, 56)
+	_detail_btn_speedup.custom_minimum_size = Vector2(0, 56)
 	_detail_btn_speedup.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_detail_btn_speedup.add_theme_font_override("font", FontNunitoBold)
 	_detail_btn_speedup.add_theme_font_size_override("font_size", 24)
@@ -1933,7 +2019,7 @@ func _create_movement_detail_panel() -> void:
 	btns_hbox.add_child(_detail_btn_speedup)
 
 	_detail_btn_cancel = Button.new()
-	_detail_btn_cancel.text = " Saldırıyı İptal Et (Geri Çağır)"
+	_detail_btn_cancel.text = "İptal Et"
 	_detail_btn_cancel.custom_minimum_size = Vector2(0, 56)
 	_detail_btn_cancel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_detail_btn_cancel.add_theme_font_override("font", FontNunitoBold)
@@ -1964,15 +2050,27 @@ func _create_movement_detail_panel() -> void:
 	btns_hbox.add_child(_detail_btn_cancel)
 
 	var btn_dismiss := Button.new()
+	btn_dismiss.name = "DetailDismissButton"
 	btn_dismiss.text = "Kapat"
 	btn_dismiss.custom_minimum_size = Vector2(150, 56)
+	btn_dismiss.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	btn_dismiss.add_theme_font_override("font", FontNunitoBold)
 	btn_dismiss.add_theme_font_size_override("font_size", 24)
 	btn_dismiss.add_theme_constant_override("outline_size", 2)
-	btn_dismiss.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.95))
-	btn_dismiss.add_theme_color_override("font_color", Color(0.95, 0.90, 0.82))
+	btn_dismiss.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.98))
+	btn_dismiss.add_theme_color_override("font_color", Color(1.0, 1.0, 1.0))
 	btn_dismiss.add_theme_color_override("font_hover_color", Color(1.0, 1.0, 1.0))
 	btn_dismiss.add_theme_color_override("font_pressed_color", Color(1.0, 0.95, 0.70))
+	var dismiss_sb := StyleBoxFlat.new()
+	dismiss_sb.bg_color = Color(0.16, 0.19, 0.27, 1.0)
+	dismiss_sb.border_color = Color(0.95, 0.80, 0.42, 1.0)
+	dismiss_sb.set_border_width_all(2)
+	dismiss_sb.set_corner_radius_all(14)
+	var dismiss_hov := dismiss_sb.duplicate() as StyleBoxFlat
+	dismiss_hov.bg_color = Color(0.26, 0.30, 0.42, 1.0)
+	btn_dismiss.add_theme_stylebox_override("normal", dismiss_sb)
+	btn_dismiss.add_theme_stylebox_override("hover", dismiss_hov)
+	btn_dismiss.add_theme_stylebox_override("pressed", dismiss_hov)
 	btn_dismiss.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 	btn_dismiss.pressed.connect(func(): movement_detail_panel.hide())
 	btns_hbox.add_child(btn_dismiss)
@@ -1984,8 +2082,10 @@ func _create_movement_detail_panel() -> void:
 
 func _open_movement_details(m: Dictionary) -> void:
 	_create_movement_detail_panel()
+	_layout_movement_detail_panel()
 	_detail_movement_ref = m
 	_refresh_movement_detail_content()
+	_layout_movement_detail_panel()
 	movement_detail_panel.show()
 	movement_detail_panel.move_to_front()
 
@@ -2001,13 +2101,29 @@ func _refresh_movement_detail_content() -> void:
 	var m_state := str(m.get("state", "outgoing"))
 	var is_returning := (m_state == "returning" or m_type == "return")
 	var is_trade := (m_type == "trade")
+	var is_support := (m_type == "support")
+	var is_spy := (m_type == "spy")
+	var is_owned_detail := _is_player_owned_movement(m, gs)
 
-	if is_returning:
-		_detail_title_lbl.text = " Birlik Dönüş Hareketi Detayı"
+	if not is_owned_detail:
+		if is_trade:
+			_detail_title_lbl.text = "⚖️ Gelen Hammadde Sevkiyatı"
+		elif is_support:
+			_detail_title_lbl.text = "🛡️ Gelen Destek Birliği"
+		elif is_spy:
+			_detail_title_lbl.text = "🚨 Gelen Casus Saldırısı"
+		else:
+			_detail_title_lbl.text = "🚨 Gelen Düşman Saldırısı"
+	elif is_returning:
+		_detail_title_lbl.text = "↩ Birlik Dönüş Hareketi Detayı"
 	elif is_trade:
-		_detail_title_lbl.text = " Katır Kervanı Sevkiyat Detayı"
+		_detail_title_lbl.text = "⚖️ Katır Kervanı Sevkiyat Detayı"
+	elif is_support:
+		_detail_title_lbl.text = "🛡️ Destek Birliği Detayları"
+	elif is_spy:
+		_detail_title_lbl.text = "🕵️ Casus Seferi Detayları"
 	else:
-		_detail_title_lbl.text = " Ordu Seferi Detayları (Saldırı)"
+		_detail_title_lbl.text = "⚔️ Ordu Seferi Detayları (Saldırı)"
 
 	var from_id := int(m.get("from_village_id", m.get("village_id", 0)))
 	var to_id := int(m.get("to_village_id", 0))
@@ -2028,82 +2144,119 @@ func _refresh_movement_detail_content() -> void:
 		_detail_status_lbl.add_theme_color_override("font_color", Color(0.35, 0.90, 1.0))
 	else:
 		_detail_route_lbl.text = " Çıkış: %s (%d|%d)   Hedef: %s (%d|%d)" % [orig_name, orig_x, orig_y, tgt_name, tgt_x, tgt_y]
-		_detail_status_lbl.text = "• Durum: Hedefe İlerliyor"
-		_detail_status_lbl.add_theme_color_override("font_color", Color(1.0, 0.50, 0.30))
+		_detail_status_lbl.text = "• Durum: Köyünüze İlerliyor" if not is_owned_detail else "• Durum: Hedefe İlerliyor"
+		_detail_status_lbl.add_theme_color_override("font_color", Color(1.0, 0.42, 0.36) if not is_owned_detail else Color(1.0, 0.50, 0.30))
 
 	_update_movement_detail_timer()
 
 	for child in _detail_units_grid.get_children():
 		child.queue_free()
 
-	var units: Dictionary = m.get("units", {})
-	var carry: Dictionary = m.get("carry", {})
-	var has_items := false
+	var hide_contents := (not is_owned_detail and not is_trade and not is_support)
+	if hide_contents:
+		if _detail_units_title != null:
+			_detail_units_title.text = "🔒 Gelen Birlik Bilgisi:"
+		_detail_units_grid.columns = 1
+		var mask_panel := PanelContainer.new()
+		mask_panel.name = "MaskedEnemyIntelPanel"
+		mask_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		var msb := StyleBoxFlat.new()
+		msb.bg_color = Color(0.18, 0.11, 0.14, 0.94)
+		msb.border_color = Color(0.94, 0.42, 0.36, 0.85)
+		msb.set_border_width_all(2)
+		msb.set_corner_radius_all(12)
+		msb.content_margin_left = 16
+		msb.content_margin_right = 16
+		msb.content_margin_top = 14
+		msb.content_margin_bottom = 14
+		mask_panel.add_theme_stylebox_override("panel", msb)
+		var mask_lbl := Label.new()
+		mask_lbl.name = "MaskedEnemyIntelLabel"
+		mask_lbl.text = "🔒 Düşman ordusunun birlik sayısı ve içeriği gizlidir.\nGelen saldırının detayları yalnızca çarpışma sonucunda raporda ortaya çıkar."
+		mask_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		mask_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		mask_lbl.add_theme_font_override("font", FontNunitoBold)
+		mask_lbl.add_theme_font_size_override("font_size", 22)
+		mask_lbl.add_theme_color_override("font_color", Color(1.0, 0.88, 0.82))
+		mask_panel.add_child(mask_lbl)
+		_detail_units_grid.add_child(mask_panel)
+	else:
+		if _detail_units_title != null:
+			_detail_units_title.text = " Seferdeki Birlikler / Sevkiyat:"
+		_detail_units_grid.columns = 2
+		var units: Dictionary = m.get("units", {})
+		var carry: Dictionary = m.get("carry", {})
+		var has_items := false
 
-	for u_key in ["farmer", "spear", "sword", "axe", "bow", "spy", "light", "heavy", "ram", "kata", "snob"]:
-		var count := int(units.get(u_key, 0))
-		if count > 0:
-			has_items = true
-			var pill := PanelContainer.new()
-			var pill_sb := StyleBoxFlat.new()
-			pill_sb.bg_color = Color(0.14, 0.13, 0.18, 0.90)
-			pill_sb.border_color = Color(0.85, 0.72, 0.42, 0.75)
-			pill_sb.set_border_width_all(1)
-			pill_sb.set_corner_radius_all(10)
-			pill_sb.content_margin_left = 14
-			pill_sb.content_margin_right = 14
-			pill_sb.content_margin_top = 8
-			pill_sb.content_margin_bottom = 8
-			pill.add_theme_stylebox_override("panel", pill_sb)
-
-			var plbl := Label.new()
-			var u_tr: String = UNIT_NAMES_MAP.get(u_key, u_key)
-			plbl.text = " %s: %d" % [u_tr, count]
-			plbl.add_theme_font_override("font", FontNunitoBold)
-			plbl.add_theme_font_size_override("font_size", 24)
-			plbl.add_theme_constant_override("outline_size", 3)
-			plbl.add_theme_color_override("font_outline_color", Color(0, 0, 0, 1.0))
-			plbl.add_theme_color_override("font_color", Color(1.0, 0.95, 0.85))
-			pill.add_child(plbl)
-			_detail_units_grid.add_child(pill)
-
-	if is_trade or carry.size() > 0:
-		for r_key in ["wood", "stone", "iron"]:
-			var amt := int(carry.get(r_key, 0))
-			if amt > 0:
+		for u_key in ["farmer", "spear", "sword", "axe", "bow", "spy", "light", "heavy", "ram", "kata", "snob"]:
+			var count := int(units.get(u_key, 0))
+			if count > 0:
 				has_items = true
 				var pill := PanelContainer.new()
+				pill.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 				var pill_sb := StyleBoxFlat.new()
 				pill_sb.bg_color = Color(0.14, 0.13, 0.18, 0.90)
 				pill_sb.border_color = Color(0.85, 0.72, 0.42, 0.75)
 				pill_sb.set_border_width_all(1)
 				pill_sb.set_corner_radius_all(10)
-				pill_sb.content_margin_left = 14
-				pill_sb.content_margin_right = 14
+				pill_sb.content_margin_left = 12
+				pill_sb.content_margin_right = 12
 				pill_sb.content_margin_top = 8
 				pill_sb.content_margin_bottom = 8
 				pill.add_theme_stylebox_override("panel", pill_sb)
 
 				var plbl := Label.new()
-				var r_tr := "Odun" if r_key == "wood" else ("Taş" if r_key == "stone" else "Demir")
-				var r_icon := "" if r_key == "wood" else ("" if r_key == "stone" else "")
-				plbl.text = "%s %s: %d" % [r_icon, r_tr, amt]
+				var u_tr: String = UNIT_NAMES_MAP.get(u_key, u_key)
+				plbl.text = " %s: %d" % [u_tr, count]
+				plbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+				plbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 				plbl.add_theme_font_override("font", FontNunitoBold)
-				plbl.add_theme_font_size_override("font_size", 24)
+				plbl.add_theme_font_size_override("font_size", 22)
 				plbl.add_theme_constant_override("outline_size", 3)
 				plbl.add_theme_color_override("font_outline_color", Color(0, 0, 0, 1.0))
-				plbl.add_theme_color_override("font_color", Color(1.0, 0.92, 0.50))
+				plbl.add_theme_color_override("font_color", Color(1.0, 0.95, 0.85))
 				pill.add_child(plbl)
 				_detail_units_grid.add_child(pill)
 
-	if not has_items:
-		var empty_lbl := Label.new()
-		empty_lbl.text = "Birlik veya hammadde bilgisi yok."
-		empty_lbl.add_theme_font_override("font", FontNunitoBold)
-		empty_lbl.add_theme_font_size_override("font_size", 24)
-		_detail_units_grid.add_child(empty_lbl)
+		if is_trade or carry.size() > 0:
+			for r_key in ["wood", "stone", "iron"]:
+				var amt := int(carry.get(r_key, 0))
+				if amt > 0:
+					has_items = true
+					var pill := PanelContainer.new()
+					pill.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+					var pill_sb := StyleBoxFlat.new()
+					pill_sb.bg_color = Color(0.14, 0.13, 0.18, 0.90)
+					pill_sb.border_color = Color(0.85, 0.72, 0.42, 0.75)
+					pill_sb.set_border_width_all(1)
+					pill_sb.set_corner_radius_all(10)
+					pill_sb.content_margin_left = 12
+					pill_sb.content_margin_right = 12
+					pill_sb.content_margin_top = 8
+					pill_sb.content_margin_bottom = 8
+					pill.add_theme_stylebox_override("panel", pill_sb)
 
-	var is_owned_detail := _is_player_owned_movement(m, gs)
+					var plbl := Label.new()
+					var r_tr := "Odun" if r_key == "wood" else ("Taş" if r_key == "stone" else "Demir")
+					plbl.text = "%s: %d" % [r_tr, amt]
+					plbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+					plbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+					plbl.add_theme_font_override("font", FontNunitoBold)
+					plbl.add_theme_font_size_override("font_size", 22)
+					plbl.add_theme_constant_override("outline_size", 3)
+					plbl.add_theme_color_override("font_outline_color", Color(0, 0, 0, 1.0))
+					plbl.add_theme_color_override("font_color", Color(1.0, 0.92, 0.50))
+					pill.add_child(plbl)
+					_detail_units_grid.add_child(pill)
+
+		if not has_items:
+			var empty_lbl := Label.new()
+			empty_lbl.text = "Birlik veya hammadde bilgisi yok."
+			empty_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			empty_lbl.add_theme_font_override("font", FontNunitoBold)
+			empty_lbl.add_theme_font_size_override("font_size", 22)
+			_detail_units_grid.add_child(empty_lbl)
+
 	if not is_owned_detail:
 		_detail_btn_cancel.hide()
 		_detail_cancel_note.text = " Gelen saldırı veya sevkiyat yalnızca gönderen oyuncu tarafından hızlandırılabilir veya iptal edilebilir."
@@ -2124,8 +2277,8 @@ func _is_player_owned_movement(m: Dictionary, gs: Node) -> bool:
 		return false
 	var player_name := _norm_player_name(str(gs.player.get("name", "")) if gs.get("player") is Dictionary else "")
 	var m_owner := _norm_player_name(str(m.get("owner", "")))
-	if not player_name.is_empty() and not m_owner.is_empty() and m_owner == player_name:
-		return true
+	if not player_name.is_empty() and not m_owner.is_empty():
+		return m_owner == player_name
 	var my_ids: Dictionary = {}
 	if gs.has_method("get_player_villages"):
 		for v in gs.get_player_villages():

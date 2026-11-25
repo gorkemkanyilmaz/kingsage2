@@ -865,6 +865,13 @@ func _refresh_filter_styles() -> void:
 		b.add_theme_color_override("font_color", Color(1.0, 0.93, 0.68) if act else Color(0.80, 0.78, 0.72))
 
 
+static func _norm_player_name(raw_name: String) -> String:
+	var n := raw_name.strip_edges()
+	while n.length() >= 10 and n.substr(0, 10).to_lower() == "lord lord ":
+		n = n.substr(5).strip_edges()
+	return n.to_lower()
+
+
 static func _report_sig(r: Dictionary) -> String:
 	var rdata: Dictionary = r.get("data", {}) if typeof(r.get("data")) == TYPE_DICTIONARY else {}
 	return "%s:%d:%d:%d:%d" % [
@@ -1014,9 +1021,10 @@ func _mark_all_reports_read() -> void:
 	if gs == null or not ("reports" in gs):
 		return
 	var player_name := str(gs.player.get("name", "Kral"))
+	var p_low_all := _norm_player_name(player_name)
 	var player_vids: Array = []
 	for v in gs.villages:
-		if typeof(v) == TYPE_DICTIONARY and str((v as Dictionary).get("owner", "")) == player_name:
+		if typeof(v) == TYPE_DICTIONARY and _norm_player_name(str((v as Dictionary).get("owner", ""))) == p_low_all:
 			player_vids.append(int((v as Dictionary).get("id", -1)))
 	var del_sigs := _get_sig_set(gs, "deleted_report_sigs")
 	for item in gs.reports:
@@ -1038,9 +1046,10 @@ func _delete_read_reports() -> void:
 	if gs == null or not ("reports" in gs):
 		return
 	var player_name := str(gs.player.get("name", "Kral"))
+	var p_low_all := _norm_player_name(player_name)
 	var player_vids: Array = []
 	for v in gs.villages:
-		if typeof(v) == TYPE_DICTIONARY and str((v as Dictionary).get("owner", "")) == player_name:
+		if typeof(v) == TYPE_DICTIONARY and _norm_player_name(str((v as Dictionary).get("owner", ""))) == p_low_all:
 			player_vids.append(int((v as Dictionary).get("id", -1)))
 	var del_sigs := _get_sig_set(gs, "deleted_report_sigs")
 	var read_sigs := _get_sig_set(gs, "read_report_sigs")
@@ -1071,9 +1080,10 @@ func _populate_reports() -> void:
 		child.queue_free()
 
 	var player_name := str(gs.player.get("name", "Kral"))
+	var p_low := _norm_player_name(player_name)
 	var player_vids: Array = []
 	for v in gs.villages:
-		if typeof(v) == TYPE_DICTIONARY and str(v.get("owner", "")) == player_name:
+		if typeof(v) == TYPE_DICTIONARY and _norm_player_name(str(v.get("owner", ""))) == p_low:
 			player_vids.append(int(v.get("id", -1)))
 
 	var del_sigs := _get_sig_set(gs, "deleted_report_sigs")
@@ -1463,10 +1473,11 @@ func _render_battle_report(parent: Control, rep: Dictionary) -> void:
 
 	var gs: Node = Engine.get_main_loop().root.get_node_or_null("GameState") if Engine.get_main_loop() is SceneTree else null
 	var player_name := str(gs.player.get("name", "Kral")) if gs != null else "Kral"
+	var p_low_b := _norm_player_name(player_name)
 	var player_vids: Array = []
 	if gs != null and "villages" in gs and gs.villages is Array:
 		for v in gs.villages:
-			if typeof(v) == TYPE_DICTIONARY and str((v as Dictionary).get("owner", "")) == player_name:
+			if typeof(v) == TYPE_DICTIONARY and _norm_player_name(str((v as Dictionary).get("owner", ""))) == p_low_b:
 				player_vids.append(int((v as Dictionary).get("id", -1)))
 	var is_def_view := _is_viewer_defender(rep, player_name, player_vids)
 	var viewer_won: bool = (not attacker_won) if is_def_view else attacker_won
