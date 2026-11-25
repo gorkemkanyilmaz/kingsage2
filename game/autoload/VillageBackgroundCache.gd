@@ -10,8 +10,9 @@ const FPS: float = 12.0
 const TARGET_FPS: float = 12.0
 const FRAME_DURATION: float = 1.0 / FPS
 const LOOP_DURATION: float = float(FRAME_COUNT) / FPS
-const FRAMES_PER_TICK: int = 4
-const THREAD_PREFETCH_WINDOW: int = 12
+const FRAMES_PER_TICK: int = 2
+const THREAD_PREFETCH_WINDOW: int = 4
+const LOW_MEM_WINDOW: int = 16
 const MAX_MAIN_THREAD_COLLECT_USEC: int = 2500
 
 var frames: Array[Texture2D] = []
@@ -19,6 +20,8 @@ var is_fully_loaded: bool = false
 var _next_load_idx: int = 1
 var _next_request_idx: int = 1
 var _requested_flags: PackedByteArray = PackedByteArray()
+var _low_memory_mode: bool = false
+var _playhead_idx: int = 0
 
 
 func _init() -> void:
@@ -33,8 +36,7 @@ func _init() -> void:
 
 
 func _ready() -> void:
-	_queue_threaded_prefetch()
-	set_process(not is_fully_loaded)
+	set_process(false)
 
 
 func _frame_path(idx: int) -> String:
@@ -42,9 +44,13 @@ func _frame_path(idx: int) -> String:
 
 
 func ensure_warming() -> void:
-	if not is_fully_loaded:
+	if not is_fully_loaded or _low_memory_mode:
 		_queue_threaded_prefetch()
 		set_process(true)
+
+
+func pause_warming() -> void:
+	set_process(false)
 
 
 func trim_memory() -> void:
@@ -62,6 +68,7 @@ func trim_memory() -> void:
 	_requested_flags[0] = 1
 	_next_load_idx = 1
 	_next_request_idx = 1
+	_low_memory_mode = true
 	is_fully_loaded = false
 	set_process(false)
 
@@ -73,6 +80,18 @@ func _notification(what: int) -> void:
 
 func _queue_threaded_prefetch() -> void:
 	if DisplayServer.get_name() == "headless":
+		return
+	if _low_memory_mode:
+		var queued := 0
+		for offset in range(1, LOW_MEM_WINDOW + 1):
+			if queued >= THREAD_PREFETCH_WINDOW:
+				break
+			var idx := posmod(_playhead_idx + offset, FRAME_COUNT)
+			if frames[idx] == null and _requested_flags[idx] == 0:
+				var lp := _frame_path(idx)
+				if ResourceLoader.exists(lp) and ResourceLoader.load_threaded_request(lp, "Texture2D") == OK:
+					_requested_flags[idx] = 1
+					queued += 1
 		return
 	var target_end := mini(FRAME_COUNT, _next_load_idx + THREAD_PREFETCH_WINDOW)
 	while _next_request_idx < target_end:
@@ -86,6 +105,46 @@ func _queue_threaded_prefetch() -> void:
 
 
 func _process(_delta: float) -> void:
+	if _low_memory_mode:
+		var is_hl := (DisplayServer.get_name() == "headless")
+		if not is_hl:
+			_queue_threaded_prefetch()
+		var lm_start := Time.get_ticks_usec()
+		var lm_cnt := 0
+		for offset in range(1, LOW_MEM_WINDOW + 1):
+			if lm_cnt >= FRAMES_PER_TICK:
+				break
+			var idx := posmod(_playhead_idx + offset, FRAME_COUNT)
+			if frames[idx] != null:
+				continue
+			var lp := _frame_path(idx)
+			if is_hl or _requested_flags[idx] == 0:
+				var stex := _load_texture(lp)
+				if stex != null:
+					frames[idx] = stex
+				lm_cnt += 1
+			else:
+				var st_l := ResourceLoader.load_threaded_get_status(lp)
+				if st_l == ResourceLoader.THREAD_LOAD_IN_PROGRESS:
+					break
+				elif st_l == ResourceLoader.THREAD_LOAD_LOADED:
+					var lres = ResourceLoader.load_threaded_get(lp)
+					if lres is Texture2D:
+						frames[idx] = lres
+					lm_cnt += 1
+				else:
+					_requested_flags[idx] = 0
+					lm_cnt += 1
+			if not is_hl and (Time.get_ticks_usec() - lm_start) >= MAX_MAIN_THREAD_COLLECT_USEC:
+				break
+		# Kayan pencere: aktif kareden uzaktaki kareleri bellekten tahliye et (0. kare daima kalır)
+		for offset_keep in range(LOW_MEM_WINDOW + 2, FRAME_COUNT - 3):
+			var evict_idx := posmod(_playhead_idx + offset_keep, FRAME_COUNT)
+			if evict_idx != 0 and frames[evict_idx] != null:
+				frames[evict_idx] = null
+				_requested_flags[evict_idx] = 0
+		return
+
 	if is_fully_loaded:
 		set_process(false)
 		return
@@ -175,6 +234,7 @@ func get_frame(index: int) -> Texture2D:
 	if frames.is_empty():
 		return null
 	var safe_idx: int = posmod(index, FRAME_COUNT)
+	_playhead_idx = safe_idx
 	var tex: Texture2D = frames[safe_idx]
 	if tex != null:
 		return tex

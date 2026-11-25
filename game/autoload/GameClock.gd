@@ -122,12 +122,17 @@ func _process(delta: float) -> void:
 			_apply_adaptive_fps()
 	if not running:
 		return
-	_accumulator += delta
+	_accumulator += minf(maxf(delta, 0.0), 2.0)
+	var max_steps := 4 if DisplayServer.get_name() == "headless" else 2
 	var steps := 0
-	while _accumulator >= TICK_INTERVAL and steps < 1000:
+	while _accumulator >= TICK_INTERVAL and steps < max_steps:
 		_accumulator -= TICK_INTERVAL
 		_step(TICK_INTERVAL)
 		steps += 1
+
+
+func reset_accumulator() -> void:
+	_accumulator = 0.0
 
 
 ## Tek bir simülasyon adımı.

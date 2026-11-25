@@ -11,13 +11,13 @@ const ArmyAPIScript := preload("res://scripts/sim/army/ArmyAPI.gd")
 const MovementScript := preload("res://scripts/sim/actions/Movement.gd")
 const GameDataScript := preload("res://autoload/GameData.gd")
 const FontCinzelBold := preload("res://assets/fonts/Cinzel-Bold.ttf")
-const IconAllianceShield := preload("res://assets/sprites/ui/nano_banana/sharp_icon_alliance_shield.tres")
-const TexRoyalBtnBg := preload("res://assets/sprites/ui/nano_banana/sharp_ui_royal_btn_bg.tres")
-const IconScrollBuild := preload("res://assets/sprites/ui/nano_banana/sharp_scroll_build.tres")
-const IconScrollTrain := preload("res://assets/sprites/ui/nano_banana/sharp_scroll_train.tres")
-const IconScrollResearch := preload("res://assets/sprites/ui/nano_banana/sharp_scroll_research.tres")
-const IconScrollMarch := preload("res://assets/sprites/ui/nano_banana/sharp_scroll_march.tres")
-const IconReportSeal := preload("res://assets/sprites/ui/nano_banana/sharp_icon_report_seal.tres")
+const IconAllianceShield := preload("res://assets/sprites/ui/nano_banana/sharp_icon_alliance_shield.png")
+const TexRoyalBtnBg := preload("res://assets/sprites/ui/nano_banana/sharp_ui_royal_btn_bg.png")
+const IconScrollBuild := preload("res://assets/sprites/ui/nano_banana/sharp_scroll_build.png")
+const IconScrollTrain := preload("res://assets/sprites/ui/nano_banana/sharp_scroll_train.png")
+const IconScrollResearch := preload("res://assets/sprites/ui/nano_banana/sharp_scroll_research.png")
+const IconScrollMarch := preload("res://assets/sprites/ui/nano_banana/sharp_scroll_march.png")
+const IconReportSeal := preload("res://assets/sprites/ui/nano_banana/sharp_icon_report_seal.png")
 
 @onready var resource_bar: PanelContainer = $ResourceBar
 @onready var bottom_nav: PanelContainer = $BottomNav
@@ -337,6 +337,8 @@ func _ready() -> void:
 
 
 func _exit_tree() -> void:
+	if _cached_bg_cache != null and is_instance_valid(_cached_bg_cache) and _cached_bg_cache.has_method("pause_warming"):
+		_cached_bg_cache.call("pause_warming")
 	var wm = Engine.get_main_loop().root.get_node_or_null("WorldManager") if Engine.get_main_loop() is SceneTree else null
 	if wm != null and wm.has_method("save_active_world"):
 		wm.save_active_world()
@@ -374,11 +376,18 @@ func _init_animated_background() -> void:
 	if loop is SceneTree and (loop as SceneTree).root != null:
 		_cached_bg_cache = (loop as SceneTree).root.get_node_or_null("VillageBackgroundCache")
 	if _cached_bg_cache != null:
-		if _cached_bg_cache.has_method("ensure_warming"):
-			_cached_bg_cache.call("ensure_warming")
 		var tex = _cached_bg_cache.get_frame(_bg_frame_idx)
 		if tex != null:
 			background.texture = tex
+		if DisplayServer.get_name() == "headless":
+			if _cached_bg_cache.has_method("ensure_warming"):
+				_cached_bg_cache.call("ensure_warming")
+		elif is_inside_tree() and get_tree() != null:
+			var bgc_ref := _cached_bg_cache
+			get_tree().create_timer(0.25).timeout.connect(func():
+				if is_instance_valid(self) and is_inside_tree() and bgc_ref != null and is_instance_valid(bgc_ref) and bgc_ref.has_method("ensure_warming"):
+					bgc_ref.call("ensure_warming")
+			)
 	elif ResourceLoader.exists("res://assets/sprites/village/animated_bg/f_000.webp"):
 		background.texture = load("res://assets/sprites/village/animated_bg/f_000.webp")
 
@@ -472,6 +481,8 @@ func _ensure_game_loop() -> void:
 	if GameLoopScript.instance == null:
 		_game_loop = GameLoopScript.new()
 		add_child(_game_loop)
+	elif GameLoopScript.instance.has_method("sync_wall_clock_now"):
+		GameLoopScript.instance.call("sync_wall_clock_now")
 	var clock = Engine.get_main_loop().root.get_node_or_null("GameClock") if Engine.get_main_loop() is SceneTree else null
 	if clock != null and clock.has_method("start"):
 		if not bool(clock.get("running")):

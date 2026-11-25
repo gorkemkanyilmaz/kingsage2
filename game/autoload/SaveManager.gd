@@ -352,14 +352,21 @@ func _apply_offline_catchup(gs: Node, saved_unix: int) -> void:
 	var build_events: Array = []
 	var army_events: Array = []
 	var action_events: Array = []
+	var human_vids: Dictionary = {}
+	for v_item in state_dict.get("villages", []):
+		if typeof(v_item) == TYPE_DICTIONARY:
+			var vd_h := v_item as Dictionary
+			if not bool(vd_h.get("is_bot", false)) and not bool(vd_h.get("is_barbarian", false)):
+				human_vids[int(vd_h.get("id", -1))] = true
 
-	var bot_interval := maxi(300, int(elapsed_seconds / 10.0))
+	var bot_interval := maxi(600, int(elapsed_seconds / 3.0))
+	var bot_passes := 0
 	var cursor := saved_unix
 	var last_bot_t := saved_unix
 	var next_bot_t := mini(now, saved_unix + bot_interval)
 	var iters := 0
 
-	while cursor < now and iters < 300:
+	while cursor < now and iters < 120:
 		iters += 1
 		var next_ev := _next_catchup_timestamp(state_dict, now)
 		var seg_end := mini(now, mini(next_ev, next_bot_t))
@@ -387,19 +394,22 @@ func _apply_offline_catchup(gs: Node, saved_unix: int) -> void:
 			if typeof(actev) == TYPE_ARRAY:
 				action_events.append_array(actev)
 
-		if seg_end >= next_bot_t or seg_end == now:
+		if (seg_end >= next_bot_t or seg_end == now) and bot_passes < 3:
 			if BotSimScript != null and seg_end > last_bot_t:
 				BotSimScript.process_tick(state_dict, seg_end, float(seg_end - last_bot_t))
+				bot_passes += 1
 			last_bot_t = seg_end
 			next_bot_t = mini(now, seg_end + bot_interval)
 
 		if seg_end == cursor:
-			# Aynı timestamp'te kalan başka tetikleyici yoksa döngüden çıkmamak için ilerle
 			var check_next := _next_catchup_timestamp(state_dict, now)
-			if check_next <= cursor:
-				seg_end = mini(now, next_bot_t)
-				if seg_end <= cursor:
-					break
+			if check_next > cursor:
+				# Aynı saniyede kalan diğer olaylar temizlendi; sonraki olaya atlamak için döngü devam eder
+				continue
+			seg_end = mini(now, next_bot_t)
+			if seg_end <= cursor:
+				break
+			cursor = seg_end
 			continue
 		cursor = seg_end
 
@@ -427,11 +437,15 @@ func _apply_offline_catchup(gs: Node, saved_unix: int) -> void:
 	if bus != null:
 		for ev in build_events:
 			if typeof(ev) == TYPE_DICTIONARY and bus.has_signal("building_completed"):
-				bus.building_completed.emit(int(ev.get("village_id", -1)), str(ev.get("key", "")), int(ev.get("level", 0)))
+				var b_vid := int(ev.get("village_id", -1))
+				if human_vids.has(b_vid):
+					bus.building_completed.emit(b_vid, str(ev.get("key", "")), int(ev.get("level", 0)))
 		for ev in army_events:
 			if typeof(ev) == TYPE_DICTIONARY:
 				var ev_type := str(ev.get("type", ""))
 				var vid := int(ev.get("village_id", -1))
+				if not human_vids.has(vid):
+					continue
 				if ev_type == "research_completed" and bus.has_signal("research_completed"):
 					bus.research_completed.emit(vid, str(ev.get("unit_key", ev.get("key", ""))))
 				elif ev_type in ["unit_trained", "training_completed"] and bus.has_signal("unit_trained"):

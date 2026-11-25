@@ -4,14 +4,14 @@ extends Control
 const Palette := preload("res://themes/Palette.gd")
 const FontNunitoBold := preload("res://assets/fonts/Nunito-Bold.ttf")
 const FontCinzelBold := preload("res://assets/fonts/Cinzel-Bold.ttf")
-const IconWood := preload("res://assets/sprites/ui/nano_banana/sharp_icon_wood.tres")
-const IconStone := preload("res://assets/sprites/ui/nano_banana/sharp_icon_stone.tres")
-const IconIron := preload("res://assets/sprites/ui/nano_banana/sharp_icon_iron.tres")
-const IconReportSeal := preload("res://assets/sprites/ui/nano_banana/sharp_icon_report_seal.tres")
-const IconScrollMarch := preload("res://assets/sprites/ui/nano_banana/sharp_scroll_march.tres")
-const IconScrollResearch := preload("res://assets/sprites/ui/nano_banana/sharp_scroll_research.tres")
-const IconResourceCaravan := preload("res://assets/sprites/ui/nano_banana/sharp_pack_resource_caravan.tres")
-const TexRoyalBtnBg := preload("res://assets/sprites/ui/nano_banana/sharp_ui_royal_btn_bg.tres")
+const IconWood := preload("res://assets/sprites/ui/nano_banana/sharp_icon_wood.png")
+const IconStone := preload("res://assets/sprites/ui/nano_banana/sharp_icon_stone.png")
+const IconIron := preload("res://assets/sprites/ui/nano_banana/sharp_icon_iron.png")
+const IconReportSeal := preload("res://assets/sprites/ui/nano_banana/sharp_icon_report_seal.png")
+const IconScrollMarch := preload("res://assets/sprites/ui/nano_banana/sharp_scroll_march.png")
+const IconScrollResearch := preload("res://assets/sprites/ui/nano_banana/sharp_scroll_research.png")
+const IconResourceCaravan := preload("res://assets/sprites/ui/nano_banana/sharp_pack_resource_caravan.png")
+const TexRoyalBtnBg := preload("res://assets/sprites/ui/nano_banana/sharp_ui_royal_btn_bg.png")
 
 const ICON_BATTLE := "res://assets/sprites/icons/cartography/2x/skull.png"
 const ICON_SPY := "res://assets/sprites/icons/cartography/2x/watchtower.png"

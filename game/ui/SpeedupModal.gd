@@ -5,11 +5,11 @@ const FontCinzelBold := preload("res://assets/fonts/Cinzel-Bold.ttf")
 const FontNunitoBold := preload("res://assets/fonts/Nunito-Bold.ttf")
 const FontNunitoSemiBold := preload("res://assets/fonts/Nunito-SemiBold.ttf")
 const GameLoopScript := preload("res://scripts/core/GameLoop.gd")
-const IconDiamond := preload("res://assets/sprites/ui/nano_banana/sharp_icon_diamond.tres")
-const IconScrollBuild := preload("res://assets/sprites/ui/nano_banana/sharp_scroll_build.tres")
-const IconScrollTrain := preload("res://assets/sprites/ui/nano_banana/sharp_scroll_train.tres")
-const IconScrollResearch := preload("res://assets/sprites/ui/nano_banana/sharp_scroll_research.tres")
-const IconScrollMarch := preload("res://assets/sprites/ui/nano_banana/sharp_scroll_march.tres")
+const IconDiamond := preload("res://assets/sprites/ui/nano_banana/sharp_icon_diamond.png")
+const IconScrollBuild := preload("res://assets/sprites/ui/nano_banana/sharp_scroll_build.png")
+const IconScrollTrain := preload("res://assets/sprites/ui/nano_banana/sharp_scroll_train.png")
+const IconScrollResearch := preload("res://assets/sprites/ui/nano_banana/sharp_scroll_research.png")
+const IconScrollMarch := preload("res://assets/sprites/ui/nano_banana/sharp_scroll_march.png")
 
 
 func _scroll_tex_for_cat(cat: String) -> Texture2D:

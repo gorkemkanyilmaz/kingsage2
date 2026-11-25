@@ -21,9 +21,9 @@ const TexQuestIcon := preload("res://assets/sprites/ui/tutorial/quest_scroll_ico
 const TexVizier := preload("res://assets/sprites/ui/tutorial/vizier_portrait.png")
 const TexRoyalSeal := preload("res://assets/sprites/ui/tutorial/royal_decree_seal.png")
 
-const IconWood := preload("res://assets/sprites/ui/nano_banana/sharp_icon_wood.tres")
-const IconStone := preload("res://assets/sprites/ui/nano_banana/sharp_icon_stone.tres")
-const IconIron := preload("res://assets/sprites/ui/nano_banana/sharp_icon_iron.tres")
+const IconWood := preload("res://assets/sprites/ui/nano_banana/sharp_icon_wood.png")
+const IconStone := preload("res://assets/sprites/ui/nano_banana/sharp_icon_stone.png")
+const IconIron := preload("res://assets/sprites/ui/nano_banana/sharp_icon_iron.png")
 
 ## Testler tarafından headless modda görev HUD'unu aktif etmek için kullanılır.
 var quest_enabled_in_headless: bool = false

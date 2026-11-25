@@ -3,13 +3,13 @@
 [ext_resource type="Script" path="res://ui/BuildingPanel.gd" id="1_bpanel"]
 [ext_resource type="Theme" path="res://themes/TahtVeKilic.tres" id="2_theme"]
 [ext_resource type="Script" path="res://ui/ResourcePill.gd" id="3_rpill"]
-[ext_resource type="Texture2D" path="res://assets/sprites/ui/nano_banana/sharp_icon_wood.tres" id="4_icon_wood"]
-[ext_resource type="Texture2D" path="res://assets/sprites/ui/nano_banana/sharp_icon_stone.tres" id="5_icon_stone"]
-[ext_resource type="Texture2D" path="res://assets/sprites/ui/nano_banana/sharp_icon_iron.tres" id="6_icon_iron"]
+[ext_resource type="Texture2D" path="res://assets/sprites/ui/nano_banana/sharp_icon_wood.png" id="4_icon_wood"]
+[ext_resource type="Texture2D" path="res://assets/sprites/ui/nano_banana/sharp_icon_stone.png" id="5_icon_stone"]
+[ext_resource type="Texture2D" path="res://assets/sprites/ui/nano_banana/sharp_icon_iron.png" id="6_icon_iron"]
 [ext_resource type="FontFile" path="res://assets/fonts/Nunito-Bold.ttf" id="7_nunito_bold"]
 
 
-[ext_resource type="Texture2D" path="res://assets/sprites/ui/nano_banana/sharp_icon_citizens.tres" id="8_icon_cit"]
+[ext_resource type="Texture2D" path="res://assets/sprites/ui/nano_banana/sharp_icon_citizens.png" id="8_icon_cit"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_tab_active"]
 content_margin_left = 14.0

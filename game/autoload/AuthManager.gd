@@ -421,7 +421,7 @@ func _start_ios_native_auth(prov: String, is_apple: bool, req_id: String, base_u
 	var wait_msg := (
 		"Cihazınızın Apple Kimliği ve Face ID doğrulaması bekleniyor..."
 		if is_apple
-		else "Cihazınızın Google (Gmail) hesabı ve Face ID doğrulaması bekleniyor..."
+		else "Google oturum açma penceresi açılıyor..."
 	)
 	var status_lbl := _show_waiting_sheet(parent_node, title, wait_msg, is_apple, cleanup_native_files)
 

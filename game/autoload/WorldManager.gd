@@ -428,6 +428,66 @@ func get_world_meta(world_id: int) -> Dictionary:
 	return {}
 
 
+const _MOJIBAKE_PAIRS := [
+	["Ä°", "İ"], ["Ä±", "ı"],
+	["ÅŸ", "ş"], ["Å\u009f", "ş"], ["Åž", "Ş"], ["Å\u009e", "Ş"],
+	["ÄŸ", "ğ"], ["Ä\u009f", "ğ"], ["Äž", "Ğ"], ["Ä\u009e", "Ğ"],
+	["Ã§", "ç"], ["Ã‡", "Ç"],
+	["Ã¼", "ü"], ["Ãœ", "Ü"],
+	["Ã¶", "ö"], ["Ã–", "Ö"],
+	["â€”", "—"], ["â€“", "–"], ["â€¢", "•"], ["â€™", "’"],
+]
+
+
+static func repair_mojibake_str(s: String) -> String:
+	if s.is_empty():
+		return s
+	if not (s.contains("Ã") or s.contains("Ä") or s.contains("Å") or s.contains("â")):
+		return s
+	var out := s
+	for pair in _MOJIBAKE_PAIRS:
+		var bad: String = pair[0]
+		if out.contains(bad):
+			out = out.replace(bad, pair[1])
+	return out
+
+
+static func repair_mojibake_inplace(v: Variant) -> bool:
+	var changed := false
+	if typeof(v) == TYPE_DICTIONARY:
+		var d := v as Dictionary
+		var keys := d.keys()
+		for k in keys:
+			var val = d[k]
+			if typeof(val) == TYPE_STRING:
+				var fixed := repair_mojibake_str(val as String)
+				if fixed != val:
+					d[k] = fixed
+					changed = true
+			elif typeof(val) == TYPE_DICTIONARY or typeof(val) == TYPE_ARRAY:
+				if repair_mojibake_inplace(val):
+					changed = true
+			if typeof(k) == TYPE_STRING:
+				var fixed_k := repair_mojibake_str(k as String)
+				if fixed_k != k and not d.has(fixed_k):
+					d[fixed_k] = d[k]
+					d.erase(k)
+					changed = true
+	elif typeof(v) == TYPE_ARRAY:
+		var arr := v as Array
+		for i in range(arr.size()):
+			var item = arr[i]
+			if typeof(item) == TYPE_STRING:
+				var fixed_i := repair_mojibake_str(item as String)
+				if fixed_i != item:
+					arr[i] = fixed_i
+					changed = true
+			elif typeof(item) == TYPE_DICTIONARY or typeof(item) == TYPE_ARRAY:
+				if repair_mojibake_inplace(item):
+					changed = true
+	return changed
+
+
 ## Dünyanın diskteki (veya web localStorage'daki) kayıt dosyasını okur (varsa).
 func load_world_dict(world_id: int) -> Dictionary:
 	var path := get_world_file_path(world_id)
@@ -445,7 +505,10 @@ func load_world_dict(world_id: int) -> Dictionary:
 	if text.is_empty():
 		return {}
 	var parsed = JSON.parse_string(text)
-	return parsed if typeof(parsed) == TYPE_DICTIONARY else {}
+	if typeof(parsed) != TYPE_DICTIONARY:
+		return {}
+	repair_mojibake_inplace(parsed)
+	return parsed
 
 
 ## Dünyayı diske ve web localStorage'a kaydeder.
@@ -954,6 +1017,7 @@ func enter_world(world_id: int, player_name: String) -> bool:
 	current_world_id = world_id
 	_save_meta()
 	var saved_unix := int(w_data.get("last_saved_unix", 0))
+	_suppress_tick_autosave = true
 	_apply_to_game_state(w_data, player_name, player_vid)
 
 	# Offline telafi
@@ -961,9 +1025,24 @@ func enter_world(world_id: int, player_name: String) -> bool:
 	var gs = Engine.get_main_loop().root.get_node_or_null("GameState") if Engine.get_main_loop() is SceneTree else null
 	if sm != null and gs != null:
 		sm._apply_offline_catchup(gs, saved_unix)
-		save_active_world()
+	_suppress_tick_autosave = false
+
+	if Engine.get_main_loop() is SceneTree:
+		var root_n := (Engine.get_main_loop() as SceneTree).root
+		var gclk = root_n.get_node_or_null("GameClock")
+		if gclk != null and gclk.has_method("reset_accumulator"):
+			gclk.call("reset_accumulator")
+		var gl_auto = root_n.get_node_or_null("GameLoop")
+		if gl_auto != null and gl_auto.has_method("sync_wall_clock_now"):
+			gl_auto.call("sync_wall_clock_now", now)
+		var gl_inst = load("res://scripts/core/GameLoop.gd").get("instance")
+		if gl_inst != null and is_instance_valid(gl_inst) and gl_inst.has_method("sync_wall_clock_now"):
+			gl_inst.call("sync_wall_clock_now", now)
+
+	if sm != null and gs != null:
+		save_active_world(false, true)
 		if sm.has_method("save_game"):
-			sm.save_game()
+			sm.save_game(true, false)
 
 	return true
 
@@ -2680,6 +2759,7 @@ func apply_cloud_sync(res_data: Dictionary, from_save_response: bool = false, re
 				"registered_real_players": [p_name],
 				"state": cs_dict.duplicate(true),
 			}
+		repair_mojibake_inplace(cloud_w)
 		var local_w := load_world_dict(w_id)
 		var local_has := has_player_village(w_id, p_name)
 		var local_ts := int(local_w.get("last_saved_unix", 0))

@@ -542,29 +542,39 @@ extern "C" void tvk_ios_auth_bridge_init(void) {
 
 - (UIWindow *)activeKeyWindow {
     if (@available(iOS 13.0, *)) {
-        UIWindow *fallbackWindow = nil;
+        UIWindow *fallbackActive = nil;
+        UIWindow *fallbackAny = nil;
         for (UIScene *scene in [UIApplication sharedApplication].connectedScenes) {
             if ([scene isKindOfClass:[UIWindowScene class]] &&
                 scene.activationState == UISceneActivationStateForegroundActive) {
                 UIWindowScene *ws = (UIWindowScene *)scene;
                 for (UIWindow *w in ws.windows) {
-                    if (w.rootViewController != nil && w.isKeyWindow) {
+                    if (w.rootViewController == nil || w.hidden) {
+                        continue;
+                    }
+                    if (w.windowLevel == UIWindowLevelNormal && w.isKeyWindow) {
                         return w;
                     }
-                    if (w.rootViewController != nil && fallbackWindow == nil) {
-                        fallbackWindow = w;
+                    if (w.windowLevel == UIWindowLevelNormal && fallbackActive == nil) {
+                        fallbackActive = w;
+                    }
+                    if (fallbackAny == nil) {
+                        fallbackAny = w;
                     }
                 }
             }
         }
-        if (fallbackWindow != nil) {
-            return fallbackWindow;
+        if (fallbackActive != nil) {
+            return fallbackActive;
+        }
+        if (fallbackAny != nil) {
+            return fallbackAny;
         }
         for (UIScene *scene in [UIApplication sharedApplication].connectedScenes) {
             if ([scene isKindOfClass:[UIWindowScene class]]) {
                 UIWindowScene *ws = (UIWindowScene *)scene;
                 for (UIWindow *w in ws.windows) {
-                    if (w.rootViewController != nil) {
+                    if (!w.hidden && w.windowLevel == UIWindowLevelNormal && w.rootViewController != nil) {
                         return w;
                     }
                 }
@@ -574,11 +584,11 @@ extern "C" void tvk_ios_auth_bridge_init(void) {
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wdeprecated-declarations"
     UIWindow *kw = [UIApplication sharedApplication].keyWindow;
-    if (kw != nil && kw.rootViewController != nil) {
+    if (kw != nil && !kw.hidden && kw.rootViewController != nil) {
         return kw;
     }
     for (UIWindow *w in [UIApplication sharedApplication].windows) {
-        if (w.rootViewController != nil) {
+        if (!w.hidden && w.rootViewController != nil) {
             return w;
         }
     }
@@ -839,34 +849,10 @@ extern "C" void tvk_ios_auth_bridge_init(void) {
 }
 #endif
 
-#pragma mark - Sign in with Google (Face ID + ASWebAuthenticationSession + PKCE)
+#pragma mark - Sign in with Google (In-App ASWebAuthenticationSession + PKCE)
 
 - (void)startNativeGoogleSignIn {
-    LAContext *ctx = [[LAContext alloc] init];
-    NSError *authErr = nil;
-    if ([ctx canEvaluatePolicy:LAPolicyDeviceOwnerAuthenticationWithBiometrics error:&authErr]) {
-        [ctx evaluatePolicy:LAPolicyDeviceOwnerAuthenticationWithBiometrics
-            localizedReason:@"Taht ve Kilic Google hesabinizla giris icin Face ID dogrulamasi."
-                      reply:^(BOOL success, NSError * _Nullable error) {
-            dispatch_async(dispatch_get_main_queue(), ^{
-                if (success) {
-                    [self launchGoogleASWebAuthenticationSession];
-                    return;
-                }
-                if (error != nil && (
-                    error.code == LAErrorUserCancel ||
-                    error.code == LAErrorAppCancel ||
-                    error.code == LAErrorSystemCancel
-                )) {
-                    [self finishError:@"Google ile giris iptal edildi." cancelled:YES];
-                    return;
-                }
-                [self launchGoogleASWebAuthenticationSession];
-            });
-        }];
-        return;
-    }
-    [self launchGoogleASWebAuthenticationSession];
+    [self launchGoogleASWebAuthenticationSessionWithAttempt:0];
 }
 
 #if TVK_HAS_AUTH_SERVICES
@@ -876,8 +862,26 @@ extern "C" void tvk_ios_auth_bridge_init(void) {
 #endif
 
 - (void)launchGoogleASWebAuthenticationSession {
+    [self launchGoogleASWebAuthenticationSessionWithAttempt:0];
+}
+
+- (void)launchGoogleASWebAuthenticationSessionWithAttempt:(NSInteger)attempt {
 #if TVK_HAS_AUTH_SERVICES
     if (@available(iOS 12.0, *)) {
+        UIWindow *anchorWin = [self activeKeyWindow];
+        UIApplicationState appState = [UIApplication sharedApplication].applicationState;
+        if ((appState != UIApplicationStateActive || anchorWin == nil) && attempt < 10) {
+            __weak typeof(self) weakSelf = self;
+            dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.15 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+                [weakSelf launchGoogleASWebAuthenticationSessionWithAttempt:(attempt + 1)];
+            });
+            return;
+        }
+        if (anchorWin == nil) {
+            [self finishError:@"Google oturum penceresi icin aktif pencere bulunamadi." cancelled:NO];
+            return;
+        }
+
         NSString *verifier = TVKRandomBase64URL(32);
         NSString *challenge = TVKSHA256Base64URL(verifier);
         NSString *state = TVKRandomBase64URL(16);
@@ -893,7 +897,7 @@ extern "C" void tvk_ios_auth_bridge_init(void) {
             [NSURLQueryItem queryItemWithName:@"code_challenge" value:challenge],
             [NSURLQueryItem queryItemWithName:@"code_challenge_method" value:@"S256"],
             [NSURLQueryItem queryItemWithName:@"state" value:state],
-            [NSURLQueryItem queryItemWithName:@"prompt" value:@"select_account"]
+            [NSURLQueryItem queryItemWithName:@"prompt" value:@"login"]
         ];
         NSURL *authURL = comps.URL;
         if (authURL == nil) {
@@ -914,6 +918,16 @@ extern "C" void tvk_ios_auth_bridge_init(void) {
                     strongSelf.googleAuthSession = nil;
 
                     if (error != nil) {
+                        if (@available(iOS 13.0, *)) {
+                            if ([error.domain isEqualToString:ASWebAuthenticationSessionErrorDomain] &&
+                                error.code == ASWebAuthenticationSessionErrorCodePresentationContextInvalid &&
+                                attempt < 2) {
+                                dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.35 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+                                    [strongSelf launchGoogleASWebAuthenticationSessionWithAttempt:(attempt + 1)];
+                                });
+                                return;
+                            }
+                        }
                         BOOL isCancel = (error.code == ASWebAuthenticationSessionErrorCodeCanceledLogin);
                         NSString *msg = isCancel ? @"Google ile giris iptal edildi." : (error.localizedDescription ?: @"Google dogrulamasi basarisiz.");
                         [strongSelf finishError:msg cancelled:isCancel];
@@ -956,11 +970,17 @@ extern "C" void tvk_ios_auth_bridge_init(void) {
 
         if (@available(iOS 13.0, *)) {
             session.presentationContextProvider = self;
-            session.prefersEphemeralWebBrowserSession = NO;
+            session.prefersEphemeralWebBrowserSession = YES;
         }
         self.googleAuthSession = session;
         if (![session start]) {
             self.googleAuthSession = nil;
+            if (attempt < 2) {
+                dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.35 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+                    [weakSelf launchGoogleASWebAuthenticationSessionWithAttempt:(attempt + 1)];
+                });
+                return;
+            }
             [self finishError:@"Google oturum penceresi baslatilamadi." cancelled:NO];
         }
         return;

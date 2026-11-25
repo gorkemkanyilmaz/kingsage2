@@ -392,6 +392,8 @@ def init_db():
                     ) VALUES (?, 1, NULL, ?, ?, ?, ?, 110, 1, 0, ?, ?, ?, ?, 0)
                 """, (idx, f"Kale {bname}", bx, by, bname, initial_buildings, initial_resources, initial_units, now))
 
+        _repair_existing_mojibake_in_db(cursor, int(time.time()))
+
     conn.close()
 
 # -----------------------------------------------------------------------------
@@ -1250,6 +1252,99 @@ def _player_has_village_in_world(w_data: Optional[Dict[str, Any]], player_name: 
     return False
 
 
+_MOJIBAKE_REPAIRED_ONCE = False
+_MOJIBAKE_MARKERS = ("Ã", "Ä", "Å", "â")
+
+
+def _repair_mojibake_str(s: str) -> str:
+    if not s or not any(m in s for m in _MOJIBAKE_MARKERS):
+        return s
+    cur = s
+    for _ in range(2):
+        fixed = None
+        for enc in ("cp1252", "latin-1"):
+            try:
+                cand = cur.encode(enc).decode("utf-8")
+                if cand != cur:
+                    fixed = cand
+                    break
+            except (UnicodeEncodeError, UnicodeDecodeError):
+                continue
+        if fixed is None:
+            break
+        cur = fixed
+        if not any(m in cur for m in _MOJIBAKE_MARKERS):
+            break
+    return cur
+
+
+def _repair_mojibake_obj(obj: Any) -> Any:
+    if isinstance(obj, str):
+        return _repair_mojibake_str(obj)
+    if isinstance(obj, list):
+        for i, item in enumerate(obj):
+            if isinstance(item, str):
+                fixed = _repair_mojibake_str(item)
+                if fixed != item:
+                    obj[i] = fixed
+            elif isinstance(item, (dict, list)):
+                _repair_mojibake_obj(item)
+        return obj
+    if isinstance(obj, dict):
+        keys = list(obj.keys())
+        for k in keys:
+            v = obj[k]
+            if isinstance(v, str):
+                fixed_v = _repair_mojibake_str(v)
+                if fixed_v != v:
+                    obj[k] = fixed_v
+            elif isinstance(v, (dict, list)):
+                _repair_mojibake_obj(v)
+            if isinstance(k, str):
+                fixed_k = _repair_mojibake_str(k)
+                if fixed_k != k and fixed_k not in obj:
+                    obj[fixed_k] = obj.pop(k)
+        return obj
+    return obj
+
+
+def _repair_existing_mojibake_in_db(cursor, now: int) -> None:
+    try:
+        cursor.execute("SELECT world_id, state_json FROM world_states")
+        for row in cursor.fetchall():
+            wid = row["world_id"]
+            raw = row["state_json"]
+            if not raw or not any(m in raw for m in _MOJIBAKE_MARKERS):
+                continue
+            parsed = json.loads(raw)
+            _repair_mojibake_obj(parsed)
+            fixed_json = json.dumps(parsed, ensure_ascii=False)
+            if fixed_json != raw:
+                cursor.execute(
+                    "UPDATE world_states SET state_json = ?, updated_unix = ? WHERE world_id = ?",
+                    (fixed_json, now, wid),
+                )
+    except Exception:
+        pass
+    try:
+        cursor.execute("SELECT user_id, state_json FROM cloud_saves")
+        for row in cursor.fetchall():
+            uid = row["user_id"]
+            raw = row["state_json"]
+            if not raw or not any(m in raw for m in _MOJIBAKE_MARKERS):
+                continue
+            parsed = json.loads(raw)
+            _repair_mojibake_obj(parsed)
+            fixed_json = json.dumps(parsed, ensure_ascii=False)
+            if fixed_json != raw:
+                cursor.execute(
+                    "UPDATE cloud_saves SET state_json = ?, updated_unix = ? WHERE user_id = ?",
+                    (fixed_json, now, uid),
+                )
+    except Exception:
+        pass
+
+
 def _prepare_world_for_player(
     world_w: Optional[Dict[str, Any]],
     player_name: str,
@@ -1258,6 +1353,7 @@ def _prepare_world_for_player(
     if not isinstance(world_w, dict):
         return None
     w = copy.deepcopy(world_w)
+    _repair_mojibake_obj(w)
     state = w.setdefault("state", {})
     w_dict = state.setdefault("world", {})
     norm_p = _norm_p_name(player_name)
@@ -4026,6 +4122,8 @@ def post_cloud_save(payload: Dict[str, Any], user: Dict[str, Any] = Depends(get_
 
         if bool(payload.get("alliance_authoritative", False) or state_obj.get("alliance_authoritative", False)) and isinstance(state_obj, dict):
             state_obj["alliance_authoritative"] = True
+        if isinstance(state_obj, (dict, list)):
+            _repair_mojibake_obj(state_obj)
         merged_w = merge_world_state(server_w, state_obj, user["display_name"], now)
         try:
             _dispatch_world_save_notifications(cursor, server_w, merged_w, user["display_name"], w_id, now)

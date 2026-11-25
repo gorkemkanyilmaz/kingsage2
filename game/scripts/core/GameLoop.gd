@@ -115,6 +115,13 @@ func _initial_now() -> int:
 #  Döngü
 # =============================================================================
 
+func sync_wall_clock_now(now_u: int = -1) -> void:
+	var t := float(now_u if now_u > 0 else int(Time.get_unix_time_from_system()))
+	_now_unix = t
+	_last_wall_unix = t
+	_auto_save_timer = 0.0
+
+
 func _on_tick(delta_seconds: float) -> void:
 	var real_now := float(Time.get_unix_time_from_system())
 	var actual_delta := delta_seconds
@@ -206,9 +213,10 @@ func simulate(delta_seconds: float) -> Array:
 					events.append_array(produced_zero)
 		else:
 			var chunk_interval := maxi(60, int(effective_delta / 10.0))
+			var bot_passes := 0
 			var next_chunk := mini(now, cursor + chunk_interval)
 			var iters := 0
-			while cursor < now and iters < 200:
+			while cursor < now and iters < 60:
 				iters += 1
 				var next_ev := _next_sim_event_unix(state, now)
 				var seg_end := mini(now, mini(next_ev, next_chunk))
@@ -216,16 +224,25 @@ func simulate(delta_seconds: float) -> Array:
 					seg_end = cursor
 				var seg_dt := float(seg_end - cursor)
 				world_dict["sim_now_unix"] = seg_end
-				for script in _modules:
-					var produced_seg = script.process_tick(state, seg_end, seg_dt)
+				for m_idx in range(_modules.size()):
+					var is_bot_mod: bool = (m_idx < _loaded_paths.size() and str(_loaded_paths[m_idx]).ends_with("BotSimulator.gd"))
+					if is_bot_mod:
+						if bot_passes >= 3:
+							continue
+						bot_passes += 1
+					var produced_seg = _modules[m_idx].process_tick(state, seg_end, seg_dt)
 					if typeof(produced_seg) == TYPE_ARRAY:
 						events.append_array(produced_seg)
 				if seg_end >= next_chunk:
 					next_chunk = mini(now, seg_end + chunk_interval)
 				if seg_end == cursor:
 					var check_next := _next_sim_event_unix(state, now)
-					if check_next <= cursor:
+					if check_next > cursor:
+						continue
+					seg_end = mini(now, next_chunk)
+					if seg_end <= cursor:
 						break
+					cursor = seg_end
 					continue
 				cursor = seg_end
 			if cursor < now:

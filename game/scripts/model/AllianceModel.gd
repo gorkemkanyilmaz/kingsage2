@@ -82,7 +82,7 @@ static func create_alliance(
 		"name": clean_name,
 		"tag": clean_tag,
 		"description": description.strip_edges(),
-		"internal_announcement": " İttifakımıza hoş geldiniz! Birlikte güçlüyüz.",
+		"internal_announcement": "İttifakımıza hoş geldiniz! Birlikte güçlüyüz.",
 		"founder": creator_name,
 		"leader": creator_name,
 		"created_unix": now,
@@ -106,7 +106,7 @@ static func create_alliance(
 		"chat_messages": [
 			{
 				"sender": "Sistem",
-				"text": " [%s] %s ittifakı kuruldu!" % [clean_tag, clean_name],
+				"text": "[%s] %s ittifakı kuruldu!" % [clean_tag, clean_name],
 				"timestamp_unix": now
 			}
 		],

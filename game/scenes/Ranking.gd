@@ -5,8 +5,8 @@ const AllianceModelScript := preload("res://scripts/model/AllianceModel.gd")
 
 const FontCinzelBold = preload("res://assets/fonts/Cinzel-Bold.ttf")
 const FontNunitoBold = preload("res://assets/fonts/Nunito-Bold.ttf")
-const IconAllianceShield = preload("res://assets/sprites/ui/nano_banana/sharp_icon_alliance_shield.tres")
-const TexRoyalBtnBg = preload("res://assets/sprites/ui/nano_banana/sharp_ui_royal_btn_bg.tres")
+const IconAllianceShield = preload("res://assets/sprites/ui/nano_banana/sharp_icon_alliance_shield.png")
+const TexRoyalBtnBg = preload("res://assets/sprites/ui/nano_banana/sharp_ui_royal_btn_bg.png")
 
 const ROW_H := 92.0
 const MEDAL_COLORS := [

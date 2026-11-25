@@ -38,6 +38,7 @@ var _status_lbl: Label
 var _world_buttons: Dictionary = {}
 var _selected_world_id: int = 1
 var _auto_enter_after_login: bool = false
+var _entering_world: bool = false
 static var _boot_splash_shown: bool = false
 
 
@@ -622,7 +623,24 @@ func _check_conquered_state() -> void:
 		wm.maybe_show_conquered_modal_for_current_scene(wm.current_world_id, p_name)
 
 
+func _set_continue_loading_ui(loading: bool) -> void:
+	if _btn_profile_continue != null and is_instance_valid(_btn_profile_continue):
+		_btn_profile_continue.disabled = loading
+		_btn_profile_continue.text = "⏳ Köy Yükleniyor..." if loading else "▶ Oyuna Devam Et"
+
+
 func _on_profile_continue_pressed() -> void:
+	if _entering_world:
+		return
+	_entering_world = true
+	_set_continue_loading_ui(true)
+	if DisplayServer.get_name() == "headless":
+		_execute_profile_continue()
+	else:
+		call_deferred("_execute_profile_continue")
+
+
+func _execute_profile_continue() -> void:
 	var root = Engine.get_main_loop().root if Engine.get_main_loop() is SceneTree else null
 	var wm = root.get_node_or_null("WorldManager") if root != null else null
 	var sm = root.get_node_or_null("SaveManager") if root != null else null
@@ -634,6 +652,9 @@ func _on_profile_continue_pressed() -> void:
 			return
 	if sm != null and sm.has_save() and sm.load_game():
 		get_tree().change_scene_to_file("res://scenes/Village.tscn")
+		return
+	_entering_world = false
+	_set_continue_loading_ui(false)
 
 
 # =============================================================================
@@ -852,11 +873,21 @@ func _on_join_world(world_id: int) -> void:
 
 
 func _on_continue_world(world_id: int) -> void:
+	if _entering_world:
+		return
 	if not _is_authenticated():
 		if _auth_overlay != null:
 			_auth_overlay.show()
 		return
+	_entering_world = true
+	_set_continue_loading_ui(true)
+	if DisplayServer.get_name() == "headless":
+		_execute_continue_world(world_id)
+	else:
+		call_deferred("_execute_continue_world", world_id)
 
+
+func _execute_continue_world(world_id: int) -> void:
 	var root = Engine.get_main_loop().root if Engine.get_main_loop() is SceneTree else null
 	var wm = root.get_node_or_null("WorldManager") if root != null else null
 	var p_name := _get_player_name()
@@ -865,8 +896,12 @@ func _on_continue_world(world_id: int) -> void:
 		var success: bool = wm.enter_world(world_id, p_name)
 		if success:
 			get_tree().change_scene_to_file("res://scenes/Village.tscn")
-		else:
-			# Köyü bulunamadıysa (veya fethedildiyse) yön seçimi aç
-			_on_join_world(world_id)
+			return
+		_entering_world = false
+		_set_continue_loading_ui(false)
+		# Köyü bulunamadıysa (veya fethedildiyse) yön seçimi aç
+		_on_join_world(world_id)
 	else:
+		_entering_world = false
+		_set_continue_loading_ui(false)
 		push_error("WorldManager bulunamadı!")

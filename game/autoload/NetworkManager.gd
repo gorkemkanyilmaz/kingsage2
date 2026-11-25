@@ -125,7 +125,7 @@ func check_account_online(provider: String, email: String, provider_uid: String,
 	if not identity_token.strip_edges().is_empty():
 		payload_dict["identity_token"] = identity_token.strip_edges()
 	var payload := JSON.stringify(payload_dict)
-	var headers := ["Content-Type: application/json"]
+	var headers := ["Content-Type: application/json; charset=utf-8"]
 	var done := [false]
 
 	var handle_failure := func(response_code: int, res_data: Dictionary):
@@ -177,7 +177,7 @@ func check_account_online(provider: String, email: String, provider_uid: String,
 	req.add_child(watchdog)
 	watchdog.start()
 
-	var req_err := req.request(server_url + "/api/auth/check_account", headers, HTTPClient.METHOD_POST, payload)
+	var req_err := req.request_raw(server_url + "/api/auth/check_account", headers, HTTPClient.METHOD_POST, payload.to_utf8_buffer())
 	if req_err != OK and not bool(done[0]):
 		done[0] = true
 		req.queue_free()
@@ -220,7 +220,7 @@ func login_online(provider: String, display_name: String, callback: Callable = C
 		payload_dict["identity_token"] = auth_id_tok
 	var payload := JSON.stringify(payload_dict)
 
-	var headers := ["Content-Type: application/json"]
+	var headers := ["Content-Type: application/json; charset=utf-8"]
 	var done := [false]
 
 	var handle_login_failure := func(res_data: Dictionary):
@@ -305,7 +305,7 @@ func login_online(provider: String, display_name: String, callback: Callable = C
 	req.add_child(watchdog)
 	watchdog.start()
 
-	var req_err := req.request(server_url + "/api/auth/login", headers, HTTPClient.METHOD_POST, payload)
+	var req_err := req.request_raw(server_url + "/api/auth/login", headers, HTTPClient.METHOD_POST, payload.to_utf8_buffer())
 	if req_err != OK and not bool(done[0]):
 		done[0] = true
 		req.queue_free()
@@ -402,7 +402,7 @@ func save_state_to_cloud(token: String, state_dict: Dictionary, callback: Callab
 	req.timeout = 10.0
 
 	var headers := [
-		"Content-Type: application/json",
+		"Content-Type: application/json; charset=utf-8",
 		"Authorization: Bearer " + token
 	]
 
@@ -452,7 +452,7 @@ func save_state_to_cloud(token: String, state_dict: Dictionary, callback: Callab
 	req.add_child(watchdog)
 	watchdog.start()
 
-	var req_err := req.request(server_url + "/api/game/save", headers, HTTPClient.METHOD_POST, payload)
+	var req_err := req.request_raw(server_url + "/api/game/save", headers, HTTPClient.METHOD_POST, payload.to_utf8_buffer())
 	if req_err != OK and not bool(done[0]):
 		finish_cloud_save.call(false, {})
 
@@ -473,7 +473,7 @@ func delete_account_online(callback: Callable = Callable()) -> void:
 	add_child(req)
 	req.timeout = 15.0
 	var headers := PackedStringArray([
-		"Content-Type: application/json",
+		"Content-Type: application/json; charset=utf-8",
 		"Authorization: Bearer " + token,
 	])
 	req.request_completed.connect(func(result: int, response_code: int, _hdrs: PackedStringArray, body: PackedByteArray):
@@ -490,7 +490,7 @@ func delete_account_online(callback: Callable = Callable()) -> void:
 			callback.call(ok, res_json)
 		req.queue_free()
 	)
-	req.request(server_url + "/api/account/delete", headers, HTTPClient.METHOD_POST, "{}")
+	req.request_raw(server_url + "/api/account/delete", headers, HTTPClient.METHOD_POST, "{}".to_utf8_buffer())
 
 
 # =============================================================================
@@ -542,7 +542,7 @@ func _dispatch_api_request(endpoint: String, method: int, payload: Dictionary, c
 		token = str(auth.auth_token)
 
 	var headers := PackedStringArray([
-		"Content-Type: application/json"
+		"Content-Type: application/json; charset=utf-8"
 	])
 	if not token.is_empty():
 		headers.append("Authorization: Bearer " + token)
@@ -585,7 +585,7 @@ func _dispatch_api_request(endpoint: String, method: int, payload: Dictionary, c
 	req.add_child(watchdog)
 	watchdog.start()
 
-	var req_err := req.request(server_url + endpoint, headers, method, body_str)
+	var req_err := req.request_raw(server_url + endpoint, headers, method, body_str.to_utf8_buffer()) if not body_str.is_empty() else req.request(server_url + endpoint, headers, method, "")
 	if req_err != OK and not bool(done[0]):
 		finish_req.call(false, {"_request_error": req_err})
 

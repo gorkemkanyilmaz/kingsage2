@@ -6,7 +6,7 @@
 [ext_resource type="Theme" path="res://themes/TahtVeKilic.tres" id="4_theme"]
 [ext_resource type="Script" path="res://ui/Backdrop.gd" id="5_backdrop"]
 [ext_resource type="FontFile" path="res://assets/fonts/Cinzel-Bold.ttf" id="6_cinzel"]
-[ext_resource type="Texture2D" path="res://assets/sprites/ui/nano_banana/sharp_icon_report_seal.tres" id="7_seal"]
+[ext_resource type="Texture2D" path="res://assets/sprites/ui/nano_banana/sharp_icon_report_seal.png" id="7_seal"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_header"]
 content_margin_left = 22.0
