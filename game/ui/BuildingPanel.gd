@@ -160,6 +160,9 @@ var _focused_train_spin: SpinBox = null
 var _kb_scroll_done_for: String = ""
 var _kb_was_open_on_mobile: bool = false
 var _train_scroll_orig_min_h: float = 480.0
+var _pre_kb_scroll_y: int = -1
+var _post_kb_restore_scroll_y: int = -1
+var _post_kb_restore_unit: String = ""
 
 
 func _ensure_nodes() -> void:
@@ -343,6 +346,17 @@ func _commit_focused_train_input(override_txt: String = "__FROM_LINE__", release
 			if cb is Callable:
 				(cb as Callable).call()
 	if release_kb:
+		var sc_cur := get_node_or_null("VBox/TrainSection/TrainScroll") as ScrollContainer
+		var restore_y := _pre_kb_scroll_y
+		if restore_y < 0 and sc_cur != null:
+			restore_y = sc_cur.scroll_vertical
+		_pre_kb_scroll_y = -1
+		if _current_tab == Tab.TRAIN and restore_y >= 0:
+			_post_kb_restore_scroll_y = maxi(0, restore_y)
+			_post_kb_restore_unit = u_key
+		else:
+			_post_kb_restore_scroll_y = -1
+			_post_kb_restore_unit = ""
 		_focused_train_unit = ""
 		_focused_train_line = null
 		_focused_train_spin = null
@@ -354,6 +368,8 @@ func _commit_focused_train_input(override_txt: String = "__FROM_LINE__", release
 		if _current_tab == Tab.TRAIN:
 			offset_top = -1150.0
 			_update_active_train_info()
+			_apply_post_kb_scroll_restore(false)
+			call_deferred("_deferred_post_kb_scroll_restore")
 		var gc: Node = Engine.get_main_loop().root.get_node_or_null("GameConfig") if Engine.get_main_loop() is SceneTree else null
 		if gc != null and gc.has_method("dismiss_virtual_keyboard"):
 			gc.call("dismiss_virtual_keyboard")
@@ -464,6 +480,34 @@ func _restore_keyboard_lift() -> void:
 		_kb_preview_bar.hide()
 	if absf(offset_bottom - (-256.0)) > 0.5:
 		offset_bottom = -256.0
+
+
+func _deferred_post_kb_scroll_restore() -> void:
+	_apply_post_kb_scroll_restore(false)
+	call_deferred("_apply_post_kb_scroll_restore", true)
+
+
+func _apply_post_kb_scroll_restore(clear_after: bool = false) -> void:
+	if not visible or _current_tab != Tab.TRAIN or _post_kb_restore_scroll_y < 0:
+		if clear_after:
+			_post_kb_restore_scroll_y = -1
+			_post_kb_restore_unit = ""
+		return
+	var scroll := get_node_or_null("VBox/TrainSection/TrainScroll") as ScrollContainer
+	if scroll != null:
+		var target_y := maxi(0, _post_kb_restore_scroll_y)
+		if train_list != null and not _post_kb_restore_unit.is_empty():
+			var card := train_list.get_node_or_null("TrainCard_" + _post_kb_restore_unit) as Control
+			if card != null and scroll.size.y > 40.0:
+				var vis_h := scroll.size.y
+				if card.position.y + card.size.y < float(target_y) + 40.0 or card.position.y > float(target_y) + vis_h - 40.0:
+					var row_node := card.find_child("TrainInputRow_" + _post_kb_restore_unit, true, false) as Control
+					var row_bottom := card.position.y + (row_node.position.y + row_node.size.y if row_node != null else card.size.y)
+					target_y = int(maxf(0.0, maxf(card.position.y - 12.0, row_bottom - vis_h + 24.0)))
+		scroll.scroll_vertical = target_y
+	if clear_after:
+		_post_kb_restore_scroll_y = -1
+		_post_kb_restore_unit = ""
 
 
 func _ensure_description_and_production_nodes() -> void:
@@ -1171,17 +1215,26 @@ func _on_close_pressed() -> void:
 	_focused_train_line = null
 	_focused_train_spin = null
 	_kb_scroll_done_for = ""
+	_pre_kb_scroll_y = -1
+	_post_kb_restore_scroll_y = -1
+	_post_kb_restore_unit = ""
 	_restore_keyboard_lift()
 	hide()
 	closed.emit()
 
 
 func _on_tab_upgrade_pressed() -> void:
+	_pre_kb_scroll_y = -1
+	_post_kb_restore_scroll_y = -1
+	_post_kb_restore_unit = ""
 	_current_tab = Tab.UPGRADE
 	refresh()
 
 
 func _on_tab_research_pressed() -> void:
+	_pre_kb_scroll_y = -1
+	_post_kb_restore_scroll_y = -1
+	_post_kb_restore_unit = ""
 	_current_tab = Tab.RESEARCH
 	refresh()
 
@@ -1208,6 +1261,9 @@ func _switch_tab(tab_idx: int) -> void:
 
 func show_building(village: Dictionary, key: String) -> void:
 	_ensure_nodes()
+	_pre_kb_scroll_y = -1
+	_post_kb_restore_scroll_y = -1
+	_post_kb_restore_unit = ""
 	_village = village
 	_current_key = key
 	_current_tab = Tab.UPGRADE
@@ -2792,6 +2848,11 @@ func _populate_train_list() -> void:
 					_focused_train_spin = spin
 					_focused_train_line = s_line
 					_kb_scroll_done_for = ""
+					var sc_pre := get_node_or_null("VBox/TrainSection/TrainScroll") as ScrollContainer
+					if sc_pre != null and _pre_kb_scroll_y < 0:
+						_pre_kb_scroll_y = sc_pre.scroll_vertical
+					_post_kb_restore_scroll_y = -1
+					_post_kb_restore_unit = ""
 					if active_train_box != null:
 						active_train_box.hide()
 					_update_kb_preview(s_line.text)

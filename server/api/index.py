@@ -2616,6 +2616,7 @@ def _dispatch_apns_push_for_player(
 ) -> int:
     auth_hdr = _get_apns_auth_header()
     if not auth_hdr or httpx is None:
+        print(f"[APNS] skip push: auth_hdr={bool(auth_hdr)} httpx={httpx is not None}")
         return 0
     tok_rows: List[Dict[str, Any]] = []
     seen_tokens = set()
@@ -2642,6 +2643,7 @@ def _dispatch_apns_push_for_player(
                 seen_tokens.add(t)
                 tok_rows.append({"token": t, "sandbox": int(r.get("sandbox") or 0)})
     if not tok_rows:
+        print(f"[APNS] no ios tokens found for uids={target_user_ids} variants={target_variants}")
         return 0
 
     bundle_id = os.getenv("APNS_BUNDLE_ID", "com.tahtkilic.kingsage2").strip() or "com.tahtkilic.kingsage2"
@@ -2676,18 +2678,21 @@ def _dispatch_apns_push_for_player(
                     try:
                         resp = client.post(f"{host}/3/device/{tok}", headers=headers, json=aps_body)
                         if resp.status_code == 200:
+                            print(f"[APNS] delivered ok host={host} target={target_variants[:1]}")
                             sent_count += 1
                             break
+                        print(f"[APNS] host={host} status={resp.status_code} body={resp.text[:160]}")
                         if resp.status_code == 410 or ("Unregistered" in resp.text):
                             invalid_tokens.append(tok)
                             break
-                        if resp.status_code == 400 and "BadDeviceToken" in resp.text and idx == 0:
+                        if resp.status_code == 400 and ("BadDeviceToken" in resp.text or "DeviceTokenNotForTopic" in resp.text) and idx == 0:
                             continue
                         break
-                    except Exception:
+                    except Exception as ex:
+                        print(f"[APNS] post error host={host}: {ex}")
                         break
-    except Exception:
-        pass
+    except Exception as ex:
+        print(f"[APNS] client error: {ex}")
 
     for bad_tok in invalid_tokens:
         try:
@@ -2778,7 +2783,8 @@ def _dispatch_world_save_notifications(
         m_type = str(m.get("type", "")).strip().lower()
         m_state = str(m.get("state", "outgoing")).strip().lower()
         arrive_u = int(m.get("arrive_unix", m.get("arrival_unix", 0)) or 0)
-        if m_type not in ("attack", "raid") or m_state != "outgoing" or arrive_u <= now:
+        is_visible_spy = (m_type == "spy" and not bool(m.get("stealth", False)))
+        if (m_type not in ("attack", "raid") and not is_visible_spy) or m_state != "outgoing" or arrive_u <= now:
             continue
         to_vid = int(m.get("to_village_id", 0) or 0)
         from_vid = int(m.get("from_village_id", m.get("village_id", 0)) or 0)
@@ -2792,8 +2798,12 @@ def _dispatch_world_save_notifications(
         att_name = _norm_p_name(str(m.get("owner") or (fv.get("owner") if fv else "") or acting_player or "Düşman Lord"))
         tv_name = str(tv.get("name") or "Köyünüz")
         eta_min = max(1, int(round(float(arrive_u - now) / 60.0)))
-        title = "🚨 Baş Vezir: SALDIRI ALTINDASINIZ!"
-        body = f"Lordum, {att_name} ordusu {tv_name} köyünüze doğru yola çıktı! Varışa ~{eta_min} dk var — hemen oyuna girip savunmanızı hazırlayın!"
+        if is_visible_spy:
+            title = "🕵️ Baş Vezir: CASUS SALDIRISI!"
+            body = f"Lordum, {att_name} casusları {tv_name} köyünüze doğru yola çıktı! Varışa ~{eta_min} dk var — hemen savunmanızı kontrol edin!"
+        else:
+            title = "🚨 Baş Vezir: SALDIRI ALTINDASINIZ!"
+            body = f"Lordum, {att_name} ordusu {tv_name} köyünüze doğru yola çıktı! Varışa ~{eta_min} dk var — hemen oyuna girip savunmanızı hazırlayın!"
         payload = {
             "type": "incoming_attack",
             "route": "village",

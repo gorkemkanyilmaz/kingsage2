@@ -9,6 +9,7 @@ extends Node
 ##   5. Bir köydeki Odun, Taş ve Demir kaynaklarının tümü azami Depo kapasitesine ulaştığında (zamanlanmış yerel bildirim)
 
 const RulesEngineScript := preload("res://scripts/rules/RulesEngine.gd")
+const ProductionScript := preload("res://scripts/sim/economy/Production.gd")
 const GameLoopScript := preload("res://scripts/core/GameLoop.gd")
 const ReportsSceneScript := preload("res://scenes/Reports.gd")
 
@@ -48,6 +49,7 @@ var apns_sandbox: bool = false
 var registered_token_user: String = ""
 var last_scheduled_notifications: Array[Dictionary] = []
 var last_opened_payload: Dictionary = {}
+var storage_full_notified_by_vid: Dictionary = {}
 
 var _resync_timer: Timer = null
 var _ios_status_timer: Timer = null
@@ -56,6 +58,7 @@ var _perm_prompt_scheduled: bool = false
 var _last_sync_hash: String = ""
 var _known_web_server_notifs: Dictionary = {}
 var _pending_open_payload: Dictionary = {}
+var _register_in_flight: bool = false
 
 
 func _ready() -> void:
@@ -97,6 +100,16 @@ func _connect_signals() -> void:
 		var acb := Callable(self, "_on_auth_state_changed")
 		if not auth.auth_state_changed.is_connected(acb):
 			auth.auth_state_changed.connect(acb)
+	var net := _autoload("NetworkManager")
+	if net != null:
+		if net.has_signal("auth_completed"):
+			var ncb := Callable(self, "_on_network_auth_ready")
+			if not net.auth_completed.is_connected(ncb):
+				net.auth_completed.connect(ncb)
+		if net.has_signal("server_status_changed"):
+			var scb2 := Callable(self, "_on_network_auth_ready")
+			if not net.server_status_changed.is_connected(scb2):
+				net.server_status_changed.connect(scb2)
 
 
 func _post_ready_setup() -> void:
@@ -116,11 +129,14 @@ func _notification(what: int) -> void:
 		if DisplayServer.get_name() != "headless" and is_inside_tree():
 			sync_local_notifications_now()
 	elif what == NOTIFICATION_APPLICATION_RESUMED or what == NOTIFICATION_APPLICATION_FOCUS_IN:
+		registered_token_user = ""
 		if DisplayServer.get_name() != "headless" and is_inside_tree():
 			if _is_ios_device():
 				_send_ios_notif_req({"action": "clear_badge"})
 				_check_opened_notification_ipc()
 				_poll_ios_status_once()
+				_start_ios_status_poll()
+			_try_register_push_token_on_server()
 			request_resync(0.5)
 
 
@@ -130,10 +146,20 @@ func _is_ios_device() -> bool:
 
 func _on_auth_state_changed(logged_in: bool, _profile: Dictionary) -> void:
 	if logged_in:
+		registered_token_user = ""
 		_push_bg_fetch_config_to_ios()
 		_try_register_push_token_on_server()
+		_start_ios_status_poll()
 		_schedule_permission_prompt_if_ready()
 		request_resync(0.8)
+
+
+func _on_network_auth_ready(_ok = true, _data = {}) -> void:
+	if DisplayServer.get_name() == "headless":
+		return
+	_push_bg_fetch_config_to_ios()
+	_try_register_push_token_on_server()
+	_start_ios_status_poll()
 
 
 func _on_any_state_event(_a = null, _b = null, _c = null, _d = null) -> void:
@@ -169,11 +195,13 @@ func set_notifications_enabled(enabled: bool) -> void:
 	settings_changed.emit(notifications_enabled)
 	if not notifications_enabled:
 		last_scheduled_notifications.clear()
+		storage_full_notified_by_vid.clear()
 		_last_sync_hash = ""
 		if DisplayServer.get_name() != "headless":
 			_clear_all_platform_notifications()
 			_push_bg_fetch_config_to_ios()
 			_unregister_push_token_on_server()
+		_save_settings()
 	else:
 		if DisplayServer.get_name() != "headless":
 			request_permission(true)
@@ -235,7 +263,11 @@ func _load_settings() -> void:
 			permission_granted = bool(d.get("permission_granted", false))
 			apns_token = str(d.get("apns_token", ""))
 			apns_sandbox = bool(d.get("apns_sandbox", false))
-			registered_token_user = str(d.get("registered_token_user", ""))
+			# Açılışta her zaman canlı sunucu token kaydını tazele (kullanıcı değişmiş/yeniden açılmış olabilir)
+			registered_token_user = ""
+			var sfn = d.get("storage_full_notified", {})
+			if typeof(sfn) == TYPE_DICTIONARY:
+				storage_full_notified_by_vid = (sfn as Dictionary).duplicate(true)
 
 
 func _save_settings() -> void:
@@ -248,6 +280,7 @@ func _save_settings() -> void:
 		"apns_token": apns_token,
 		"apns_sandbox": apns_sandbox,
 		"registered_token_user": registered_token_user,
+		"storage_full_notified": storage_full_notified_by_vid,
 	}
 	var f := FileAccess.open(SETTINGS_FILE, FileAccess.WRITE)
 	if f != null:
@@ -294,7 +327,7 @@ static func _fmt_cap_num(val: int) -> String:
 ##   - build_complete: Oyuncunun köyündeki her inşaat kuyruğu bittiğinde
 ##   - attack_report: Oyuncunun gönderdiği saldırı/akın/casusluk hedef köye ulaşıp rapor oluştuğunda
 ##   - storage_full: Bir köyde Odun, Taş ve Demir kaynaklarının TÜMÜ max Depo seviyesine ulaştığında
-static func compute_local_notifications(state: Dictionary, now_unix: int) -> Array[Dictionary]:
+static func compute_local_notifications(state: Dictionary, now_unix: int, storage_notified_map: Dictionary = {}) -> Array[Dictionary]:
 	var items: Array[Dictionary] = []
 	if typeof(state) != TYPE_DICTIONARY or state.is_empty():
 		return items
@@ -398,24 +431,31 @@ static func compute_local_notifications(state: Dictionary, now_unix: int) -> Arr
 			"village_id": from_vid,
 		})
 
-	# 3) Tüm Kaynaklar (Odun + Taş + Demir) Max Depo Seviyesine Ulaştığında Bildirim
+	# 3) Tüm Kaynaklar (Odun + Taş + Demir) Max Depo Seviyesine Ulaştığında Bildirim (dolup taşmada TEK sefer)
 	for p_vid in player_vids.keys():
 		var vd := player_vids[p_vid] as Dictionary
 		var blds: Dictionary = vd.get("buildings", {}) if typeof(vd.get("buildings")) == TYPE_DICTIONARY else {}
 		var res: Dictionary = vd.get("resources", {}) if typeof(vd.get("resources")) == TYPE_DICTIONARY else {}
 		var st_lvl := maxi(1, int(blds.get("storage", 1)))
 		var cap := maxi(1000, int(RulesEngineScript.storage_capacity(st_lvl)))
+		var spend_margin := maxf(5.0, float(cap) * 0.02)
 
+		var hourly_prod: Dictionary = ProductionScript.hourly_production(vd)
 		var all_already_full := true
+		var any_below_spend := false
 		var max_fill_sec := 0
 		var impossible := false
 		for rk in ["wood", "stone", "iron"]:
 			var cur_val := float(res.get(rk, 0.0))
-			if cur_val >= float(cap):
+			if cur_val < float(cap) - spend_margin:
+				any_below_spend = true
+			if cur_val >= float(cap) - 1.0:
 				continue
 			all_already_full = false
 			var b_lvl := int(blds.get(rk, 0))
-			var per_hr := float(RulesEngineScript.production_per_hour(rk, b_lvl))
+			var per_hr := float(hourly_prod.get(rk, 0.0))
+			if per_hr <= 0.0:
+				per_hr = float(RulesEngineScript.production_per_hour(rk, b_lvl))
 			var per_sec := per_hr / 3600.0
 			if per_sec <= 0.0:
 				impossible = true
@@ -424,7 +464,15 @@ static func compute_local_notifications(state: Dictionary, now_unix: int) -> Arr
 			if rem_sec > max_fill_sec:
 				max_fill_sec = rem_sec
 
-		if impossible or all_already_full:
+		var vid_key := str(int(p_vid))
+		var latch_entry: Dictionary = storage_notified_map.get(vid_key, {}) if typeof(storage_notified_map.get(vid_key)) == TYPE_DICTIONARY else {}
+		var prev_cap := int(latch_entry.get("cap", 0))
+		var prev_trig := int(latch_entry.get("triggered_unix", 0))
+		var prev_fired := bool(latch_entry.get("fired", false))
+		var rearmed := (prev_cap > 0 and cap > prev_cap) or any_below_spend
+		var already_latched := (not rearmed) and (prev_fired or (prev_trig > 0 and now_unix >= prev_trig))
+
+		if impossible or all_already_full or already_latched:
 			continue
 		if max_fill_sec > 10 and max_fill_sec <= 30 * 86400:
 			var v_name := str(vd.get("name", "Köyünüz"))
@@ -437,6 +485,7 @@ static func compute_local_notifications(state: Dictionary, now_unix: int) -> Arr
 				"body": "Lordum, %s köyünüzde Odun, Taş ve Demir ambarları tamamen doldu (%s)! Üretim boşa gitmeden harcayın ya da Depo'yu yükseltin!" % [v_name, _fmt_cap_num(cap)],
 				"route": "village",
 				"village_id": int(p_vid),
+				"cap": cap,
 			})
 
 	items.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
@@ -473,7 +522,19 @@ func sync_local_notifications_now() -> void:
 		if absi(sim_u - now_u) <= 300:
 			now_u = sim_u
 	var state: Dictionary = gs.as_live_dict() if gs.has_method("as_live_dict") else gs.to_dict()
-	var items := compute_local_notifications(state, now_u)
+	var latch_dirty := _reconcile_storage_full_latches(state, now_u)
+	var items := compute_local_notifications(state, now_u, storage_full_notified_by_vid)
+	for it in items:
+		if str(it.get("type", "")) == "storage_full":
+			var vk := str(int(it.get("village_id", -1)))
+			storage_full_notified_by_vid[vk] = {
+				"triggered_unix": int(it.get("trigger_unix", now_u)),
+				"cap": int(it.get("cap", 1000)),
+				"fired": false,
+			}
+			latch_dirty = true
+	if latch_dirty:
+		_save_settings()
 	last_scheduled_notifications = items
 
 	if DisplayServer.get_name() == "headless":
@@ -483,7 +544,7 @@ func sync_local_notifications_now() -> void:
 	for it in items:
 		var trig_u := int(it.get("trigger_unix", 0))
 		if str(it.get("type", "")) == "storage_full":
-			trig_u = (trig_u / 30) * 30
+			trig_u = (trig_u / 60) * 60
 		sig_parts.append("%s@%d" % [str(it.get("id", "")), trig_u])
 	var sig := "|".join(sig_parts)
 	if sig == _last_sync_hash:
@@ -497,6 +558,62 @@ func sync_local_notifications_now() -> void:
 		})
 	elif OS.has_feature("web") and WEB_NOTIFICATIONS_ENABLED:
 		_sync_web_local_timers(items)
+
+
+func _reconcile_storage_full_latches(state: Dictionary, now_unix: int) -> bool:
+	var dirty := false
+	var player_dict: Dictionary = state.get("player", {}) if typeof(state.get("player")) == TYPE_DICTIONARY else {}
+	var p_low := _norm_owner(str(player_dict.get("name", "")))
+	var villages_raw = state.get("villages", [])
+	var villages_arr: Array = villages_raw if typeof(villages_raw) == TYPE_ARRAY else []
+	for v_item in villages_arr:
+		if typeof(v_item) != TYPE_DICTIONARY:
+			continue
+		var vd := v_item as Dictionary
+		if bool(vd.get("is_bot", false)) or bool(vd.get("is_barbarian", false)):
+			continue
+		var v_owner := _norm_owner(str(vd.get("owner", "")))
+		if not p_low.is_empty() and v_owner != p_low:
+			continue
+		var vid := int(vd.get("id", -1))
+		if vid < 0:
+			continue
+		var vid_key := str(vid)
+		var blds: Dictionary = vd.get("buildings", {}) if typeof(vd.get("buildings")) == TYPE_DICTIONARY else {}
+		var res: Dictionary = vd.get("resources", {}) if typeof(vd.get("resources")) == TYPE_DICTIONARY else {}
+		var st_lvl := maxi(1, int(blds.get("storage", 1)))
+		var cap := maxi(1000, int(RulesEngineScript.storage_capacity(st_lvl)))
+		var spend_margin := maxf(5.0, float(cap) * 0.02)
+		var all_full := true
+		var any_spent := false
+		for rk in ["wood", "stone", "iron"]:
+			var val := float(res.get(rk, 0.0))
+			if val < float(cap) - spend_margin:
+				any_spent = true
+			if val < float(cap) - 1.0:
+				all_full = false
+		if storage_full_notified_by_vid.has(vid_key):
+			var entry: Dictionary = storage_full_notified_by_vid[vid_key] if typeof(storage_full_notified_by_vid[vid_key]) == TYPE_DICTIONARY else {}
+			var prev_cap := int(entry.get("cap", 0))
+			if any_spent or (prev_cap > 0 and cap > prev_cap):
+				storage_full_notified_by_vid.erase(vid_key)
+				dirty = true
+			elif all_full:
+				if not bool(entry.get("fired", false)) or int(entry.get("cap", 0)) != cap:
+					entry["fired"] = true
+					entry["cap"] = cap
+					if int(entry.get("triggered_unix", 0)) <= 0:
+						entry["triggered_unix"] = now_unix
+					storage_full_notified_by_vid[vid_key] = entry
+					dirty = true
+		elif all_full:
+			storage_full_notified_by_vid[vid_key] = {
+				"triggered_unix": now_unix,
+				"cap": cap,
+				"fired": true,
+			}
+			dirty = true
+	return dirty
 
 
 func _clear_all_platform_notifications() -> void:
@@ -698,8 +815,10 @@ func _poll_ios_status_once() -> void:
 		apns_token = tok
 		apns_sandbox = sb
 		_save_settings()
+	var desired_reg_key := _current_push_reg_key()
+	if not apns_token.is_empty() and not desired_reg_key.is_empty() and registered_token_user != desired_reg_key:
 		_try_register_push_token_on_server()
-	if not apns_token.is_empty() and not registered_token_user.is_empty() and _ios_status_timer != null:
+	elif not apns_token.is_empty() and not desired_reg_key.is_empty() and registered_token_user == desired_reg_key and _ios_status_timer != null:
 		_ios_status_timer.stop()
 
 
@@ -728,29 +847,44 @@ func _push_bg_fetch_config_to_ios() -> void:
 	})
 
 
+func _current_push_reg_key() -> String:
+	if apns_token.is_empty():
+		return ""
+	var auth := _autoload("AuthManager")
+	var net := _autoload("NetworkManager")
+	if auth == null or not bool(auth.get("is_logged_in")):
+		return ""
+	var tok := str(net.get("auth_token")) if net != null else ""
+	if tok.is_empty():
+		return ""
+	var u_name := str(auth.get("display_name")).strip_edges()
+	if u_name.is_empty():
+		return ""
+	return "%s:%s:%s" % [u_name, apns_token, str(apns_sandbox)]
+
+
 func _try_register_push_token_on_server() -> void:
-	if not notifications_enabled or apns_token.is_empty():
+	if not notifications_enabled or apns_token.is_empty() or _register_in_flight:
 		return
 	if DisplayServer.get_name() == "headless":
 		return
 	var net := _autoload("NetworkManager")
-	var auth := _autoload("AuthManager")
 	if net == null or not net.has_method("api_request"):
 		return
-	var tok := str(net.get("auth_token"))
-	if tok.is_empty() or auth == null or not bool(auth.get("is_logged_in")):
+	var desired_key := _current_push_reg_key()
+	if desired_key.is_empty() or registered_token_user == desired_key:
 		return
-	var u_name := str(auth.get("display_name"))
-	if registered_token_user == ("%s:%s:%s" % [u_name, apns_token, str(apns_sandbox)]):
-		return
+	_register_in_flight = true
 	net.call("api_request", "/api/notifications/register", HTTPClient.METHOD_POST, {
 		"platform": "ios",
 		"token": apns_token,
 		"sandbox": apns_sandbox,
 	}, func(ok: bool, _res: Dictionary):
-		if ok and is_instance_valid(self):
-			registered_token_user = "%s:%s:%s" % [u_name, apns_token, str(apns_sandbox)]
-			_save_settings()
+		if is_instance_valid(self):
+			_register_in_flight = false
+			if ok:
+				registered_token_user = desired_key
+				_save_settings()
 	)
 
 
@@ -781,4 +915,5 @@ func on_user_logout() -> void:
 	registered_token_user = ""
 	_last_sync_hash = ""
 	last_scheduled_notifications.clear()
+	storage_full_notified_by_vid.clear()
 	_save_settings()
