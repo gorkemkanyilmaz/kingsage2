@@ -289,7 +289,7 @@ func _setup_auth_overlay() -> void:
 	sb.set_corner_radius_all(24)
 	sb.set_content_margin_all(36)
 	sb.shadow_color = Color(0, 0, 0, 0.6)
-	sb.shadow_size = 20
+	sb.shadow_size = 0
 	sb.shadow_offset = Vector2(0, 8)
 	card.add_theme_stylebox_override("panel", sb)
 	center.add_child(card)
@@ -652,7 +652,7 @@ func _setup_region_modal() -> void:
 		c_sb.set_border_width_all(3)
 		c_sb.set_corner_radius_all(20)
 		c_sb.shadow_color = Color(0, 0, 0, 0.7)
-		c_sb.shadow_size = 16
+		c_sb.shadow_size = 0
 		card_panel.add_theme_stylebox_override("panel", c_sb)
 
 	if region_title != null:

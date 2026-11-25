@@ -256,15 +256,15 @@ func simulate(delta_seconds: float) -> Array:
 	if wm_sim != null:
 		wm_sim.set("_suppress_tick_autosave", false)
 
-	# Periyodik otomatik kayıt (her 30 saniyede bir son damga kaydedilir)
+	# Periyodik otomatik kayıt (her 60 saniyede bir yerel disk damgası; buluta boşta HTTP isteği atmaz)
 	# Manuel test zamanı (set_now_unix) kullanıldığında disk kaydıyla sim_now_unix'i bozma.
 	if not _manual_now_override:
 		_auto_save_timer += effective_delta
-		if _auto_save_timer >= 30.0:
+		if _auto_save_timer >= 60.0:
 			_auto_save_timer = 0.0
 			var sm = _autoload("SaveManager")
 			if sm != null and sm.has_method("save_game"):
-				sm.save_game()
+				sm.save_game(false, false)
 
 	return events
 

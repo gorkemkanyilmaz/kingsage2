@@ -788,6 +788,11 @@ func _process(delta: float) -> void:
 func _update_claimable_pulse(delta: float = 0.0) -> void:
 	if _btn_header == null or _header_badge == null:
 		return
+	var loop := Engine.get_main_loop()
+	if loop is SceneTree and (loop as SceneTree).root != null:
+		var gclk := (loop as SceneTree).root.get_node_or_null("GameClock")
+		if gclk != null and bool(gclk.get("_app_backgrounded")):
+			return
 	if not _has_claimable_quest:
 		if _badge_tinted:
 			_header_badge.modulate = Color(1, 1, 1, 1)
@@ -795,7 +800,7 @@ func _update_claimable_pulse(delta: float = 0.0) -> void:
 		_pulse_accum = 0.0
 		return
 	_pulse_accum += maxf(delta, 0.0)
-	if _pulse_accum < 0.066 and _badge_tinted:
+	if _pulse_accum < 0.10 and _badge_tinted:
 		return
 	_pulse_accum = 0.0
 	var w := 0.78 + 0.22 * sin(_elapsed_sec * 5.2)
@@ -1175,7 +1180,7 @@ func _build_ui() -> void:
 	h_sb.set_border_width_all(2)
 	h_sb.set_corner_radius_all(14)
 	h_sb.shadow_color = Color(0, 0, 0, 0.55)
-	h_sb.shadow_size = 8
+	h_sb.shadow_size = 0
 	var h_hover := h_sb.duplicate() as StyleBoxFlat
 	h_hover.bg_color = Color(0.14, 0.11, 0.16, 0.98)
 	h_hover.border_color = Color(1.0, 0.88, 0.48, 1.0)
@@ -1258,7 +1263,7 @@ func _build_ui() -> void:
 	d_sb.content_margin_top = 8
 	d_sb.content_margin_bottom = 8
 	d_sb.shadow_color = Color(0, 0, 0, 0.50)
-	d_sb.shadow_size = 8
+	d_sb.shadow_size = 0
 	_drawer_panel.add_theme_stylebox_override("panel", d_sb)
 	_tracker_panel.add_child(_drawer_panel)
 
@@ -1460,7 +1465,7 @@ func _build_detail_modal() -> void:
 	m_sb.content_margin_top = 22
 	m_sb.content_margin_bottom = 22
 	m_sb.shadow_color = Color(0, 0, 0, 0.75)
-	m_sb.shadow_size = 18
+	m_sb.shadow_size = 0
 	_detail_modal.add_theme_stylebox_override("panel", m_sb)
 	_detail_modal.hide()
 	_modal_center.add_child(_detail_modal)

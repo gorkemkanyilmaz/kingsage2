@@ -226,7 +226,7 @@ func _style_alliance_btn() -> void:
 	sb.content_margin_top = 6
 	sb.content_margin_bottom = 6
 	sb.shadow_color = Color(0, 0, 0, 0.50)
-	sb.shadow_size = 6
+	sb.shadow_size = 0
 	var hov := sb.duplicate() as StyleBoxFlat
 	hov.bg_color = Color(0.15, 0.24, 0.39, 0.98)
 	hov.border_color = Color(0.98, 0.84, 0.44, 1.0)
@@ -352,8 +352,8 @@ var _bg_frame_idx: int = 0
 var _bg_frame_timer: float = 0.0
 var _rendered_village_id: int = -1
 var _last_buildings_refresh_sig: String = ""
-const BG_TOTAL_FRAMES: int = 192 # 192 kare, 24 FPS = kesintisiz 8.0 saniyelik orijinal akıcı döngü
-const BG_FPS: float = 24.0
+const BG_TOTAL_FRAMES: int = 96 # 96 kare (her 2. kare), 12 FPS = 8.0 saniyelik akıcı döngü & yarı VRAM
+const BG_FPS: float = 12.0
 const BG_FRAME_TIME: float = 1.0 / BG_FPS
 const BG_LOOP_DURATION: float = float(BG_TOTAL_FRAMES) / BG_FPS
 
@@ -374,11 +374,39 @@ func _init_animated_background() -> void:
 	if loop is SceneTree and (loop as SceneTree).root != null:
 		_cached_bg_cache = (loop as SceneTree).root.get_node_or_null("VillageBackgroundCache")
 	if _cached_bg_cache != null:
+		if _cached_bg_cache.has_method("ensure_warming"):
+			_cached_bg_cache.call("ensure_warming")
 		var tex = _cached_bg_cache.get_frame(_bg_frame_idx)
 		if tex != null:
 			background.texture = tex
 	elif ResourceLoader.exists("res://assets/sprites/village/animated_bg/f_000.webp"):
 		background.texture = load("res://assets/sprites/village/animated_bg/f_000.webp")
+
+
+func is_background_obscured() -> bool:
+	if not is_visible_in_tree():
+		return true
+	var loop := Engine.get_main_loop()
+	if loop is SceneTree and (loop as SceneTree).root != null:
+		var root_node := (loop as SceneTree).root
+		var gclk := root_node.get_node_or_null("GameClock")
+		if gclk != null and bool(gclk.get("_app_backgrounded")):
+			return true
+		var qm := root_node.get_node_or_null("QuestManager")
+		if qm != null:
+			var q_modal = qm.get("_detail_modal")
+			if q_modal is Control and (q_modal as Control).visible:
+				return true
+			elif q_modal is CanvasLayer and (q_modal as CanvasLayer).visible:
+				return true
+		for modal_name in ["MarketModal", "StoreModal", "SpeedupModal", "IncomingAttackAlertModal", "ConqueredModal"]:
+			var m_local := get_node_or_null(modal_name)
+			if m_local != null and bool(m_local.get("visible")):
+				return true
+			var m_root := root_node.get_node_or_null(modal_name)
+			if m_root != null and bool(m_root.get("visible")):
+				return true
+	return false
 
 
 func _process(delta: float) -> void:
@@ -392,8 +420,8 @@ func _process(delta: float) -> void:
 		_progress_timer = 0.0
 		_update_building_views_progress()
 
-	# Arka plan animasyonu: İlk 8 saniye (192 kare, 24 FPS) döngüsü — tam kare sayısı ve akıcılık korunur
-	if background != null:
+	# Arka plan animasyonu: Tam ekran modal/arkaplanda duraklat, görünürken 12 FPS (8 sn döngü) oynat
+	if background != null and not is_background_obscured():
 		_bg_frame_timer += delta
 		if _bg_frame_timer >= BG_FRAME_TIME:
 			var steps: int = int(_bg_frame_timer / BG_FRAME_TIME)
@@ -876,7 +904,7 @@ func _setup_queue_hud_styling() -> void:
 		q_sb.content_margin_right = 18
 		q_sb.content_margin_bottom = 14
 		q_sb.shadow_color = Color(0, 0, 0, 0.72)
-		q_sb.shadow_size = 14
+		q_sb.shadow_size = 0
 		queue_hud.add_theme_stylebox_override("panel", q_sb)
 		if queue_title != null:
 			queue_title.text = "⚔️ AKTİVİTELER VE ASKERİ DURUM"

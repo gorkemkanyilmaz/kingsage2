@@ -239,7 +239,7 @@ func _setup_auth_overlay() -> void:
 	sb.set_corner_radius_all(24)
 	sb.set_content_margin_all(36)
 	sb.shadow_color = Color(0, 0, 0, 0.6)
-	sb.shadow_size = 20
+	sb.shadow_size = 0
 	sb.shadow_offset = Vector2(0, 8)
 	card.add_theme_stylebox_override("panel", sb)
 	center.add_child(card)

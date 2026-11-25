@@ -158,7 +158,7 @@ func _style_btn(btn: Button, bg: Color, border: Color, font_col: Color = Color(0
 	sb.content_margin_top = 12
 	sb.content_margin_bottom = 12
 	sb.shadow_color = Color(0.0, 0.0, 0.0, 0.45)
-	sb.shadow_size = 5
+	sb.shadow_size = 0
 	sb.shadow_offset = Vector2(0, 2)
 
 	var sb_hov := sb.duplicate() as StyleBoxFlat
@@ -338,7 +338,7 @@ func _show_delete_account_modal() -> void:
 	csb.set_corner_radius_all(20)
 	csb.set_content_margin_all(28)
 	csb.shadow_color = Color(0, 0, 0, 0.65)
-	csb.shadow_size = 14
+	csb.shadow_size = 0
 	card.add_theme_stylebox_override("panel", csb)
 	center.add_child(card)
 

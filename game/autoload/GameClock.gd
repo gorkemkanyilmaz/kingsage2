@@ -17,10 +17,11 @@ const MAX_CATCHUP_STEPS := 10000
 
 ## Hedef adaptif FPS seviyeleri (pil ve ısınma optimizasyonu).
 const ADAPTIVE_ACTIVE_FPS := 60
-const ADAPTIVE_IDLE_FPS := 30
-const ADAPTIVE_STATIC_IDLE_FPS := 20
-const ADAPTIVE_BACKGROUND_FPS := 5
-const ADAPTIVE_BOOST_SECONDS := 2.0
+const ADAPTIVE_MAP_MOV_IDLE_FPS := 15
+const ADAPTIVE_IDLE_FPS := 12
+const ADAPTIVE_STATIC_IDLE_FPS := 10
+const ADAPTIVE_BACKGROUND_FPS := 2
+const ADAPTIVE_BOOST_SECONDS := 1.5
 
 var running := false
 var adaptive_fps_enabled: bool = true
@@ -84,13 +85,17 @@ func _compute_adaptive_target_fps() -> int:
 		if cur != null:
 			var sname := str(cur.name)
 			if sname == "Village":
+				if cur.has_method("is_background_obscured") and bool(cur.call("is_background_obscured")):
+					return ADAPTIVE_STATIC_IDLE_FPS
 				return ADAPTIVE_IDLE_FPS
 			if sname == "WorldMap":
+				if cur.has_method("has_visible_movements"):
+					return ADAPTIVE_MAP_MOV_IDLE_FPS if bool(cur.call("has_visible_movements")) else ADAPTIVE_STATIC_IDLE_FPS
 				var gs: Node = st.root.get_node_or_null("GameState") if st.root != null else null
 				if gs != null:
 					var movs = gs.get("movements")
 					if typeof(movs) == TYPE_ARRAY and not (movs as Array).is_empty():
-						return ADAPTIVE_IDLE_FPS
+						return ADAPTIVE_MAP_MOV_IDLE_FPS
 				return ADAPTIVE_STATIC_IDLE_FPS
 	return ADAPTIVE_STATIC_IDLE_FPS
 

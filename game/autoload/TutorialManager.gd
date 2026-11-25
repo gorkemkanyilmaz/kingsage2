@@ -93,6 +93,8 @@ var _btn_finish: Button
 
 var _current_target_rect: Rect2 = Rect2()
 var _current_has_target: bool = false
+var _idle_check_accum: float = 0.0
+var _fx_redraw_accum: float = 0.0
 var _last_valid_target_rect: Rect2 = Rect2()
 var _last_valid_target_step: int = -1
 var _last_valid_target_ctrl_id: int = 0
@@ -230,7 +232,7 @@ func _build_ui() -> void:
 	pill_sb.content_margin_top = 6
 	pill_sb.content_margin_bottom = 6
 	pill_sb.shadow_color = Color(0, 0, 0, 0.65)
-	pill_sb.shadow_size = 8
+	pill_sb.shadow_size = 0
 	_hand_hint_pill.add_theme_stylebox_override("panel", pill_sb)
 
 	_hand_hint_label = Label.new()
@@ -270,7 +272,7 @@ func _build_vizier_card() -> void:
 	card_sb.content_margin_top = 16
 	card_sb.content_margin_bottom = 16
 	card_sb.shadow_color = Color(0, 0, 0, 0.72)
-	card_sb.shadow_size = 18
+	card_sb.shadow_size = 0
 	card_sb.shadow_offset = Vector2(0, 6)
 	_vizier_card.add_theme_stylebox_override("panel", card_sb)
 	_root_ctrl.add_child(_vizier_card)
@@ -531,7 +533,7 @@ func _style_action_button(btn: Button, bg: Color, border: Color, font_col: Color
 	sb.content_margin_top = 8
 	sb.content_margin_bottom = 8
 	sb.shadow_color = Color(0, 0, 0, 0.45)
-	sb.shadow_size = 6
+	sb.shadow_size = 0
 
 	var sb_h := sb.duplicate() as StyleBoxFlat
 	sb_h.bg_color = bg.lightened(0.14)
@@ -565,7 +567,7 @@ func _build_victory_modal() -> void:
 	m_sb.content_margin_top = 30
 	m_sb.content_margin_bottom = 30
 	m_sb.shadow_color = Color(0, 0, 0, 0.85)
-	m_sb.shadow_size = 24
+	m_sb.shadow_size = 0
 	_victory_modal.add_theme_stylebox_override("panel", m_sb)
 	_victory_modal.hide()
 	_root_ctrl.add_child(_victory_modal)
@@ -916,6 +918,13 @@ func _current_scene_name(scene_node: Node) -> String:
 func _process(delta: float) -> void:
 	_anim_time += delta
 	_ensure_store_signal_connected()
+
+	if not _active and DisplayServer.get_name() != "headless":
+		if _idle_check_accum > 0.0:
+			_idle_check_accum -= maxf(delta, 0.0)
+			if _idle_check_accum > 0.0:
+				return
+		_idle_check_accum = 0.4
 
 	if _btn_skip != null and _skip_confirm_until > 0.0 and _anim_time > _skip_confirm_until:
 		_skip_confirm_until = 0.0
@@ -2162,12 +2171,16 @@ func _update_visual_animations(delta: float, scene_node: Node, scene_name: Strin
 		finger_rect = _snap_rect(finger_rect)
 
 	if has_target and finger_rect.size.x > 12.0 and finger_rect.size.y > 12.0:
+		var rect_changed := (not _current_has_target or _current_target_rect != finger_rect)
 		_current_has_target = true
 		_current_target_rect = finger_rect
 		_target_fx.has_target = true
 		_target_fx.target_rect = finger_rect
 		_target_fx.anim_time = _anim_time
-		_target_fx.queue_redraw()
+		_fx_redraw_accum += maxf(delta, 0.0)
+		if rect_changed or _fx_redraw_accum >= 0.066:
+			_fx_redraw_accum = 0.0
+			_target_fx.queue_redraw()
 
 		var blink_wave := 0.5 + 0.5 * sin(_anim_time * 7.2)
 		var poke := pow(0.5 + 0.5 * sin(_anim_time * 5.8), 1.4) * 18.0
@@ -2209,9 +2222,11 @@ func _update_visual_animations(delta: float, scene_node: Node, scene_name: Strin
 			_hand_hint_pill.position = Vector2(pill_x, pill_y)
 			_hand_hint_pill.modulate = Color(1.0, 1.0, 1.0, 0.85 + 0.15 * blink_wave)
 	else:
+		var was_has_target: bool = _current_has_target or bool(_target_fx.has_target)
 		_current_has_target = false
 		_target_fx.has_target = false
-		_target_fx.queue_redraw()
+		if was_has_target:
+			_target_fx.queue_redraw()
 		_hand_sprite.hide()
 		_hand_hint_pill.hide()
 

@@ -39,6 +39,69 @@ var _owner_label: Label
 var _name_coord_label: Label
 var _hover_tween: Tween
 
+static var _sb_aura: StyleBoxFlat
+static var _sb_shield_badge: StyleBoxFlat
+static var _sb_ring_player: StyleBoxFlat
+static var _sb_ring_ally: StyleBoxFlat
+static var _sb_card_player: StyleBoxFlat
+static var _sb_card_ally: StyleBoxFlat
+static var _sb_card_enemy: StyleBoxFlat
+
+
+static func _ensure_shared_styles() -> void:
+	if _sb_aura == null:
+		_sb_aura = StyleBoxFlat.new()
+		_sb_aura.draw_center = true
+		_sb_aura.bg_color = Color(0.20, 0.65, 1.0, 0.04)
+		_sb_aura.border_color = Color(0.40, 0.85, 1.0, 0.35)
+		_sb_aura.set_border_width_all(2)
+		_sb_aura.set_corner_radius_all(98)
+		_sb_aura.shadow_size = 0
+	if _sb_shield_badge == null:
+		_sb_shield_badge = StyleBoxFlat.new()
+		_sb_shield_badge.bg_color = Color(0.06, 0.16, 0.28, 0.94)
+		_sb_shield_badge.border_color = Color(0.40, 0.88, 1.0, 0.85)
+		_sb_shield_badge.set_border_width_all(2)
+		_sb_shield_badge.border_width_bottom = 4
+		_sb_shield_badge.set_corner_radius_all(10)
+		_sb_shield_badge.shadow_size = 0
+		_sb_shield_badge.content_margin_left = 10
+		_sb_shield_badge.content_margin_right = 10
+		_sb_shield_badge.content_margin_top = 4
+		_sb_shield_badge.content_margin_bottom = 4
+	if _sb_ring_player == null:
+		_sb_ring_player = StyleBoxFlat.new()
+		_sb_ring_player.draw_center = false
+		_sb_ring_player.border_color = Color(1.0, 0.85, 0.20, 0.70)
+		_sb_ring_player.set_border_width_all(2)
+		_sb_ring_player.set_corner_radius_all(102)
+		_sb_ring_player.shadow_size = 0
+	if _sb_ring_ally == null:
+		_sb_ring_ally = StyleBoxFlat.new()
+		_sb_ring_ally.draw_center = false
+		_sb_ring_ally.border_color = Color(0.35, 0.75, 1.0, 0.70)
+		_sb_ring_ally.set_border_width_all(2)
+		_sb_ring_ally.set_corner_radius_all(102)
+		_sb_ring_ally.shadow_size = 0
+	if _sb_card_player == null:
+		_sb_card_player = StyleBoxFlat.new()
+		_sb_card_player.bg_color = Color(0.10, 0.09, 0.13, 0.94)
+		_sb_card_player.border_color = Color(1.0, 0.88, 0.40, 1.0)
+		_sb_card_player.set_border_width_all(2)
+		_sb_card_player.border_width_bottom = 4
+		_sb_card_player.set_corner_radius_all(10)
+		_sb_card_player.shadow_size = 0
+		_sb_card_player.content_margin_left = 10
+		_sb_card_player.content_margin_right = 10
+		_sb_card_player.content_margin_top = 4
+		_sb_card_player.content_margin_bottom = 4
+	if _sb_card_ally == null:
+		_sb_card_ally = _sb_card_player.duplicate() as StyleBoxFlat
+		_sb_card_ally.border_color = Color(0.35, 0.75, 1.0, 1.0)
+	if _sb_card_enemy == null:
+		_sb_card_enemy = _sb_card_player.duplicate() as StyleBoxFlat
+		_sb_card_enemy.border_color = Color(0.95, 0.45, 0.38, 0.95)
+
 
 func _init() -> void:
 	custom_minimum_size = TOTAL_SIZE
@@ -105,6 +168,7 @@ func _build_ui() -> void:
 	var is_shielded: bool = ProtectionScript.is_attack_protected(village_data, now_u) \
 		or int(village_data.get("protection_until", 0)) > now_u \
 		or int(village_data.get("protection_until_unix", 0)) > now_u
+	_ensure_shared_styles()
 	if is_shielded:
 		_shield_aura = Panel.new()
 		var aura_sz := Vector2(196, 196) # Tam köy yerleşimi çapı
@@ -112,16 +176,7 @@ func _build_ui() -> void:
 		_shield_aura.size = aura_sz
 		_shield_aura.position = _sprite.position + (SPRITE_SIZE - aura_sz) * 0.5
 		_shield_aura.mouse_filter = MOUSE_FILTER_IGNORE
-
-		var aura_sb := StyleBoxFlat.new()
-		aura_sb.draw_center = true
-		aura_sb.bg_color = Color(0.20, 0.65, 1.0, 0.04) # Şeffaf, zarif mistik kalkan
-		aura_sb.border_color = Color(0.40, 0.85, 1.0, 0.35) # İnce, göz yormayan mistik sınır
-		aura_sb.set_border_width_all(2)
-		aura_sb.set_corner_radius_all(98)
-		aura_sb.shadow_color = Color(0.15, 0.60, 1.0, 0.15)
-		aura_sb.shadow_size = 6
-		_shield_aura.add_theme_stylebox_override("panel", aura_sb)
+		_shield_aura.add_theme_stylebox_override("panel", _sb_aura)
 		add_child(_shield_aura)
 
 		# Kalkan Rozeti: Kalkan dairesinin üstüne binmeyecek şekilde yukarı kaldırıldı ve büyütüldü
@@ -129,18 +184,7 @@ func _build_ui() -> void:
 		_shield_badge.custom_minimum_size = Vector2(148, 38)
 		_shield_badge.position = Vector2((size.x - 148.0) * 0.5, 4.0)
 		_shield_badge.mouse_filter = MOUSE_FILTER_IGNORE
-		var s_badge_sb := StyleBoxFlat.new()
-		s_badge_sb.bg_color = Color(0.06, 0.16, 0.28, 0.94)
-		s_badge_sb.border_color = Color(0.40, 0.88, 1.0, 0.85)
-		s_badge_sb.set_border_width_all(2)
-		s_badge_sb.set_corner_radius_all(10)
-		s_badge_sb.shadow_color = Color(0.10, 0.50, 0.90, 0.35)
-		s_badge_sb.shadow_size = 8
-		s_badge_sb.content_margin_left = 10
-		s_badge_sb.content_margin_right = 10
-		s_badge_sb.content_margin_top = 4
-		s_badge_sb.content_margin_bottom = 4
-		_shield_badge.add_theme_stylebox_override("panel", s_badge_sb)
+		_shield_badge.add_theme_stylebox_override("panel", _sb_shield_badge)
 
 		var s_lbl := Label.new()
 		s_lbl.text = "🛡️ Koruma"
@@ -162,19 +206,7 @@ func _build_ui() -> void:
 		_selection_ring.size = ring_sz
 		_selection_ring.position = _sprite.position + (SPRITE_SIZE - ring_sz) * 0.5
 		_selection_ring.mouse_filter = MOUSE_FILTER_IGNORE
-
-		var ring_sb := StyleBoxFlat.new()
-		ring_sb.draw_center = false
-		if is_player:
-			ring_sb.border_color = Color(1.0, 0.85, 0.20, 0.70) # Zarif Altın Çerçeve
-			ring_sb.shadow_color = Color(1.0, 0.82, 0.10, 0.25)
-		else:
-			ring_sb.border_color = Color(0.35, 0.75, 1.0, 0.70) # Müttefik Mavi Çerçeve
-			ring_sb.shadow_color = Color(0.15, 0.50, 0.95, 0.25)
-		ring_sb.set_border_width_all(2)
-		ring_sb.set_corner_radius_all(102)
-		ring_sb.shadow_size = 6
-		_selection_ring.add_theme_stylebox_override("panel", ring_sb)
+		_selection_ring.add_theme_stylebox_override("panel", _sb_ring_player if is_player else _sb_ring_ally)
 		add_child(_selection_ring)
 
 	# 4) Bilgi Plaketi (3 Kategori: Kendi Köyün / İttifak Üyelerin / Düşman)
@@ -184,29 +216,7 @@ func _build_ui() -> void:
 	_info_card.position = Vector2((size.x - 280.0) * 0.5, 312.0)
 	_info_card.pivot_offset = Vector2(140, 38)
 	_info_card.mouse_filter = MOUSE_FILTER_IGNORE
-
-	var card_sb := StyleBoxFlat.new()
-	card_sb.bg_color = Color(0.10, 0.09, 0.13, 0.94)
-	if is_player:
-		card_sb.border_color = Color(1.0, 0.88, 0.40, 1.0) # Canlı Altın
-		card_sb.set_border_width_all(2)
-		card_sb.shadow_color = Color(0.40, 0.30, 0.05, 0.7)
-	elif is_alliance_member:
-		card_sb.border_color = Color(0.35, 0.75, 1.0, 1.0) # Müttefik Mavi
-		card_sb.set_border_width_all(2)
-		card_sb.shadow_color = Color(0.08, 0.25, 0.50, 0.7)
-	else:
-		card_sb.border_color = Color(0.95, 0.45, 0.38, 0.95) # Düşman Kırmızı
-		card_sb.set_border_width_all(2)
-		card_sb.shadow_color = Color(0.45, 0.08, 0.08, 0.7)
-
-	card_sb.set_corner_radius_all(10)
-	card_sb.shadow_size = 6
-	card_sb.content_margin_left = 10
-	card_sb.content_margin_right = 10
-	card_sb.content_margin_top = 4
-	card_sb.content_margin_bottom = 4
-	_info_card.add_theme_stylebox_override("panel", card_sb)
+	_info_card.add_theme_stylebox_override("panel", _sb_card_player if is_player else (_sb_card_ally if is_alliance_member else _sb_card_enemy))
 
 	var vbox := VBoxContainer.new()
 	vbox.add_theme_constant_override("separation", 2)

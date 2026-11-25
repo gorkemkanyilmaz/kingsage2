@@ -301,7 +301,7 @@ func _style_buttons() -> void:
 		active_sb.border_color = Color(1.0, 0.85, 0.40, 0.85)
 		active_sb.set_border_width_all(2)
 		active_sb.shadow_color = Color(1.0, 0.8, 0.2, 0.35)
-		active_sb.shadow_size = 6
+		active_sb.shadow_size = 0
 
 		var hover_sb := StyleBoxFlat.new()
 		hover_sb.set_corner_radius_all(14)
@@ -309,7 +309,7 @@ func _style_buttons() -> void:
 		hover_sb.border_color = Color(1.0, 0.90, 0.50, 0.80)
 		hover_sb.set_border_width_all(2)
 		hover_sb.shadow_color = Color(1.0, 0.85, 0.3, 0.4)
-		hover_sb.shadow_size = 8
+		hover_sb.shadow_size = 0
 
 		if is_active:
 			btn.add_theme_stylebox_override("normal", active_sb)

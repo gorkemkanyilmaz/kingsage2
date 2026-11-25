@@ -15,7 +15,10 @@ import base64
 import random
 import secrets
 import sqlite3
-from typing import Dict, Any, List, Optional
+import urllib.request
+import urllib.parse
+import urllib.error
+from typing import Dict, Any, List, Optional, Tuple
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException, Header, Depends, Query, Request
@@ -3118,6 +3121,12 @@ def _fetch_cloud_and_village(cursor, user_id: str, display_name: str, user_row: 
     return cs, cu, sv
 
 
+GOOGLE_IOS_CLIENT_ID = os.environ.get(
+    "GOOGLE_IOS_CLIENT_ID",
+    "552757358961-j2p1bdt066tpropqmuj2dcp25rfu64o3.apps.googleusercontent.com",
+)
+
+
 def _decode_jwt_claims_unverified(token: str) -> Dict[str, Any]:
     tok = (token or "").strip()
     if not tok or "." not in tok:
@@ -3136,6 +3145,42 @@ def _decode_jwt_claims_unverified(token: str) -> Dict[str, Any]:
         return obj if isinstance(obj, dict) else {}
     except Exception:
         return {}
+
+
+def _verify_google_id_token(token: str) -> Tuple[bool, Dict[str, Any], str]:
+    tok = (token or "").strip()
+    if not tok:
+        return True, {}, ""
+    if "." not in tok:
+        return False, {}, "INVALID_GOOGLE_TOKEN"
+    allowed_iss = {"https://accounts.google.com", "accounts.google.com"}
+    try:
+        url = f"https://oauth2.googleapis.com/tokeninfo?id_token={urllib.parse.quote(tok, safe='')}"
+        with urllib.request.urlopen(url, timeout=4) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+        if not isinstance(data, dict):
+            return False, {}, "INVALID_GOOGLE_TOKEN"
+        aud = str(data.get("aud") or "").strip()
+        iss = str(data.get("iss") or "").strip()
+        sub = str(data.get("sub") or "").strip()
+        if GOOGLE_IOS_CLIENT_ID and aud != GOOGLE_IOS_CLIENT_ID:
+            return False, {}, "GOOGLE_AUD_MISMATCH"
+        if iss and iss not in allowed_iss:
+            return False, {}, "GOOGLE_ISS_MISMATCH"
+        if not sub:
+            return False, {}, "INVALID_GOOGLE_TOKEN"
+        return True, data, ""
+    except urllib.error.HTTPError:
+        return False, {}, "INVALID_GOOGLE_TOKEN"
+    except Exception:
+        claims = _decode_jwt_claims_unverified(tok)
+        aud = str(claims.get("aud") or "").strip()
+        iss = str(claims.get("iss") or "").strip()
+        sub = str(claims.get("sub") or "").strip()
+        exp = int(claims.get("exp") or 0)
+        if sub and aud == GOOGLE_IOS_CLIENT_ID and iss in allowed_iss and (exp == 0 or exp >= int(time.time()) - 300):
+            return True, claims, ""
+        return False, {}, "INVALID_GOOGLE_TOKEN"
 
 
 def _find_user_by_identity(cursor, provider: str, clean_email: str, clean_uid: str, identity_token: str = ""):
@@ -3282,6 +3327,19 @@ def auth_check_account(req: CheckAccountRequest):
     clean_uid = (req.provider_uid or "").strip()
     raw_id_tok = (req.identity_token or "").strip()
 
+    if provider == "google" and raw_id_tok:
+        g_ok, g_claims, g_err = _verify_google_id_token(raw_id_tok)
+        if not g_ok:
+            return JSONResponse(
+                status_code=401,
+                content={"ok": False, "error_code": g_err or "INVALID_GOOGLE_TOKEN", "detail": "Google kimlik doğrulaması geçersiz."},
+            )
+        if g_claims:
+            clean_uid = str(g_claims.get("sub") or clean_uid).strip()
+            g_em = str(g_claims.get("email") or "").strip().lower()
+            if g_em and "@" in g_em:
+                clean_email = g_em
+
     conn = get_db()
     with conn:
         cursor = conn.cursor()
@@ -3360,6 +3418,19 @@ def auth_login(req: AuthLoginRequest):
     clean_email = (req.email or "").strip().lower()
     clean_uid = (req.provider_uid or "").strip()
     raw_id_tok = (req.identity_token or "").strip()
+
+    if provider == "google" and raw_id_tok:
+        g_ok, g_claims, g_err = _verify_google_id_token(raw_id_tok)
+        if not g_ok:
+            return JSONResponse(
+                status_code=401,
+                content={"ok": False, "error_code": g_err or "INVALID_GOOGLE_TOKEN", "detail": "Google kimlik doğrulaması geçersiz."},
+            )
+        if g_claims:
+            clean_uid = str(g_claims.get("sub") or clean_uid).strip()
+            g_em = str(g_claims.get("email") or "").strip().lower()
+            if g_em and "@" in g_em:
+                clean_email = g_em
 
     conn = get_db()
     with conn:

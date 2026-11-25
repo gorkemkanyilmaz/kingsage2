@@ -141,7 +141,7 @@ func _style_action_button(btn: Button) -> void:
 	sb_norm.content_margin_top = 10.0
 	sb_norm.content_margin_bottom = 10.0
 	sb_norm.shadow_color = Color(0.3, 0.2, 0.1, 0.3)
-	sb_norm.shadow_size = 4
+	sb_norm.shadow_size = 0
 	sb_norm.shadow_offset = Vector2(0, 2)
 
 	var sb_hover := sb_norm.duplicate() as StyleBoxFlat
@@ -731,7 +731,7 @@ func _show_vizier_protection_warning(attack_type: String, remaining_secs: int) -
 	sb.set_corner_radius_all(20)
 	sb.set_content_margin_all(24)
 	sb.shadow_color = Color(0, 0, 0, 0.80)
-	sb.shadow_size = 20
+	sb.shadow_size = 0
 	card.add_theme_stylebox_override("panel", sb)
 	center.add_child(card)
 

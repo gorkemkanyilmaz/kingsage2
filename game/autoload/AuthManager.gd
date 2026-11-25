@@ -421,7 +421,7 @@ func _start_ios_native_auth(prov: String, is_apple: bool, req_id: String, base_u
 	var wait_msg := (
 		"Cihazınızın Apple Kimliği ve Face ID doğrulaması bekleniyor..."
 		if is_apple
-		else "Google hesabınızı seçmek için güvenli pencere açılıyor..."
+		else "Cihazınızın Google (Gmail) hesabı ve Face ID doğrulaması bekleniyor..."
 	)
 	var status_lbl := _show_waiting_sheet(parent_node, title, wait_msg, is_apple, cleanup_native_files)
 
@@ -433,7 +433,7 @@ func _start_ios_native_auth(prov: String, is_apple: bool, req_id: String, base_u
 	var remote_busy := [false]
 	_auth_poll_timer.timeout.connect(func():
 		ticks[0] += 1
-		if ticks[0] > 300:
+		if ticks[0] > (800 if ack_seen[0] else 300):
 			if _auth_poll_timer != null and is_instance_valid(_auth_poll_timer):
 				_auth_poll_timer.stop()
 			cleanup_native_files.call()
@@ -504,7 +504,7 @@ func _start_ios_native_auth(prov: String, is_apple: bool, req_id: String, base_u
 			if _auth_poll_timer != null and is_instance_valid(_auth_poll_timer):
 				_auth_poll_timer.stop()
 			if is_instance_valid(status_lbl):
-				status_lbl.text = "Apple doğrulandı — hesabınız yükleniyor..."
+				status_lbl.text = ("Apple" if res_prov == "apple" else "Google") + " doğrulandı — hesabınız yükleniyor..."
 			var net_t := get_tree()
 			if net_t != null:
 				net_t.create_timer(0.25).timeout.connect(func():

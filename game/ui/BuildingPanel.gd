@@ -81,6 +81,8 @@ var _last_research_sig: String = ""
 var _last_train_sig: String = ""
 var _last_prod_table_sig: String = ""
 var _last_special_box_sig: String = ""
+var _last_tab_style_sig: String = ""
+var _last_speedup_sig_by_btn: Dictionary = {}
 var _in_action_emit: bool = false
 var _active_info_accum: float = 0.0
 var _tab_act_sb: StyleBox = null
@@ -244,7 +246,7 @@ func _ensure_kb_preview_bar() -> void:
 	ksb.content_margin_top = 10
 	ksb.content_margin_bottom = 10
 	ksb.shadow_color = Color(0, 0, 0, 0.65)
-	ksb.shadow_size = 10
+	ksb.shadow_size = 0
 	_kb_preview_bar.add_theme_stylebox_override("panel", ksb)
 
 	var hbox := HBoxContainer.new()
@@ -482,7 +484,7 @@ func _ensure_description_and_production_nodes() -> void:
 		desc_sb.content_margin_top = 12
 		desc_sb.content_margin_bottom = 12
 		desc_sb.shadow_color = Color(0, 0, 0, 0.4)
-		desc_sb.shadow_size = 6
+		desc_sb.shadow_size = 0
 		_desc_box.add_theme_stylebox_override("panel", desc_sb)
 
 		_desc_label = Label.new()
@@ -511,7 +513,7 @@ func _ensure_description_and_production_nodes() -> void:
 		prod_sb.content_margin_top = 10
 		prod_sb.content_margin_bottom = 10
 		prod_sb.shadow_color = Color(0, 0, 0, 0.35)
-		prod_sb.shadow_size = 6
+		prod_sb.shadow_size = 0
 		_prod_box.add_theme_stylebox_override("panel", prod_sb)
 
 		_prod_vbox = VBoxContainer.new()
@@ -535,7 +537,7 @@ func _ensure_description_and_production_nodes() -> void:
 		sp_sb.content_margin_top = 14
 		sp_sb.content_margin_bottom = 14
 		sp_sb.shadow_color = Color(0, 0, 0, 0.45)
-		sp_sb.shadow_size = 8
+		sp_sb.shadow_size = 0
 		_special_box.add_theme_stylebox_override("panel", sp_sb)
 
 		_special_vbox = VBoxContainer.new()
@@ -1092,6 +1094,11 @@ func _apply_speedup_btn_style(btn: Button, category: String) -> void:
 	var count := 0
 	if sm != null and sm.has_method("get_category_scroll_total"):
 		count = int(sm.call("get_category_scroll_total", category))
+	var sig := "%s:%d" % [category, count]
+	var bid := btn.get_instance_id()
+	if str(_last_speedup_sig_by_btn.get(bid, "")) == sig:
+		return
+	_last_speedup_sig_by_btn[bid] = sig
 	btn.text = "⚡ Hızlandır (%d)" % count if count > 0 else "🛒 Parşömen Al"
 	var sb_n := _cached_speedup_have_sb if count > 0 else _cached_speedup_buy_sb
 	var sb_h := _cached_speedup_have_hover if count > 0 else _cached_speedup_buy_hover
@@ -1226,6 +1233,10 @@ func _current_now() -> int:
 func _update_tab_buttons_styling(barracks_level: int) -> void:
 	if tab_bar == null:
 		return
+	var tab_sig := "%d:%d" % [int(_current_tab), 1 if barracks_level >= 1 else 0]
+	if tab_sig == _last_tab_style_sig and _tab_act_sb != null:
+		return
+	_last_tab_style_sig = tab_sig
 
 	if _tab_act_sb == null and tab_upgrade_btn != null:
 		_tab_act_sb = tab_upgrade_btn.get_theme_stylebox("normal")
@@ -1487,7 +1498,7 @@ func _refresh_upgrade_view(state: Dictionary, cur_lvl: int, max_lvl: int) -> voi
 			_cached_upg_norm_sb.border_width_right = 2
 			_cached_upg_norm_sb.set_corner_radius_all(16)
 			_cached_upg_norm_sb.shadow_color = Color(0.04, 0.22, 0.08, 0.45)
-			_cached_upg_norm_sb.shadow_size = 8
+			_cached_upg_norm_sb.shadow_size = 0
 			_cached_upg_norm_sb.shadow_offset = Vector2(0, 4)
 			_cached_upg_norm_sb.content_margin_top = 16
 			_cached_upg_norm_sb.content_margin_bottom = 16
@@ -1501,7 +1512,7 @@ func _refresh_upgrade_view(state: Dictionary, cur_lvl: int, max_lvl: int) -> voi
 			_cached_upg_hover_sb.border_width_right = 2
 			_cached_upg_hover_sb.set_corner_radius_all(16)
 			_cached_upg_hover_sb.shadow_color = Color(0.06, 0.32, 0.12, 0.55)
-			_cached_upg_hover_sb.shadow_size = 12
+			_cached_upg_hover_sb.shadow_size = 0
 			_cached_upg_hover_sb.shadow_offset = Vector2(0, 4)
 			_cached_upg_hover_sb.content_margin_top = 16
 			_cached_upg_hover_sb.content_margin_bottom = 16
@@ -1687,7 +1698,7 @@ func _populate_chain_list(chain: Array) -> void:
 		btn_sb.set_corner_radius_all(12)
 		btn_sb.content_margin_left = 14
 		btn_sb.content_margin_right = 14
-		btn_sb.shadow_size = 4
+		btn_sb.shadow_size = 0
 		btn_sb.shadow_color = Color(0, 0, 0, 0.6)
 		goto_btn.add_theme_stylebox_override("normal", btn_sb)
 
@@ -1696,7 +1707,7 @@ func _populate_chain_list(chain: Array) -> void:
 		btn_hover.border_color = Color(1.0, 0.92, 0.60, 1.0)
 		btn_hover.set_border_width_all(2)
 		btn_hover.set_corner_radius_all(12)
-		btn_hover.shadow_size = 6
+		btn_hover.shadow_size = 0
 		btn_hover.shadow_color = Color(0, 0, 0, 0.8)
 
 		var btn_pressed := StyleBoxFlat.new()
@@ -1916,7 +1927,7 @@ func _populate_research_list() -> void:
 		r_sb.border_color = Color(0.60, 0.95, 0.70, 1.0)
 		r_sb.set_border_width_all(2)
 		r_sb.set_corner_radius_all(12)
-		r_sb.shadow_size = 4
+		r_sb.shadow_size = 0
 		r_sb.shadow_color = Color(0, 0, 0, 0.4)
 		var r_pressed := r_sb.duplicate() as StyleBoxFlat
 		r_pressed.bg_color = Color(0.12, 0.45, 0.22, 1.0)
@@ -2245,7 +2256,7 @@ func _on_start_research_pressed(unit_key: String) -> void:
 		return
 
 	var vid: int = gs.active_village_id
-	var state: Dictionary = gs.to_dict()
+	var state: Dictionary = gs.as_live_dict() if gs.has_method("as_live_dict") else gs.to_dict()
 	var now := _current_now()
 
 	var st_village: Dictionary = {}
@@ -2260,7 +2271,10 @@ func _on_start_research_pressed(unit_key: String) -> void:
 	if bool(res.get("ok", false)):
 		_last_research_sig = ""
 		_last_train_sig = ""
-		gs.from_dict(state)
+		if gs.has_method("sync_from_live_dict"):
+			gs.sync_from_live_dict(state)
+		else:
+			gs.from_dict(state)
 		_village = gs.get_active_village()
 
 		var sm = Engine.get_main_loop().root.get_node_or_null("SaveManager") if Engine.get_main_loop() is SceneTree else null
@@ -2290,7 +2304,7 @@ func _on_cancel_research_pressed(queue_id: int) -> void:
 		return
 
 	var vid: int = gs.active_village_id
-	var state: Dictionary = gs.to_dict()
+	var state: Dictionary = gs.as_live_dict() if gs.has_method("as_live_dict") else gs.to_dict()
 
 	var st_village: Dictionary = {}
 	for sv in state.get("villages", []):
@@ -2303,7 +2317,10 @@ func _on_cancel_research_pressed(queue_id: int) -> void:
 	var ok := ArmyAPI.cancel_research(st_village, queue_id, state)
 	if ok:
 		_last_research_sig = ""
-		gs.from_dict(state)
+		if gs.has_method("sync_from_live_dict"):
+			gs.sync_from_live_dict(state)
+		else:
+			gs.from_dict(state)
 		_village = gs.get_active_village()
 
 		var sm = Engine.get_main_loop().root.get_node_or_null("SaveManager") if Engine.get_main_loop() is SceneTree else null
@@ -2516,7 +2533,7 @@ func _populate_train_list() -> void:
 			g_sb.border_color = Color(0.65, 0.85, 1.0, 0.95)
 			g_sb.set_border_width_all(2)
 			g_sb.set_corner_radius_all(12)
-			g_sb.shadow_size = 4
+			g_sb.shadow_size = 0
 			g_sb.shadow_color = Color(0, 0, 0, 0.4)
 			var g_pressed := g_sb.duplicate() as StyleBoxFlat
 			g_pressed.bg_color = Color(0.12, 0.28, 0.50, 1.0)
@@ -2685,7 +2702,7 @@ func _populate_train_list() -> void:
 			t_sb.border_color = Color(0.60, 0.95, 0.70, 1.0)
 			t_sb.set_border_width_all(2)
 			t_sb.set_corner_radius_all(12)
-			t_sb.shadow_size = 6
+			t_sb.shadow_size = 0
 			t_sb.shadow_color = Color(0, 0, 0, 0.4)
 			var t_pressed := t_sb.duplicate() as StyleBoxFlat
 			t_pressed.bg_color = Color(0.12, 0.45, 0.22, 1.0)
@@ -2867,7 +2884,7 @@ func _create_quick_button(btn_text: String) -> Button:
 	sb.border_color = Color(0.70, 0.60, 0.45, 0.95)
 	sb.set_border_width_all(2)
 	sb.set_corner_radius_all(12)
-	sb.shadow_size = 4
+	sb.shadow_size = 0
 	sb.shadow_color = Color(0, 0, 0, 0.5)
 
 	var sb_hover := StyleBoxFlat.new()
@@ -2875,7 +2892,7 @@ func _create_quick_button(btn_text: String) -> Button:
 	sb_hover.border_color = Color(1.0, 0.88, 0.55, 1.0)
 	sb_hover.set_border_width_all(2)
 	sb_hover.set_corner_radius_all(12)
-	sb_hover.shadow_size = 6
+	sb_hover.shadow_size = 0
 	sb_hover.shadow_color = Color(0, 0, 0, 0.6)
 
 	btn.add_theme_stylebox_override("normal", sb)

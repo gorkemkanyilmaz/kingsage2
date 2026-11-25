@@ -88,7 +88,7 @@ func _build_ui() -> void:
 	card_sb.set_corner_radius_all(24)
 	card_sb.set_content_margin_all(38)
 	card_sb.shadow_color = Color(0, 0, 0, 0.78)
-	card_sb.shadow_size = 24
+	card_sb.shadow_size = 0
 	card_sb.shadow_offset = Vector2(0, 10)
 	card.add_theme_stylebox_override("panel", card_sb)
 	center.add_child(card)

@@ -1,15 +1,17 @@
 extends Node
-## VillageBackgroundCache — 192 karelik (24 FPS, 8 sn) akıcı köy arka plan animasyonunu
-## sıfır gecikme ile önbelleğe alıp hem Web'de (WASM) hem mobilde kesintisiz oynatan Autoload.
+## VillageBackgroundCache — 96 karelik (12 FPS, 8 sn — kaynak 192 kareden her 2. kare)
+## akıcı köy arka plan animasyonunu yarı VRAM ve yarı decode maliyetiyle oynatan Autoload.
 
-const FRAME_COUNT: int = 192
-const TOTAL_FRAMES: int = 192
-const FPS: float = 24.0
-const TARGET_FPS: float = 24.0
+const SOURCE_FRAME_COUNT: int = 192
+const FRAME_STRIDE: int = 2
+const FRAME_COUNT: int = 96
+const TOTAL_FRAMES: int = 96
+const FPS: float = 12.0
+const TARGET_FPS: float = 12.0
 const FRAME_DURATION: float = 1.0 / FPS
 const LOOP_DURATION: float = float(FRAME_COUNT) / FPS
-const FRAMES_PER_TICK: int = 6
-const THREAD_PREFETCH_WINDOW: int = 18
+const FRAMES_PER_TICK: int = 4
+const THREAD_PREFETCH_WINDOW: int = 12
 const MAX_MAIN_THREAD_COLLECT_USEC: int = 2500
 
 var frames: Array[Texture2D] = []
@@ -36,7 +38,37 @@ func _ready() -> void:
 
 
 func _frame_path(idx: int) -> String:
-	return "res://assets/sprites/village/animated_bg/f_%03d.webp" % idx
+	return "res://assets/sprites/village/animated_bg/f_%03d.webp" % (posmod(idx, FRAME_COUNT) * FRAME_STRIDE)
+
+
+func ensure_warming() -> void:
+	if not is_fully_loaded:
+		_queue_threaded_prefetch()
+		set_process(true)
+
+
+func trim_memory() -> void:
+	if frames.size() != FRAME_COUNT:
+		frames.resize(FRAME_COUNT)
+	if _requested_flags.size() != FRAME_COUNT:
+		_requested_flags.resize(FRAME_COUNT)
+	for i in range(1, FRAME_COUNT):
+		frames[i] = null
+		_requested_flags[i] = 0
+	if frames[0] == null:
+		var first_tex := _load_texture(_frame_path(0))
+		if first_tex != null:
+			frames[0] = first_tex
+	_requested_flags[0] = 1
+	_next_load_idx = 1
+	_next_request_idx = 1
+	is_fully_loaded = false
+	set_process(false)
+
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_OS_MEMORY_WARNING:
+		trim_memory()
 
 
 func _queue_threaded_prefetch() -> void:

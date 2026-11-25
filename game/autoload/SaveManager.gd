@@ -158,7 +158,7 @@ func request_save_game() -> void:
 
 
 ## Oyun durumunu ve ayarları kaydeder.
-func save_game(skip_world_save: bool = false) -> bool:
+func save_game(skip_world_save: bool = false, allow_cloud: bool = true) -> bool:
 	if _saving_now:
 		return true
 	_saving_now = true
@@ -183,13 +183,16 @@ func save_game(skip_world_save: bool = false) -> bool:
 		if loop is SceneTree:
 			var wm = loop.root.get_node_or_null("WorldManager")
 			if wm != null and not bool(wm.get("_saving_active_world")) and wm.has_method("save_active_world"):
-				wm.save_active_world()
+				wm.save_active_world(false, allow_cloud)
 
+	var state_payload: Dictionary = {}
+	if gs != null:
+		state_payload = gs.as_live_dict() if gs.has_method("as_live_dict") else gs.to_dict()
 	var payload := {
 		"saveVersion": SAVE_VERSION,
 		"savedAtUnix": now,
 		"savedAtIso": Time.get_datetime_string_from_system(),
-		"state": gs.to_dict() if gs != null else {},
+		"state": state_payload,
 		"config": cfg.to_dict() if cfg != null else {},
 	}
 

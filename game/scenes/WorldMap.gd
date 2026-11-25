@@ -92,6 +92,9 @@ var _cached_own_sig: String = ""
 var _mov_redraw_accum: float = 0.0
 var _status_bar_accum: float = 0.0
 var _had_movements_drawn: bool = false
+var _has_visible_movs_cache: bool = false
+var _last_raw_movs_count: int = -1
+var _last_raw_movs_sig: String = ""
 var _map_speedup_have_sb: StyleBoxFlat = null
 var _map_speedup_have_hover: StyleBoxFlat = null
 var _map_speedup_buy_sb: StyleBoxFlat = null
@@ -311,13 +314,42 @@ func _collect_my_movements(gs: Node) -> Array:
 	return out
 
 
+func has_visible_movements() -> bool:
+	var gs = Engine.get_main_loop().root.get_node_or_null("GameState") if Engine.get_main_loop() is SceneTree else null
+	if gs == null or typeof(gs.movements) != TYPE_ARRAY or (gs.movements as Array).is_empty():
+		_last_raw_movs_count = 0
+		_last_raw_movs_sig = "0"
+		_has_visible_movs_cache = false
+		return false
+	var movs: Array = gs.movements as Array
+	_last_raw_movs_count = movs.size()
+	var first_id: int = int((movs[0] as Dictionary).get("id", 0)) if typeof(movs[0]) == TYPE_DICTIONARY else 0
+	var last_id: int = int((movs[movs.size() - 1] as Dictionary).get("id", 0)) if typeof(movs[movs.size() - 1]) == TYPE_DICTIONARY else 0
+	_last_raw_movs_sig = "%d:%d:%d" % [_last_raw_movs_count, first_id, last_id]
+	_has_visible_movs_cache = not _collect_my_movements(gs).is_empty()
+	return _has_visible_movs_cache
+
+
 func _process(delta: float) -> void:
 	var gs = Engine.get_main_loop().root.get_node_or_null("GameState") if Engine.get_main_loop() is SceneTree else null
-	var has_movs := (gs != null and typeof(gs.movements) == TYPE_ARRAY and not (gs.movements as Array).is_empty())
+	var raw_count := 0
+	var raw_sig := "0"
+	if gs != null and typeof(gs.movements) == TYPE_ARRAY:
+		var movs: Array = gs.movements as Array
+		raw_count = movs.size()
+		if raw_count > 0:
+			var first_id: int = int((movs[0] as Dictionary).get("id", 0)) if typeof(movs[0]) == TYPE_DICTIONARY else 0
+			var last_id: int = int((movs[raw_count - 1] as Dictionary).get("id", 0)) if typeof(movs[raw_count - 1]) == TYPE_DICTIONARY else 0
+			raw_sig = "%d:%d:%d" % [raw_count, first_id, last_id]
+	if raw_count != _last_raw_movs_count or raw_sig != _last_raw_movs_sig:
+		_last_raw_movs_count = raw_count
+		_last_raw_movs_sig = raw_sig
+		_has_visible_movs_cache = (raw_count > 0 and not _collect_my_movements(gs).is_empty())
+
 	if movements_layer != null:
-		if has_movs:
+		if _has_visible_movs_cache:
 			_mov_redraw_accum += maxf(delta, 0.0)
-			if _mov_redraw_accum >= 0.066 or not _had_movements_drawn:
+			if _mov_redraw_accum >= 0.10 or not _had_movements_drawn:
 				_mov_redraw_accum = 0.0
 				movements_layer.queue_redraw()
 			_had_movements_drawn = true
@@ -329,6 +361,7 @@ func _process(delta: float) -> void:
 	_status_bar_accum += maxf(delta, 0.0)
 	if _status_bar_accum >= 0.5:
 		_status_bar_accum = 0.0
+		_has_visible_movs_cache = (raw_count > 0 and not _collect_my_movements(gs).is_empty())
 		_refresh_movement_status_bar()
 		if movement_detail_panel != null and movement_detail_panel.visible:
 			_update_movement_detail_timer()
@@ -426,7 +459,7 @@ func _style_header() -> void:
 	g_sb.border_color = Color(0.36, 0.27, 0.14, 0.95)
 	g_sb.set_border_width_all(2)
 	g_sb.set_corner_radius_all(12)
-	g_sb.shadow_size = 6
+	g_sb.shadow_size = 0
 	g_sb.shadow_color = Color(0, 0, 0, 0.4)
 	btn_goto.add_theme_stylebox_override("normal", g_sb)
 
@@ -449,7 +482,7 @@ func _style_legend() -> void:
 		leg_sb.content_margin_right = 18
 		leg_sb.content_margin_top = 6
 		leg_sb.content_margin_bottom = 6
-		leg_sb.shadow_size = 6
+		leg_sb.shadow_size = 0
 		leg_sb.shadow_color = Color(0, 0, 0, 0.4)
 		legend.add_theme_stylebox_override("panel", leg_sb)
 
@@ -933,7 +966,7 @@ func _style_floating_btn(btn: Button, font_sz: int) -> void:
 	sb.border_color = Color(0.85, 0.72, 0.42, 0.95)
 	sb.set_border_width_all(2)
 	sb.set_corner_radius_all(14)
-	sb.shadow_size = 8
+	sb.shadow_size = 0
 	sb.shadow_color = Color(0, 0, 0, 0.5)
 	btn.add_theme_stylebox_override("normal", sb)
 
@@ -1011,6 +1044,7 @@ func _compute_world_villages_sig(gs: Node) -> String:
 
 
 func _on_world_state_changed() -> void:
+	has_visible_movements()
 	_refresh_movement_status_bar()
 	if movements_layer != null:
 		movements_layer.queue_redraw()
@@ -1074,6 +1108,10 @@ func _on_village_clicked(target_v: Dictionary) -> void:
 
 # ---------------------------------------------------------------- Birlik & Katır Hareket Çizgileri
 func _find_any_village(vid: int, gs: Node) -> Dictionary:
+	if _village_views.has(vid):
+		var view = _village_views[vid]
+		if view != null and "village_data" in view and not (view.village_data as Dictionary).is_empty():
+			return view.village_data
 	if gs == null:
 		return {}
 	var v: Dictionary = gs.get_village(vid)
@@ -1083,10 +1121,6 @@ func _find_any_village(vid: int, gs: Node) -> Dictionary:
 		for w_v in gs.world["villages"]:
 			if int(w_v.get("id", -1)) == vid:
 				return w_v
-	if _village_views.has(vid):
-		var view = _village_views[vid]
-		if view != null and "village_data" in view and not (view.village_data as Dictionary).is_empty():
-			return view.village_data
 	return {}
 
 
@@ -1101,6 +1135,9 @@ func _on_draw_movements() -> void:
 	var now_f: float = _effective_now_f()
 	var now: int = int(floor(now_f))
 	var anim_t: float = Time.get_ticks_msec() * 0.001
+	var vp_sz := map_container.size if (map_container != null and map_container.size.x > 10.0) else Vector2(1080.0, 1920.0)
+	var half_w := (vp_sz * 0.5) / maxf(0.1, _zoom) + Vector2(360.0, 360.0)
+	var vis_rect := Rect2(_camera_pos - half_w, half_w * 2.0)
 
 	for m in my_movements:
 		var from_id := int(m.get("from_village_id", m.get("village_id", 0)))
@@ -1118,6 +1155,13 @@ func _on_draw_movements() -> void:
 
 		var origin_pos := coord_to_world_pos(from_x, from_y)
 		var target_pos := coord_to_world_pos(to_x, to_y)
+		var min_px := minf(origin_pos.x, target_pos.x) - 120.0
+		var min_py := minf(origin_pos.y, target_pos.y) - 120.0
+		var max_px := maxf(origin_pos.x, target_pos.x) + 120.0
+		var max_py := maxf(origin_pos.y, target_pos.y) + 120.0
+		var seg_bounds := Rect2(min_px, min_py, max_px - min_px, max_py - min_py)
+		if not vis_rect.intersects(seg_bounds):
+			continue
 
 		var m_type := str(m.get("type", "attack"))
 		var m_state := str(m.get("state", "outgoing"))
@@ -1160,11 +1204,12 @@ func _on_draw_movements() -> void:
 			if e_d - s_d >= 2.0:
 				var p_a := origin_pos + line_dir * s_d
 				var p_b := origin_pos + line_dir * e_d
-				var cur_along := start_pad + vis_dist * progress
-				var is_ahead := (s_d >= cur_along - dash_len)
-				var d_col := line_color if is_ahead else Color(line_color.r, line_color.g, line_color.b, 0.44)
-				movements_layer.draw_line(p_a, p_b, Color(0.0, 0.0, 0.0, 0.60 if is_ahead else 0.28), 10.5, true)
-				movements_layer.draw_line(p_a, p_b, d_col, 5.5, true)
+				if vis_rect.has_point(p_a) or vis_rect.has_point(p_b):
+					var cur_along := start_pad + vis_dist * progress
+					var is_ahead := (s_d >= cur_along - dash_len)
+					var d_col := line_color if is_ahead else Color(line_color.r, line_color.g, line_color.b, 0.44)
+					movements_layer.draw_line(p_a, p_b, Color(0.0, 0.0, 0.0, 0.60 if is_ahead else 0.28), 10.5, true)
+					movements_layer.draw_line(p_a, p_b, d_col, 5.5, true)
 			d += period
 
 		# 2) Yol boyunca yön okları (dönüşte oklar ters yöne evi gösterir!)
@@ -1176,21 +1221,24 @@ func _on_draw_movements() -> void:
 				ad += arrow_step * 0.5
 			while ad < line_dist - 36.0:
 				var tip := origin_pos + line_dir * ad
-				var back := tip - line_dir * 22.0
-				var wing_l := back + perp * 13.5
-				var wing_r := back - perp * 13.5
-				movements_layer.draw_colored_polygon(PackedVector2Array([tip, wing_l, tip - line_dir * 9.0, wing_r]), Color(0, 0, 0, 0.45))
-				movements_layer.draw_colored_polygon(PackedVector2Array([tip - line_dir * 2.0, wing_l - perp * 1.5, tip - line_dir * 9.0, wing_r + perp * 1.5]), line_color)
+				if vis_rect.has_point(tip):
+					var back := tip - line_dir * 22.0
+					var wing_l := back + perp * 13.5
+					var wing_r := back - perp * 13.5
+					movements_layer.draw_colored_polygon(PackedVector2Array([tip, wing_l, tip - line_dir * 9.0, wing_r]), Color(0, 0, 0, 0.45))
+					movements_layer.draw_colored_polygon(PackedVector2Array([tip - line_dir * 2.0, wing_l - perp * 1.5, tip - line_dir * 9.0, wing_r + perp * 1.5]), line_color)
 				ad += arrow_step
 
 		# Hedef noktasına hedef/ev halkası çiz
-		movements_layer.draw_arc(target_pos, 40.0 + 5.0 * sin(anim_t * 4.5), 0.0, TAU, 28, line_color, 4.0, true)
+		if vis_rect.has_point(target_pos):
+			movements_layer.draw_arc(target_pos, 40.0 + 5.0 * sin(anim_t * 4.5), 0.0, TAU, 20, line_color, 4.0, true)
 
 		# 3) Kesikli çizgi üzerinde belirgin madalyon + 2.6x yürüyen ortaçağ ordu birliği
 		var pulse_r := 48.0 + 5.0 * sin(anim_t * 6.0)
-		movements_layer.draw_circle(current_march_pos, 46.0, Color(0.04, 0.04, 0.08, 0.56))
-		movements_layer.draw_arc(current_march_pos, pulse_r, 0.0, TAU, 32, Color(0, 0, 0, 0.70), 6.5, true)
-		movements_layer.draw_arc(current_march_pos, pulse_r, 0.0, TAU, 32, line_color, 3.5, true)
+		if vis_rect.has_point(current_march_pos):
+			movements_layer.draw_circle(current_march_pos, 46.0, Color(0.04, 0.04, 0.08, 0.56))
+			movements_layer.draw_arc(current_march_pos, pulse_r, 0.0, TAU, 20, Color(0, 0, 0, 0.70), 6.5, true)
+			movements_layer.draw_arc(current_march_pos, pulse_r, 0.0, TAU, 20, line_color, 3.5, true)
 
 		var is_owned_draw := _is_player_owned_movement(m, gs)
 		var is_support := (m_type == "support")
@@ -1334,7 +1382,7 @@ func _setup_movement_status_bar() -> void:
 	bar_sb.border_color = Color(0.85, 0.72, 0.42, 0.95)
 	bar_sb.set_border_width_all(2)
 	bar_sb.set_corner_radius_all(14)
-	bar_sb.shadow_size = 8
+	bar_sb.shadow_size = 0
 	bar_sb.shadow_color = Color(0, 0, 0, 0.5)
 	bar_sb.content_margin_left = 18
 	bar_sb.content_margin_right = 18
@@ -1401,7 +1449,7 @@ func _setup_bottom_march_bar() -> void:
 	bar_sb.border_color = Color(0.95, 0.78, 0.36, 0.98)
 	bar_sb.set_border_width_all(2)
 	bar_sb.set_corner_radius_all(16)
-	bar_sb.shadow_size = 10
+	bar_sb.shadow_size = 0
 	bar_sb.shadow_color = Color(0, 0, 0, 0.65)
 	bar_sb.content_margin_left = 16
 	bar_sb.content_margin_right = 16
@@ -1817,7 +1865,7 @@ func _create_movement_detail_panel() -> void:
 	panel_sb.border_color = Color(0.85, 0.72, 0.42, 0.95)
 	panel_sb.set_border_width_all(3)
 	panel_sb.set_corner_radius_all(20)
-	panel_sb.shadow_size = 20
+	panel_sb.shadow_size = 0
 	panel_sb.shadow_color = Color(0, 0, 0, 0.75)
 	panel_sb.content_margin_left = 24
 	panel_sb.content_margin_right = 24
@@ -2037,7 +2085,7 @@ func _create_movement_detail_panel() -> void:
 	cancel_sb.border_color = Color(1.0, 0.40, 0.35, 0.95)
 	cancel_sb.set_border_width_all(2)
 	cancel_sb.set_corner_radius_all(14)
-	cancel_sb.shadow_size = 8
+	cancel_sb.shadow_size = 0
 	cancel_sb.shadow_color = Color(0.4, 0, 0, 0.6)
 	_detail_btn_cancel.add_theme_stylebox_override("normal", cancel_sb)
 

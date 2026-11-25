@@ -8,6 +8,8 @@
 #import <WebKit/WebKit.h>
 #import <StoreKit/StoreKit.h>
 #import <UserNotifications/UserNotifications.h>
+#import <CommonCrypto/CommonDigest.h>
+#import <Security/Security.h>
 #import <objc/runtime.h>
 #if __has_include(<AuthenticationServices/AuthenticationServices.h>)
 #import <AuthenticationServices/AuthenticationServices.h>
@@ -32,6 +34,9 @@ static NSString *const kTVKNotifEnabledKey = @"tvk_notif_enabled";
 static NSString *const kTVKNotifDeviceTokenKey = @"tvk_notif_device_token";
 static NSString *const kTVKAppleNamePrefix = @"tvk_apple_name_";
 static NSString *const kTVKAppleEmailPrefix = @"tvk_apple_email_";
+static NSString *const kTVKGoogleClientId = @"552757358961-j2p1bdt066tpropqmuj2dcp25rfu64o3.apps.googleusercontent.com";
+static NSString *const kTVKGoogleCallbackScheme = @"com.googleusercontent.apps.552757358961-j2p1bdt066tpropqmuj2dcp25rfu64o3";
+static NSString *const kTVKGoogleRedirectURI = @"com.googleusercontent.apps.552757358961-j2p1bdt066tpropqmuj2dcp25rfu64o3:/oauth2redirect/google";
 
 static NSMutableArray<NSString *> *gTVKCachedExtraDirs = nil;
 static BOOL gTVKDidDeepScanOnce = NO;
@@ -164,6 +169,7 @@ static NSString *TVKBase64AppStoreReceipt(void) {
 #if TVK_HAS_AUTH_SERVICES
     , ASAuthorizationControllerDelegate
     , ASAuthorizationControllerPresentationContextProviding
+    , ASWebAuthenticationPresentationContextProviding
 #endif
 >
 @property (nonatomic, strong) NSTimer *pollTimer;
@@ -176,6 +182,9 @@ static NSString *TVKBase64AppStoreReceipt(void) {
 @property (nonatomic, assign) NSUInteger scanTickCount;
 @property (nonatomic, strong) UIViewController *presentedNav;
 @property (nonatomic, strong) UIActivityIndicatorView *loadingSpinner;
+@property (nonatomic, strong) id googleAuthSession;
+@property (nonatomic, copy) NSString *googleCodeVerifier;
+@property (nonatomic, copy) NSString *googleOAuthState;
 #if TVK_HAS_AUTH_SERVICES
 @property (nonatomic, strong) id appleController;
 #endif
@@ -189,13 +198,50 @@ static TVKNativeAuthBridge *gBridge = nil;
 static TVKStoreKitBridge *gStoreKitBridge = nil;
 static const NSInteger kTVKKeyboardToolbarTag = 90214;
 
-static NSString *TVKExtractEmailFromJWT(NSString *jwt) {
-    if (jwt.length == 0) {
+static NSString *TVKBase64URLEncode(NSData *data) {
+    if (data.length == 0) {
         return @"";
+    }
+    NSMutableString *b64 = [[data base64EncodedStringWithOptions:0] mutableCopy];
+    [b64 replaceOccurrencesOfString:@"+" withString:@"-" options:0 range:NSMakeRange(0, b64.length)];
+    [b64 replaceOccurrencesOfString:@"/" withString:@"_" options:0 range:NSMakeRange(0, b64.length)];
+    [b64 replaceOccurrencesOfString:@"=" withString:@"" options:0 range:NSMakeRange(0, b64.length)];
+    return [b64 copy];
+}
+
+static NSString *TVKRandomBase64URL(NSUInteger byteCount) {
+    NSMutableData *data = [NSMutableData dataWithLength:byteCount];
+    if (SecRandomCopyBytes(kSecRandomDefault, byteCount, data.mutableBytes) != errSecSuccess) {
+        arc4random_buf(data.mutableBytes, byteCount);
+    }
+    return TVKBase64URLEncode(data);
+}
+
+static NSString *TVKSHA256Base64URL(NSString *input) {
+    NSData *utf8 = [input dataUsingEncoding:NSUTF8StringEncoding];
+    if (utf8.length == 0) {
+        return @"";
+    }
+    unsigned char digest[CC_SHA256_DIGEST_LENGTH];
+    CC_SHA256(utf8.bytes, (CC_LONG)utf8.length, digest);
+    return TVKBase64URLEncode([NSData dataWithBytes:digest length:CC_SHA256_DIGEST_LENGTH]);
+}
+
+static NSString *TVKFormURLEncode(NSString *s) {
+    if (s.length == 0) {
+        return @"";
+    }
+    NSCharacterSet *allowed = [NSCharacterSet characterSetWithCharactersInString:@"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~"];
+    return [s stringByAddingPercentEncodingWithAllowedCharacters:allowed] ?: @"";
+}
+
+static NSDictionary *TVKDecodeJWTPayload(NSString *jwt) {
+    if (jwt.length == 0) {
+        return nil;
     }
     NSArray<NSString *> *parts = [jwt componentsSeparatedByString:@"."];
     if (parts.count < 2) {
-        return @"";
+        return nil;
     }
     NSMutableString *b64 = [parts[1] mutableCopy];
     [b64 replaceOccurrencesOfString:@"-" withString:@"+" options:0 range:NSMakeRange(0, b64.length)];
@@ -205,13 +251,18 @@ static NSString *TVKExtractEmailFromJWT(NSString *jwt) {
     }
     NSData *decoded = [[NSData alloc] initWithBase64EncodedString:b64 options:0];
     if (decoded.length == 0) {
-        return @"";
+        return nil;
     }
     id obj = [NSJSONSerialization JSONObjectWithData:decoded options:0 error:nil];
-    if (![obj isKindOfClass:[NSDictionary class]]) {
+    return [obj isKindOfClass:[NSDictionary class]] ? (NSDictionary *)obj : nil;
+}
+
+static NSString *TVKExtractEmailFromJWT(NSString *jwt) {
+    NSDictionary *claims = TVKDecodeJWTPayload(jwt);
+    if (claims == nil) {
         return @"";
     }
-    id em = ((NSDictionary *)obj)[@"email"];
+    id em = claims[@"email"];
     return [em isKindOfClass:[NSString class]] ? [(NSString *)em stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]] : @"";
 }
 
@@ -553,6 +604,9 @@ extern "C" void tvk_ios_auth_bridge_init(void) {
     self.isBusy = NO;
     self.busyStartedAt = 0.0;
     self.appleController = nil;
+    self.googleAuthSession = nil;
+    self.googleCodeVerifier = nil;
+    self.googleOAuthState = nil;
 }
 
 - (void)finishSuccessWithProvider:(NSString *)provider
@@ -582,13 +636,13 @@ extern "C" void tvk_ios_auth_bridge_init(void) {
 
 - (void)pollForRequest {
     NSTimeInterval nowSec = [[NSDate date] timeIntervalSince1970];
-    if (self.isBusy && self.presentedNav == nil && self.busyStartedAt > 0.0 && (nowSec - self.busyStartedAt) > 25.0) {
+    if (self.isBusy && self.presentedNav == nil && self.googleAuthSession == nil && self.busyStartedAt > 0.0 && (nowSec - self.busyStartedAt) > 25.0) {
         self.isBusy = NO;
         self.busyStartedAt = 0.0;
         self.appleController = nil;
     }
     if (self.isBusy) {
-        if (self.presentedNav == nil && self.busyStartedAt > 0.0 && (nowSec - self.busyStartedAt) > 6.0) {
+        if (self.presentedNav == nil && self.googleAuthSession == nil && self.busyStartedAt > 0.0 && (nowSec - self.busyStartedAt) > 6.0) {
             NSFileManager *fmPre = [NSFileManager defaultManager];
             BOOL hasFreshReq = NO;
             for (NSString *candDir in [self candidateUserDirsWithDeepScan:NO]) {
@@ -672,12 +726,7 @@ extern "C" void tvk_ios_auth_bridge_init(void) {
         if ([self.activeProvider isEqualToString:@"apple"]) {
             [self startNativeAppleSignIn];
         } else {
-            NSURL *url = [NSURL URLWithString:self.activeOAuthUrl];
-            if (url != nil) {
-                [self presentEmbeddedWKWebView:url provider:self.activeProvider];
-            } else {
-                [self finishError:@"Gecersiz OAuth URL." cancelled:NO];
-            }
+            [self startNativeGoogleSignIn];
         }
     });
 }
@@ -789,6 +838,275 @@ extern "C" void tvk_ios_auth_bridge_init(void) {
     });
 }
 #endif
+
+#pragma mark - Sign in with Google (Face ID + ASWebAuthenticationSession + PKCE)
+
+- (void)startNativeGoogleSignIn {
+    LAContext *ctx = [[LAContext alloc] init];
+    NSError *authErr = nil;
+    if ([ctx canEvaluatePolicy:LAPolicyDeviceOwnerAuthenticationWithBiometrics error:&authErr]) {
+        [ctx evaluatePolicy:LAPolicyDeviceOwnerAuthenticationWithBiometrics
+            localizedReason:@"Taht ve Kilic Google hesabinizla giris icin Face ID dogrulamasi."
+                      reply:^(BOOL success, NSError * _Nullable error) {
+            dispatch_async(dispatch_get_main_queue(), ^{
+                if (success) {
+                    [self launchGoogleASWebAuthenticationSession];
+                    return;
+                }
+                if (error != nil && (
+                    error.code == LAErrorUserCancel ||
+                    error.code == LAErrorAppCancel ||
+                    error.code == LAErrorSystemCancel
+                )) {
+                    [self finishError:@"Google ile giris iptal edildi." cancelled:YES];
+                    return;
+                }
+                [self launchGoogleASWebAuthenticationSession];
+            });
+        }];
+        return;
+    }
+    [self launchGoogleASWebAuthenticationSession];
+}
+
+#if TVK_HAS_AUTH_SERVICES
+- (ASPresentationAnchor)presentationAnchorForWebAuthenticationSession:(ASWebAuthenticationSession *)session API_AVAILABLE(ios(13.0)) {
+    return [self activeKeyWindow];
+}
+#endif
+
+- (void)launchGoogleASWebAuthenticationSession {
+#if TVK_HAS_AUTH_SERVICES
+    if (@available(iOS 12.0, *)) {
+        NSString *verifier = TVKRandomBase64URL(32);
+        NSString *challenge = TVKSHA256Base64URL(verifier);
+        NSString *state = TVKRandomBase64URL(16);
+        self.googleCodeVerifier = verifier;
+        self.googleOAuthState = state;
+
+        NSURLComponents *comps = [NSURLComponents componentsWithString:@"https://accounts.google.com/o/oauth2/v2/auth"];
+        comps.queryItems = @[
+            [NSURLQueryItem queryItemWithName:@"client_id" value:kTVKGoogleClientId],
+            [NSURLQueryItem queryItemWithName:@"redirect_uri" value:kTVKGoogleRedirectURI],
+            [NSURLQueryItem queryItemWithName:@"response_type" value:@"code"],
+            [NSURLQueryItem queryItemWithName:@"scope" value:@"openid email profile"],
+            [NSURLQueryItem queryItemWithName:@"code_challenge" value:challenge],
+            [NSURLQueryItem queryItemWithName:@"code_challenge_method" value:@"S256"],
+            [NSURLQueryItem queryItemWithName:@"state" value:state],
+            [NSURLQueryItem queryItemWithName:@"prompt" value:@"select_account"]
+        ];
+        NSURL *authURL = comps.URL;
+        if (authURL == nil) {
+            [self finishError:@"Google OAuth URL olusturulamadi." cancelled:NO];
+            return;
+        }
+
+        __weak typeof(self) weakSelf = self;
+        ASWebAuthenticationSession *session = [[ASWebAuthenticationSession alloc]
+            initWithURL:authURL
+            callbackURLScheme:kTVKGoogleCallbackScheme
+            completionHandler:^(NSURL * _Nullable callbackURL, NSError * _Nullable error) {
+                dispatch_async(dispatch_get_main_queue(), ^{
+                    TVKNativeAuthBridge *strongSelf = weakSelf;
+                    if (strongSelf == nil) {
+                        return;
+                    }
+                    strongSelf.googleAuthSession = nil;
+
+                    if (error != nil) {
+                        BOOL isCancel = (error.code == ASWebAuthenticationSessionErrorCodeCanceledLogin);
+                        NSString *msg = isCancel ? @"Google ile giris iptal edildi." : (error.localizedDescription ?: @"Google dogrulamasi basarisiz.");
+                        [strongSelf finishError:msg cancelled:isCancel];
+                        return;
+                    }
+                    if (callbackURL == nil) {
+                        [strongSelf finishError:@"Google donus adresi alinamadi." cancelled:NO];
+                        return;
+                    }
+
+                    NSURLComponents *cbComps = [NSURLComponents componentsWithURL:callbackURL resolvingAgainstBaseURL:NO];
+                    NSMutableDictionary<NSString *, NSString *> *params = [NSMutableDictionary dictionary];
+                    for (NSURLQueryItem *item in cbComps.queryItems) {
+                        if (item.name != nil && item.value != nil) {
+                            params[item.name] = item.value;
+                        }
+                    }
+
+                    if (params[@"error"].length > 0) {
+                        BOOL isAccessDenied = [params[@"error"] isEqualToString:@"access_denied"];
+                        [strongSelf finishError:(isAccessDenied ? @"Google ile giris iptal edildi." : params[@"error"]) cancelled:isAccessDenied];
+                        return;
+                    }
+
+                    NSString *retState = params[@"state"] ?: @"";
+                    if (strongSelf.googleOAuthState.length > 0 && ![retState isEqualToString:strongSelf.googleOAuthState]) {
+                        [strongSelf finishError:@"Google guvenlik durumu (state) eslesmedi." cancelled:NO];
+                        return;
+                    }
+
+                    NSString *code = params[@"code"] ?: @"";
+                    if (code.length == 0) {
+                        [strongSelf finishError:@"Google yetkilendirme kodu alinamadi." cancelled:NO];
+                        return;
+                    }
+
+                    [strongSelf exchangeGoogleAuthCode:code];
+                });
+            }];
+
+        if (@available(iOS 13.0, *)) {
+            session.presentationContextProvider = self;
+            session.prefersEphemeralWebBrowserSession = NO;
+        }
+        self.googleAuthSession = session;
+        if (![session start]) {
+            self.googleAuthSession = nil;
+            [self finishError:@"Google oturum penceresi baslatilamadi." cancelled:NO];
+        }
+        return;
+    }
+#endif
+    NSURL *url = [NSURL URLWithString:self.activeOAuthUrl];
+    if (url != nil) {
+        [self presentEmbeddedWKWebView:url provider:@"google"];
+    } else {
+        [self finishError:@"Google giris sayfasi acilamadi." cancelled:NO];
+    }
+}
+
+- (void)exchangeGoogleAuthCode:(NSString *)code {
+    NSURL *tokenURL = [NSURL URLWithString:@"https://oauth2.googleapis.com/token"];
+    NSMutableURLRequest *req = [NSMutableURLRequest requestWithURL:tokenURL
+                                                       cachePolicy:NSURLRequestReloadIgnoringLocalCacheData
+                                                   timeoutInterval:15.0];
+    req.HTTPMethod = @"POST";
+    [req setValue:@"application/x-www-form-urlencoded" forHTTPHeaderField:@"Content-Type"];
+
+    NSString *bodyStr = [NSString stringWithFormat:@"client_id=%@&code=%@&code_verifier=%@&redirect_uri=%@&grant_type=authorization_code",
+        TVKFormURLEncode(kTVKGoogleClientId),
+        TVKFormURLEncode(code),
+        TVKFormURLEncode(self.googleCodeVerifier ?: @""),
+        TVKFormURLEncode(kTVKGoogleRedirectURI)];
+    req.HTTPBody = [bodyStr dataUsingEncoding:NSUTF8StringEncoding];
+
+    __weak typeof(self) weakSelf = self;
+    NSURLSessionDataTask *task = [[NSURLSession sharedSession] dataTaskWithRequest:req completionHandler:^(NSData * _Nullable data, NSURLResponse * _Nullable response, NSError * _Nullable error) {
+        dispatch_async(dispatch_get_main_queue(), ^{
+            TVKNativeAuthBridge *strongSelf = weakSelf;
+            if (strongSelf == nil) {
+                return;
+            }
+            if (error != nil || data.length == 0) {
+                [strongSelf finishError:(error.localizedDescription ?: @"Google token degisimi basarisiz.") cancelled:NO];
+                return;
+            }
+            id obj = [NSJSONSerialization JSONObjectWithData:data options:0 error:nil];
+            if (![obj isKindOfClass:[NSDictionary class]]) {
+                [strongSelf finishError:@"Google token cevabi okunamadi." cancelled:NO];
+                return;
+            }
+            NSDictionary *tokDict = (NSDictionary *)obj;
+            if ([tokDict[@"error"] isKindOfClass:[NSString class]] && ((NSString *)tokDict[@"error"]).length > 0) {
+                NSString *errDesc = [tokDict[@"error_description"] isKindOfClass:[NSString class]] ? tokDict[@"error_description"] : tokDict[@"error"];
+                [strongSelf finishError:errDesc cancelled:NO];
+                return;
+            }
+
+            NSString *idToken = [tokDict[@"id_token"] isKindOfClass:[NSString class]] ? tokDict[@"id_token"] : @"";
+            NSString *accessToken = [tokDict[@"access_token"] isKindOfClass:[NSString class]] ? tokDict[@"access_token"] : @"";
+
+            NSDictionary *claims = TVKDecodeJWTPayload(idToken);
+            NSString *sub = [claims[@"sub"] isKindOfClass:[NSString class]] ? claims[@"sub"] : @"";
+            NSString *email = [claims[@"email"] isKindOfClass:[NSString class]] ? [claims[@"email"] lowercaseString] : @"";
+            NSString *fullName = [claims[@"name"] isKindOfClass:[NSString class]] ? [claims[@"name"] stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]] : @"";
+
+            if ((sub.length == 0 || email.length == 0) && accessToken.length > 0) {
+                [strongSelf fetchGoogleUserInfoWithAccessToken:accessToken
+                                                       idToken:idToken
+                                                    initialSub:sub
+                                                  initialEmail:email
+                                                   initialName:fullName];
+                return;
+            }
+
+            [strongSelf completeGoogleIdentityWithSub:sub email:email name:fullName idToken:idToken];
+        });
+    }];
+    [task resume];
+}
+
+- (void)fetchGoogleUserInfoWithAccessToken:(NSString *)accessToken
+                                   idToken:(NSString *)idToken
+                                initialSub:(NSString *)initialSub
+                              initialEmail:(NSString *)initialEmail
+                               initialName:(NSString *)initialName {
+    NSURL *infoURL = [NSURL URLWithString:@"https://openidconnect.googleapis.com/v1/userinfo"];
+    NSMutableURLRequest *req = [NSMutableURLRequest requestWithURL:infoURL
+                                                       cachePolicy:NSURLRequestReloadIgnoringLocalCacheData
+                                                   timeoutInterval:12.0];
+    [req setValue:[NSString stringWithFormat:@"Bearer %@", accessToken] forHTTPHeaderField:@"Authorization"];
+
+    __weak typeof(self) weakSelf = self;
+    NSURLSessionDataTask *task = [[NSURLSession sharedSession] dataTaskWithRequest:req completionHandler:^(NSData * _Nullable data, NSURLResponse * _Nullable response, NSError * _Nullable error) {
+        dispatch_async(dispatch_get_main_queue(), ^{
+            TVKNativeAuthBridge *strongSelf = weakSelf;
+            if (strongSelf == nil) {
+                return;
+            }
+            NSString *sub = initialSub ?: @"";
+            NSString *email = initialEmail ?: @"";
+            NSString *fullName = initialName ?: @"";
+            if (error == nil && data.length > 0) {
+                id obj = [NSJSONSerialization JSONObjectWithData:data options:0 error:nil];
+                if ([obj isKindOfClass:[NSDictionary class]]) {
+                    NSDictionary *ui = (NSDictionary *)obj;
+                    if (sub.length == 0 && [ui[@"sub"] isKindOfClass:[NSString class]]) {
+                        sub = ui[@"sub"];
+                    }
+                    if (email.length == 0 && [ui[@"email"] isKindOfClass:[NSString class]]) {
+                        email = [ui[@"email"] lowercaseString];
+                    }
+                    if (fullName.length == 0 && [ui[@"name"] isKindOfClass:[NSString class]]) {
+                        fullName = [ui[@"name"] stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
+                    }
+                }
+            }
+            [strongSelf completeGoogleIdentityWithSub:sub email:email name:fullName idToken:idToken];
+        });
+    }];
+    [task resume];
+}
+
+- (void)completeGoogleIdentityWithSub:(NSString *)sub
+                                email:(NSString *)email
+                                 name:(NSString *)name
+                              idToken:(NSString *)idToken {
+    NSString *cleanSub = [sub stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]] ?: @"";
+    NSString *cleanEmail = [[email stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]] lowercaseString] ?: @"";
+    NSString *cleanName = [name stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]] ?: @"";
+
+    if (cleanSub.length == 0 && cleanEmail.length == 0) {
+        [self finishError:@"Google hesap kimligi alinamadi." cancelled:NO];
+        return;
+    }
+
+    if (cleanName.length == 0 && cleanEmail.length > 0) {
+        NSString *prefix = [cleanEmail componentsSeparatedByString:@"@"].firstObject;
+        if (prefix.length > 0) {
+            cleanName = [[prefix stringByReplacingOccurrencesOfString:@"." withString:@" "] capitalizedString];
+        }
+    }
+    if (cleanName.length == 0) {
+        NSString *shortId = cleanSub.length >= 6 ? [cleanSub substringToIndex:6] : @"Google";
+        cleanName = [NSString stringWithFormat:@"Google %@", shortId];
+    }
+
+    [self finishSuccessWithProvider:@"google"
+                        providerUid:cleanSub
+                               name:cleanName
+                              email:cleanEmail
+                      identityToken:(idToken ?: @"")];
+}
 
 #pragma mark - In-App WKWebView OAuth Sheet
 

@@ -242,7 +242,7 @@ func _ensure_ui() -> void:
 	card_sb.set_corner_radius_all(20)
 	card_sb.set_content_margin_all(24)
 	card_sb.shadow_color = Color(0, 0, 0, 0.78)
-	card_sb.shadow_size = 20
+	card_sb.shadow_size = 0
 	card.add_theme_stylebox_override("panel", card_sb)
 	center.add_child(card)
 

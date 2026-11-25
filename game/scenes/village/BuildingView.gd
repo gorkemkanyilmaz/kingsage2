@@ -65,6 +65,63 @@ var _level_up_tween: Tween = null
 var _cached_badge_state: String = ""
 var _cached_badge_sb: StyleBoxFlat = null
 var _cached_name_sb: StyleBoxFlat = null
+var _last_visual_mode: int = -1
+var _last_visual_level: int = -1
+var _last_rem_seconds: int = -1
+var _last_progress_int: int = -1
+
+static var _sb_badge_by_mode: Dictionary = {}
+static var _sb_name_by_mode: Dictionary = {}
+
+
+static func _ensure_shared_badge_styles() -> void:
+	if not _sb_badge_by_mode.is_empty():
+		return
+	var specs := {
+		0: [Color(0.96, 0.68, 0.18, 0.98), Color(1.0, 0.94, 0.55, 1.0)],
+		1: [Color(0.99, 0.98, 0.95, 0.96), Color(0.42, 0.32, 0.18, 0.95)],
+		2: [Color(0.18, 0.16, 0.14, 0.94), Color(0.55, 0.48, 0.38, 0.90)],
+		3: [Color(0.18, 0.46, 0.76, 0.96), Color(0.60, 0.85, 1.0, 1.0)],
+	}
+	for m in specs.keys():
+		var pair: Array = specs[m]
+		var b_sb := StyleBoxFlat.new()
+		b_sb.set_corner_radius_all(6)
+		b_sb.content_margin_left = 8
+		b_sb.content_margin_right = 8
+		b_sb.content_margin_top = 4
+		b_sb.content_margin_bottom = 4
+		b_sb.shadow_size = 0
+		b_sb.bg_color = pair[0]
+		b_sb.border_color = pair[1]
+		b_sb.set_border_width_all(2)
+		b_sb.border_width_bottom = 3
+		_sb_badge_by_mode[m] = b_sb
+
+		var n_sb := StyleBoxFlat.new()
+		n_sb.set_corner_radius_all(6)
+		n_sb.content_margin_left = 12
+		n_sb.content_margin_right = 12
+		n_sb.content_margin_top = 3
+		n_sb.content_margin_bottom = 3
+		n_sb.shadow_size = 0
+		n_sb.bg_color = pair[0]
+		n_sb.border_color = pair[1]
+		n_sb.set_border_width_all(2)
+		n_sb.border_width_bottom = 3
+		_sb_name_by_mode[m] = n_sb
+
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_APPLICATION_PAUSED or what == NOTIFICATION_APPLICATION_FOCUS_OUT:
+		if _hammer_tween != null and _hammer_tween.is_valid():
+			_hammer_tween.pause()
+	elif what == NOTIFICATION_APPLICATION_RESUMED or what == NOTIFICATION_APPLICATION_FOCUS_IN:
+		if is_upgrading:
+			if _hammer_tween != null and _hammer_tween.is_valid():
+				_hammer_tween.play()
+			else:
+				_start_hammer_anim()
 
 
 func _exit_tree() -> void:
@@ -412,114 +469,77 @@ func _update_visuals(progress_pct: float = 0.0, rem_seconds: int = 0) -> void:
 	if _badge_label == null or _level_badge == null:
 		return
 
-	# BÜYÜK, KESKİN VE DERİN GÖLGELİ SEVİYE PLAKETİ
-	var badge_sb := StyleBoxFlat.new()
-	badge_sb.set_corner_radius_all(6)
-	badge_sb.content_margin_left = 8
-	badge_sb.content_margin_right = 8
-	badge_sb.content_margin_top = 4
-	badge_sb.content_margin_bottom = 4
-	badge_sb.shadow_size = 6
-	badge_sb.shadow_color = Color(0.0, 0.0, 0.0, 0.50)
+	_ensure_shared_badge_styles()
+	var mode: int = 0 if is_upgrading else (1 if current_level > 0 else (2 if is_locked else 3))
+	var mode_or_lvl_changed := (mode != _last_visual_mode or current_level != _last_visual_level)
 
-	var name_sb := StyleBoxFlat.new()
-	name_sb.set_corner_radius_all(6)
-	name_sb.content_margin_left = 12
-	name_sb.content_margin_right = 12
-	name_sb.content_margin_top = 3
-	name_sb.content_margin_bottom = 3
-	name_sb.shadow_size = 6
-	name_sb.shadow_color = Color(0.0, 0.0, 0.0, 0.50)
+	if mode_or_lvl_changed:
+		_last_visual_mode = mode
+		_last_visual_level = current_level
+		_last_rem_seconds = -1
+		_last_progress_int = -1
 
-	if is_upgrading:
-		# İnşaat: Altın sarısı kare rozet + Çekiç animasyonu
-		badge_sb.bg_color = Color(0.96, 0.68, 0.18, 0.98)
-		badge_sb.border_color = Color(1.0, 0.94, 0.55, 1.0)
-		badge_sb.set_border_width_all(2)
-		_badge_label.text = "🔨%d" % (current_level + 1)
-		_badge_label.add_theme_color_override("font_color", Color(0.10, 0.07, 0.03))
+		var badge_sb: StyleBoxFlat = _sb_badge_by_mode[mode]
+		var name_sb: StyleBoxFlat = _sb_name_by_mode[mode]
 
-		name_sb.bg_color = Color(0.96, 0.68, 0.18, 0.98)
-		name_sb.border_color = Color(1.0, 0.94, 0.55, 1.0)
-		name_sb.set_border_width_all(2)
-		if _name_label != null:
-			_name_label.add_theme_color_override("font_color", Color(0.16, 0.12, 0.08))
+		if mode == 0:
+			_badge_label.text = "🔨%d" % (current_level + 1)
+			_badge_label.add_theme_color_override("font_color", Color(0.10, 0.07, 0.03))
+			if _name_label != null:
+				_name_label.add_theme_color_override("font_color", Color(0.16, 0.12, 0.08))
+			_hammer_icon.show()
+			_progress_bar.show()
+			if _countdown_pill != null:
+				_countdown_pill.show()
+			_start_hammer_anim()
+		elif mode == 1:
+			_badge_label.text = "Sv. %d" % current_level
+			_badge_label.add_theme_color_override("font_color", Color(0.16, 0.12, 0.08))
+			if _name_label != null:
+				_name_label.add_theme_color_override("font_color", Color(0.16, 0.12, 0.08))
+			_stop_hammer_anim()
+			_hammer_icon.hide()
+			_progress_bar.hide()
+			if _countdown_pill != null:
+				_countdown_pill.hide()
+		elif mode == 2:
+			_badge_label.text = "🔒"
+			_badge_label.add_theme_color_override("font_color", Color(0.90, 0.90, 0.90))
+			if _name_label != null:
+				_name_label.add_theme_color_override("font_color", Color(0.92, 0.88, 0.82))
+			_stop_hammer_anim()
+			_hammer_icon.hide()
+			_progress_bar.hide()
+			if _countdown_pill != null:
+				_countdown_pill.hide()
+		else:
+			_badge_label.text = "+"
+			_badge_label.add_theme_color_override("font_color", Color(1, 1, 1))
+			if _name_label != null:
+				_name_label.add_theme_color_override("font_color", Color(1, 1, 1))
+			_stop_hammer_anim()
+			_hammer_icon.hide()
+			_progress_bar.hide()
+			if _countdown_pill != null:
+				_countdown_pill.hide()
 
-		_hammer_icon.show()
-		_progress_bar.show()
-		_progress_bar.value = progress_pct
-		_countdown_label.text = "⏱ %s" % _format_countdown(rem_seconds)
-		if _countdown_pill != null:
-			_countdown_pill.show()
-			_countdown_pill.reset_size()
-			var pill_w := maxf(_countdown_pill.size.x, _countdown_pill.custom_minimum_size.x)
-			_countdown_pill.position = Vector2((size.x - pill_w) * 0.5, size.y - 40.0)
-		_start_hammer_anim()
+		_level_badge.add_theme_stylebox_override("panel", badge_sb)
+		if _name_plate != null:
+			_name_plate.add_theme_stylebox_override("panel", name_sb)
+		_update_badge_position()
 
-	elif current_level > 0:
-		# Aktif Seviye: King's Age orijinal parşömen beyazı kutu (büyük ve net)
-		badge_sb.bg_color = Color(0.99, 0.98, 0.95, 0.96)
-		badge_sb.border_color = Color(0.42, 0.32, 0.18, 0.95)
-		badge_sb.set_border_width_all(2)
-		_badge_label.text = "Sv. %d" % current_level
-		_badge_label.add_theme_color_override("font_color", Color(0.16, 0.12, 0.08))
-
-		name_sb.bg_color = Color(0.99, 0.98, 0.95, 0.96)
-		name_sb.border_color = Color(0.42, 0.32, 0.18, 0.95)
-		name_sb.set_border_width_all(2)
-		if _name_label != null:
-			_name_label.add_theme_color_override("font_color", Color(0.16, 0.12, 0.08))
-
-		_stop_hammer_anim()
-		_hammer_icon.hide()
-		_progress_bar.hide()
-		if _countdown_pill != null:
-			_countdown_pill.hide()
-
-	elif is_locked:
-		# Kilitli: Mat koyu antrasit rozet
-		badge_sb.bg_color = Color(0.18, 0.16, 0.14, 0.94)
-		badge_sb.border_color = Color(0.55, 0.48, 0.38, 0.90)
-		badge_sb.set_border_width_all(2)
-		_badge_label.text = "🔒"
-		_badge_label.add_theme_color_override("font_color", Color(0.90, 0.90, 0.90))
-
-		name_sb.bg_color = Color(0.18, 0.16, 0.14, 0.94)
-		name_sb.border_color = Color(0.55, 0.48, 0.38, 0.90)
-		name_sb.set_border_width_all(2)
-		if _name_label != null:
-			_name_label.add_theme_color_override("font_color", Color(0.92, 0.88, 0.82))
-
-		_stop_hammer_anim()
-		_hammer_icon.hide()
-		_progress_bar.hide()
-		if _countdown_pill != null:
-			_countdown_pill.hide()
-
-	else:
-		# Seviye 0 İnşa Edilebilir: Canlı mavi kare rozet
-		badge_sb.bg_color = Color(0.18, 0.46, 0.76, 0.96)
-		badge_sb.border_color = Color(0.60, 0.85, 1.0, 1.0)
-		badge_sb.set_border_width_all(2)
-		_badge_label.text = "+"
-		_badge_label.add_theme_color_override("font_color", Color(1, 1, 1))
-
-		name_sb.bg_color = Color(0.18, 0.46, 0.76, 0.96)
-		name_sb.border_color = Color(0.60, 0.85, 1.0, 1.0)
-		name_sb.set_border_width_all(2)
-		if _name_label != null:
-			_name_label.add_theme_color_override("font_color", Color(1, 1, 1))
-
-		_stop_hammer_anim()
-		_hammer_icon.hide()
-		_progress_bar.hide()
-		if _countdown_pill != null:
-			_countdown_pill.hide()
-
-	_level_badge.add_theme_stylebox_override("panel", badge_sb)
-	if _name_plate != null:
-		_name_plate.add_theme_stylebox_override("panel", name_sb)
-	_update_badge_position()
+	if mode == 0:
+		var prog_i := int(round(progress_pct))
+		if prog_i != _last_progress_int:
+			_last_progress_int = prog_i
+			_progress_bar.value = progress_pct
+		if rem_seconds != _last_rem_seconds:
+			_last_rem_seconds = rem_seconds
+			_countdown_label.text = "⏱ %s" % _format_countdown(rem_seconds)
+			if _countdown_pill != null:
+				_countdown_pill.reset_size()
+				var pill_w := maxf(_countdown_pill.size.x, _countdown_pill.custom_minimum_size.x)
+				_countdown_pill.position = Vector2((size.x - pill_w) * 0.5, size.y - 40.0)
 
 
 func _start_hammer_anim() -> void:
@@ -557,8 +577,8 @@ func trigger_level_up(new_level: int) -> void:
 	popup_sb.content_margin_right = 16
 	popup_sb.content_margin_top = 8
 	popup_sb.content_margin_bottom = 8
-	popup_sb.shadow_size = 8
-	popup_sb.shadow_color = Color(0, 0, 0, 0.75)
+	popup_sb.shadow_size = 0
+	popup_sb.shadow_color = Color(0, 0, 0, 0)
 	popup.add_theme_stylebox_override("panel", popup_sb)
 
 	var lbl := Label.new()

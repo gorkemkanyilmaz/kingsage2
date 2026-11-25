@@ -1232,7 +1232,7 @@ func _make_card(icon_path: String, title: String, subtitle: String, accent: Colo
 	sb.border_width_left = 10
 	sb.set_corner_radius_all(14)
 	sb.shadow_color = Color(0, 0, 0, 0.35)
-	sb.shadow_size = 6
+	sb.shadow_size = 0
 	sb.content_margin_left = 14
 	sb.content_margin_top = 12
 	sb.content_margin_bottom = 12
@@ -1494,7 +1494,7 @@ func _render_battle_report(parent: Control, rep: Dictionary) -> void:
 	b_sb.set_border_width_all(3)
 	b_sb.set_corner_radius_all(16)
 	b_sb.shadow_color = Color(0, 0, 0, 0.6)
-	b_sb.shadow_size = 12
+	b_sb.shadow_size = 0
 	b_sb.content_margin_top = 18
 	b_sb.content_margin_bottom = 18
 	b_sb.content_margin_left = 16
@@ -1859,7 +1859,7 @@ func _make_army_table_card(header: String, units: Dictionary, losses: Dictionary
 	sb.set_corner_radius_all(16)
 	sb.set_content_margin_all(16)
 	sb.shadow_color = Color(0, 0, 0, 0.5)
-	sb.shadow_size = 8
+	sb.shadow_size = 0
 	pc.add_theme_stylebox_override("panel", sb)
 
 	var vb := VBoxContainer.new()

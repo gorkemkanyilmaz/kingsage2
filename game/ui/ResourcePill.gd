@@ -13,7 +13,7 @@ func _draw() -> void:
 	sb.border_color = border_color
 	sb.set_border_width_all(border_width)
 	sb.set_corner_radius_all(corner_radius)
-	sb.shadow_size = 4
+	sb.shadow_size = 0
 	sb.shadow_color = Color(0, 0, 0, 0.35)
 	sb.shadow_offset = Vector2(0, 2)
 	draw_style_box(sb, Rect2(Vector2.ZERO, size))

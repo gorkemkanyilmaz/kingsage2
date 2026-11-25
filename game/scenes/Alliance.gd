@@ -67,7 +67,7 @@ func _style_header() -> void:
 		sb.content_margin_top = 10
 		sb.content_margin_bottom = 10
 		sb.shadow_color = Color(0, 0, 0, 0.5)
-		sb.shadow_size = 10
+		sb.shadow_size = 0
 		h_panel.add_theme_stylebox_override("panel", sb)
 
 
@@ -855,7 +855,7 @@ func _make_card() -> PanelContainer:
 	sb.content_margin_top = 14
 	sb.content_margin_bottom = 14
 	sb.shadow_color = Color(0, 0, 0, 0.4)
-	sb.shadow_size = 8
+	sb.shadow_size = 0
 	pc.add_theme_stylebox_override("panel", sb)
 	return pc
 
@@ -910,7 +910,7 @@ func _style_gold_btn(btn: Button) -> void:
 	sb.set_border_width_all(2)
 	sb.set_corner_radius_all(12)
 	sb.shadow_color = Color(0, 0, 0, 0.4)
-	sb.shadow_size = 6
+	sb.shadow_size = 0
 	btn.add_theme_stylebox_override("normal", sb)
 	var h_sb = sb.duplicate() as StyleBoxFlat
 	h_sb.bg_color = Color(0.92, 0.70, 0.25, 1.0)

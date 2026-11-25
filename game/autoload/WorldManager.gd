@@ -284,6 +284,9 @@ func _process(delta: float) -> void:
 	var loop = Engine.get_main_loop()
 	if not (loop is SceneTree):
 		return
+	var gclk = loop.root.get_node_or_null("GameClock")
+	if gclk != null and bool(gclk.get("_app_backgrounded")):
+		return
 	var net = loop.root.get_node_or_null("NetworkManager")
 	if net == null or str(net.auth_token).is_empty():
 		return

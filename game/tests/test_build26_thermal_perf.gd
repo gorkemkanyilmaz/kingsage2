@@ -79,14 +79,14 @@ func _test_adaptive_fps(gclk: Node, gs: Node) -> void:
 	gclk.call("boost_fps", 2.0)
 	_assert(int(gclk.call("get_current_target_fps")) == 60, "Etkileşim sonrası adaptif hedef = 60 FPS")
 
-	# Statik/boş sahnede boost bitince 20 FPS
+	# Statik/boş sahnede boost bitince 10 FPS
 	gclk.set("_fps_boost_remaining", 0.0)
 	gclk.call("_apply_adaptive_fps", true)
-	_assert(int(gclk.call("get_current_target_fps")) == 20, "Boost süresi dolunca statik sahne hedefi = 20 FPS")
+	_assert(int(gclk.call("get_current_target_fps")) == 10, "Boost süresi dolunca statik sahne hedefi = 10 FPS")
 
-	# Arka plana alınınca 5 FPS, geri gelince 60 FPS
+	# Arka plana alınınca 2 FPS, geri gelince 60 FPS
 	gclk.notification(Node.NOTIFICATION_APPLICATION_PAUSED)
-	_assert(int(gclk.call("get_current_target_fps")) == 5, "Uygulama arka plana geçince hedef = 5 FPS")
+	_assert(int(gclk.call("get_current_target_fps")) == 2, "Uygulama arka plana geçince hedef = 2 FPS")
 	gclk.notification(Node.NOTIFICATION_APPLICATION_RESUMED)
 	_assert(int(gclk.call("get_current_target_fps")) == 60, "Uygulama ön plana dönünce hedef = 60 FPS")
 
@@ -161,7 +161,7 @@ func _test_gameloop_inplace_no_state_spam(gs: Node, eb: Node) -> void:
 
 func _test_village_quest_bottomnav_worldmap(gs: Node, qm: Node, bgc: Node, _wm: Node) -> void:
 	print("\n--- 3) Sahne & Arayüz Performans / Canlı Arka Plan Testleri ---")
-	_assert(int(bgc.get("FRAME_COUNT")) == 192 and float(bgc.get("FPS")) == 24.0, "VillageBackgroundCache 192 kare @ 24 FPS ayarını koruyor")
+	_assert(int(bgc.get("FRAME_COUNT")) == 96 and float(bgc.get("FPS")) == 12.0, "VillageBackgroundCache 96 kare @ 12 FPS (8 sn döngü) ayarını koruyor")
 
 	# Village sahnesini aç ve current_scene yap (GameClock + QuestManager entegrasyonu için)
 	var v_scene: PackedScene = load("res://scenes/Village.tscn")
@@ -175,7 +175,7 @@ func _test_village_quest_bottomnav_worldmap(gs: Node, qm: Node, bgc: Node, _wm: 
 	var gclk := root.get_node_or_null("GameClock")
 	gclk.set("_fps_boost_remaining", 0.0)
 	gclk.call("_apply_adaptive_fps", true)
-	_assert(int(gclk.call("get_current_target_fps")) == 30, "Köy sahnesinde boştayken hedef = 30 FPS (> 24 FPS animasyon için)")
+	_assert(int(gclk.call("get_current_target_fps")) == 12, "Köy sahnesinde boştayken hedef = 12 FPS (12 FPS arka planla 1:1 kilitli)")
 
 	# Hareketli arka plan karelerinin Village._process içinde gerçekten ilerlediğini doğrula
 	var bg_before: int = int(v_node.get("_bg_frame_idx"))
@@ -220,7 +220,7 @@ func _test_village_quest_bottomnav_worldmap(gs: Node, qm: Node, bgc: Node, _wm: 
 	await _tick(2)
 	gclk.set("_fps_boost_remaining", 0.0)
 	gclk.call("_apply_adaptive_fps", true)
-	_assert(int(gclk.call("get_current_target_fps")) == 20, "Harita sahnesinde aktif sefer yokken hedef = 20 FPS")
+	_assert(int(gclk.call("get_current_target_fps")) == 10, "Harita sahnesinde aktif sefer yokken hedef = 10 FPS")
 	wmap.call("_process", 0.1)
 	_assert(not bool(wmap.get("_had_movements_drawn")), "Sefer yokken WorldMap movements_layer gereksiz queue_redraw çalıştırmıyor")
 
@@ -228,8 +228,9 @@ func _test_village_quest_bottomnav_worldmap(gs: Node, qm: Node, bgc: Node, _wm: 
 	_assert(wmap.get("_map_speedup_have_sb") != null and wmap.get("_detail_speedup_have_sb") != null, "WorldMap hızlandırma StyleBoxFlat stilleri önbelleğe alındı")
 
 	gs.movements = [{"id": 77, "type": "attack", "state": "outgoing", "from_village_id": int(pv.get("id", 1)), "to_village_id": 2, "arrive_unix": int(Time.get_unix_time_from_system()) + 300}]
+	wmap.call("has_visible_movements")
 	gclk.call("_apply_adaptive_fps", true)
-	_assert(int(gclk.call("get_current_target_fps")) == 30, "Haritada aktif sefer varken hedef = 30 FPS")
+	_assert(int(gclk.call("get_current_target_fps")) == 15, "Haritada aktif sefer varken hedef = 15 FPS")
 	wmap.call("_process", 0.1)
 	_assert(bool(wmap.get("_had_movements_drawn")), "Aktif sefer varken WorldMap hareket çizimi etkin")
 	gs.movements = []

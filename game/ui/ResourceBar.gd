@@ -86,6 +86,11 @@ var _last_tooltip_touch_key: String = ""
 var _wing_styles_done: bool = false
 var _res_cards_styled: bool = false
 var _applying_layout: bool = false
+var _last_header_sig: String = ""
+var _last_diamonds_val: int = -1
+var _last_layout_sig: String = ""
+var _last_gauge_sb_by_id: Dictionary = {}
+var _last_res_texts: Dictionary = {}
 
 
 func _ensure_nodes() -> void:
@@ -307,6 +312,20 @@ func _apply_responsive_layout() -> void:
 			island_w = float(gc.call("get_ios_dynamic_island_width"))
 
 	var has_island := island_w > 0.0
+	var switch_vis_chk := (btn_switch_village != null and btn_switch_village.visible)
+	var vp_sz_chk := get_viewport_rect().size
+	var next_layout_sig := "%d:%d:%d:%d:%d:%d" % [
+		int(roundf(vp_sz_chk.x)),
+		int(roundf(vp_sz_chk.y)),
+		int(roundf(safe_top)),
+		int(roundf(island_w)),
+		1 if switch_vis_chk else 0,
+		int(roundf(size.x)),
+	]
+	if next_layout_sig == _last_layout_sig and _last_bar_height > 0.0:
+		_applying_layout = false
+		return
+	_last_layout_sig = next_layout_sig
 	var effective_island_w := 348.0 if has_island else 0.0
 	var top_pad := 6.0
 	var bottom_pad := 7.0
@@ -683,7 +702,7 @@ func _ensure_royal_wing_frames() -> void:
 		psb.content_margin_top = 2.0
 		psb.content_margin_bottom = 2.0
 		psb.shadow_color = Color(0, 0, 0, 0.40)
-		psb.shadow_size = 3
+		psb.shadow_size = 0
 		(points_box as PanelContainer).add_theme_stylebox_override("panel", psb)
 
 	if btn_switch_village != null:
@@ -698,7 +717,7 @@ func _ensure_royal_wing_frames() -> void:
 		swsb.content_margin_top = 1.0
 		swsb.content_margin_bottom = 1.0
 		swsb.shadow_color = Color(0, 0, 0, 0.35)
-		swsb.shadow_size = 3
+		swsb.shadow_size = 0
 		var sw_hov := swsb.duplicate() as StyleBoxFlat
 		sw_hov.bg_color = Color(0.16, 0.34, 0.50, 1.0)
 		sw_hov.border_color = Color(0.80, 0.94, 1.0, 1.0)
@@ -729,7 +748,7 @@ func _ensure_royal_wing_frames() -> void:
 		dsb.border_width_bottom = 3
 		dsb.set_corner_radius_all(14)
 		dsb.shadow_color = Color(0.0, 0.0, 0.0, 0.55)
-		dsb.shadow_size = 6
+		dsb.shadow_size = 0
 		dsb.shadow_offset = Vector2(0, 2)
 		var d_hov := dsb.duplicate() as StyleBoxFlat
 		d_hov.bg_color = Color(0.10, 0.22, 0.44, 1.0)
@@ -746,7 +765,7 @@ func _ensure_royal_wing_frames() -> void:
 		msb.border_width_bottom = 3
 		msb.set_corner_radius_all(14)
 		msb.shadow_color = Color(0.0, 0.0, 0.0, 0.55)
-		msb.shadow_size = 6
+		msb.shadow_size = 0
 		msb.shadow_offset = Vector2(0, 2)
 		var m_hov := msb.duplicate() as StyleBoxFlat
 		m_hov.bg_color = Color(0.36, 0.15, 0.16, 1.0)
@@ -968,7 +987,7 @@ func _show_resource_tooltip(key: String, anchor: Control, auto_hide_sec: float =
 	sb.content_margin_right = 16
 	sb.content_margin_top = 10
 	sb.content_margin_bottom = 12
-	sb.shadow_size = 8
+	sb.shadow_size = 0
 	sb.shadow_color = Color(0, 0, 0, 0.6)
 	panel.add_theme_stylebox_override("panel", sb)
 	panel.custom_minimum_size = Vector2(520, 0)
@@ -1092,6 +1111,15 @@ func _get_game_state() -> Node:
 	return _autoload("GameState")
 
 
+func _set_label_if_changed(lbl: Label, cache_key: String, txt: String) -> void:
+	if lbl == null:
+		return
+	if _last_res_texts.has(cache_key) and str(_last_res_texts[cache_key]) == txt and lbl.text == txt:
+		return
+	_last_res_texts[cache_key] = txt
+	lbl.text = txt
+
+
 func _update_market_button() -> void:
 	_ensure_nodes()
 	var diamonds := 0
@@ -1104,6 +1132,9 @@ func _update_market_button() -> void:
 			var p = gs.get("player")
 			if p is Dictionary:
 				diamonds = int((p as Dictionary).get("diamonds", 0))
+	if _last_diamonds_val == diamonds and _diamonds_count_lbl != null and _diamonds_count_lbl.text == "%d" % diamonds:
+		return
+	_last_diamonds_val = diamonds
 	if _diamonds_count_lbl != null:
 		_diamonds_count_lbl.text = "%d" % diamonds
 	if btn_diamonds != null:
@@ -1120,15 +1151,21 @@ func _apply_gauge(bar: ProgressBar, amount: float, cap: int) -> void:
 	if bar == null:
 		return
 	var safe_cap := maxf(1.0, float(cap))
-	bar.max_value = safe_cap
-	bar.value = clampf(amount, 0.0, safe_cap)
+	if not is_equal_approx(bar.max_value, safe_cap):
+		bar.max_value = safe_cap
+	var clamped_val := clampf(amount, 0.0, safe_cap)
+	if absf(bar.value - clamped_val) > 0.01:
+		bar.value = clamped_val
 	var ratio := amount / safe_cap
 	var sb := _pb_fill_ok
 	if ratio >= 0.95:
 		sb = _pb_fill_full
 	elif ratio >= 0.75:
 		sb = _pb_fill_warn
-	bar.add_theme_stylebox_override("fill", sb)
+	var bid := bar.get_instance_id()
+	if _last_gauge_sb_by_id.get(bid, null) != sb:
+		_last_gauge_sb_by_id[bid] = sb
+		bar.add_theme_stylebox_override("fill", sb)
 
 
 func refresh() -> void:
@@ -1154,63 +1191,75 @@ func refresh() -> void:
 
 	var villages_list: Array = gs.call("get_player_villages") if gs.has_method("get_player_villages") else []
 	var multi: bool = villages_list.size() > 1
-	if btn_prev != null:
-		btn_prev.visible = multi
-	if btn_next != null:
-		btn_next.visible = multi
-	if btn_switch_village != null:
-		btn_switch_village.visible = multi
-		btn_switch_village.text = "⇄ Köy Değiştir" if island_w > 0.0 else ("⇄ Köyler Arası Geçiş (%d)" % villages_list.size())
+	var v_pts := int(v.get("points", 0))
+	var total_pts := 0
+	if multi:
+		for item in villages_list:
+			total_pts += int((item as Dictionary).get("points", 0))
 
 	var has_island_now := island_w > 0.0
-	if points_row != null:
-		points_row.add_theme_constant_override("separation", 4 if (has_island_now and multi) else 6)
-	if points_box is PanelContainer:
-		var psb_cur := (points_box as PanelContainer).get_theme_stylebox("panel") as StyleBoxFlat
-		if psb_cur != null:
-			psb_cur.content_margin_left = 6.0 if (has_island_now and multi) else 8.0
-			psb_cur.content_margin_right = 6.0 if (has_island_now and multi) else 8.0
+	var header_sig := "%s|%s|%d|%d|%d|%d|%d|%d|%d" % [
+		p_name,
+		v_name,
+		vx,
+		vy,
+		1 if multi else 0,
+		villages_list.size(),
+		v_pts,
+		total_pts,
+		1 if has_island_now else 0,
+	]
+	if header_sig != _last_header_sig:
+		_last_header_sig = header_sig
+		if btn_prev != null:
+			btn_prev.visible = multi
+		if btn_next != null:
+			btn_next.visible = multi
+		if btn_switch_village != null:
+			btn_switch_village.visible = multi
+			btn_switch_village.text = "⇄ Köy Değiştir" if island_w > 0.0 else ("⇄ Köyler Arası Geçiş (%d)" % villages_list.size())
 
-	if village_name_label != null:
-		if island_w > 0.0:
-			village_name_label.text = "%s (%d|%d)" % [v_name, vx, vy]
-		else:
-			village_name_label.text = "%s | 🏰 %s (%d|%d)" % [p_name, v_name, vx, vy]
-		village_name_label.tooltip_text = "%s | 🏰 %s (%d|%d)\nKöyleri görmek ve seçmek için dokun" % [p_name, v_name, vx, vy]
-		_update_village_name_fit(island_w > 0.0)
-
-	if points_label != null:
-		points_label.add_theme_font_size_override("font_size", 16 if (has_island_now and multi) else (18 if has_island_now else 19))
-		var v_pts := int(v.get("points", 0))
-		if multi:
-			var total_pts := 0
-			for item in villages_list:
-				total_pts += int((item as Dictionary).get("points", 0))
-			points_label.text = ("👑 %d(%d)" % [v_pts, total_pts]) if island_w > 0.0 else ("👑 %d P (%d)" % [v_pts, total_pts])
-		else:
-			points_label.text = "👑 %d P" % v_pts
-
-	_apply_responsive_layout()
-	if has_island_now and left_wing_wrap != null:
 		if points_row != null:
-			points_row.reset_size()
-		if left_wing != null:
-			left_wing.reset_size()
-		left_wing_wrap.reset_size()
-		if top_row != null:
-			top_row.queue_sort()
+			points_row.add_theme_constant_override("separation", 4 if (has_island_now and multi) else 6)
+		if points_box is PanelContainer:
+			var psb_cur := (points_box as PanelContainer).get_theme_stylebox("panel") as StyleBoxFlat
+			if psb_cur != null:
+				psb_cur.content_margin_left = 6.0 if (has_island_now and multi) else 8.0
+				psb_cur.content_margin_right = 6.0 if (has_island_now and multi) else 8.0
+
+		if village_name_label != null:
+			if island_w > 0.0:
+				village_name_label.text = "%s (%d|%d)" % [v_name, vx, vy]
+			else:
+				village_name_label.text = "%s | 🏰 %s (%d|%d)" % [p_name, v_name, vx, vy]
+			village_name_label.tooltip_text = "%s | 🏰 %s (%d|%d)\nKöyleri görmek ve seçmek için dokun" % [p_name, v_name, vx, vy]
+			_update_village_name_fit(island_w > 0.0)
+
+		if points_label != null:
+			points_label.add_theme_font_size_override("font_size", 16 if (has_island_now and multi) else (18 if has_island_now else 19))
+			if multi:
+				points_label.text = ("👑 %d(%d)" % [v_pts, total_pts]) if island_w > 0.0 else ("👑 %d P (%d)" % [v_pts, total_pts])
+			else:
+				points_label.text = "👑 %d P" % v_pts
+
+		_apply_responsive_layout()
+		if has_island_now and left_wing_wrap != null:
+			if points_row != null:
+				points_row.reset_size()
+			if left_wing != null:
+				left_wing.reset_size()
+			left_wing_wrap.reset_size()
+			if top_row != null:
+				top_row.queue_sort()
 
 	var res: Dictionary = v.get("resources", {})
 	var w := float(res.get("wood", 0))
 	var s := float(res.get("stone", 0))
 	var i := float(res.get("iron", 0))
 
-	if wood_label != null:
-		wood_label.text = _fmt_num(int(w))
-	if stone_label != null:
-		stone_label.text = _fmt_num(int(s))
-	if iron_label != null:
-		iron_label.text = _fmt_num(int(i))
+	_set_label_if_changed(wood_label, "wood", _fmt_num(int(w)))
+	_set_label_if_changed(stone_label, "stone", _fmt_num(int(s)))
+	_set_label_if_changed(iron_label, "iron", _fmt_num(int(i)))
 
 	var b: Dictionary = v.get("buildings", {})
 	var wh_lvl := maxi(1, int(b.get("storage", 1)))
@@ -1227,17 +1276,14 @@ func refresh() -> void:
 	var free_pop := int(pop.get("free", 0))
 	var used_pop := int(pop.get("used", 0))
 	var max_pop := maxi(1, int(pop.get("max", 1)))
-	if citizens_label != null:
-		citizens_label.text = "%d Boş" % free_pop
+	_set_label_if_changed(citizens_label, "citizens", "%d Boş" % free_pop)
 	_apply_gauge(citizens_bar, float(used_pop), max_pop)
 
 	var rlm: Dictionary = EconomyAPI.realm_summary(v)
 	var max_res := maxf(w, maxf(s, i))
 	_apply_gauge(storage_bar, max_res, cap)
-	if storage_label != null:
-		storage_label.text = _fmt_num(cap)
-	if realm_label != null:
-		realm_label.text = "%d / %d" % [int(rlm.get("value", 0)), int(rlm.get("cap", 0))]
+	_set_label_if_changed(storage_label, "storage", _fmt_num(cap))
+	_set_label_if_changed(realm_label, "realm", "%d / %d" % [int(rlm.get("value", 0)), int(rlm.get("cap", 0))])
 
 
 func _get_sim_now_unix() -> int:

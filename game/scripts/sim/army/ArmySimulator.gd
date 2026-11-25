@@ -73,7 +73,21 @@ static func process_tick(state: Dictionary, now_unix: int, delta_seconds: float)
 		# Aynı dizi referansını koru (çağıran `state.queues`ı tutuyor olabilir).
 		queues.clear()
 		queues.append_array(remaining)
-	TrainingScript.reconcile_state_settlers_reserved(state)
+	var needs_reconcile := changed
+	if not needs_reconcile:
+		for q_item in remaining:
+			if typeof(q_item) == TYPE_DICTIONARY and str((q_item as Dictionary).get("type", "")) == TYPE_TRAIN:
+				needs_reconcile = true
+				break
+	if not needs_reconcile:
+		var vills = state.get("villages", [])
+		if typeof(vills) == TYPE_ARRAY:
+			for rv in (vills as Array):
+				if typeof(rv) == TYPE_DICTIONARY and int((rv as Dictionary).get("settlers_reserved", 0)) > 0:
+					needs_reconcile = true
+					break
+	if needs_reconcile:
+		TrainingScript.reconcile_state_settlers_reserved(state)
 
 	return events
 

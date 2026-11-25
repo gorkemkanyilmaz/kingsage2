@@ -388,7 +388,7 @@ func _build_row_card(rank: int, highlight: bool) -> Dictionary:
 	sb.content_margin_top = 8
 	sb.content_margin_bottom = 8
 	sb.shadow_color = Color(0, 0, 0, 0.35)
-	sb.shadow_size = 6
+	sb.shadow_size = 0
 	card.add_theme_stylebox_override("panel", sb)
 
 	var row := HBoxContainer.new()

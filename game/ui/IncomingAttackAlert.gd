@@ -282,7 +282,7 @@ static func show_modal(host: Node, incoming: Array[Dictionary], is_on_village: b
 	card_sb.content_margin_top = 24
 	card_sb.content_margin_bottom = 24
 	card_sb.shadow_color = Color(0.75, 0.04, 0.04, 0.78)
-	card_sb.shadow_size = 20
+	card_sb.shadow_size = 0
 	card.add_theme_stylebox_override("panel", card_sb)
 	center.add_child(card)
 
