@@ -325,27 +325,137 @@ func _run_tests() -> void:
 	_check(int(active_v.get("units", {}).get("spear", 0)) >= 10, "En az 10 Silahtar eğitildi (%d)" % int(active_v.get("units", {}).get("spear", 0)))
 	_check(int(tm.call("get_current_step")) == 17, "Adım 17 (LORD_EQUIP_TOUR) geçildi")
 
-	# 10. Lord ekranı + ekipman kuşanma + kılıç +0 -> +1 geliştirme (Adım 17 -> 18 -> 19)
+	# 10. Parmak güdümlü interaktif Lord ekranı + 3 +0 eşya hediyesi + ekipman kuşanma + elmasla parşömen + önizleme/iptal + +1 geliştirme + geri kuşanma + haydut anlatımı (Adım 17 -> 18 -> 19 -> 20)
 	var lm := root.get_node_or_null("LordManager")
 	_check(lm != null, "LordManager autoload yüklü")
+	var ld_pre: Dictionary = lm.call("get_lord_state")
+	_check((ld_pre.get("inventory", []) as Array).is_empty(), "LordModal açılmadan önce starter eşya henüz verilmedi")
+	var btn_lord := village.find_child("BtnLord", true, false) as BaseButton
+	_check(btn_lord != null and tm.call("_resolve_target_control", village, "Village.tscn", gs) == btn_lord, "Adım 17 parmak hedefi BtnLord butonunu gösteriyor")
+	_press_button(btn_lord)
+	await _tick(3)
+
+	var lmod := village.find_child("LordModal", true, false) as CanvasLayer
+	_check(lmod != null and lmod.visible, "BtnLord basılınca LordModal açıldı")
+	_check(lmod.find_child("StarterGiftEffect", true, false) != null, "LordModal açılınca hediye efekt katmanı (StarterGiftEffect) oluştu")
+
 	var ld_tut: Dictionary = lm.call("get_lord_state")
-	_check(int(ld_tut.get("upgrade_scrolls", 0)) >= 1 and (ld_tut.get("inventory", []) as Array).size() >= 3, "Tutorial başlangıç Lord ekipmanları (+0) ve 1 parşömen verildi")
-	var helmet_id := ""
+	var tut_inv: Array = ld_tut.get("inventory", [])
+	_check(tut_inv.size() == 3 and int(ld_tut.get("upgrade_scrolls", 0)) == 0, "Lord envanterine tam 3 eşya ve 0 ücretsiz parşömen verildi")
 	var sword_id := ""
-	for it in (ld_tut.get("inventory", []) as Array):
+	var boots_id := ""
+	var earring_id := ""
+	var all_plus_zero := true
+	for it in tut_inv:
 		if typeof(it) == TYPE_DICTIONARY:
-			if str((it as Dictionary).get("slot_type", "")) == "helmet":
-				helmet_id = str((it as Dictionary).get("id", ""))
-			elif str((it as Dictionary).get("slot_type", "")) == "sword":
-				sword_id = str((it as Dictionary).get("id", ""))
-	_check(not helmet_id.is_empty() and not sword_id.is_empty(), "Starter kask ve kılıç envanterde")
-	lm.call("equip_item", "helmet", helmet_id)
+			var d := it as Dictionary
+			if int(d.get("plus", -1)) != 0:
+				all_plus_zero = false
+			match str(d.get("slot_type", "")):
+				"sword": sword_id = str(d.get("id", ""))
+				"boots": boots_id = str(d.get("id", ""))
+				"earring": earring_id = str(d.get("id", ""))
+	_check(all_plus_zero and not sword_id.is_empty() and not boots_id.is_empty() and not earring_id.is_empty(), "Gelen 3 eşya tam olarak Kılıç, Çizme, Küpe ve hepsi +0")
+
+	for item_pair in [["sword", sword_id], ["boots", boots_id], ["earring", earring_id]]:
+		var item_iid: String = str(item_pair[1])
+		var inv_btn := lmod.find_child("LordInvItem_%s" % item_iid, true, false) as BaseButton
+		_check(inv_btn != null and tm.call("_resolve_target_control", village, "Village.tscn", gs) == inv_btn, "Parmak hedefi envanterdeki %s (%s) kartını gösteriyor" % [str(item_pair[0]), item_iid])
+		_press_button(inv_btn)
+		await _tick(2)
+		var btn_det_eq := lmod.find_child("BtnDetailEquip", true, false) as BaseButton
+		_check(btn_det_eq != null and tm.call("_resolve_target_control", village, "Village.tscn", gs) == btn_det_eq, "Detay ekranında parmak 'Kuşan' butonunu gösteriyor (%s)" % str(item_pair[0]))
+		_press_button(btn_det_eq)
+		await _tick(3)
+
+	_check(int(tm.call("get_current_step")) == 18, "Kılıç, Çizme ve Küpe kuşanılınca Adım 18 (LORD_UPGRADE_SWORD) geçildi")
+
+	# Kılıcı Lord'un elinden çıkar -> Geliştirme ekranını aç
+	var slot_sw := lmod.find_child("Slot_sword", true, false) as BaseButton
+	_check(slot_sw != null and tm.call("_resolve_target_control", village, "Village.tscn", gs) == slot_sw, "Parmak hedefi takılı Kılıç slotunu (Slot_sword) gösteriyor")
+	_press_button(slot_sw)
+	await _tick(2)
+	var btn_slot_un := lmod.find_child("BtnSlotUnequip", true, false) as BaseButton
+	_check(btn_slot_un != null and tm.call("_resolve_target_control", village, "Village.tscn", gs) == btn_slot_un, "Parmak hedefi 'Eşyayı Çıkar' butonunu gösteriyor")
+	_press_button(btn_slot_un)
 	await _tick(3)
-	_check(int(tm.call("get_current_step")) == 18, "Adım 18 (LORD_UPGRADE_SWORD) geçildi")
-	var upg_tut_res: Dictionary = lm.call("upgrade_item", sword_id)
+
+	var btn_open_upg := lmod.find_child("BtnOpenLordUpgrade", true, false) as BaseButton
+	_check(btn_open_upg != null and tm.call("_resolve_target_control", village, "Village.tscn", gs) == btn_open_upg, "Parmak hedefi 'Ekipman Geliştir' butonunu gösteriyor")
+	_press_button(btn_open_upg)
 	await _tick(3)
-	_check(bool(upg_tut_res.get("upgraded", false)) and int(upg_tut_res.get("new_plus", 0)) == 1, "Tutorial kılıcı +0 → +1 seviyesine yükseltildi")
-	_check(int(tm.call("get_current_step")) == 19, "Adım 19 (GRADUATION_MODAL) geçildi")
+
+	var umod := lmod.get("_upgrade_modal") as CanvasLayer
+	_check(umod != null and umod.visible and str(umod.get("_selected_item_id")) == "", "Geliştirme ekranı boş Hedef Slot ile açıldı")
+
+	# Kılıca tıkla -> Hedef Slota koy
+	var sw_card := umod.find_child("InvItemCard_%s" % sword_id, true, false) as Control
+	_check(sw_card != null and tm.call("_resolve_target_control", village, "Village.tscn", gs) == sw_card, "Parmak geliştirme envanterindeki +0 Kılıcı gösteriyor")
+	sw_card.emit_signal("item_pressed", sword_id)
+	await _tick(3)
+	_check(str(umod.get("_selected_item_id")) == sword_id, "Tıklanan kılıç Hedef Eşya yuvasına yerleşti")
+
+	# 5 Elmas ile Parşömen al -> Onayla -> Parşömen envantere gelsin (otomatik örse yerleşmesin)
+	var dia_before := int(gs.get("player").get("diamonds", 0))
+	var btn_buy_dia := umod.find_child("BtnBuyScrollDiamonds", true, false) as BaseButton
+	_check(btn_buy_dia != null and tm.call("_resolve_target_control", village, "Village.tscn", gs) == btn_buy_dia, "Parmak '5 Elmas ile Satın Al' butonunu gösteriyor")
+	_press_button(btn_buy_dia)
+	await _tick(2)
+	var btn_yes_dia := umod.find_child("BtnConfirmDialogYes", true, false) as BaseButton
+	_check(btn_yes_dia != null and tm.call("_resolve_target_control", village, "Village.tscn", gs) == btn_yes_dia, "Parmak onay penceresinde 'Evet (5 Elmas)' butonunu gösteriyor")
+	_press_button(btn_yes_dia)
+	await _tick(3)
+	_check(int(gs.get("player").get("diamonds", 0)) == dia_before - 5 and int(lm.call("get_scroll_count")) == 1, "5 Elmas düşüldü ve 1 Parşömen envantere alındı")
+	_check(int(umod.get("_placed_scroll_slot")) == -1, "Elmas ile alınan parşömen örs yuvasına otomatik yerleşmedi, envanterde bekliyor")
+
+	# Envanterden parşömene tıkla -> örs yuvasına koy
+	var sc_inv_card := umod.find_child("InvUpgradeScrollCard", true, false) as Control
+	_check(sc_inv_card != null and tm.call("_resolve_target_control", village, "Village.tscn", gs) == sc_inv_card, "Parmak envanterdeki Geliştirme Parşömenini gösteriyor")
+	sc_inv_card.emit_signal("tile_pressed")
+	await _tick(3)
+	_check(int(umod.get("_placed_scroll_slot")) >= 0, "Parşömene tıklayınca 3x3 örs yuvasına yerleşti")
+
+	# Önizle -> Açıklama -> İptal -> Geliştir
+	var btn_pv := umod.find_child("BtnPreviewUpgrade", true, false) as BaseButton
+	_check(btn_pv != null and tm.call("_resolve_target_control", village, "Village.tscn", gs) == btn_pv, "Parmak 'Önizle' butonunu gösteriyor")
+	_press_button(btn_pv)
+	await _tick(3)
+	_check(bool(umod.get("_preview_active")), "Önizleme kutusu açıldı")
+	var btn_cancel_pv := umod.find_child("BtnCancelPreview", true, false) as BaseButton
+	_check(btn_cancel_pv != null and tm.call("_resolve_target_control", village, "Village.tscn", gs) == btn_cancel_pv, "Önizleme açıkken parmak 'İptal' butonunu gösteriyor")
+	_press_button(btn_cancel_pv)
+	await _tick(3)
+	_check(not bool(umod.get("_preview_active")), "İptal butonuna basılınca önizleme kapandı")
+
+	var btn_do_upg := umod.find_child("BtnDoUpgrade", true, false) as BaseButton
+	_check(btn_do_upg != null and tm.call("_resolve_target_control", village, "Village.tscn", gs) == btn_do_upg, "Önizleme sonrası parmak 'GELİŞTİR' butonunu gösteriyor")
+	_press_button(btn_do_upg)
+	await _tick(3)
+	_check(int((lm.call("get_item_by_id", sword_id) as Dictionary).get("plus", 0)) == 1 and int(lm.call("get_scroll_count")) == 0, "Tutorial kılıcı +0 → +1 seviyesine yükseltildi ve parşömen tüketildi")
+
+	# Geliştirme ekranını kapat -> Lord ekranında +1 kılıcı tekrar kuşan
+	var btn_close_upg := umod.find_child("BtnCloseUpgrade", true, false) as BaseButton
+	_check(btn_close_upg != null and tm.call("_resolve_target_control", village, "Village.tscn", gs) == btn_close_upg, "+1 sonrası parmak Örs Kapat (✕) butonunu gösteriyor")
+	_press_button(btn_close_upg)
+	await _tick(3)
+
+	var sw_inv_plus1 := lmod.find_child("LordInvItem_%s" % sword_id, true, false) as BaseButton
+	_check(sw_inv_plus1 != null and tm.call("_resolve_target_control", village, "Village.tscn", gs) == sw_inv_plus1, "Lord ekranında parmak +1 Kılıcı gösteriyor")
+	_press_button(sw_inv_plus1)
+	await _tick(2)
+	var btn_det_eq2 := lmod.find_child("BtnDetailEquip", true, false) as BaseButton
+	_check(btn_det_eq2 != null and tm.call("_resolve_target_control", village, "Village.tscn", gs) == btn_det_eq2, "+1 Kılıç detayında parmak 'Kuşan' butonunu gösteriyor")
+	_press_button(btn_det_eq2)
+	await _tick(3)
+
+	_check(int(tm.call("get_current_step")) == 19, "+1 Kılıç tekrar kuşanılınca Adım 19 (LORD_BANDIT_BRIEFING) geçildi")
+	var dial_lbl := tm.get("_dialogue_label") as RichTextLabel
+	_check(dial_lbl != null and "Haydut" in dial_lbl.text and "seviye" in dial_lbl.text, "Adım 19 Haydut Köylerinden yüksek seviyeye göre ekipman düşme anlatımını içeriyor")
+	var btn_next_bandit := tm.get("_btn_next") as BaseButton
+	_check(btn_next_bandit != null and tm.call("_resolve_target_control", village, "Village.tscn", gs) == btn_next_bandit, "Adım 19 parmak hedefi 'Devam Et' butonunu gösteriyor")
+	_press_button(btn_next_bandit)
+	await _tick(3)
+	_check(int(tm.call("get_current_step")) == 20, "Adım 20 (GRADUATION_MODAL) geçildi")
 
 	var vmodal := tm.get("_victory_modal") as Control
 	_check(vmodal != null and vmodal.visible, "Mezuniyet ödül penceresi göründü")

@@ -43,10 +43,11 @@ enum Step {
 	TRAIN_10_SPEAR = 16,
 	LORD_EQUIP_TOUR = 17,
 	LORD_UPGRADE_SWORD = 18,
-	GRADUATION_MODAL = 19,
+	LORD_BANDIT_BRIEFING = 19,
+	GRADUATION_MODAL = 20,
 }
 
-const TOTAL_VISIBLE_STEPS := 19
+const TOTAL_VISIBLE_STEPS := 20
 const TRACKED_SCENES := ["Village.tscn", "WorldMap.tscn", "Alliance.tscn"]
 
 ## Testler tarafından headless modda öğreticiyi açmak için kullanılır.
@@ -102,6 +103,8 @@ var _last_valid_target_step: int = -1
 var _last_valid_target_ctrl_id: int = 0
 var _scrolled_target_tag: String = ""
 var _store_signal_connected: bool = false
+var _tut_preview_seen: bool = false
+var _tut_gift_fx_played: bool = false
 
 
 class TargetFXDrawer extends Control:
@@ -706,6 +709,8 @@ func start_tutorial() -> void:
 	_shown_substate = ""
 	_scrolled_target_tag = ""
 	_victory_reward_granted = false
+	_tut_preview_seen = false
+	_tut_gift_fx_played = false
 	_active = true
 	_save_game()
 	_refresh_tutorial(true)
@@ -968,7 +973,7 @@ func _process(delta: float) -> void:
 	if (
 		bool(gs.player.get("tutorial_skipped", false))
 		or bool(gs.player.get("tutorial_reward_claimed", false))
-		or tut_step_val >= Step.GRADUATION_MODAL
+		or tut_step_val > Step.GRADUATION_MODAL
 		or gs.get_player_villages().size() > 1
 		or advanced_no_step
 	):
@@ -1032,13 +1037,26 @@ func _advance_to(next_step: int, gs: Node, scene_node: Node = null) -> void:
 		if bp != null and bp.visible:
 			bp.hide()
 	if _current_step == Step.LORD_EQUIP_TOUR:
+		_tut_gift_fx_played = false
+		_tut_preview_seen = false
 		if scene_node != null:
 			var bp2 = scene_node.get("building_panel")
 			if bp2 != null and bp2.visible:
 				bp2.hide()
-		var lm_adv := _lord_mgr()
-		if lm_adv != null and lm_adv.has_method("grant_tutorial_starter_kit"):
-			lm_adv.call("grant_tutorial_starter_kit")
+	elif _current_step == Step.LORD_UPGRADE_SWORD:
+		_tut_preview_seen = false
+		if gs != null and _get_diamonds() < 5:
+			var lm_chk := _lord_mgr()
+			var sc_chk := int(lm_chk.call("get_scroll_count")) if lm_chk != null else 0
+			if sc_chk <= 0:
+				gs.player["diamonds"] = 5
+	elif _current_step == Step.LORD_BANDIT_BRIEFING:
+		var upg_b := _get_lord_upgrade_modal(scene_node)
+		if upg_b != null and upg_b.has_method("close_modal"):
+			upg_b.call("close_modal")
+		var lm_b := _get_lord_modal(scene_node)
+		if lm_b != null and lm_b.has_method("close_modal"):
+			lm_b.call("close_modal")
 
 
 func _ensure_min_resources(v: Dictionary, need_w: int, need_s: int, need_i: int) -> void:
@@ -1185,21 +1203,37 @@ func _evaluate_progression(scene_node: Node, scene_name: String, gs: Node) -> vo
 
 		Step.LORD_EQUIP_TOUR:
 			var lm := _lord_mgr()
+			var lmod := _get_lord_modal(scene_node)
+			if lm != null and lmod != null:
+				var ld_chk: Dictionary = lm.call("get_lord_state")
+				if not bool(ld_chk.get("tutorial_kit_granted", false)) and lm.has_method("grant_tutorial_starter_kit"):
+					var kit_res: Dictionary = lm.call("grant_tutorial_starter_kit")
+					var items_arr: Array = kit_res.get("items", []) if typeof(kit_res) == TYPE_DICTIONARY else []
+					if not _tut_gift_fx_played and not items_arr.is_empty() and lmod.has_method("play_starter_gift_effect"):
+						_tut_gift_fx_played = true
+						lmod.call("play_starter_gift_effect", items_arr)
+					if lmod.has_method("_refresh_all"):
+						lmod.call("_refresh_all")
 			if lm != null:
-				if lm.has_method("grant_tutorial_starter_kit"):
-					lm.call("grant_tutorial_starter_kit")
-				var lstats: Dictionary = lm.call("get_lord_stats")
-				if int(lstats.get("equipped_count", 0)) >= 1:
+				var ld_now: Dictionary = lm.call("get_lord_state")
+				if (
+					bool(ld_now.get("tutorial_kit_granted", false))
+					and _is_starter_equipped(ld_now, "sword")
+					and _is_starter_equipped(ld_now, "boots")
+					and _is_starter_equipped(ld_now, "earring")
+				):
 					_advance_to(Step.LORD_UPGRADE_SWORD, gs, scene_node)
 
 		Step.LORD_UPGRADE_SWORD:
+			var upg_eval := _get_lord_upgrade_modal(scene_node)
+			if upg_eval != null and bool(upg_eval.get("_preview_active")):
+				_tut_preview_seen = true
 			var lm2 := _lord_mgr()
 			if lm2 != null:
-				var ld: Dictionary = lm2.call("get_lord_state")
-				for it in (ld.get("inventory", []) as Array):
-					if typeof(it) == TYPE_DICTIONARY and str((it as Dictionary).get("slot_type", "")) == "sword" and int((it as Dictionary).get("plus", 0)) >= 1:
-						_advance_to(Step.GRADUATION_MODAL, gs, scene_node)
-						break
+				var ld2: Dictionary = lm2.call("get_lord_state")
+				var sw := _get_sword_item(ld2)
+				if not sw.is_empty() and int(sw.get("plus", 0)) >= 1 and _is_starter_equipped(ld2, "sword"):
+					_advance_to(Step.LORD_BANDIT_BRIEFING, gs, scene_node)
 
 
 # =============================================================================
@@ -1230,11 +1264,37 @@ func _compute_substate(scene_node: Node, scene_name: String, gs: Node) -> String
 	var dia := _get_diamonds()
 	var scroll_taught := 1 if bool(gs.player.get("tutorial_scroll_taught", false)) else 0
 	var spd_btn_vis := 1 if _find_speedup_btn(scene_node, bp) != null else 0
-	return "%s|%s|%d|%d|%d|%d|%d|%d|%d|%d|%d|%d|%d|%d|%d|%d|%d" % [
+	var lord_sub := ""
+	if _current_step == Step.LORD_EQUIP_TOUR or _current_step == Step.LORD_UPGRADE_SWORD:
+		var lm_s := _lord_mgr()
+		var lmod_s := _get_lord_modal(scene_node)
+		var upg_s := _get_lord_upgrade_modal(scene_node)
+		var ld_s: Dictionary = lm_s.call("get_lord_state") if lm_s != null else {}
+		var sw_s := _get_sword_item(ld_s)
+		var l_open := 1 if lmod_s != null else 0
+		var u_open := 1 if upg_s != null else 0
+		var det_open := 1 if (lmod_s != null and _is_lord_detail_open(lmod_s)) else 0
+		var det_id := str(lmod_s.get("_detail_item_id")) if det_open == 1 else ""
+		var pk_open := 1 if (lmod_s != null and _is_lord_picker_open(lmod_s)) else 0
+		var cf_open := 1 if (upg_s != null and _is_upg_confirm_open(upg_s)) else 0
+		var sel_id := str(upg_s.get("_selected_item_id")) if upg_s != null else ""
+		var p_slot := int(upg_s.get("_placed_scroll_slot")) if upg_s != null else -1
+		var pv_act := 1 if (upg_s != null and bool(upg_s.get("_preview_active"))) else 0
+		var pv_seen := 1 if _tut_preview_seen else 0
+		var sc_l := int(lm_s.call("get_scroll_count")) if lm_s != null else 0
+		var kit_g := 1 if bool(ld_s.get("tutorial_kit_granted", false)) else 0
+		var eq_sw := 1 if _is_starter_equipped(ld_s, "sword") else 0
+		var eq_bt := 1 if _is_starter_equipped(ld_s, "boots") else 0
+		var eq_er := 1 if _is_starter_equipped(ld_s, "earring") else 0
+		var sw_p := int(sw_s.get("plus", 0)) if not sw_s.is_empty() else 0
+		lord_sub = "|L:%d,%d,%d,%d:%s,%d,%d,%s,%d,%d,%d,%d,%d,%d,%d,%d,%d" % [
+			l_open, u_open, det_open, pk_open, det_id, cf_open, kit_g, sel_id, p_slot, pv_act, pv_seen, sc_l, eq_sw, eq_bt, eq_er, sw_p, 1 if bool(gs.player.get("tutorial_scroll_taught", false)) else 0
+		]
+	return "%s|%s|%d|%d|%d|%d|%d|%d|%d|%d|%d|%d|%d|%d|%d|%d|%d%s" % [
 		scene_name, bp_key, bp_tab,
 		int(bld.get("storage", 0)), int(bld.get("farm", 0)),
 		int(bld.get("barracks", 0)), q_build, q_res, q_train, spin_val,
-		mkt_open, mkt_build, spd_open, scroll_b10, dia, scroll_taught, spd_btn_vis
+		mkt_open, mkt_build, spd_open, scroll_b10, dia, scroll_taught, spd_btn_vis, lord_sub
 	]
 
 
@@ -1771,50 +1831,224 @@ func _get_step_copy(scene_node: Node, _scene_name: String, gs: Node) -> Dictiona
 			var lmod := _get_lord_modal(scene_node)
 			if lmod == null:
 				return {
-					"chapter": "BÖLÜM 6/6 • LORD VE EKİPMAN",
-					"title": "Lord Ekranını Açın",
-					"dialogue": "[b][color=#FFD86B]Lordum,[/color][/b] ordunuza önderlik edecek kahramanınıza başlangıç teçhizatı (+0 Kılıç, Kask, Göğüslük) ve 1 Parşömen verdik! Sağ üstteki [b]Lord[/b] butonuna dokunun.",
+					"chapter": "BÖLÜM 6/7 • LORD VE EKİPMAN",
+					"title": "Lord Kahraman Ekranını Açın",
+					"dialogue": "[b][color=#FFD86B]Lordum,[/color][/b] ordularınıza önderlik edecek kahramanınız [b]Lord[/b] sizi bekliyor! Sağ üstteki [b][color=#FFD86B]Lord[/color][/b] butonuna dokunun.",
 					"objective": "Sağ üstteki Lord butonuna dokunun.",
 					"next_text": "",
 					"hint": "Lord Ekranı"
 				}
+			if _is_lord_detail_open(lmod):
+				return {
+					"chapter": "BÖLÜM 6/7 • LORD VE EKİPMAN",
+					"title": "Ekipmanı Kuşandırın",
+					"dialogue": "[b][color=#FFD86B]Lordum,[/color][/b] eşya istatistiklerini görüyorsunuz. Şimdi yeşil [b][color=#78F096]Kuşan[/color][/b] butonuna basarak ekipmanı Lord'a giydirin!",
+					"objective": "'Kuşan' butonuna dokunun.",
+					"next_text": "",
+					"hint": "Kuşan"
+				}
+			var lm_c := _lord_mgr()
+			var ld_c: Dictionary = lm_c.call("get_lord_state") if lm_c != null else {}
+			var nxt_eq := _next_unequipped_starter_info(ld_c)
+			var slot_k := str(nxt_eq.get("slot_type", "sword"))
+			if slot_k == "sword":
+				return {
+					"chapter": "BÖLÜM 6/7 • LORD VE EKİPMAN",
+					"title": "Kraliyet Hediyesi: +0 Ekipmanlar!",
+					"dialogue": "[b][color=#FFD86B]Lordum,[/color][/b] tebrikler! Envanterinize [+0] [b]Acemi Lord Kılıcı[/b], [b]Çizmesi[/b] ve [b]Küpesi[/b] eklendi. Önce alttan [b][color=#FFD86B]Kılıca[/color][/b] dokunun.",
+					"objective": "Envanterden Acemi Lord Kılıcı (+0) kartına dokunun.",
+					"next_text": "",
+					"hint": "Kılıcı Seç"
+				}
+			elif slot_k == "boots":
+				return {
+					"chapter": "BÖLÜM 6/7 • LORD VE EKİPMAN",
+					"title": "Çizmeyi Kuşandırın",
+					"dialogue": "[b][color=#FFD86B]Lordum,[/color][/b] Kılıç Lord'un saldırı gücünü artırdı! Şimdi envanterden [b][color=#FFD86B]Acemi Lord Çizmesi (+0)[/color][/b] kartına dokunun.",
+					"objective": "Envanterden Acemi Lord Çizmesi (+0) kartına dokunun.",
+					"next_text": "",
+					"hint": "Çizmeyi Seç"
+				}
 			return {
-				"chapter": "BÖLÜM 6/6 • LORD VE EKİPMAN",
-				"title": "İlk Ekipmanı Kuşanın",
-				"dialogue": "[b][color=#FFD86B]Lordum,[/color][/b] bir slota veya alttaki envanterden bir ekipmana dokunarak Lordunuza ilk teçhizatını kuşandırın.",
-				"objective": "En az 1 ekipmanı Lord slotuna kuşanın.",
+				"chapter": "BÖLÜM 6/7 • LORD VE EKİPMAN",
+				"title": "Küpeyi Kuşandırın",
+				"dialogue": "[b][color=#FFD86B]Lordum,[/color][/b] sıra son başlangıç aksesuarında! Envanterden [b][color=#FFD86B]Acemi Lord Küpesi (+0)[/color][/b] kartına dokunup Lord'a takın.",
+				"objective": "Envanterden Acemi Lord Küpesi (+0) kartına dokunun.",
 				"next_text": "",
-				"hint": "Ekipman Kuşan"
+				"hint": "Küpeyi Seç"
 			}
 
 		Step.LORD_UPGRADE_SWORD:
-			var upg_mod := _get_lord_upgrade_modal(scene_node)
-			if upg_mod != null:
-				return {
-					"chapter": "BÖLÜM 6/6 • EKİPMAN GELİŞTİRME",
-					"title": "Kılıcı +1 Seviyeye Yükseltin",
-					"dialogue": "[b][color=#FFD86B]Lordum,[/color][/b] alttan [b]Acemi Lord Kılıcı (+0)[/b] seçip parşömen yuvasına tıklayın ve [b]GELİŞTİR[/b] butonuna basın (%100 başarı).",
-					"objective": "Acemi Lord Kılıcını +0 → +1 seviyesine yükseltin.",
-					"next_text": "",
-					"hint": "Kılıcı Geliştir"
-				}
+			var lm_u := _lord_mgr()
+			var ld_u: Dictionary = lm_u.call("get_lord_state") if lm_u != null else {}
+			var sw_u := _get_sword_item(ld_u)
+			var sw_id := str(sw_u.get("id", ""))
+			var sw_plus := int(sw_u.get("plus", 0)) if not sw_u.is_empty() else 0
+			var sw_eq := _is_starter_equipped(ld_u, "sword")
 			var lmod2 := _get_lord_modal(scene_node)
-			if lmod2 != null:
+			var upg_mod := _get_lord_upgrade_modal(scene_node)
+
+			if sw_plus >= 1:
+				if upg_mod != null:
+					return {
+						"chapter": "BÖLÜM 6/7 • EKİPMAN GELİŞTİRME",
+						"title": "Harika! Kılıç +1 Oldu",
+						"dialogue": "[b][color=#FFD86B]Lordum,[/color][/b] kılıcımız başarıyla [b][color=#78F096]+1[/color][/b] seviyesine çıktı! Şimdi sağ üstteki [b]✕[/b] butonuna basıp Lord ekranına dönerek kılıcı tekrar kuşanalım.",
+						"objective": "Sağ üstteki Kapat (✕) butonuna dokunun.",
+						"next_text": "",
+						"hint": "Örsü Kapat"
+					}
+				if lmod2 == null:
+					return {
+						"chapter": "BÖLÜM 6/7 • EKİPMAN GELİŞTİRME",
+						"title": "Lord Ekranına Dönün",
+						"dialogue": "[b][color=#FFD86B]Lordum,[/color][/b] +1 seviyesine çıkan kılıcınızı kuşandırmak için [b]Lord[/b] ekranını açın.",
+						"objective": "Sağ üstteki Lord butonuna dokunun.",
+						"next_text": "",
+						"hint": "Lord Ekranı"
+					}
+				if _is_lord_detail_open(lmod2):
+					return {
+						"chapter": "BÖLÜM 6/7 • EKİPMAN GELİŞTİRME",
+						"title": "+1 Kılıcı Tekrar Kuşanın",
+						"dialogue": "[b][color=#FFD86B]Lordum,[/color][/b] artan saldırı gücünü görüyorsunuz! Yeşil [b][color=#78F096]Kuşan[/color][/b] butonuna dokunun ve +1 kılıcı Lord'un eline verin.",
+						"objective": "'Kuşan' butonuna dokunun.",
+						"next_text": "",
+						"hint": "Kuşan"
+					}
 				return {
-					"chapter": "BÖLÜM 6/6 • EKİPMAN GELİŞTİRME",
-					"title": "Kraliyet Örsüne Geçin",
-					"dialogue": "[b][color=#FFD86B]Lordum,[/color][/b] şimdi +0 kılıcımızı [b]+1[/b] yapmak için yukarıdaki [b]Ekipman Geliştir[/b] butonuna basın.",
-					"objective": "'Ekipman Geliştir' butonuna dokunun.",
+					"chapter": "BÖLÜM 6/7 • EKİPMAN GELİŞTİRME",
+					"title": "Güçlenmiş Kılıcı Seçin",
+					"dialogue": "[b][color=#FFD86B]Lordum,[/color][/b] şimdi envanterinizdeki [b][color=#78F096]+1 Acemi Lord Kılıcı[/color][/b] kartına dokunup tekrar Lord'a kuşandırın.",
+					"objective": "Envanterdeki +1 Kılıca dokunun.",
 					"next_text": "",
-					"hint": "Örs Ekranı"
+					"hint": "+1 Kılıcı Seç"
+				}
+
+			if sw_eq:
+				if lmod2 == null:
+					return {
+						"chapter": "BÖLÜM 6/7 • EKİPMAN GELİŞTİRME",
+						"title": "Lord Ekranını Açın",
+						"dialogue": "[b][color=#FFD86B]Lordum,[/color][/b] +0 kılıcımızı +1'e geliştirmek için [b]Lord[/b] ekranını açın.",
+						"objective": "Sağ üstteki Lord butonuna dokunun.",
+						"next_text": "",
+						"hint": "Lord Ekranı"
+					}
+				if _is_lord_picker_open(lmod2):
+					return {
+						"chapter": "BÖLÜM 6/7 • EKİPMAN GELİŞTİRME",
+						"title": "Kılıcı Envantere Alın",
+						"dialogue": "[b][color=#FFD86B]Lordum,[/color][/b] Kraliyet Örsü yalnızca takılı olmayan ekipmanları işleyebilir. [b][color=#FF9088]Eşyayı Çıkar[/color][/b] butonuna dokunun.",
+						"objective": "'Eşyayı Çıkar (Envantere Geri Al)' butonuna dokunun.",
+						"next_text": "",
+						"hint": "Eşyayı Çıkar"
+					}
+				return {
+					"chapter": "BÖLÜM 6/7 • EKİPMAN GELİŞTİRME",
+					"title": "Önce Kılıcı Slottan Çıkarın",
+					"dialogue": "[b][color=#FFD86B]Lordum,[/color][/b] tüm başlangıç eşyalarını kuşandık! Şimdi +0 kılıcı geliştirebilmek için Lord'un elindeki [b][color=#FFD86B]Kılıç slotuna[/color][/b] dokunup çıkarın.",
+					"objective": "Soldaki takılı Kılıç slotuna dokunun.",
+					"next_text": "",
+					"hint": "Kılıç Slotuna Dokun"
+				}
+
+			if upg_mod == null:
+				if lmod2 == null:
+					return {
+						"chapter": "BÖLÜM 6/7 • EKİPMAN GELİŞTİRME",
+						"title": "Lord Ekranını Açın",
+						"dialogue": "[b][color=#FFD86B]Lordum,[/color][/b] kılıcı geliştirmek için Lord ekranına girin.",
+						"objective": "Sağ üstteki Lord butonuna dokunun.",
+						"next_text": "",
+						"hint": "Lord Ekranı"
+					}
+				return {
+					"chapter": "BÖLÜM 6/7 • EKİPMAN GELİŞTİRME",
+					"title": "Geliştirme Ekranını Açın",
+					"dialogue": "[b][color=#FFD86B]Lordum,[/color][/b] kılıç artık envanterde! Sağ üstteki [b][color=#FFD86B]⚒️ Ekipman Geliştir[/color][/b] butonuna basarak Kraliyet Örsü'ne girin.",
+					"objective": "'⚒️ Ekipman Geliştir' butonuna dokunun.",
+					"next_text": "",
+					"hint": "Ekipman Geliştir"
+				}
+
+			if _is_upg_confirm_open(upg_mod):
+				return {
+					"chapter": "BÖLÜM 6/7 • EKİPMAN GELİŞTİRME",
+					"title": "Parşömen Alımını Onaylayın",
+					"dialogue": "[b][color=#FFD86B]Lordum,[/color][/b] 5 Elmas karşılığında 1 Geliştirme Parşömeni envanterinize eklenecek. [b][color=#FFD86B]Evet (5 Elmas)[/color][/b] butonuna dokunun.",
+					"objective": "'Evet (5 Elmas)' butonuna dokunun.",
+					"next_text": "",
+					"hint": "Onayla (5 Elmas)"
+				}
+
+			var sel_id := str(upg_mod.get("_selected_item_id"))
+			var p_slot := int(upg_mod.get("_placed_scroll_slot"))
+			var scroll_cnt := int(lm_u.call("get_scroll_count")) if lm_u != null else 0
+			var pv_act := bool(upg_mod.get("_preview_active"))
+
+			if sel_id != sw_id:
+				return {
+					"chapter": "BÖLÜM 6/7 • EKİPMAN GELİŞTİRME",
+					"title": "Kılıcı Hedef Slota Koyun",
+					"dialogue": "[b][color=#FFD86B]Lordum,[/color][/b] hedef slot boş başlıyor. Alttaki [b][color=#FFD86B]Acemi Lord Kılıcı (+0)[/color][/b] kartına dokunarak onu Hedef Eşya yuvasına yerleştirin.",
+					"objective": "Envanterden Acemi Lord Kılıcı (+0) kartına dokunun.",
+					"next_text": "",
+					"hint": "Kılıcı Örse Koy"
+				}
+			if scroll_cnt <= 0 and p_slot < 0:
+				return {
+					"chapter": "BÖLÜM 6/7 • EKİPMAN GELİŞTİRME",
+					"title": "Elmas ile Geliştirme Parşömeni Alın",
+					"dialogue": "[b][color=#FFD86B]Lordum,[/color][/b] eşya basmak için [b]Geliştirme Parşömeni[/b] gerekir. Sağdaki [b][color=#78D8FF]5 Elmas ile Satın Al[/color][/b] butonuna basarak envantere 1 parşömen alın.",
+					"objective": "'5 Elmas ile Satın Al' butonuna dokunun.",
+					"next_text": "",
+					"hint": "5 Elmas ile Al"
+				}
+			if p_slot < 0:
+				return {
+					"chapter": "BÖLÜM 6/7 • EKİPMAN GELİŞTİRME",
+					"title": "Parşömeni Örs Yuvasına Koyun",
+					"dialogue": "[b][color=#FFD86B]Lordum,[/color][/b] Parşömen envanterinize eklendi! Şimdi alttaki [b][color=#78D8FF]Geliştirme Parşömeni[/color][/b] kartına dokunarak onu 3×3 örs yuvasına yerleştirin.",
+					"objective": "Envanterdeki Geliştirme Parşömenine dokunun.",
+					"next_text": "",
+					"hint": "Parşömeni Yerleştir"
+				}
+			if not _tut_preview_seen and not pv_act:
+				return {
+					"chapter": "BÖLÜM 6/7 • EKİPMAN GELİŞTİRME",
+					"title": "Önce Güç Artışını Önizleyin",
+					"dialogue": "[b][color=#FFD86B]Lordum,[/color][/b] basmadan önce [b][color=#78D8FF]👁️ Önizle[/color][/b] butonuna dokunup kılıcın +1 olduğunda ne kadar güçleneceğini görün.",
+					"objective": "'👁️ Önizle' butonuna dokunun.",
+					"next_text": "",
+					"hint": "Önizle"
+				}
+			if pv_act:
+				return {
+					"chapter": "BÖLÜM 6/7 • EKİPMAN GELİŞTİRME",
+					"title": "Önizleme Açıklaması",
+					"dialogue": "[b][color=#FFD86B]Lordum,[/color][/b] önizleme kutusu kılıcın [b]+0 → +1[/b] olduğundaki net saldırı ve stat artışını riske girmeden görmenizi sağlar! Şimdi [b]İptal[/b] butonuna basıp önizlemeyi kapatın.",
+					"objective": "Önizlemeyi kapatmak için 'İptal' butonuna dokunun.",
+					"next_text": "",
+					"hint": "İptal Et"
 				}
 			return {
-				"chapter": "BÖLÜM 6/6 • EKİPMAN GELİŞTİRME",
-				"title": "Lord Ekranını Açın",
-				"dialogue": "[b][color=#FFD86B]Lordum,[/color][/b] kılıcınızı +1 seviyesine yükseltmek için Lord ekranını açın.",
-				"objective": "Sağ üstteki Lord butonuna dokunun.",
+				"chapter": "BÖLÜM 6/7 • EKİPMAN GELİŞTİRME",
+				"title": "Kılıcı +1 Seviyeye Basın!",
+				"dialogue": "[b][color=#FFD86B]Lordum,[/color][/b] +0 → +1 geliştirmesinde [b][color=#78F096]%100 başarı[/color][/b] vardır, yanma riski yoktur! Şimdi [b][color=#FFD86B]🔥 GELİŞTİR[/color][/b] butonuna dokunun!",
+				"objective": "'🔥 GELİŞTİR' butonuna dokunun.",
 				"next_text": "",
-				"hint": "Lord Ekranı"
+				"hint": "GELİŞTİR"
+			}
+
+		Step.LORD_BANDIT_BRIEFING:
+			return {
+				"chapter": "BÖLÜM 7/7 • HAYDUT KÖYLERİ & EKİPMAN",
+				"title": "Yeni Ekipman Nasıl Kazanılır?",
+				"dialogue": "[b][color=#FFD86B]Lordum,[/color][/b] Lordunuza yeni zırh, kılıç ve aksesuarlar kazandırmanın yolu Dünya Haritası'ndaki [b][color=#FFD86B]Haydut Köylerine[/color][/b] saldırmaktır!\n\nUnutmayın: [b][color=#78F096]Ne kadar yüksek seviyeli bir Haydut Köyüne saldırıp savaşı kazanırsanız, o kadar yüksek ve nadir eşya bulma şansınız artar![/color][/b]",
+				"objective": "Eğitimi tamamlamak için 'Devam Et' butonuna dokunun.",
+				"next_text": "Devam Et ➔",
+				"hint": "Devam Et"
 			}
 
 	return {
@@ -2049,18 +2283,115 @@ func _resolve_target_control(scene_node: Node, scene_name: String, gs: Node) -> 
 
 		Step.LORD_EQUIP_TOUR:
 			var lm_cur := _get_lord_modal(scene_node)
-			if lm_cur == null and scene_node != null:
-				return scene_node.find_child("BtnLord", true, false) as Control
-			return lm_cur.find_child("Slot_helmet", true, false) as Control if lm_cur != null else _btn_next
+			if lm_cur == null:
+				return scene_node.find_child("BtnLord", true, false) as Control if scene_node != null else _btn_next
+			if _is_lord_detail_open(lm_cur):
+				var b_eq := lm_cur.find_child("BtnDetailEquip", true, false) as Control
+				if b_eq != null and b_eq.is_visible_in_tree():
+					return b_eq
+			var lm_t1 := _lord_mgr()
+			var ld_t1: Dictionary = lm_t1.call("get_lord_state") if lm_t1 != null else {}
+			var nxt_item := _next_unequipped_starter_info(ld_t1)
+			var nxt_id := str(nxt_item.get("id", ""))
+			if not nxt_id.is_empty():
+				var inv_btn := lm_cur.find_child("LordInvItem_%s" % nxt_id, true, false) as Control
+				if inv_btn != null and inv_btn.is_visible_in_tree():
+					_scroll_modal_to(lm_cur, inv_btn, "eq:%s" % nxt_id)
+					return inv_btn
+			return null
 
 		Step.LORD_UPGRADE_SWORD:
-			var upg_cur := _get_lord_upgrade_modal(scene_node)
-			if upg_cur != null:
-				return upg_cur.find_child("BtnDoUpgrade", true, false) as Control
+			var lm_t2 := _lord_mgr()
+			var ld_t2: Dictionary = lm_t2.call("get_lord_state") if lm_t2 != null else {}
+			var sw_t2 := _get_sword_item(ld_t2)
+			var sw_id2 := str(sw_t2.get("id", ""))
+			var sw_plus2 := int(sw_t2.get("plus", 0)) if not sw_t2.is_empty() else 0
+			var sw_eq2 := _is_starter_equipped(ld_t2, "sword")
 			var lm_cur2 := _get_lord_modal(scene_node)
-			if lm_cur2 != null:
+			var upg_cur := _get_lord_upgrade_modal(scene_node)
+
+			if sw_plus2 >= 1:
+				if upg_cur != null:
+					return upg_cur.find_child("BtnCloseUpgrade", true, false) as Control
+				if lm_cur2 == null:
+					return scene_node.find_child("BtnLord", true, false) as Control if scene_node != null else _btn_next
+				if _is_lord_detail_open(lm_cur2):
+					var b_eq2 := lm_cur2.find_child("BtnDetailEquip", true, false) as Control
+					if b_eq2 != null and b_eq2.is_visible_in_tree():
+						return b_eq2
+				if not sw_id2.is_empty():
+					var sw_btn2 := lm_cur2.find_child("LordInvItem_%s" % sw_id2, true, false) as Control
+					if sw_btn2 != null and sw_btn2.is_visible_in_tree():
+						_scroll_modal_to(lm_cur2, sw_btn2, "reeq:%s" % sw_id2)
+						return sw_btn2
+				return null
+
+			if sw_eq2:
+				if lm_cur2 == null:
+					return scene_node.find_child("BtnLord", true, false) as Control if scene_node != null else _btn_next
+				if _is_lord_picker_open(lm_cur2):
+					var b_un := lm_cur2.find_child("BtnSlotUnequip", true, false) as Control
+					if b_un != null and b_un.is_visible_in_tree():
+						return b_un
+				var sw_slot := lm_cur2.find_child("Slot_sword", true, false) as Control
+				if sw_slot != null and sw_slot.is_visible_in_tree():
+					_scroll_modal_to(lm_cur2, sw_slot, "slot_sword")
+					return sw_slot
+				return null
+
+			if upg_cur == null:
+				if lm_cur2 == null:
+					return scene_node.find_child("BtnLord", true, false) as Control if scene_node != null else _btn_next
 				return lm_cur2.find_child("BtnOpenLordUpgrade", true, false) as Control
-			return scene_node.find_child("BtnLord", true, false) as Control if scene_node != null else _btn_next
+
+			if _is_upg_confirm_open(upg_cur):
+				var b_yes := upg_cur.find_child("BtnConfirmDialogYes", true, false) as Control
+				if b_yes != null and b_yes.is_visible_in_tree():
+					return b_yes
+
+			var sel_id2 := str(upg_cur.get("_selected_item_id"))
+			var p_slot2 := int(upg_cur.get("_placed_scroll_slot"))
+			var sc_t2 := int(lm_t2.call("get_scroll_count")) if lm_t2 != null else 0
+			var pv_act2 := bool(upg_cur.get("_preview_active"))
+
+			if sel_id2 != sw_id2 and not sw_id2.is_empty():
+				var card_sw := upg_cur.find_child("InvItemCard_%s" % sw_id2, true, false) as Control
+				if card_sw != null and card_sw.is_visible_in_tree():
+					_scroll_modal_to(upg_cur, card_sw, "upg_sw:%s" % sw_id2)
+					return card_sw
+				return null
+			if sc_t2 <= 0 and p_slot2 < 0:
+				var btn_dia := upg_cur.find_child("BtnBuyScrollDiamonds", true, false) as Control
+				if btn_dia != null and btn_dia.is_visible_in_tree():
+					_scroll_modal_to(upg_cur, btn_dia, "upg_buy_dia")
+					return btn_dia
+				return null
+			if p_slot2 < 0:
+				var sc_card := upg_cur.find_child("InvUpgradeScrollCard", true, false) as Control
+				if sc_card != null and sc_card.is_visible_in_tree():
+					_scroll_modal_to(upg_cur, sc_card, "upg_inv_sc")
+					return sc_card
+				return null
+			if not _tut_preview_seen and not pv_act2:
+				var btn_pv := upg_cur.find_child("BtnPreviewUpgrade", true, false) as Control
+				if btn_pv != null and btn_pv.is_visible_in_tree():
+					_scroll_modal_to(upg_cur, btn_pv, "upg_pv")
+					return btn_pv
+				return null
+			if pv_act2:
+				var btn_cancel := upg_cur.find_child("BtnCancelPreview", true, false) as Control
+				if btn_cancel != null and btn_cancel.is_visible_in_tree():
+					_scroll_modal_to(upg_cur, btn_cancel, "upg_cancel_pv")
+					return btn_cancel
+				return null
+			var btn_do := upg_cur.find_child("BtnDoUpgrade", true, false) as Control
+			if btn_do != null and btn_do.is_visible_in_tree():
+				_scroll_modal_to(upg_cur, btn_do, "upg_do")
+				return btn_do
+			return null
+
+		Step.LORD_BANDIT_BRIEFING:
+			return _btn_next
 
 	return _btn_next
 
@@ -2068,6 +2399,78 @@ func _resolve_target_control(scene_node: Node, scene_name: String, gs: Node) -> 
 func _lord_mgr() -> Node:
 	var loop := Engine.get_main_loop()
 	return (loop as SceneTree).root.get_node_or_null("LordManager") if loop is SceneTree else null
+
+
+func _scroll_modal_to(modal: Node, ctrl: Control, tag: String) -> void:
+	if modal == null or ctrl == null:
+		return
+	var full_tag := "%d:%s" % [_current_step, tag]
+	if _scrolled_target_tag == full_tag:
+		return
+	_scrolled_target_tag = full_tag
+	if modal.has_method("scroll_to_control"):
+		modal.call("scroll_to_control", ctrl)
+
+
+func _is_lord_detail_open(lmod: Node) -> bool:
+	if lmod == null or not is_instance_valid(lmod):
+		return false
+	var det = lmod.get("_item_detail_overlay")
+	return det != null and is_instance_valid(det) and det is Control and (det as Control).visible
+
+
+func _is_lord_picker_open(lmod: Node) -> bool:
+	if lmod == null or not is_instance_valid(lmod):
+		return false
+	var pk = lmod.get("_slot_picker_overlay")
+	return pk != null and is_instance_valid(pk) and pk is Control and (pk as Control).visible
+
+
+func _is_upg_confirm_open(umod: Node) -> bool:
+	if umod == null or not is_instance_valid(umod):
+		return false
+	var cf = umod.get("_confirm_layer")
+	return cf != null and is_instance_valid(cf) and cf is Control and (cf as Control).visible
+
+
+func _get_sword_item(ld: Dictionary) -> Dictionary:
+	var eq_map: Dictionary = ld.get("equipped", {}) if typeof(ld.get("equipped")) == TYPE_DICTIONARY else {}
+	var eq_sw_id := str(eq_map.get("sword", ""))
+	for it in (ld.get("inventory", []) as Array):
+		if typeof(it) != TYPE_DICTIONARY:
+			continue
+		var d := it as Dictionary
+		if not eq_sw_id.is_empty() and str(d.get("id", "")) == eq_sw_id:
+			return d
+		if str(d.get("slot_type", "")) == "sword":
+			return d
+	return {}
+
+
+func _is_starter_equipped(ld: Dictionary, slot_type: String) -> bool:
+	var eq_map: Dictionary = ld.get("equipped", {}) if typeof(ld.get("equipped")) == TYPE_DICTIONARY else {}
+	if slot_type == "earring":
+		return not str(eq_map.get("earring_1", "")).is_empty() or not str(eq_map.get("earring_2", "")).is_empty()
+	return not str(eq_map.get(slot_type, "")).is_empty()
+
+
+func _next_unequipped_starter_info(ld: Dictionary) -> Dictionary:
+	var eq_map: Dictionary = ld.get("equipped", {}) if typeof(ld.get("equipped")) == TYPE_DICTIONARY else {}
+	var eq_ids: Dictionary = {}
+	for k in eq_map.keys():
+		var v := str(eq_map[k])
+		if not v.is_empty():
+			eq_ids[v] = true
+	for slot_t in ["sword", "boots", "earring"]:
+		if _is_starter_equipped(ld, slot_t):
+			continue
+		for it in (ld.get("inventory", []) as Array):
+			if typeof(it) == TYPE_DICTIONARY:
+				var d := it as Dictionary
+				var iid := str(d.get("id", ""))
+				if str(d.get("slot_type", "")) == slot_t and not eq_ids.has(iid):
+					return {"slot_type": slot_t, "id": iid}
+	return {}
 
 
 func _get_lord_modal(scene_node: Node) -> CanvasLayer:
@@ -2206,13 +2609,13 @@ func _update_visual_animations(delta: float, scene_node: Node, scene_name: Strin
 	var passive_welcome := (_current_step == Step.WELCOME_INTRO)
 	var spotlight_rect := t_rect
 	var finger_ctrl := target_ctrl
-	if _current_step in [Step.WELCOME_INTRO, Step.RESOURCE_BAR_TOUR, Step.WORLD_MAP_TOUR, Step.ALLIANCE_TOUR] and _btn_next != null and _btn_next.visible:
+	if _current_step in [Step.WELCOME_INTRO, Step.RESOURCE_BAR_TOUR, Step.WORLD_MAP_TOUR, Step.ALLIANCE_TOUR, Step.LORD_BANDIT_BRIEFING] and _btn_next != null and _btn_next.visible:
 		finger_ctrl = _btn_next
 		t_rect = _snap_rect(_btn_next.get_global_rect())
 
 	var rbar := scene_node.get_node_or_null("ResourceBar") as Control if scene_node != null else null
 	var target_in_rbar := (target_ctrl != null and rbar != null and (target_ctrl == rbar or rbar.is_ancestor_of(target_ctrl)))
-	var target_in_modal := (target_ctrl != null) and ((mkt_modal != null and mkt_modal.is_ancestor_of(target_ctrl)) or (spd_modal != null and spd_modal.is_ancestor_of(target_ctrl)))
+	var target_in_modal := (target_ctrl != null) and ((mkt_modal != null and mkt_modal.is_ancestor_of(target_ctrl)) or (spd_modal != null and spd_modal.is_ancestor_of(target_ctrl)) or (lord_modal != null and lord_modal.is_ancestor_of(target_ctrl)) or (upg_modal != null and upg_modal.is_ancestor_of(target_ctrl)))
 	var target_in_self := (target_ctrl != null and _root_ctrl != null and _root_ctrl.is_ancestor_of(target_ctrl))
 
 	# Vezir portre çerçevesinde hafif canlı altın parıltı
@@ -2285,7 +2688,7 @@ func _update_visual_animations(delta: float, scene_node: Node, scene_name: Strin
 	# Hedef çizici & Yanıp Sönen Parmak Eldiveni
 	var finger_rect := _snap_rect(t_rect) if (finger_ctrl != null and finger_ctrl.is_inside_tree() and finger_ctrl.visible) else Rect2()
 	var finger_in_rbar := (finger_ctrl != null and rbar != null and (finger_ctrl == rbar or rbar.is_ancestor_of(finger_ctrl)))
-	var finger_in_modal := (finger_ctrl != null) and ((mkt_modal != null and mkt_modal.is_ancestor_of(finger_ctrl)) or (spd_modal != null and spd_modal.is_ancestor_of(finger_ctrl)))
+	var finger_in_modal := (finger_ctrl != null) and ((mkt_modal != null and mkt_modal.is_ancestor_of(finger_ctrl)) or (spd_modal != null and spd_modal.is_ancestor_of(finger_ctrl)) or (lord_modal != null and lord_modal.is_ancestor_of(finger_ctrl)) or (upg_modal != null and upg_modal.is_ancestor_of(finger_ctrl)))
 	var finger_in_self := (finger_ctrl != null and _root_ctrl != null and _root_ctrl.is_ancestor_of(finger_ctrl))
 	if not finger_in_rbar and not finger_in_modal and not finger_in_self and finger_rect.end.y > top_bar_bottom + 12.0 and finger_rect.position.y < top_bar_bottom:
 		var old_end_y := finger_rect.end.y
@@ -2405,6 +2808,8 @@ func _on_next_pressed() -> void:
 			_advance_to(Step.RETURN_FROM_MAP, gs, scene_node)
 		Step.ALLIANCE_TOUR:
 			_advance_to(Step.RETURN_FROM_ALLIANCE, gs, scene_node)
+		Step.LORD_BANDIT_BRIEFING:
+			_advance_to(Step.GRADUATION_MODAL, gs, scene_node)
 		_:
 			_advance_to(_current_step + 1, gs, scene_node)
 

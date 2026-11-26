@@ -85,14 +85,17 @@ func _run_all() -> void:
 	var kit_res2: Dictionary = lm.call("grant_tutorial_starter_kit")
 	_check(bool(kit_res2.get("already_granted", false)), "Tutorial başlangıç kiti idempotent (çift verilmez)")
 	var sword_id := str(kit_res.get("sword_id", ""))
+	var boots_id := str(kit_res.get("boots_id", ""))
+	var earring_id := str(kit_res.get("earring_id", ""))
 	var ld: Dictionary = lm.call("get_lord_state")
-	_check(not sword_id.is_empty() and int(ld.get("upgrade_scrolls", 0)) == 1, "Tutorial +0 kılıç ve 1 parşömen eklendi")
+	_check(not sword_id.is_empty() and not boots_id.is_empty() and not earring_id.is_empty() and (ld.get("inventory", []) as Array).size() == 3 and int(ld.get("upgrade_scrolls", 0)) == 0, "Tutorial başlangıç kiti tam 3 +0 eşya (kılıç/çizme/küpe) ve 0 parşömen verdi")
 
 	# Çift slota aynı yüzüğü takmaya karşı koruma testi
 	var ring := LordModelScript.create_item("ring", "uncommon", 2, 50)
 	var earr := LordModelScript.create_item("earring", "rare", 3, 51)
 	(ld["inventory"] as Array).append(ring)
 	(ld["inventory"] as Array).append(earr)
+	lm.call("add_upgrade_scrolls", 1)
 
 	var eq_sw: Dictionary = lm.call("equip_item", "sword", sword_id)
 	_check(bool(eq_sw.get("ok", false)), "Kılıç sword slotuna takıldı")

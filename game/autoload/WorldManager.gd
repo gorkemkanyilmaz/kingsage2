@@ -1577,7 +1577,7 @@ func _restore_player_profile_from_world(state_dict: Dictionary, player_name: Str
 	var tut_reward_claimed := bool(found.get("tutorial_reward_claimed", false)) or (cur_same and bool(cur_p.get("tutorial_reward_claimed", false)))
 	var tut_step := maxi(int(found.get("tutorial_step", 0)), int(cur_p.get("tutorial_step", 0)) if cur_same else 0)
 	if not tut_completed:
-		if tut_skipped or tut_reward_claimed or tut_step >= 19:
+		if tut_skipped or tut_reward_claimed or tut_step > 20:
 			tut_completed = true
 		else:
 			var owned_cnt := 0

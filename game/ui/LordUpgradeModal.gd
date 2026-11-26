@@ -187,6 +187,7 @@ var _btn_preview: Button
 var _btn_upgrade: Button
 var _inv_grid: GridContainer
 var _empty_inv_lbl: Label
+var _body_scroll: ScrollContainer = null
 
 var _confirm_layer: Control = null
 
@@ -229,6 +230,23 @@ func close_modal() -> void:
 	_preview_active = false
 	hide()
 	closed.emit()
+
+
+func scroll_to_control(ctrl: Control) -> void:
+	if _body_scroll == null or not is_instance_valid(_body_scroll):
+		return
+	if ctrl == null or not is_instance_valid(ctrl) or not _body_scroll.is_ancestor_of(ctrl):
+		return
+	var sc_rect := _body_scroll.get_global_rect()
+	var c_rect := ctrl.get_global_rect()
+	if sc_rect.size.y <= 10.0:
+		return
+	var margin_y := 28.0
+	if c_rect.position.y >= sc_rect.position.y + margin_y and c_rect.end.y <= sc_rect.end.y - margin_y:
+		return
+	var content_y := c_rect.position.y - sc_rect.position.y + float(_body_scroll.scroll_vertical)
+	var desired := int(round(maxf(0.0, content_y - sc_rect.size.y * 0.32)))
+	_body_scroll.scroll_vertical = desired
 
 
 func _build_ui() -> void:
@@ -310,6 +328,7 @@ func _build_ui() -> void:
 	scroll_body.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	scroll_body.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	main_vb.add_child(scroll_body)
+	_body_scroll = scroll_body
 
 	var body_vb := VBoxContainer.new()
 	body_vb.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -1015,9 +1034,7 @@ func _execute_buy_scroll_with_diamonds() -> void:
 		return
 	var res: Dictionary = sm.call("buy_scroll", "lord_upgrade_scroll", 1)
 	if bool(res.get("ok", false)):
-		if _placed_scroll_slot < 0:
-			_placed_scroll_slot = 0
-		_show_beam(true, "💎 5 Elmas ile Geliştirme Parşömeni alındı!")
+		_show_beam(true, "💎 5 Elmas ile Geliştirme Parşömeni alındı! Envanterden örse ekleyin.")
 	else:
 		_show_beam(false, str(res.get("error", "Elmas ile satın alma başarısız.")))
 	_refresh_all()
@@ -1045,9 +1062,16 @@ func _prompt_buy_scroll_with_resources(auto_place_slot: int = -1) -> void:
 	)
 
 
-func _show_confirm_dialog(title_txt: String, body_txt: String, ok_txt: String, on_ok: Callable) -> void:
-	if is_instance_valid(_confirm_layer):
+func _clear_confirm_layer() -> void:
+	if _confirm_layer != null and is_instance_valid(_confirm_layer):
+		if _confirm_layer.get_parent() != null:
+			_confirm_layer.get_parent().remove_child(_confirm_layer)
 		_confirm_layer.queue_free()
+	_confirm_layer = null
+
+
+func _show_confirm_dialog(title_txt: String, body_txt: String, ok_txt: String, on_ok: Callable) -> void:
+	_clear_confirm_layer()
 	_confirm_layer = Control.new()
 	_confirm_layer.set_anchors_preset(Control.PRESET_FULL_RECT)
 	_confirm_layer.mouse_filter = Control.MOUSE_FILTER_STOP
@@ -1098,8 +1122,7 @@ func _show_confirm_dialog(title_txt: String, body_txt: String, ok_txt: String, o
 	b_no.custom_minimum_size = Vector2(0, 56)
 	_style_btn(b_no, Color(0.24, 0.20, 0.26, 0.96), Color(0.65, 0.62, 0.72, 0.9), Color(0.95, 0.95, 0.98))
 	b_no.pressed.connect(func():
-		if is_instance_valid(_confirm_layer):
-			_confirm_layer.queue_free()
+		_clear_confirm_layer()
 	)
 	hb.add_child(b_no)
 
@@ -1110,8 +1133,7 @@ func _show_confirm_dialog(title_txt: String, body_txt: String, ok_txt: String, o
 	b_yes.custom_minimum_size = Vector2(0, 56)
 	_style_btn(b_yes, Color(0.56, 0.30, 0.08, 0.98), Color(1.0, 0.84, 0.32, 1.0), Color(1.0, 0.97, 0.88))
 	b_yes.pressed.connect(func():
-		if is_instance_valid(_confirm_layer):
-			_confirm_layer.queue_free()
+		_clear_confirm_layer()
 		on_ok.call()
 	)
 	hb.add_child(b_yes)

@@ -75,7 +75,8 @@ func _run_all() -> void:
 	while int(lm.call("get_speech_count")) > 0:
 		lm.call("dismiss_current_speech")
 
-	# Toplam 2 parşömen yap (kit'ten 1 vardı + 1 hammadde ile al = 2)
+	# Toplam 2 parşömen yap (1 ekle + 1 hammadde ile al = 2)
+	lm.call("add_upgrade_scrolls", 1)
 	var buy_res: Dictionary = lm.call("buy_scroll_with_resources")
 	_check(bool(buy_res.get("ok", false)) and int(lm.call("get_scroll_count")) == 2, "Toplam 2 Geliştirme Parşömeni hazır (x2)")
 

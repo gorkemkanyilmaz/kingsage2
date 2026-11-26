@@ -412,40 +412,48 @@ func grant_minigame_accessory(slot_type: String = "", rarity: String = "uncommon
 func grant_tutorial_starter_kit() -> Dictionary:
 	var ld := ensure_lord_state()
 	if bool(ld.get("tutorial_kit_granted", false)):
-		return {"ok": true, "already_granted": true, "sword_id": _find_starter_sword_id(ld)}
+		return {
+			"ok": true,
+			"already_granted": true,
+			"sword_id": _find_starter_item_id(ld, "sword"),
+			"boots_id": _find_starter_item_id(ld, "boots"),
+			"earring_id": _find_starter_item_id(ld, "earring"),
+			"items": [],
+		}
 
 	ld["tutorial_kit_granted"] = true
 	var seq := maxi(1, int(ld.get("next_item_seq", 1)))
 	var sword := LordModelScript.create_item("sword", "common", 0, seq, "Eğitim Başlangıcı", _now_unix())
 	sword["name"] = "Acemi Lord Kılıcı"
 	seq += 1
-	var helmet := LordModelScript.create_item("helmet", "common", 0, seq, "Eğitim Başlangıcı", _now_unix())
+	var boots := LordModelScript.create_item("boots", "common", 0, seq, "Eğitim Başlangıcı", _now_unix())
+	boots["name"] = "Acemi Lord Çizmesi"
 	seq += 1
-	var chest := LordModelScript.create_item("chest", "common", 0, seq, "Eğitim Başlangıcı", _now_unix())
+	var earring := LordModelScript.create_item("earring", "common", 0, seq, "Eğitim Başlangıcı", _now_unix())
+	earring["name"] = "Acemi Lord Küpesi"
 	seq += 1
 	ld["next_item_seq"] = seq
 
 	var inv := ld["inventory"] as Array
 	inv.append(sword)
-	inv.append(helmet)
-	inv.append(chest)
-	ld["upgrade_scrolls"] = maxi(1, int(ld.get("upgrade_scrolls", 0)) + 1)
+	inv.append(boots)
+	inv.append(earring)
 
-	push_speech(
-		"tutorial_gear",
-		"Lord Teçhizatı Hazır!",
-		"Başlangıç kılıcın, zırhın ve 1 Geliştirme Parşömenini kuşandırmak için bana dokun!",
-		"lord_screen",
-		str(sword.get("id", ""))
-	)
 	_persist_and_notify(true)
-	return {"ok": true, "already_granted": false, "sword_id": str(sword.get("id", ""))}
+	return {
+		"ok": true,
+		"already_granted": false,
+		"sword_id": str(sword.get("id", "")),
+		"boots_id": str(boots.get("id", "")),
+		"earring_id": str(earring.get("id", "")),
+		"items": [sword, boots, earring],
+	}
 
 
-func _find_starter_sword_id(ld: Dictionary) -> String:
+func _find_starter_item_id(ld: Dictionary, slot_type: String) -> String:
 	var inv := ld.get("inventory", []) as Array
 	for it in inv:
-		if typeof(it) == TYPE_DICTIONARY and str((it as Dictionary).get("slot_type", "")) == "sword":
+		if typeof(it) == TYPE_DICTIONARY and str((it as Dictionary).get("slot_type", "")) == slot_type:
 			return str((it as Dictionary).get("id", ""))
 	return ""
 

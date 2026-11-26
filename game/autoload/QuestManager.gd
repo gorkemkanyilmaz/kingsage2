@@ -331,6 +331,32 @@ const QUEST_DEFS: Array[Dictionary] = [
 		"vizier_desc": "[b][color=#FFD86B]Lordum,[/color][/b] ilk büyük ganimet seferimizden zaferle ve dolu ambarlarla dönmek için güçlü bir vurucu orduya ihtiyacımız var! Kışla [b]Asker Eğit[/b] sekmesinden [b]100 adet Baltacı[/b] yetiştirin."
 	},
 	{
+		"id": "q_spy_bandit",
+		"icon": "🕵️",
+		"category": "HAYDUT KEŞFİ",
+		"title": "Haydut Köyüne Casusluk Yap",
+		"target": 1,
+		"check_type": "stat_min",
+		"stat_key": "bandit_spies_total",
+		"goto_type": "map",
+		"goto_target": "",
+		"reward": {"wood": 2400, "stone": 2400, "iron": 2000},
+		"vizier_desc": "[b][color=#FFD86B]Lordum,[/color][/b] gerçek oyunculara saldırmadan önce Dünya Haritası'ndaki [b]Haydut Köylerini[/b] tanımalıyız! Haritadan bir Haydut Köyüne [b]Casus[/b] göndererek savunma güçlerini öğrenin."
+	},
+	{
+		"id": "q_attack_bandit",
+		"icon": "🏴‍☠️",
+		"category": "HAYDUT SEFERİ • EKİPMAN",
+		"title": "Haydut Köyüne Saldır",
+		"target": 1,
+		"check_type": "stat_min",
+		"stat_key": "bandit_attacks_total",
+		"goto_type": "map",
+		"goto_target": "",
+		"reward": {"wood": 3200, "stone": 3200, "iron": 2800},
+		"vizier_desc": "[b][color=#FFD86B]Lordum,[/color][/b] haritadaki [b]Haydut Köylerine[/b] saldırıp zafer kazandığınızda hem ganimet hem de Lordunuz için yeni [b]ekipmanlar[/b] bulma şansı elde edersiniz! [b]Ne kadar yüksek seviyeli Haydut Köyü yenerseniz, nadir ekipman düşme şansı o kadar artar.[/b]"
+	},
+	{
 		"id": "q_raid_mission",
 		"icon": "💰",
 		"category": "SAVAŞ VE GANİMET",
@@ -719,6 +745,9 @@ func _on_battle_resolved(ev) -> void:
 		else:
 			stats["attacks_resolved"] = int(stats.get("attacks_resolved", 0)) + 1
 			stats["raids_resolved"] = int(stats.get("raids_resolved", 0)) + 1
+		var tgt_vid := int(d.get("target_village_id", d.get("to_village_id", d.get("defender_village_id", -1))))
+		if bool(d.get("is_bandit", false)) or bool(d.get("is_bot", false)) or _is_bandit_village_id(gs, tgt_vid):
+			stats["bandit_attacks_resolved"] = int(stats.get("bandit_attacks_resolved", 0)) + 1
 	refresh_quests(true)
 
 
@@ -734,6 +763,9 @@ func _on_spy_resolved(ev) -> void:
 		var q_data := _ensure_quest_data(gs)
 		var stats: Dictionary = q_data["stats"]
 		stats["spies_resolved"] = int(stats.get("spies_resolved", 0)) + 1
+		var tgt_vid := int(d.get("target_village_id", d.get("to_village_id", d.get("defender_village_id", -1))))
+		if bool(d.get("is_bandit", false)) or bool(d.get("is_bot", false)) or _is_bandit_village_id(gs, tgt_vid):
+			stats["bandit_spies_resolved"] = int(stats.get("bandit_spies_resolved", 0)) + 1
 	refresh_quests(true)
 
 
@@ -901,14 +933,20 @@ func _sync_live_stats(gs: Node) -> void:
 			continue
 		var r_type := str(r.get("type", ""))
 		var owner_vid := int(r.get("village_id", r.get("from_village_id", -1)))
+		var tgt_vid := int(r.get("target_village_id", r.get("to_village_id", r.get("defender_village_id", -1))))
+		var is_bandit_rep := bool(r.get("is_bandit", false)) or bool(r.get("is_bot", false)) or _is_bandit_village_id(gs, tgt_vid)
 		if r_type == "spy" and _is_player_village_id(gs, owner_vid):
 			stats["spies_resolved"] = maxi(1, int(stats.get("spies_resolved", 0)))
+			if is_bandit_rep:
+				stats["bandit_spies_resolved"] = maxi(1, int(stats.get("bandit_spies_resolved", 0)))
 		elif r_type == "battle" and _is_player_village_id(gs, owner_vid):
 			if bool(r.get("is_raid", false)):
 				stats["raids_resolved"] = maxi(1, int(stats.get("raids_resolved", 0)))
 			else:
 				stats["attacks_resolved"] = maxi(1, int(stats.get("attacks_resolved", 0)))
 				stats["raids_resolved"] = maxi(1, int(stats.get("raids_resolved", 0)))
+			if is_bandit_rep:
+				stats["bandit_attacks_resolved"] = maxi(1, int(stats.get("bandit_attacks_resolved", 0)))
 
 	# Peak asker sayıları (askerler yola çıktığında sayaç geriye düşmesin)
 	for u_key in ["spear", "axe", "spy", "snob"]:
@@ -940,14 +978,22 @@ func _record_movement_stat(gs: Node, mv: Dictionary) -> void:
 		seen.remove_at(0)
 
 	var m_type := str(mv.get("type", ""))
+	var to_vid := int(mv.get("to_village_id", mv.get("target_village_id", -1)))
+	var is_bandit_tgt := bool(mv.get("is_bandit_target", false)) or bool(mv.get("is_bandit", false)) or _is_bandit_village_id(gs, to_vid)
 	match m_type:
 		"spy":
 			stats["spies_sent"] = int(stats.get("spies_sent", 0)) + 1
+			if is_bandit_tgt:
+				stats["bandit_spies_sent"] = int(stats.get("bandit_spies_sent", 0)) + 1
 		"raid":
 			stats["raids_sent"] = int(stats.get("raids_sent", 0)) + 1
+			if is_bandit_tgt:
+				stats["bandit_attacks_sent"] = int(stats.get("bandit_attacks_sent", 0)) + 1
 		"attack":
 			stats["attacks_sent"] = int(stats.get("attacks_sent", 0)) + 1
 			stats["raids_sent"] = int(stats.get("raids_sent", 0)) + 1
+			if is_bandit_tgt:
+				stats["bandit_attacks_sent"] = int(stats.get("bandit_attacks_sent", 0)) + 1
 
 
 func get_quest_def(quest_id: String) -> Dictionary:
@@ -1046,6 +1092,10 @@ func get_quest_progress(quest_id: String, gs_override: Node = null, skip_sync: b
 					val = maxi(int(stats.get("raids_sent", 0)), int(stats.get("raids_resolved", 0)))
 				"attacks_total":
 					val = maxi(int(stats.get("attacks_sent", 0)), int(stats.get("attacks_resolved", 0)))
+				"bandit_spies_total":
+					val = maxi(int(stats.get("bandit_spies_sent", 0)), int(stats.get("bandit_spies_resolved", 0)))
+				"bandit_attacks_total":
+					val = maxi(int(stats.get("bandit_attacks_sent", 0)), int(stats.get("bandit_attacks_resolved", 0)))
 				_:
 					val = int(stats.get(sk, 0))
 			current = mini(target, val)
@@ -2391,6 +2441,28 @@ func _is_player_village_id(gs: Node, vid: int) -> bool:
 	for v in _player_villages(gs):
 		if int((v as Dictionary).get("id", -1)) == vid:
 			return true
+	return false
+
+
+func _is_bandit_village_dict(v: Dictionary) -> bool:
+	if bool(v.get("is_bandit", false)) or bool(v.get("is_bot", false)):
+		return true
+	var ow := str(v.get("owner", "")).strip_edges().to_lower()
+	return ow.begins_with("haydut")
+
+
+func _is_bandit_village_id(gs: Node, vid: int) -> bool:
+	if gs == null or vid < 0:
+		return false
+	for item in gs.villages:
+		if typeof(item) == TYPE_DICTIONARY and int((item as Dictionary).get("id", -1)) == vid:
+			return _is_bandit_village_dict(item as Dictionary)
+	if gs.world is Dictionary:
+		var w_vills = (gs.world as Dictionary).get("villages", [])
+		if w_vills is Array:
+			for item2 in (w_vills as Array):
+				if typeof(item2) == TYPE_DICTIONARY and int((item2 as Dictionary).get("id", -1)) == vid:
+					return _is_bandit_village_dict(item2 as Dictionary)
 	return false
 
 

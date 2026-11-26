@@ -80,7 +80,12 @@ func _run_tests() -> void:
 	v["researched"] = {"spear": true, "sword": true, "axe": true, "bow": true, "spy": true, "light": true, "ram": true}
 	v["units"] = {"spear": 10}
 
-	gs.set("villages", [v])
+	var v2 := VM.create(2, "RakipKoy", 102, 102, "RakipKral", false)
+	var v_bandit := VM.create(99, "Haydut Kampı", 104, 104, "Haydutlar", false)
+	v_bandit["is_bandit"] = true
+	v_bandit["is_bot"] = true
+
+	gs.set("villages", [v, v2, v_bandit])
 	gs.set("active_village_id", 1)
 	gs.set("queues", [])
 	gs.set("movements", [])
@@ -167,7 +172,9 @@ func _run_tests() -> void:
 	var spy_100: Dictionary = qm.call("get_quest_progress", "q_train_spy_100")
 	_check(int(spy_100["current"]) == 100 and bool(spy_100["completed"]), "100 Casus üretilince 100/100 tamamlandı")
 
-	# 7. Casusluk, Yağma ve Saldırı seferleri
+	# 7. Casusluk, Yağma, Saldırı ve Haydut Köyü seferleri
+	_check(not bool(qm.call("get_quest_progress", "q_spy_bandit")["completed"]), "Haydut Casusluk görevi başlangıçta tamamlanmamış")
+	_check(not bool(qm.call("get_quest_progress", "q_attack_bandit")["completed"]), "Haydut Saldırı görevi başlangıçta tamamlanmamış")
 	if eb != null:
 		eb.emit_signal("army_sent", {"id": 901, "type": "spy", "from_village_id": 1, "to_village_id": 2})
 		eb.emit_signal("army_sent", {"id": 902, "type": "raid", "from_village_id": 1, "to_village_id": 2})
@@ -176,6 +183,14 @@ func _run_tests() -> void:
 	_check(bool(qm.call("get_quest_progress", "q_spy_mission")["completed"]), "Casusluk seferi görevi tamamlandı")
 	_check(bool(qm.call("get_quest_progress", "q_raid_mission")["completed"]), "Yağma seferi görevi tamamlandı")
 	_check(bool(qm.call("get_quest_progress", "q_attack_mission")["completed"]), "Köye Saldırı görevi tamamlandı")
+	_check(not bool(qm.call("get_quest_progress", "q_spy_bandit")["completed"]), "Normal köye casusluk Haydut Casusluk görevini tamamlamadı")
+	_check(not bool(qm.call("get_quest_progress", "q_attack_bandit")["completed"]), "Normal köye saldırı Haydut Saldırı görevini tamamlamadı")
+	if eb != null:
+		eb.emit_signal("army_sent", {"id": 904, "type": "spy", "from_village_id": 1, "to_village_id": 99})
+		eb.emit_signal("army_sent", {"id": 905, "type": "attack", "from_village_id": 1, "to_village_id": 99})
+	await _tick(2)
+	_check(bool(qm.call("get_quest_progress", "q_spy_bandit")["completed"]), "Haydut Köyüne casusluk gönderilince q_spy_bandit tamamlandı")
+	_check(bool(qm.call("get_quest_progress", "q_attack_bandit")["completed"]), "Haydut Köyüne saldırı gönderilince q_attack_bandit tamamlandı")
 
 	# 8. Kuyumcu (Altın Zırh) ve Köşk (Kont Eğitimi) UI + Köy Fethi testi
 	active_v = gs.call("get_active_village")
@@ -226,7 +241,10 @@ func _run_tests() -> void:
 	var idx_spy := -1
 	var idx_axe_r := -1
 	var idx_axe_t := -1
+	var idx_spy_bandit := -1
+	var idx_atk_bandit := -1
 	var idx_raid := -1
+	var idx_attack := -1
 	var idx_stor5 := -1
 	var idx_mkt := -1
 	var idx_b5_bow := -1
@@ -243,7 +261,10 @@ func _run_tests() -> void:
 			"q_spy_mission": idx_spy = qi
 			"q_research_axe": idx_axe_r = qi
 			"q_train_axe_100": idx_axe_t = qi
+			"q_spy_bandit": idx_spy_bandit = qi
+			"q_attack_bandit": idx_atk_bandit = qi
 			"q_raid_mission": idx_raid = qi
+			"q_attack_mission": idx_attack = qi
 			"q_storage_5": idx_stor5 = qi
 			"q_unlock_market": idx_mkt = qi
 			"q_barracks_5_bow": idx_b5_bow = qi
@@ -256,6 +277,7 @@ func _run_tests() -> void:
 			"q_unlock_snob": idx_snob = qi
 			"q_join_or_create_alliance": idx_ally = qi
 	_check(idx_axe_r > idx_spy and idx_axe_t > idx_axe_r and idx_raid > idx_axe_t, "Baltacı Araştır + 100 Baltacı Üret görevleri 'İlk Ganimet Seferi'nden ÖNCE geliyor")
+	_check(idx_spy_bandit >= 0 and idx_atk_bandit > idx_spy_bandit and idx_atk_bandit < idx_raid and idx_raid < idx_attack, "Haydut Casusluk & Hayduta Saldır görevleri diğer oyuncuya saldırı görevlerinin ÖNÜNDE yer alıyor")
 	_check(idx_stor5 >= 0 and idx_stor5 < idx_mkt, "Depo Sv.5 görevi Market açma görevinden ÖNCE geliyor")
 	_check(idx_b5_bow >= 0 and idx_b5_bow < idx_axebow, "Kışla Sv.5 & Okçu Araştır görevi Baltacı & Okçu eğitiminden ÖNCE geliyor")
 	_check(idx_b7_light >= 0 and idx_b7_light < idx_cav, "Kışla Sv.7 & Akıncı Araştır görevi Süvari eğitiminden ÖNCE geliyor")

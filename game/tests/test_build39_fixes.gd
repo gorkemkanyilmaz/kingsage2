@@ -91,7 +91,8 @@ func _run_all() -> void:
 
 	var kit_res: Dictionary = lm.call("grant_tutorial_starter_kit")
 	var sword_id := str(kit_res.get("sword_id", ""))
-	_check(not sword_id.is_empty(), "Başlangıç kılıcı ve parşömen verildi")
+	lm.call("add_upgrade_scrolls", 1)
+	_check(not sword_id.is_empty(), "Başlangıç kılıcı verildi")
 	var eq_sw: Dictionary = lm.call("equip_item", "sword", sword_id)
 	_check(bool(eq_sw.get("ok", false)), "Başlangıç kılıcı Lord'a takıldı (ortadaki görsel temiz kalmalı)")
 

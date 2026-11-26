@@ -36,10 +36,12 @@ var _scrolls_lbl: Label
 var _inv_grid: GridContainer
 var _empty_inv_lbl: Label
 var _filter_btns: Dictionary = {}
+var _body_scroll: ScrollContainer = null
 
 var _slot_picker_overlay: Control = null
 var _item_detail_overlay: Control = null
 var _upgrade_modal: CanvasLayer = null
+var _gift_fx_root: Control = null
 
 
 func _ready() -> void:
@@ -77,13 +79,163 @@ func close_modal() -> void:
 		_slot_picker_overlay.hide()
 	if _item_detail_overlay != null:
 		_item_detail_overlay.hide()
+	if is_instance_valid(_gift_fx_root):
+		_gift_fx_root.queue_free()
+		_gift_fx_root = null
 	hide()
 	closed.emit()
+
+
+func scroll_to_control(ctrl: Control) -> void:
+	if _body_scroll == null or not is_instance_valid(_body_scroll):
+		return
+	if ctrl == null or not is_instance_valid(ctrl) or not _body_scroll.is_ancestor_of(ctrl):
+		return
+	var sc_rect := _body_scroll.get_global_rect()
+	var c_rect := ctrl.get_global_rect()
+	if sc_rect.size.y <= 10.0:
+		return
+	var margin_y := 28.0
+	if c_rect.position.y >= sc_rect.position.y + margin_y and c_rect.end.y <= sc_rect.end.y - margin_y:
+		return
+	var content_y := c_rect.position.y - sc_rect.position.y + float(_body_scroll.scroll_vertical)
+	var desired := int(round(maxf(0.0, content_y - sc_rect.size.y * 0.32)))
+	_body_scroll.scroll_vertical = desired
+
+
+func play_starter_gift_effect(items: Array) -> void:
+	if _root_ctrl == null or not is_instance_valid(_root_ctrl) or items.is_empty():
+		return
+	if is_instance_valid(_gift_fx_root):
+		_gift_fx_root.queue_free()
+		_gift_fx_root = null
+
+	_gift_fx_root = Control.new()
+	_gift_fx_root.name = "StarterGiftEffect"
+	_gift_fx_root.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_gift_fx_root.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_gift_fx_root.z_index = 25
+	_root_ctrl.add_child(_gift_fx_root)
+
+	var cc := CenterContainer.new()
+	cc.set_anchors_preset(Control.PRESET_FULL_RECT)
+	cc.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_gift_fx_root.add_child(cc)
+
+	var card := PanelContainer.new()
+	card.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	card.custom_minimum_size = Vector2(720, 0)
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color(0.11, 0.08, 0.04, 0.94)
+	sb.border_color = Color(1.0, 0.85, 0.30, 1.0)
+	sb.set_border_width_all(3)
+	sb.set_corner_radius_all(20)
+	sb.set_content_margin_all(20)
+	sb.shadow_color = Color(1.0, 0.82, 0.25, 0.45)
+	sb.shadow_size = 18
+	card.add_theme_stylebox_override("panel", sb)
+	cc.add_child(card)
+
+	var vb := VBoxContainer.new()
+	vb.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	vb.alignment = BoxContainer.ALIGNMENT_CENTER
+	vb.add_theme_constant_override("separation", 12)
+	card.add_child(vb)
+
+	var hdr := Label.new()
+	hdr.text = "✨ KRALİYET HEDİYESİ! ✨"
+	hdr.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	hdr.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	hdr.add_theme_font_override("font", FontCinzelBold)
+	hdr.add_theme_font_size_override("font_size", 28)
+	hdr.add_theme_color_override("font_color", Color(1.0, 0.90, 0.42))
+	vb.add_child(hdr)
+
+	var sub := Label.new()
+	sub.text = "Lord envanterine 3 başlangıç ekipmanı (+0) eklendi!"
+	sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	sub.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	sub.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	sub.add_theme_font_override("font", FontNunitoBold)
+	sub.add_theme_font_size_override("font_size", 19)
+	sub.add_theme_color_override("font_color", Color(0.96, 0.94, 0.86))
+	vb.add_child(sub)
+
+	var row := HBoxContainer.new()
+	row.alignment = BoxContainer.ALIGNMENT_CENTER
+	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	row.add_theme_constant_override("separation", 16)
+	vb.add_child(row)
+
+	var tile_nodes: Array[Control] = []
+	for it in items:
+		if typeof(it) != TYPE_DICTIONARY:
+			continue
+		var d := it as Dictionary
+		var tile := PanelContainer.new()
+		tile.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		tile.custom_minimum_size = Vector2(180, 148)
+		tile.add_theme_stylebox_override("panel", _dark_sb(Color(0.16, 0.13, 0.08, 0.98), Color(1.0, 0.84, 0.34, 1.0)))
+		var tvb := VBoxContainer.new()
+		tvb.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		tvb.alignment = BoxContainer.ALIGNMENT_CENTER
+		tvb.add_theme_constant_override("separation", 6)
+		tile.add_child(tvb)
+		var tr := TextureRect.new()
+		tr.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		tr.texture = load(LordModelScript.icon_path_for(str(d.get("slot_type", "sword")))) as Texture2D
+		tr.custom_minimum_size = Vector2(76, 76)
+		tr.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+		tr.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		tr.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		tvb.add_child(tr)
+		var lbl := Label.new()
+		lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		lbl.text = "+%d %s" % [int(d.get("plus", 0)), str(d.get("name", "Ekipman"))]
+		lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		lbl.add_theme_font_override("font", FontNunitoBold)
+		lbl.add_theme_font_size_override("font_size", 16)
+		lbl.add_theme_color_override("font_color", Color(1.0, 0.92, 0.56))
+		tvb.add_child(lbl)
+		row.add_child(tile)
+		tile_nodes.append(tile)
+
+	if DisplayServer.get_name() == "headless" or not is_inside_tree():
+		return
+
+	card.pivot_offset = Vector2(360, 120)
+	card.scale = Vector2(0.72, 0.72)
+	_gift_fx_root.modulate = Color(1, 1, 1, 0)
+	var tw := create_tween()
+	tw.set_parallel(true)
+	tw.tween_property(_gift_fx_root, "modulate:a", 1.0, 0.24)
+	tw.tween_property(card, "scale", Vector2(1.04, 1.04), 0.34).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	var tw2 := create_tween()
+	tw2.tween_interval(0.34)
+	tw2.tween_property(card, "scale", Vector2(1.0, 1.0), 0.14)
+	for i in range(tile_nodes.size()):
+		var tn := tile_nodes[i]
+		tn.pivot_offset = Vector2(90, 74)
+		tn.scale = Vector2(0.2, 0.2)
+		tn.modulate = Color(1, 1, 1, 0)
+		var ttw := create_tween()
+		ttw.tween_interval(0.12 * float(i))
+		ttw.tween_property(tn, "modulate:a", 1.0, 0.22)
+		ttw.parallel().tween_property(tn, "scale", Vector2(1.0, 1.0), 0.34).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	tw2.tween_interval(1.65)
+	tw2.tween_property(_gift_fx_root, "modulate:a", 0.0, 0.40)
+	tw2.tween_callback(func():
+		if is_instance_valid(_gift_fx_root):
+			_gift_fx_root.queue_free()
+			_gift_fx_root = null
+	)
 
 
 func open_upgrade_modal(item_id: String = "") -> void:
 	if _upgrade_modal == null or not is_instance_valid(_upgrade_modal):
 		_upgrade_modal = LordUpgradeModalScript.new()
+		_upgrade_modal.name = "LordUpgradeModal"
 		_upgrade_modal.open_market_lord_requested.connect(func():
 			close_modal()
 			open_market_lord_requested.emit()
@@ -182,6 +334,7 @@ func _build_ui() -> void:
 	sc.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	sc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	main_vb.add_child(sc)
+	_body_scroll = sc
 
 	var body_vb := VBoxContainer.new()
 	body_vb.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -569,6 +722,7 @@ func _refresh_all() -> void:
 		var rar := str(it.get("rarity", "common"))
 		var rc := LordModelScript.rarity_color(rar)
 		var btn := Button.new()
+		btn.name = "LordInvItem_%s" % iid
 		btn.custom_minimum_size = Vector2(0, 92)
 		btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		_style_btn(btn, Color(0.11, 0.10, 0.16, 0.98), rc, Color(1, 1, 1))
@@ -631,6 +785,7 @@ func _on_slot_pressed(slot_key: String) -> void:
 	var title := _slot_picker_overlay.find_child("PickerTitle", true, false) as Label
 	var list_vb := _slot_picker_overlay.find_child("PickerList", true, false) as VBoxContainer
 	for c in list_vb.get_children():
+		list_vb.remove_child(c)
 		c.queue_free()
 
 	var equipped_item: Dictionary = lm.call("get_equipped_item", slot_key)
@@ -646,6 +801,7 @@ func _on_slot_pressed(slot_key: String) -> void:
 		list_vb.add_child(cur_lbl)
 
 		var btn_unequip := Button.new()
+		btn_unequip.name = "BtnSlotUnequip"
 		btn_unequip.text = "📤 Eşyayı Çıkar (Envantere Geri Al)"
 		btn_unequip.custom_minimum_size = Vector2(0, 56)
 		_style_btn(btn_unequip, Color(0.36, 0.16, 0.16, 0.98), Color(0.95, 0.50, 0.48, 1.0), Color(1, 0.94, 0.94))
@@ -726,6 +882,7 @@ func _open_item_detail(item_id: String) -> void:
 	body_l.text = "\n".join(lines)
 
 	for ch in act_hb.get_children():
+		act_hb.remove_child(ch)
 		ch.queue_free()
 
 	if eq_slot.is_empty():
@@ -740,6 +897,7 @@ func _open_item_detail(item_id: String) -> void:
 				chosen_slot = ts
 				break
 		var btn_eq := Button.new()
+		btn_eq.name = "BtnDetailEquip"
 		btn_eq.text = "⚔️ Kuşan (%s)" % str(LordModelScript.get_slot_def(chosen_slot).get("name", chosen_slot))
 		btn_eq.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		btn_eq.custom_minimum_size = Vector2(0, 56)
@@ -763,6 +921,7 @@ func _open_item_detail(item_id: String) -> void:
 		act_hb.add_child(btn_upg)
 	else:
 		var btn_un := Button.new()
+		btn_un.name = "BtnDetailUnequip"
 		btn_un.text = "📤 Slottan Çıkar"
 		btn_un.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		btn_un.custom_minimum_size = Vector2(0, 56)
