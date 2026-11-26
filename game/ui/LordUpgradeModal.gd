@@ -75,6 +75,85 @@ class AnvilGridSlot extends PanelContainer:
 			slot_clicked.emit(slot_index)
 
 
+class TargetItemSlot extends PanelContainer:
+	signal item_dropped(item_id: String)
+	signal slot_cleared()
+	var _press_pos: Vector2 = Vector2.ZERO
+	var _pressing: bool = false
+
+	func _can_drop_data(_at_position: Vector2, data: Variant) -> bool:
+		return typeof(data) == TYPE_DICTIONARY and str((data as Dictionary).get("kind", "")) == "upgrade_item" and not str((data as Dictionary).get("item_id", "")).is_empty()
+
+	func _drop_data(_at_position: Vector2, data: Variant) -> void:
+		if typeof(data) == TYPE_DICTIONARY:
+			var iid := str((data as Dictionary).get("item_id", ""))
+			if not iid.is_empty():
+				item_dropped.emit(iid)
+
+	func _gui_input(event: InputEvent) -> void:
+		if event is InputEventMouseButton:
+			var mb := event as InputEventMouseButton
+			if mb.button_index == MOUSE_BUTTON_LEFT:
+				if mb.pressed:
+					_pressing = true
+					_press_pos = mb.position
+				elif _pressing:
+					_pressing = false
+					if mb.position.distance_to(_press_pos) <= 22.0:
+						slot_cleared.emit()
+		elif event is InputEventScreenTouch:
+			var st := event as InputEventScreenTouch
+			if st.pressed:
+				_pressing = true
+				_press_pos = st.position
+			elif _pressing:
+				_pressing = false
+				if st.position.distance_to(_press_pos) <= 22.0:
+					slot_cleared.emit()
+
+
+class ItemDragCard extends PanelContainer:
+	var item_id: String = ""
+	var icon_tex: Texture2D = null
+	var _press_pos: Vector2 = Vector2.ZERO
+	var _pressing: bool = false
+	signal item_pressed(item_id: String)
+
+	func _gui_input(event: InputEvent) -> void:
+		if event is InputEventMouseButton:
+			var mb := event as InputEventMouseButton
+			if mb.button_index == MOUSE_BUTTON_LEFT:
+				if mb.pressed:
+					_pressing = true
+					_press_pos = mb.position
+				elif _pressing:
+					_pressing = false
+					if mb.position.distance_to(_press_pos) <= 22.0:
+						item_pressed.emit(item_id)
+		elif event is InputEventScreenTouch:
+			var st := event as InputEventScreenTouch
+			if st.pressed:
+				_pressing = true
+				_press_pos = st.position
+			elif _pressing:
+				_pressing = false
+				if st.position.distance_to(_press_pos) <= 22.0:
+					item_pressed.emit(item_id)
+
+	func _get_drag_data(_at_position: Vector2) -> Variant:
+		_pressing = false
+		if item_id.is_empty():
+			return null
+		if is_inside_tree() and get_viewport() != null and get_viewport().gui_is_dragging() and icon_tex != null:
+			var preview := TextureRect.new()
+			preview.texture = icon_tex
+			preview.custom_minimum_size = Vector2(72, 72)
+			preview.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+			preview.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+			set_drag_preview(preview)
+		return {"kind": "upgrade_item", "item_id": item_id}
+
+
 var _selected_item_id: String = ""
 var _placed_scroll_slot: int = -1
 var _preview_active: bool = false
@@ -86,6 +165,7 @@ var _beam_panel: PanelContainer
 var _beam_label: Label
 var _beam_tween: Tween
 
+var _target_slot: TargetItemSlot
 var _target_icon: TextureRect
 var _target_name_lbl: Label
 var _target_sub_lbl: Label
@@ -129,6 +209,7 @@ func _lord_mgr() -> Node:
 func open_modal(initial_item_id: String = "") -> void:
 	_opened_explicitly = true
 	_build_ui()
+	_selected_item_id = ""
 	_preview_active = false
 	_placed_scroll_slot = -1
 	_beam_panel.hide()
@@ -143,6 +224,9 @@ func open_modal(initial_item_id: String = "") -> void:
 
 func close_modal() -> void:
 	_opened_explicitly = false
+	_selected_item_id = ""
+	_placed_scroll_slot = -1
+	_preview_active = false
 	hide()
 	closed.emit()
 
@@ -258,16 +342,21 @@ func _build_ui() -> void:
 	l_hdr.add_theme_color_override("font_color", Color(0.95, 0.80, 0.42))
 	left_vb.add_child(l_hdr)
 
-	var item_frame := PanelContainer.new()
-	item_frame.custom_minimum_size = Vector2(138, 138)
-	item_frame.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-	item_frame.add_theme_stylebox_override("panel", _dark_box_sb(Color(0.07, 0.06, 0.10, 1.0), Color(0.65, 0.54, 0.30, 0.9)))
-	left_vb.add_child(item_frame)
+	_target_slot = TargetItemSlot.new()
+	_target_slot.name = "TargetItemSlot"
+	_target_slot.custom_minimum_size = Vector2(138, 138)
+	_target_slot.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	_target_slot.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	_target_slot.add_theme_stylebox_override("panel", _dark_box_sb(Color(0.07, 0.06, 0.10, 1.0), Color(0.65, 0.54, 0.30, 0.9)))
+	_target_slot.item_dropped.connect(_on_target_item_dropped)
+	_target_slot.slot_cleared.connect(_on_target_slot_cleared)
+	left_vb.add_child(_target_slot)
 
 	_target_icon = TextureRect.new()
 	_target_icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	_target_icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	item_frame.add_child(_target_icon)
+	_target_icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_target_slot.add_child(_target_icon)
 
 	_target_name_lbl = Label.new()
 	_target_name_lbl.text = "Eşya Seçin"
@@ -613,9 +702,11 @@ func _refresh_all() -> void:
 	# Sol hedef slotu güncelle
 	if selected_item.is_empty():
 		_target_icon.texture = null
-		_target_name_lbl.text = "Eşya Seçilmedi"
+		_target_name_lbl.text = "Boş Slot"
 		_target_name_lbl.add_theme_color_override("font_color", Color(0.86, 0.84, 0.78))
-		_target_sub_lbl.text = "Aşağıdan boşta bir eşya seçin"
+		_target_sub_lbl.text = "Aşağıdan eşyaya dokunun veya sürükleyin"
+		if _target_slot != null:
+			_target_slot.add_theme_stylebox_override("panel", _dark_box_sb(Color(0.07, 0.06, 0.10, 1.0), Color(0.55, 0.48, 0.30, 0.85)))
 		_rate_lbl.text = "Başarı Oranı: Eşya ve parşömen yerleştirin"
 		_warn_lbl.text = ""
 		_warn_lbl.hide()
@@ -627,6 +718,8 @@ func _refresh_all() -> void:
 		var cur_plus := int(selected_item.get("plus", 0))
 		var rar := str(selected_item.get("rarity", "common"))
 		_target_icon.texture = load(LordModelScript.icon_path_for(st_type)) as Texture2D
+		if _target_slot != null:
+			_target_slot.add_theme_stylebox_override("panel", _dark_box_sb(Color(0.11, 0.09, 0.16, 1.0), LordModelScript.rarity_color(rar)))
 		_target_name_lbl.text = "%s (+%d)" % [str(selected_item.get("name", "Ekipman")), cur_plus]
 		_target_name_lbl.add_theme_color_override("font_color", LordModelScript.rarity_color(rar))
 		_target_sub_lbl.text = "%s · %s" % [LordModelScript.rarity_label(rar), LordModelScript.format_item_short_bonus(selected_item)]
@@ -730,33 +823,28 @@ func _refresh_all() -> void:
 		var plus := int(it.get("plus", 0))
 		var rar := str(it.get("rarity", "common"))
 		var is_sel := (iid == _selected_item_id)
+		var ic_tex := load(LordModelScript.icon_path_for(str(it.get("slot_type", "sword")))) as Texture2D
 
-		var btn := Button.new()
-		btn.custom_minimum_size = Vector2(0, 88)
-		btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		var card := ItemDragCard.new()
+		card.name = "InvItemCard_%s" % iid
+		card.item_id = iid
+		card.icon_tex = ic_tex
+		card.custom_minimum_size = Vector2(0, 88)
+		card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		card.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 		var b_col := Color(1.0, 0.86, 0.30, 1.0) if is_sel else LordModelScript.rarity_color(rar)
 		var bg_col := Color(0.20, 0.16, 0.09, 0.98) if is_sel else Color(0.11, 0.10, 0.16, 0.96)
-		_style_btn(btn, bg_col, b_col, Color(0.98, 0.95, 0.88))
-		btn.pressed.connect(func():
-			_selected_item_id = iid
-			_preview_active = false
-			_refresh_all()
-		)
+		card.add_theme_stylebox_override("panel", _dark_box_sb(bg_col, b_col))
+		card.item_pressed.connect(_on_inv_item_selected)
 
 		var hb := HBoxContainer.new()
-		hb.set_anchors_preset(Control.PRESET_FULL_RECT)
 		hb.add_theme_constant_override("separation", 10)
 		hb.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		btn.add_child(hb)
-
-		var pad_l := Control.new()
-		pad_l.custom_minimum_size = Vector2(6, 0)
-		pad_l.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		hb.add_child(pad_l)
+		card.add_child(hb)
 
 		var ic := TextureRect.new()
-		ic.texture = load(LordModelScript.icon_path_for(str(it.get("slot_type", "sword")))) as Texture2D
-		ic.custom_minimum_size = Vector2(64, 64)
+		ic.texture = ic_tex
+		ic.custom_minimum_size = Vector2(60, 60)
 		ic.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		ic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 		ic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
@@ -785,8 +873,29 @@ func _refresh_all() -> void:
 		sl.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		tx_vb.add_child(sl)
 
-		btn.text = ""
-		_inv_grid.add_child(btn)
+		_inv_grid.add_child(card)
+
+
+func _on_inv_item_selected(iid: String) -> void:
+	_selected_item_id = "" if _selected_item_id == iid else iid
+	_preview_active = false
+	_refresh_all()
+
+
+func _on_target_item_dropped(iid: String) -> void:
+	if iid.is_empty():
+		return
+	_selected_item_id = iid
+	_preview_active = false
+	_refresh_all()
+
+
+func _on_target_slot_cleared() -> void:
+	if _selected_item_id.is_empty():
+		return
+	_selected_item_id = ""
+	_preview_active = false
+	_refresh_all()
 
 
 func _on_preview_pressed() -> void:
@@ -826,8 +935,7 @@ func _execute_upgrade() -> void:
 		_show_beam(false, str(res.get("error", "Geliştirme yapılamadı.")))
 		return
 	_preview_active = false
-	if int(res.get("scrolls_left", 0)) <= 0:
-		_placed_scroll_slot = -1
+	_placed_scroll_slot = -1
 	if bool(res.get("upgraded", false)):
 		_show_beam(true, "✨ GELİŞTİRME BAŞARILI! (+%d → +%d)" % [int(res.get("old_plus", 0)), int(res.get("new_plus", 1))])
 	else:

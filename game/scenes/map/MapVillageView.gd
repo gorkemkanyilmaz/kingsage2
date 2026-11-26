@@ -49,7 +49,40 @@ static var _sb_card_player: StyleBoxFlat
 static var _sb_card_ally: StyleBoxFlat
 static var _sb_card_enemy: StyleBoxFlat
 static var _sb_card_bandit: StyleBoxFlat
-static var _bandit_shader_mat: ShaderMaterial
+static var _bandit_tex_cache: Dictionary = {}
+
+
+static func _desaturate_bandit_texture(src_tex: Texture2D) -> Texture2D:
+	if src_tex == null:
+		return null
+	var key := src_tex.resource_path
+	if not key.is_empty() and _bandit_tex_cache.has(key):
+		return _bandit_tex_cache[key] as Texture2D
+	var img: Image = src_tex.get_image()
+	if img == null:
+		return src_tex
+	img = img.duplicate() as Image
+	if img.is_compressed():
+		if img.decompress() != OK:
+			return src_tex
+	img.convert(Image.FORMAT_RGBA8)
+	var w := img.get_width()
+	var h := img.get_height()
+	for py in range(h):
+		for px in range(w):
+			var c: Color = img.get_pixel(px, py)
+			var g: float = c.r * 0.299 + c.g * 0.587 + c.b * 0.114
+			var target_g: float = g * 0.82
+			img.set_pixel(px, py, Color(
+				lerpf(c.r, target_g, 0.92),
+				lerpf(c.g, target_g, 0.92),
+				lerpf(c.b, target_g, 0.92),
+				c.a * 0.72
+			))
+	var out_tex := ImageTexture.create_from_image(img)
+	if not key.is_empty():
+		_bandit_tex_cache[key] = out_tex
+	return out_tex
 
 
 static func _ensure_shared_styles() -> void:
@@ -109,11 +142,6 @@ static func _ensure_shared_styles() -> void:
 		_sb_card_bandit = _sb_card_player.duplicate() as StyleBoxFlat
 		_sb_card_bandit.bg_color = Color(0.14, 0.14, 0.16, 0.88)
 		_sb_card_bandit.border_color = Color(0.56, 0.56, 0.60, 0.85)
-	if _bandit_shader_mat == null:
-		var sh := Shader.new()
-		sh.code = "shader_type canvas_item;\nvoid fragment() {\n\tvec4 c = texture(TEXTURE, UV) * COLOR;\n\tfloat g = dot(c.rgb, vec3(0.299, 0.587, 0.114));\n\tCOLOR = vec4(mix(c.rgb, vec3(g * 0.82), 0.92), c.a * 0.72);\n}"
-		_bandit_shader_mat = ShaderMaterial.new()
-		_bandit_shader_mat.shader = sh
 
 
 func _init() -> void:
@@ -177,8 +205,11 @@ func _build_ui() -> void:
 
 	_ensure_shared_styles()
 	if is_bandit:
-		_sprite.material = _bandit_shader_mat
-		_sprite.modulate = Color(0.84, 0.84, 0.88, 0.82)
+		_sprite.material = null
+		var d_tex := _desaturate_bandit_texture(_sprite.texture)
+		if d_tex != null:
+			_sprite.texture = d_tex
+		_sprite.modulate = Color(0.84, 0.84, 0.88, 0.90)
 
 	add_child(_sprite)
 

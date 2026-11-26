@@ -201,6 +201,9 @@ var _lord_speech_text: Label = null
 var _lord_modal: CanvasLayer = null
 var _lord_market_modal: CanvasLayer = null
 var _lord_hud_accum: float = 0.0
+var _obscured_cache: bool = false
+var _obscured_check_accum: float = 0.25
+var _bg_warming_paused: bool = false
 
 
 func _ensure_nodes() -> void:
@@ -372,8 +375,8 @@ var _bg_frame_idx: int = 0
 var _bg_frame_timer: float = 0.0
 var _rendered_village_id: int = -1
 var _last_buildings_refresh_sig: String = ""
-const BG_TOTAL_FRAMES: int = 96 # 96 kare (her 2. kare), 12 FPS = 8.0 saniyelik akıcı döngü & yarı VRAM
-const BG_FPS: float = 12.0
+const BG_TOTAL_FRAMES: int = 48 # 48 kare (her 4. kare), 6 FPS = 8.0 saniyelik akıcı döngü & çeyrek VRAM
+const BG_FPS: float = 6.0
 const BG_FRAME_TIME: float = 1.0 / BG_FPS
 const BG_LOOP_DURATION: float = float(BG_TOTAL_FRAMES) / BG_FPS
 
@@ -436,24 +439,41 @@ func is_background_obscured() -> bool:
 	return false
 
 
+func _is_background_obscured_cached(delta: float) -> bool:
+	_obscured_check_accum += maxf(delta, 0.0)
+	if _obscured_check_accum >= 0.25:
+		_obscured_check_accum = 0.0
+		_obscured_cache = is_background_obscured()
+	return _obscured_cache
+
+
 func _process(delta: float) -> void:
-	_queue_ui_accum += maxf(delta, 0.0)
-	if _queue_ui_accum >= 0.5:
+	var dt := maxf(delta, 0.0)
+	_queue_ui_accum += dt
+	if _queue_ui_accum >= 1.0:
 		_queue_ui_accum = 0.0
 		_update_queue_ui()
-	_lord_hud_accum += maxf(delta, 0.0)
-	if _lord_hud_accum >= 1.0:
-		_lord_hud_accum = 0.0
-		_refresh_lord_hud()
-	_update_incoming_attack_alarm(delta, false)
-	_progress_timer += delta
-	if _progress_timer >= 0.5:
-		_progress_timer = 0.0
 		_update_building_views_progress()
+	_lord_hud_accum += dt
+	if _lord_hud_accum >= 5.0:
+		_lord_hud_accum = 0.0
+		var lm_chk: Node = Engine.get_main_loop().root.get_node_or_null("LordManager") if Engine.get_main_loop() is SceneTree else null
+		if lm_chk != null and lm_chk.has_method("is_injured") and bool(lm_chk.call("is_injured")):
+			_refresh_lord_hud()
+	_update_incoming_attack_alarm(dt, false)
 
-	# Arka plan animasyonu: Tam ekran modal/arkaplanda duraklat, görünürken 12 FPS (8 sn döngü) oynat
-	if background != null and not is_background_obscured():
-		_bg_frame_timer += delta
+	var obscured := _is_background_obscured_cached(dt)
+	if _cached_bg_cache != null and is_instance_valid(_cached_bg_cache):
+		if obscured and not _bg_warming_paused and _cached_bg_cache.has_method("pause_warming"):
+			_cached_bg_cache.call("pause_warming")
+			_bg_warming_paused = true
+		elif not obscured and _bg_warming_paused and _cached_bg_cache.has_method("ensure_warming"):
+			_cached_bg_cache.call("ensure_warming")
+			_bg_warming_paused = false
+
+	# Arka plan animasyonu: Tam ekran modal/arkaplanda duraklat, görünürken 6 FPS (8 sn döngü) oynat
+	if background != null and not obscured:
+		_bg_frame_timer += dt
 		if _bg_frame_timer >= BG_FRAME_TIME:
 			var steps: int = int(_bg_frame_timer / BG_FRAME_TIME)
 			_bg_frame_timer = fposmod(_bg_frame_timer, BG_FRAME_TIME)
@@ -464,7 +484,7 @@ func _process(delta: float) -> void:
 			if _cached_bg_cache != null:
 				var total: int = mini(BG_TOTAL_FRAMES, _cached_bg_cache.get_frame_count())
 				if total > 0:
-					if DisplayServer.get_name() == "headless" or bool(_cached_bg_cache.get("is_fully_loaded")):
+					if DisplayServer.get_name() == "headless" or bool(_cached_bg_cache.get("is_fully_loaded")) or bool(_cached_bg_cache.get("_low_mem_ready")):
 						var step_clamped := mini(steps, 2) if DisplayServer.get_name() != "headless" else steps
 						_bg_frame_idx = (_bg_frame_idx + step_clamped) % total
 						var tex = _cached_bg_cache.get_frame(_bg_frame_idx)
@@ -480,8 +500,8 @@ func _process(delta: float) -> void:
 
 
 func _update_building_views_progress() -> void:
-	var gs = Engine.get_main_loop().root.get_node_or_null("GameState") if Engine.get_main_loop() is SceneTree else null
-	if gs == null or not gs.has_active_village():
+	var gs = _resolve_game_state()
+	if gs == null or not gs.has_active_village() or gs.queues.is_empty():
 		return
 	var now := _current_now()
 	for item in gs.queues:
@@ -1573,7 +1593,8 @@ func _update_incoming_attack_alarm(delta: float, force_scan: bool = false) -> vo
 		return
 
 	_alarm_scan_accum += maxf(delta, 0.0)
-	if force_scan or _alarm_scan_accum >= 0.75:
+	var scan_interval := 0.75 if not _cached_incoming_attacks.is_empty() else 1.5
+	if force_scan or _alarm_scan_accum >= scan_interval:
 		_alarm_scan_accum = 0.0
 		_cached_incoming_attacks = IncomingAttackAlert.get_incoming_attacks(gs, _current_now())
 	var incoming := _cached_incoming_attacks

@@ -35,7 +35,7 @@ var worlds_meta: Array = []
 var _last_autosave_unix: int = 0
 var _last_cloud_save_unix: int = 0
 
-const CLOUD_POLL_INTERVAL_SEC := 15.0
+const CLOUD_POLL_INTERVAL_SEC := 45.0
 var _cloud_poll_accum: float = 0.0
 var _cloud_poll_in_flight: bool = false
 var _last_cloud_poll_sig_by_world: Dictionary = {}

@@ -527,15 +527,16 @@ func buy_scroll(scroll_id: String, qty: int = 1) -> Dictionary:
 	var scrolls_dict := player_dict.get("scrolls") as Dictionary
 	var new_diamonds := cur_diamonds - total_cost
 	var new_count := maxi(0, int(scrolls_dict.get(scroll_id, 0))) + qty
-	player_dict["diamonds"] = new_diamonds
-	scrolls_dict[scroll_id] = new_count
 	if scroll_id == "lord_upgrade_scroll":
 		var lm := _autoload("LordManager")
 		if lm != null and lm.has_method("ensure_lord_state"):
 			var ld: Dictionary = lm.call("ensure_lord_state")
+			new_count = maxi(0, int(ld.get("upgrade_scrolls", 0))) + qty
 			ld["upgrade_scrolls"] = new_count
 			ld["updated_unix"] = _current_sim_now()
 			lm.emit_signal("lord_changed")
+	player_dict["diamonds"] = new_diamonds
+	scrolls_dict[scroll_id] = new_count
 
 	_suppress_bus_sync = true
 	_emit_wallet_and_state(true)

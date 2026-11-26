@@ -31,9 +31,16 @@ func _connect_hooks() -> void:
 
 func _process(delta: float) -> void:
 	_tick_accum += delta
-	if _tick_accum >= 2.0:
-		_tick_accum = 0.0
-		tick_recovery()
+	if _tick_accum < 5.0:
+		return
+	_tick_accum = 0.0
+	var gs := _autoload("GameState")
+	if gs == null or typeof(gs.get("player")) != TYPE_DICTIONARY:
+		return
+	var ld_raw = (gs.get("player") as Dictionary).get("lord")
+	if typeof(ld_raw) != TYPE_DICTIONARY or int((ld_raw as Dictionary).get("injured_until_unix", 0)) <= 0:
+		return
+	tick_recovery()
 
 
 func _autoload(node_name: String) -> Node:
@@ -63,10 +70,20 @@ func _persist_and_notify(emit_bus: bool = true) -> void:
 		p["lord"] = ld
 		if typeof(p.get("scrolls")) != TYPE_DICTIONARY:
 			p["scrolls"] = {}
-		(p["scrolls"] as Dictionary)["lord_upgrade_scroll"] = maxi(0, int(ld.get("upgrade_scrolls", 0)))
+		var sc_cnt := maxi(0, int(ld.get("upgrade_scrolls", 0)))
+		var p_scrolls := p["scrolls"] as Dictionary
+		if sc_cnt > 0:
+			p_scrolls["lord_upgrade_scroll"] = sc_cnt
+		else:
+			p_scrolls.erase("lord_upgrade_scroll")
+	var sm_store := _autoload("StoreManager")
+	if sm_store != null and sm_store.has_method("_sync_cached_wallet"):
+		sm_store.call("_sync_cached_wallet")
 	var wm := _autoload("WorldManager")
 	if wm != null and wm.has_method("notify_local_mutation"):
 		wm.call("notify_local_mutation")
+	if wm != null and wm.has_method("request_save_active_world"):
+		wm.call("request_save_active_world", true)
 	var sm := _autoload("SaveManager")
 	if sm != null and sm.has_method("request_save_game"):
 		sm.call("request_save_game")
@@ -93,12 +110,6 @@ func ensure_lord_state() -> Dictionary:
 		gs.set("player", {})
 	var p := gs.get("player") as Dictionary
 	var cleaned := LordModelScript.ensure_state_dict(p.get("lord", null))
-	# Cüzdandaki parşömen sayısı daha büyükse senkronize et (ör. Elmas ile pazar alımı)
-	var scrolls = p.get("scrolls", {})
-	if typeof(scrolls) == TYPE_DICTIONARY:
-		var wallet_scrolls := maxi(0, int((scrolls as Dictionary).get("lord_upgrade_scroll", 0)))
-		if wallet_scrolls > int(cleaned.get("upgrade_scrolls", 0)) and not p.has("_lord_scroll_consumed_guard"):
-			cleaned["upgrade_scrolls"] = wallet_scrolls
 	p["lord"] = cleaned
 	return cleaned
 
@@ -243,15 +254,20 @@ func upgrade_item(item_id: String, force_roll: int = -1) -> Dictionary:
 		roll = rng.randi_range(1, 100)
 
 	# Önce parşömeni tüket (kopyalama koruması)
-	ld["upgrade_scrolls"] = scrolls - 1
+	var next_scrolls := maxi(0, scrolls - 1)
+	ld["upgrade_scrolls"] = next_scrolls
 	var gs := _autoload("GameState")
 	if gs != null and typeof(gs.get("player")) == TYPE_DICTIONARY:
 		var p := gs.get("player") as Dictionary
-		if typeof(p.get("scrolls")) == TYPE_DICTIONARY:
-			(p["scrolls"] as Dictionary)["lord_upgrade_scroll"] = scrolls - 1
+		if typeof(p.get("scrolls")) != TYPE_DICTIONARY:
+			p["scrolls"] = {}
+		var p_scrolls := p["scrolls"] as Dictionary
+		if next_scrolls > 0:
+			p_scrolls["lord_upgrade_scroll"] = next_scrolls
+		else:
+			p_scrolls.erase("lord_upgrade_scroll")
 
 	var success := roll <= rate
-	var item_name := str(item.get("name", "Ekipman"))
 	var res: Dictionary
 	if success:
 		var new_plus := cur_plus + 1
@@ -267,13 +283,6 @@ func upgrade_item(item_id: String, force_roll: int = -1) -> Dictionary:
 			"scrolls_left": int(ld["upgrade_scrolls"]),
 			"item": item.duplicate(true),
 		}
-		push_speech(
-			"upgrade_success",
-			"Ekipman Geliştirildi!",
-			"%s +%d → +%d seviyesine başarıyla yükseldi!" % [item_name, cur_plus, new_plus],
-			"item_detail",
-			item_id
-		)
 	else:
 		# Başarısız: eşya ve parşömen kalıcı olarak yanar/yok olur
 		inv.remove_at(item_idx)
@@ -288,13 +297,14 @@ func upgrade_item(item_id: String, force_roll: int = -1) -> Dictionary:
 			"scrolls_left": int(ld["upgrade_scrolls"]),
 			"item": item.duplicate(true),
 		}
-		push_speech(
-			"upgrade_fail",
-			"Geliştirme Başarısız",
-			"%s (+%d) örs üzerinde parçalandı ve yok oldu!" % [item_name, cur_plus],
-			"upgrade_screen",
-			""
-		)
+
+	if DisplayServer.get_name() != "headless":
+		var net := _autoload("NetworkManager")
+		if net != null and not str(net.get("auth_token")).is_empty() and net.has_method("api_request"):
+			net.api_request("/api/store/use_scroll", HTTPClient.METHOD_POST, {
+				"scroll_id": "lord_upgrade_scroll",
+				"category": "lord",
+			}, Callable())
 
 	_persist_and_notify(true)
 	upgrade_finished.emit(res)

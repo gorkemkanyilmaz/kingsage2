@@ -167,7 +167,7 @@ func _on_any_state_event(_a = null, _b = null, _c = null, _d = null) -> void:
 		return
 	_flush_pending_open_payload()
 	_schedule_permission_prompt_if_ready()
-	request_resync(1.2)
+	request_resync(3.0)
 
 
 func _flush_pending_open_payload() -> void:

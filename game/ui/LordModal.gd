@@ -758,7 +758,7 @@ func _open_item_detail(item_id: String) -> void:
 		_style_btn(btn_upg, Color(0.54, 0.30, 0.08, 0.98), Color(1.0, 0.84, 0.34, 1.0), Color(1, 0.96, 0.84))
 		btn_upg.pressed.connect(func():
 			_item_detail_overlay.hide()
-			open_upgrade_modal(item_id)
+			open_upgrade_modal("")
 		)
 		act_hb.add_child(btn_upg)
 	else:

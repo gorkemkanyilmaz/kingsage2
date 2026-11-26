@@ -1,18 +1,18 @@
 extends Node
-## VillageBackgroundCache — 96 karelik (12 FPS, 8 sn — kaynak 192 kareden her 2. kare)
-## akıcı köy arka plan animasyonunu yarı VRAM ve yarı decode maliyetiyle oynatan Autoload.
+## VillageBackgroundCache — 48 karelik (6 FPS, 8 sn — kaynak 192 kareden her 4. kare)
+## akıcı köy arka plan animasyonunu çeyrek VRAM ve çeyrek decode maliyetiyle oynatan Autoload.
 
 const SOURCE_FRAME_COUNT: int = 192
-const FRAME_STRIDE: int = 2
-const FRAME_COUNT: int = 96
-const TOTAL_FRAMES: int = 96
-const FPS: float = 12.0
-const TARGET_FPS: float = 12.0
+const FRAME_STRIDE: int = 4
+const FRAME_COUNT: int = 48
+const TOTAL_FRAMES: int = 48
+const FPS: float = 6.0
+const TARGET_FPS: float = 6.0
 const FRAME_DURATION: float = 1.0 / FPS
 const LOOP_DURATION: float = float(FRAME_COUNT) / FPS
 const FRAMES_PER_TICK: int = 2
-const THREAD_PREFETCH_WINDOW: int = 4
-const LOW_MEM_WINDOW: int = 16
+const THREAD_PREFETCH_WINDOW: int = 3
+const LOW_MEM_STRIDE: int = 4
 const MAX_MAIN_THREAD_COLLECT_USEC: int = 2500
 
 var frames: Array[Texture2D] = []
@@ -22,6 +22,7 @@ var _next_request_idx: int = 1
 var _requested_flags: PackedByteArray = PackedByteArray()
 var _low_memory_mode: bool = false
 var _playhead_idx: int = 0
+var _low_mem_ready: bool = false
 
 
 func _init() -> void:
@@ -44,7 +45,12 @@ func _frame_path(idx: int) -> String:
 
 
 func ensure_warming() -> void:
-	if not is_fully_loaded or _low_memory_mode:
+	if _low_memory_mode:
+		if not _low_mem_ready:
+			_queue_threaded_prefetch()
+			set_process(true)
+		return
+	if not is_fully_loaded:
 		_queue_threaded_prefetch()
 		set_process(true)
 
@@ -59,8 +65,9 @@ func trim_memory() -> void:
 	if _requested_flags.size() != FRAME_COUNT:
 		_requested_flags.resize(FRAME_COUNT)
 	for i in range(1, FRAME_COUNT):
-		frames[i] = null
-		_requested_flags[i] = 0
+		if i % LOW_MEM_STRIDE != 0:
+			frames[i] = null
+			_requested_flags[i] = 0
 	if frames[0] == null:
 		var first_tex := _load_texture(_frame_path(0))
 		if first_tex != null:
@@ -69,8 +76,16 @@ func trim_memory() -> void:
 	_next_load_idx = 1
 	_next_request_idx = 1
 	_low_memory_mode = true
+	_low_mem_ready = _check_low_mem_loaded()
 	is_fully_loaded = false
-	set_process(false)
+	set_process(not _low_mem_ready)
+
+
+func _check_low_mem_loaded() -> bool:
+	for idx in range(0, FRAME_COUNT, LOW_MEM_STRIDE):
+		if frames[idx] == null:
+			return false
+	return true
 
 
 func _notification(what: int) -> void:
@@ -83,10 +98,9 @@ func _queue_threaded_prefetch() -> void:
 		return
 	if _low_memory_mode:
 		var queued := 0
-		for offset in range(1, LOW_MEM_WINDOW + 1):
+		for idx in range(0, FRAME_COUNT, LOW_MEM_STRIDE):
 			if queued >= THREAD_PREFETCH_WINDOW:
 				break
-			var idx := posmod(_playhead_idx + offset, FRAME_COUNT)
 			if frames[idx] == null and _requested_flags[idx] == 0:
 				var lp := _frame_path(idx)
 				if ResourceLoader.exists(lp) and ResourceLoader.load_threaded_request(lp, "Texture2D") == OK:
@@ -106,15 +120,18 @@ func _queue_threaded_prefetch() -> void:
 
 func _process(_delta: float) -> void:
 	if _low_memory_mode:
+		if _low_mem_ready or _check_low_mem_loaded():
+			_low_mem_ready = true
+			set_process(false)
+			return
 		var is_hl := (DisplayServer.get_name() == "headless")
 		if not is_hl:
 			_queue_threaded_prefetch()
 		var lm_start := Time.get_ticks_usec()
 		var lm_cnt := 0
-		for offset in range(1, LOW_MEM_WINDOW + 1):
+		for idx in range(0, FRAME_COUNT, LOW_MEM_STRIDE):
 			if lm_cnt >= FRAMES_PER_TICK:
 				break
-			var idx := posmod(_playhead_idx + offset, FRAME_COUNT)
 			if frames[idx] != null:
 				continue
 			var lp := _frame_path(idx)
@@ -137,12 +154,9 @@ func _process(_delta: float) -> void:
 					lm_cnt += 1
 			if not is_hl and (Time.get_ticks_usec() - lm_start) >= MAX_MAIN_THREAD_COLLECT_USEC:
 				break
-		# Kayan pencere: aktif kareden uzaktaki kareleri bellekten tahliye et (0. kare daima kalır)
-		for offset_keep in range(LOW_MEM_WINDOW + 2, FRAME_COUNT - 3):
-			var evict_idx := posmod(_playhead_idx + offset_keep, FRAME_COUNT)
-			if evict_idx != 0 and frames[evict_idx] != null:
-				frames[evict_idx] = null
-				_requested_flags[evict_idx] = 0
+		_low_mem_ready = _check_low_mem_loaded()
+		if _low_mem_ready:
+			set_process(false)
 		return
 
 	if is_fully_loaded:
@@ -234,6 +248,8 @@ func get_frame(index: int) -> Texture2D:
 	if frames.is_empty():
 		return null
 	var safe_idx: int = posmod(index, FRAME_COUNT)
+	if _low_memory_mode:
+		safe_idx = int(safe_idx / LOW_MEM_STRIDE) * LOW_MEM_STRIDE
 	_playhead_idx = safe_idx
 	var tex: Texture2D = frames[safe_idx]
 	if tex != null:

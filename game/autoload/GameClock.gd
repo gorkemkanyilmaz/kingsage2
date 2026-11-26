@@ -17,10 +17,12 @@ const MAX_CATCHUP_STEPS := 10000
 
 ## Hedef adaptif FPS seviyeleri (pil ve ısınma optimizasyonu).
 const ADAPTIVE_ACTIVE_FPS := 60
-const ADAPTIVE_MAP_MOV_IDLE_FPS := 15
-const ADAPTIVE_IDLE_FPS := 12
-const ADAPTIVE_STATIC_IDLE_FPS := 10
-const ADAPTIVE_BACKGROUND_FPS := 2
+const ADAPTIVE_MOBILE_DRAG_FPS := 45
+const ADAPTIVE_MOBILE_TAP_FPS := 30
+const ADAPTIVE_MAP_MOV_IDLE_FPS := 10
+const ADAPTIVE_IDLE_FPS := 6
+const ADAPTIVE_STATIC_IDLE_FPS := 4
+const ADAPTIVE_BACKGROUND_FPS := 1
 const ADAPTIVE_BOOST_SECONDS := 1.5
 
 var running := false
@@ -31,6 +33,7 @@ var elapsed_seconds := 0.0
 
 var _accumulator := 0.0
 var _fps_boost_remaining: float = ADAPTIVE_BOOST_SECONDS
+var _boost_target_fps: int = ADAPTIVE_ACTIVE_FPS
 var _fps_scene_check_accum: float = 0.0
 var _current_target_fps: int = -1
 var _app_backgrounded: bool = false
@@ -39,7 +42,8 @@ var _app_backgrounded: bool = false
 func _ready() -> void:
 	start()
 	if DisplayServer.get_name() != "headless":
-		boost_fps(12.0)
+		var is_mob := OS.get_name() == "iOS" or OS.get_name() == "Android"
+		boost_fps(2.5 if is_mob else 6.0, ADAPTIVE_MOBILE_TAP_FPS if is_mob else ADAPTIVE_ACTIVE_FPS)
 	else:
 		boost_fps()
 
@@ -47,10 +51,13 @@ func _ready() -> void:
 func _input(event: InputEvent) -> void:
 	if not adaptive_fps_enabled:
 		return
-	if event is InputEventScreenTouch or event is InputEventScreenDrag or event is InputEventMouseButton or event is InputEventKey:
-		boost_fps()
+	var is_mob := OS.get_name() == "iOS" or OS.get_name() == "Android"
+	if event is InputEventScreenDrag:
+		boost_fps(0.45 if is_mob else ADAPTIVE_BOOST_SECONDS, ADAPTIVE_MOBILE_DRAG_FPS if is_mob else ADAPTIVE_ACTIVE_FPS)
+	elif event is InputEventScreenTouch or event is InputEventMouseButton or event is InputEventKey:
+		boost_fps(0.65 if is_mob else ADAPTIVE_BOOST_SECONDS, ADAPTIVE_MOBILE_TAP_FPS if is_mob else ADAPTIVE_ACTIVE_FPS)
 	elif event is InputEventMouseMotion and (event as InputEventMouseMotion).button_mask != 0:
-		boost_fps()
+		boost_fps(0.45 if is_mob else ADAPTIVE_BOOST_SECONDS, ADAPTIVE_MOBILE_DRAG_FPS if is_mob else ADAPTIVE_ACTIVE_FPS)
 
 
 func _notification(what: int) -> void:
@@ -59,10 +66,17 @@ func _notification(what: int) -> void:
 		_apply_adaptive_fps(true)
 	elif what == NOTIFICATION_APPLICATION_RESUMED or what == NOTIFICATION_APPLICATION_FOCUS_IN:
 		_app_backgrounded = false
-		boost_fps()
+		var is_mob := OS.get_name() == "iOS" or OS.get_name() == "Android"
+		boost_fps(0.65 if is_mob else ADAPTIVE_BOOST_SECONDS, ADAPTIVE_MOBILE_TAP_FPS if is_mob else ADAPTIVE_ACTIVE_FPS)
 
 
-func boost_fps(duration: float = ADAPTIVE_BOOST_SECONDS) -> void:
+func boost_fps(duration: float = ADAPTIVE_BOOST_SECONDS, target_fps: int = -1) -> void:
+	var is_mob := OS.get_name() == "iOS" or OS.get_name() == "Android"
+	var chosen_fps := target_fps if target_fps > 0 else (ADAPTIVE_MOBILE_TAP_FPS if is_mob else ADAPTIVE_ACTIVE_FPS)
+	if _fps_boost_remaining <= 0.0:
+		_boost_target_fps = chosen_fps
+	else:
+		_boost_target_fps = maxi(_boost_target_fps, chosen_fps)
 	_fps_boost_remaining = maxf(_fps_boost_remaining, maxf(0.1, duration))
 	_apply_adaptive_fps(true)
 
@@ -77,7 +91,7 @@ func _compute_adaptive_target_fps() -> int:
 	if _app_backgrounded:
 		return ADAPTIVE_BACKGROUND_FPS
 	if _fps_boost_remaining > 0.0:
-		return ADAPTIVE_ACTIVE_FPS
+		return _boost_target_fps
 	var loop := Engine.get_main_loop()
 	if loop is SceneTree:
 		var st := loop as SceneTree

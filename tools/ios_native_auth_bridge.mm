@@ -39,9 +39,13 @@ static NSString *const kTVKGoogleCallbackScheme = @"com.googleusercontent.apps.5
 static NSString *const kTVKGoogleRedirectURI = @"com.googleusercontent.apps.552757358961-j2p1bdt066tpropqmuj2dcp25rfu64o3:/oauth2redirect/google";
 
 static NSMutableArray<NSString *> *gTVKCachedExtraDirs = nil;
+static NSArray<NSString *> *gTVKCachedBaseDirs = nil;
 static BOOL gTVKDidDeepScanOnce = NO;
 
 static NSArray<NSString *> *TVKCandidateUserDirs(BOOL deepScan, NSArray<NSString *> *reqFileNames) {
+    if (!deepScan && gTVKCachedBaseDirs != nil) {
+        return gTVKCachedBaseDirs;
+    }
     NSMutableArray<NSString *> *dirs = [NSMutableArray array];
     NSMutableSet<NSString *> *seen = [NSMutableSet set];
     void (^addDir)(NSString *) = ^(NSString *path) {
@@ -97,7 +101,8 @@ static NSArray<NSString *> *TVKCandidateUserDirs(BOOL deepScan, NSArray<NSString
         }
     }
 
-    return dirs;
+    gTVKCachedBaseDirs = [dirs copy];
+    return gTVKCachedBaseDirs;
 }
 
 static void TVKWriteJsonDictToDirs(NSDictionary *payload, NSString *activeDir, NSString *fileName) {
@@ -521,12 +526,12 @@ extern "C" void tvk_ios_auth_bridge_init(void) {
         if (self.pollTimer != nil && [self.pollTimer isValid]) {
             return;
         }
-        self.pollTimer = [NSTimer scheduledTimerWithTimeInterval:0.40
+        self.pollTimer = [NSTimer scheduledTimerWithTimeInterval:1.00
                                                           target:self
                                                         selector:@selector(pollForRequest)
                                                         userInfo:nil
                                                          repeats:YES];
-        self.pollTimer.tolerance = 0.12;
+        self.pollTimer.tolerance = 0.40;
         [[NSRunLoop mainRunLoop] addTimer:self.pollTimer forMode:NSRunLoopCommonModes];
     });
 }
@@ -1318,12 +1323,12 @@ decisionHandler:(void (^)(WKNavigationActionPolicy))decisionHandler {
         if (self.pollTimer != nil && [self.pollTimer isValid]) {
             return;
         }
-        self.pollTimer = [NSTimer scheduledTimerWithTimeInterval:0.40
+        self.pollTimer = [NSTimer scheduledTimerWithTimeInterval:1.50
                                                           target:self
                                                         selector:@selector(pollForIapRequest)
                                                         userInfo:nil
                                                          repeats:YES];
-        self.pollTimer.tolerance = 0.12;
+        self.pollTimer.tolerance = 0.50;
         [[NSRunLoop mainRunLoop] addTimer:self.pollTimer forMode:NSRunLoopCommonModes];
     });
 }
@@ -1785,12 +1790,12 @@ static void tvk_swizzledDidFailRegister(id selfObj, SEL _cmd, UIApplication *app
         if (self.pollTimer != nil && [self.pollTimer isValid]) {
             return;
         }
-        self.pollTimer = [NSTimer scheduledTimerWithTimeInterval:0.50
+        self.pollTimer = [NSTimer scheduledTimerWithTimeInterval:2.00
                                                           target:self
                                                         selector:@selector(pollForNotifRequest)
                                                         userInfo:nil
                                                          repeats:YES];
-        self.pollTimer.tolerance = 0.15;
+        self.pollTimer.tolerance = 0.60;
         [[NSRunLoop mainRunLoop] addTimer:self.pollTimer forMode:NSRunLoopCommonModes];
     });
 }
