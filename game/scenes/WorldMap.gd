@@ -134,6 +134,13 @@ func _ready() -> void:
 	_setup_movement_status_bar()
 	_setup_bottom_march_bar()
 	_sync_top_bars_layout()
+	if send_troops_panel != null:
+		send_troops_panel.move_to_front()
+		if not send_troops_panel.closed.is_connected(_on_send_troops_panel_closed):
+			send_troops_panel.closed.connect(_on_send_troops_panel_closed)
+		if not send_troops_panel.movement_dispatched.is_connected(_on_send_troops_panel_dispatched):
+			send_troops_panel.movement_dispatched.connect(_on_send_troops_panel_dispatched)
+	call_deferred("_refresh_movement_status_bar")
 
 	if not resized.is_connected(_sync_top_bars_layout):
 		resized.connect(_sync_top_bars_layout)
@@ -835,9 +842,10 @@ func _on_map_gui_input(event: InputEvent) -> void:
 				_is_dragging = false
 				call_deferred("_reset_drag_dist")
 				if not was_drag:
-					_check_movement_click(mb.position)
-					if movement_detail_panel == null or not movement_detail_panel.visible:
-						_try_select_village_at_screen_pos(mb.position)
+					if (send_troops_panel != null and send_troops_panel.visible) or (movement_detail_panel != null and movement_detail_panel.visible):
+						return
+					if not _try_select_village_at_screen_pos(mb.position):
+						_check_movement_click(mb.position)
 		elif mb.button_index == MOUSE_BUTTON_WHEEL_UP and mb.pressed:
 			_zoom_at(mb.position, 1.15)
 		elif mb.button_index == MOUSE_BUTTON_WHEEL_DOWN and mb.pressed:
@@ -875,9 +883,10 @@ func _on_map_gui_input(event: InputEvent) -> void:
 				_is_dragging = false
 				call_deferred("_reset_drag_dist")
 				if not was_drag:
-					_check_movement_click(st.position)
-					if movement_detail_panel == null or not movement_detail_panel.visible:
-						_try_select_village_at_screen_pos(st.position)
+					if (send_troops_panel != null and send_troops_panel.visible) or (movement_detail_panel != null and movement_detail_panel.visible):
+						return
+					if not _try_select_village_at_screen_pos(st.position):
+						_check_movement_click(st.position)
 
 	elif event is InputEventScreenDrag:
 		_last_touch_ms = Time.get_ticks_msec()
@@ -999,11 +1008,11 @@ func _on_goto_pressed() -> void:
 				break
 
 
-func _try_select_village_at_screen_pos(screen_pos: Vector2) -> void:
+func _try_select_village_at_screen_pos(screen_pos: Vector2) -> bool:
 	if send_troops_panel != null and send_troops_panel.visible:
-		return
+		return true
 	if map_container == null or world_root == null:
-		return
+		return false
 	var view_size: Vector2 = map_container.size
 	if view_size.x <= 10.0 or view_size.y <= 10.0:
 		view_size = Vector2(1080.0, 1920.0)
@@ -1021,6 +1030,8 @@ func _try_select_village_at_screen_pos(screen_pos: Vector2) -> void:
 			best_v = v_view.get_meta("village_dict")
 	if not best_v.is_empty():
 		_on_village_clicked(best_v)
+		return true
+	return false
 
 
 func _on_village_conquered_map(_vid: int, _owner: String) -> void:
@@ -1102,8 +1113,27 @@ func _on_village_clicked(target_v: Dictionary) -> void:
 		get_tree().change_scene_to_file("res://scenes/Village.tscn")
 		return
 
+	if movement_detail_panel != null and movement_detail_panel.visible:
+		movement_detail_panel.hide()
+	if bottom_march_bar != null:
+		bottom_march_bar.hide()
+
 	var from_v: Dictionary = gs.get_active_village()
 	send_troops_panel.show_target(from_v, target_v)
+	send_troops_panel.move_to_front()
+
+
+func _on_send_troops_panel_closed() -> void:
+	_refresh_movement_status_bar()
+	if movements_layer != null:
+		movements_layer.queue_redraw()
+
+
+func _on_send_troops_panel_dispatched(_type: String, _target_id: int) -> void:
+	has_visible_movements()
+	_refresh_movement_status_bar()
+	if movements_layer != null:
+		movements_layer.queue_redraw()
 
 
 # ---------------------------------------------------------------- Birlik & Katır Hareket Çizgileri
@@ -1586,8 +1616,12 @@ func _refresh_movement_status_bar() -> void:
 		legend_node.hide()
 
 	movement_status_bar.show()
+	var send_panel_open := (send_troops_panel != null and send_troops_panel.visible)
 	if bottom_march_bar != null:
-		bottom_march_bar.show()
+		if send_panel_open:
+			bottom_march_bar.hide()
+		else:
+			bottom_march_bar.show()
 
 	var active_m: Dictionary = my_movements[0]
 	for m in my_movements:
@@ -1816,11 +1850,18 @@ func _check_movement_click(screen_click_pos: Vector2) -> void:
 
 		var origin_pos := coord_to_world_pos(from_x, from_y)
 		var target_pos := coord_to_world_pos(to_x, to_y)
+		var seg_vec := target_pos - origin_pos
+		var line_dist := seg_vec.length()
+		var start_pad := minf(110.0, line_dist * 0.24)
+		var end_pad := minf(98.0, line_dist * 0.24)
+		var line_dir := seg_vec / line_dist if line_dist > 1.0 else Vector2.ZERO
+		var vis_start := origin_pos + line_dir * start_pad
+		var vis_end := target_pos - line_dir * end_pad
 		var depart_unix := int(m.get("depart_unix", now))
 		var arrive_unix := int(m.get("arrive_unix", now + 60))
 		var duration := maxi(1, arrive_unix - depart_unix)
 		var progress := clampf(float(now - depart_unix) / float(duration), 0.0, 1.0)
-		var current_march_pos := origin_pos.lerp(target_pos, progress)
+		var current_march_pos := vis_start.lerp(vis_end, progress)
 
 		var screen_march_pos := (current_march_pos - _camera_pos) * _zoom + map_container.size * 0.5
 		var banner_w := 240.0 * _zoom

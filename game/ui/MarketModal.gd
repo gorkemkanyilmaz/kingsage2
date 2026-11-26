@@ -181,7 +181,7 @@ func _exit_tree() -> void:
 
 
 func open_tab(tab_key: String = "build") -> void:
-	_current_tab = tab_key if tab_key in ["build", "train", "research", "march", "resources", "diamonds"] else "build"
+	_current_tab = tab_key if tab_key in ["build", "train", "research", "march", "lord", "resources", "diamonds"] else "build"
 	_ensure_ui()
 	_connect_signals()
 	if _current_tab == "diamonds":

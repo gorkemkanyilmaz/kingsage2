@@ -2,6 +2,7 @@ extends Control
 ## Reports — Raporlar ekranı ve Nano-Banana Görsel Savaş Raporu (Taht ve Kılıç / A-ARAYUZ).
 
 const Palette := preload("res://themes/Palette.gd")
+const LordModelScript := preload("res://scripts/model/LordModel.gd")
 const FontNunitoBold := preload("res://assets/fonts/Nunito-Bold.ttf")
 const FontCinzelBold := preload("res://assets/fonts/Cinzel-Bold.ttf")
 const IconWood := preload("res://assets/sprites/ui/nano_banana/sharp_icon_wood.png")
@@ -1625,32 +1626,13 @@ func _render_battle_report(parent: Control, rep: Dictionary) -> void:
 		parent.add_child(army_section)
 		parent.add_child(def_army_section)
 
-	# 4. GANİMET & YAĞMA KARTI
+	# 4. GANİMET & YAĞMA KARTI (Hammaddeler + ortalanmış düşen Lord ekipmanı)
 	var loot: Dictionary = data.get("loot", raw.get("loot", {}))
 	var carry_cap: int = int(data.get("carry_capacity", raw.get("carry_capacity", 0)))
-	var loot_card := _make_loot_card(loot, carry_cap)
+	var raw_drop = data.get("dropped_item", raw.get("dropped_item", {}))
+	var drop_item: Dictionary = raw_drop as Dictionary if typeof(raw_drop) == TYPE_DICTIONARY else {}
+	var loot_card := _make_loot_card(loot, carry_cap, drop_item)
 	parent.add_child(loot_card)
-
-	var drop_item = data.get("dropped_item", raw.get("dropped_item", {}))
-	if typeof(drop_item) == TYPE_DICTIONARY and not (drop_item as Dictionary).is_empty():
-		var d_it := drop_item as Dictionary
-		var d_box := PanelContainer.new()
-		var d_sb := StyleBoxFlat.new()
-		d_sb.bg_color = Color(0.16, 0.12, 0.24, 0.96)
-		d_sb.border_color = Color(0.95, 0.78, 0.34, 1.0)
-		d_sb.set_border_width_all(2)
-		d_sb.set_corner_radius_all(14)
-		d_sb.set_content_margin_all(14)
-		d_box.add_theme_stylebox_override("panel", d_sb)
-		var d_lbl := Label.new()
-		d_lbl.text = "👑 LORD GANİMETİ: +%d %s düşürüldü!" % [int(d_it.get("plus", 0)), str(d_it.get("name", "Ekipman"))]
-		d_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		d_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		d_lbl.add_theme_font_override("font", FontNunitoBold)
-		d_lbl.add_theme_font_size_override("font_size", 25)
-		d_lbl.add_theme_color_override("font_color", Color(1.0, 0.90, 0.45))
-		d_box.add_child(d_lbl)
-		parent.add_child(d_box)
 
 	# 5. ÖZEL ETKİLER (SUR HASARI & FETİH)
 	var wall_pct: float = float(data.get("wall_damage_pct", raw.get("wall_damage_pct", 0.0)))
@@ -1986,7 +1968,7 @@ func _make_stat_line(title: String, val_str: String, val_col: Color) -> HBoxCont
 	return row
 
 
-func _make_loot_card(loot: Dictionary, carry_cap: int) -> PanelContainer:
+func _make_loot_card(loot: Dictionary, carry_cap: int, dropped_item: Dictionary = {}) -> PanelContainer:
 	var pc := PanelContainer.new()
 	var sb := StyleBoxFlat.new()
 	sb.bg_color = Color(0.13, 0.12, 0.15, 0.95)
@@ -2019,6 +2001,81 @@ func _make_loot_card(loot: Dictionary, carry_cap: int) -> PanelContainer:
 	res_row.add_child(_make_res_badge(IconStone, "Taş", s))
 	res_row.add_child(_make_res_badge(IconIron, "Demir", i))
 	vb.add_child(res_row)
+
+	if not dropped_item.is_empty():
+		var divider := ColorRect.new()
+		divider.custom_minimum_size = Vector2(0, 2)
+		divider.color = Color(0.85, 0.72, 0.36, 0.35)
+		vb.add_child(divider)
+
+		var cc := CenterContainer.new()
+		cc.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		vb.add_child(cc)
+
+		var rar := str(dropped_item.get("rarity", "common"))
+		var r_col := LordModelScript.rarity_color(rar)
+		var d_card := PanelContainer.new()
+		d_card.name = "LootDroppedItemCard"
+		d_card.custom_minimum_size = Vector2(460, 0)
+		var d_sb := StyleBoxFlat.new()
+		d_sb.bg_color = Color(0.16, 0.12, 0.24, 0.98)
+		d_sb.border_color = r_col
+		d_sb.set_border_width_all(2)
+		d_sb.set_corner_radius_all(14)
+		d_sb.set_content_margin_all(12)
+		d_card.add_theme_stylebox_override("panel", d_sb)
+		cc.add_child(d_card)
+
+		var d_vb := VBoxContainer.new()
+		d_vb.alignment = BoxContainer.ALIGNMENT_CENTER
+		d_vb.add_theme_constant_override("separation", 6)
+		d_card.add_child(d_vb)
+
+		var d_hdr := Label.new()
+		d_hdr.text = "🎁 KAZANILAN LORD EKİPMANI"
+		d_hdr.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		d_hdr.add_theme_font_override("font", FontCinzelBold)
+		d_hdr.add_theme_font_size_override("font_size", 18)
+		d_hdr.add_theme_color_override("font_color", Color(1.0, 0.88, 0.45))
+		d_vb.add_child(d_hdr)
+
+		var d_hb := HBoxContainer.new()
+		d_hb.alignment = BoxContainer.ALIGNMENT_CENTER
+		d_hb.add_theme_constant_override("separation", 12)
+		d_vb.add_child(d_hb)
+
+		var st_type := str(dropped_item.get("slot_type", "sword"))
+		var icon_tex := load(LordModelScript.icon_path_for(st_type)) as Texture2D
+		var d_ic := TextureRect.new()
+		d_ic.name = "LootDroppedItemIcon"
+		d_ic.texture = icon_tex
+		d_ic.custom_minimum_size = Vector2(64, 64)
+		d_ic.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		d_ic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		d_ic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		d_hb.add_child(d_ic)
+
+		var d_tx_vb := VBoxContainer.new()
+		d_tx_vb.alignment = BoxContainer.ALIGNMENT_CENTER
+		d_hb.add_child(d_tx_vb)
+
+		var d_name := Label.new()
+		d_name.name = "LootDroppedItemName"
+		d_name.text = "+%d %s" % [int(dropped_item.get("plus", 0)), str(dropped_item.get("name", "Ekipman"))]
+		d_name.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		d_name.add_theme_font_override("font", FontNunitoBold)
+		d_name.add_theme_font_size_override("font_size", 24)
+		d_name.add_theme_color_override("font_color", r_col)
+		d_tx_vb.add_child(d_name)
+
+		var d_sub := Label.new()
+		d_sub.name = "LootDroppedItemSub"
+		d_sub.text = "%s · %s" % [LordModelScript.rarity_label(rar), LordModelScript.format_item_short_bonus(dropped_item)]
+		d_sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		d_sub.add_theme_font_override("font", FontNunitoBold)
+		d_sub.add_theme_font_size_override("font_size", 19)
+		d_sub.add_theme_color_override("font_color", Color(0.88, 0.90, 0.95))
+		d_tx_vb.add_child(d_sub)
 
 	if carry_cap > 0:
 		var cap_lbl := Label.new()

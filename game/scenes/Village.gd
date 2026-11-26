@@ -2044,6 +2044,8 @@ func open_lord_modal(focus_action: String = "", focus_item_id: String = "") -> v
 		_lord_modal.name = "LordModal"
 		if _lord_modal.has_signal("open_market_lord_requested"):
 			_lord_modal.connect("open_market_lord_requested", open_market_lord_tab)
+		if _lord_modal.has_signal("open_market_diamonds_requested"):
+			_lord_modal.connect("open_market_diamonds_requested", open_market_diamonds_tab)
 		add_child(_lord_modal)
 	_lord_modal.call("open_modal", focus_action, focus_item_id)
 
@@ -2053,4 +2055,11 @@ func open_market_lord_tab() -> void:
 		_lord_market_modal = MarketModalScript.new()
 		add_child(_lord_market_modal)
 	_lord_market_modal.call("open_tab", "lord")
+
+
+func open_market_diamonds_tab() -> void:
+	if _lord_market_modal == null or not is_instance_valid(_lord_market_modal):
+		_lord_market_modal = MarketModalScript.new()
+		add_child(_lord_market_modal)
+	_lord_market_modal.call("open_tab", "diamonds")
 

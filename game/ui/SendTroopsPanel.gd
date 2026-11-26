@@ -278,14 +278,24 @@ func _ensure_switch_button() -> void:
 
 
 func show_target(from_v: Dictionary, to_v: Dictionary) -> void:
-	_from_village = from_v
+	var gs: Node = Engine.get_main_loop().root.get_node_or_null("GameState") if Engine.get_main_loop() is SceneTree else null
+	var live_from := from_v
+	if gs != null and gs.has_method("get_village"):
+		var f_id := int(from_v.get("id", -1))
+		if f_id > 0:
+			var fresh_v: Dictionary = gs.get_village(f_id)
+			if not fresh_v.is_empty():
+				live_from = fresh_v
+	_from_village = live_from
 	_to_village = to_v
 	_ensure_switch_button()
+	_ensure_lord_row()
+	if _lord_check != null:
+		_lord_check.button_pressed = true
 	if _btn_switch_to_village != null:
-		var gs = Engine.get_main_loop().root.get_node_or_null("GameState") if Engine.get_main_loop() is SceneTree else null
 		var p_name := str(gs.player.get("name", "")) if gs != null else ""
 		var target_id := int(to_v.get("id", -1))
-		var from_id := int(from_v.get("id", -1))
+		var from_id := int(_from_village.get("id", -1))
 		var norm_p := p_name.strip_edges().to_lower()
 		var norm_o := str(to_v.get("owner", "")).strip_edges().to_lower()
 		var is_own := (not bool(to_v.get("is_bot", false)) and not bool(to_v.get("is_barbarian", false)) and not norm_p.is_empty() and norm_o == norm_p)
@@ -405,6 +415,9 @@ func _refresh_lord_row(is_friendly: bool) -> void:
 		_lord_row.hide()
 		return
 	_lord_row.show()
+	var gs_l: Node = Engine.get_main_loop().root.get_node_or_null("GameState") if Engine.get_main_loop() is SceneTree else null
+	var state_l: Dictionary = gs_l.to_dict() if gs_l != null else {}
+	var owner_l := str(_from_village.get("owner", gs_l.player.get("name", "") if gs_l != null else ""))
 	var lm: Node = Engine.get_main_loop().root.get_node_or_null("LordManager") if Engine.get_main_loop() is SceneTree else null
 	if lm != null and lm.has_method("is_injured") and bool(lm.call("is_injured")):
 		var rem := int(lm.call("get_injury_remaining_secs"))
@@ -413,6 +426,11 @@ func _refresh_lord_row(is_friendly: bool) -> void:
 		_lord_check.disabled = true
 		_lord_status_label.text = "🩸 Lord Yaralı (~%d dk)" % maxi(1, mins)
 		_lord_status_label.add_theme_color_override("font_color", Color(1.0, 0.52, 0.48))
+	elif MovementScript.is_lord_on_march(state_l, owner_l):
+		_lord_check.button_pressed = false
+		_lord_check.disabled = true
+		_lord_status_label.text = "🐎 Lord başka seferde"
+		_lord_status_label.add_theme_color_override("font_color", Color(0.98, 0.80, 0.40))
 	else:
 		_lord_check.disabled = false
 		var st: Dictionary = lm.call("get_lord_stats") if lm != null else LordModelScript.compute_lord_stats({})
@@ -422,6 +440,7 @@ func _refresh_lord_row(is_friendly: bool) -> void:
 
 func _populate_units() -> void:
 	for child in unit_container.get_children():
+		unit_container.remove_child(child)
 		child.queue_free()
 	_unit_inputs.clear()
 
@@ -472,6 +491,7 @@ func _populate_units() -> void:
 func _populate_resources() -> void:
 	for row in [wood_row, stone_row, iron_row]:
 		for child in row.get_children():
+			row.remove_child(child)
 			child.queue_free()
 	_resource_inputs.clear()
 
@@ -991,3 +1011,10 @@ func _dispatch(type: String, protection_confirmed: bool = false) -> void:
 			bus.army_sent.emit(mv)
 		movement_dispatched.emit(type, int(_to_village["id"]))
 		hide()
+	else:
+		var err_msg := str(res.get("message", ""))
+		if err_msg.is_empty():
+			err_msg = "Sefer gönderilemedi (%s)." % str(res.get("code", "hata"))
+		warning_label.text = "Uyarı: " + err_msg
+		warning_label.show()
+		refresh()

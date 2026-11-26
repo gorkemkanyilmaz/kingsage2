@@ -247,9 +247,13 @@ static func _send_military(
 	var origin := _find_village(state, from_village_id)
 	var target := _find_village(state, to_village_id)
 	var clean := normalize_units(units)
+	var effective_options := options.duplicate(true)
+	if bool(effective_options.get("include_lord", false)) and is_lord_on_march(state, str(origin.get("owner", ""))):
+		effective_options["include_lord"] = false
+		effective_options.erase("lord_snapshot")
 	_deduct_units(origin, clean)
 
-	var movement := _build(state, type, origin, target, clean, _zero_carry(), now_unix, options)
+	var movement := _build(state, type, origin, target, clean, _zero_carry(), now_unix, effective_options)
 	_append_movement(state, movement)
 
 	var events: Array = []
@@ -656,6 +660,26 @@ static func _is_friendly(state: Dictionary, origin: Dictionary, target: Dictiona
 	if a == b:
 		return true
 	return _share_alliance(state, a, b)
+
+
+## Lord halihazırda gidiş/dönüş bir seferde mi? (Aynı anda yalnızca 1 sefere katılabilir; diğer ordular Lord olmadan çıkabilir.)
+static func is_lord_on_march(state: Dictionary, owner_name: String) -> bool:
+	var norm := _norm_owner(owner_name)
+	var movs = state.get("movements", null)
+	if typeof(movs) != TYPE_ARRAY:
+		return false
+	for raw_m in (movs as Array):
+		if typeof(raw_m) != TYPE_DICTIONARY:
+			continue
+		var m := raw_m as Dictionary
+		if not bool(m.get("include_lord", false)):
+			continue
+		if str(m.get("type", "")) == TYPE_SPY:
+			continue
+		var m_owner := _norm_owner(str(m.get("owner", "")))
+		if norm.is_empty() or m_owner.is_empty() or m_owner == norm:
+			return true
+	return false
 
 
 static func _share_alliance(state: Dictionary, a: String, b: String) -> bool:

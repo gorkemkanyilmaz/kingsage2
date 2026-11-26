@@ -3,6 +3,7 @@ extends CanvasLayer
 
 signal closed()
 signal open_market_lord_requested()
+signal open_market_diamonds_requested()
 
 const LordModelScript := preload("res://scripts/model/LordModel.gd")
 const FontCinzelBold := preload("res://assets/fonts/Cinzel-Bold.ttf")
@@ -15,23 +16,42 @@ const TexDiamond := preload("res://assets/sprites/ui/nano_banana/sharp_icon_diam
 class ScrollDragTile extends PanelContainer:
 	var scroll_count: int = 0
 	var is_shop: bool = false
+	var _press_pos: Vector2 = Vector2.ZERO
+	var _pressing: bool = false
 	signal tile_pressed()
 
 	func _gui_input(event: InputEvent) -> void:
-		if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
-			tile_pressed.emit()
-		elif event is InputEventScreenTouch and event.pressed:
-			tile_pressed.emit()
+		if event is InputEventMouseButton:
+			var mb := event as InputEventMouseButton
+			if mb.button_index == MOUSE_BUTTON_LEFT:
+				if mb.pressed:
+					_pressing = true
+					_press_pos = mb.position
+				elif _pressing:
+					_pressing = false
+					if mb.position.distance_to(_press_pos) <= 22.0:
+						tile_pressed.emit()
+		elif event is InputEventScreenTouch:
+			var st := event as InputEventScreenTouch
+			if st.pressed:
+				_pressing = true
+				_press_pos = st.position
+			elif _pressing:
+				_pressing = false
+				if st.position.distance_to(_press_pos) <= 22.0:
+					tile_pressed.emit()
 
 	func _get_drag_data(_at_position: Vector2) -> Variant:
+		_pressing = false
 		if not is_shop and scroll_count <= 0:
 			return null
-		var preview := TextureRect.new()
-		preview.texture = TexUpgradeScroll
-		preview.custom_minimum_size = Vector2(72, 72)
-		preview.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-		preview.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-		set_drag_preview(preview)
+		if is_inside_tree() and get_viewport() != null and get_viewport().gui_is_dragging():
+			var preview := TextureRect.new()
+			preview.texture = TexUpgradeScroll
+			preview.custom_minimum_size = Vector2(72, 72)
+			preview.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+			preview.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+			set_drag_preview(preview)
 		return {"kind": "upgrade_scroll_shop" if is_shop else "upgrade_scroll"}
 
 
@@ -351,7 +371,7 @@ func _build_ui() -> void:
 	_shop_tile.add_child(shop_tr)
 
 	var shop_cost_lbl := Label.new()
-	shop_cost_lbl.text = "5.000 Odun · 5.000 Taş · 5.000 Demir\n(Satın almak için dokun / sürükle)"
+	shop_cost_lbl.text = "5.000 Odun · 5.000 Taş · 5.000 Demir"
 	shop_cost_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	shop_cost_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	shop_cost_lbl.add_theme_font_override("font", FontNunitoBold)
@@ -359,17 +379,22 @@ func _build_ui() -> void:
 	shop_cost_lbl.add_theme_color_override("font_color", Color(0.96, 0.90, 0.72))
 	right_vb.add_child(shop_cost_lbl)
 
+	var btn_buy_res := Button.new()
+	btn_buy_res.name = "BtnBuyScrollResources"
+	btn_buy_res.text = "🪵 Hammadde İle Satın Al"
+	btn_buy_res.custom_minimum_size = Vector2(0, 46)
+	_style_btn(btn_buy_res, Color(0.46, 0.28, 0.09, 0.98), Color(0.96, 0.78, 0.34, 0.98), Color(1.0, 0.95, 0.82))
+	btn_buy_res.pressed.connect(func(): _prompt_buy_scroll_with_resources())
+	right_vb.add_child(btn_buy_res)
+
 	var btn_buy_diamond := Button.new()
-	btn_buy_diamond.name = "BtnOpenMarketScroll"
-	btn_buy_diamond.text = "Pazardan 5 Elmas"
+	btn_buy_diamond.name = "BtnBuyScrollDiamonds"
+	btn_buy_diamond.text = "5 Elmas ile Satın Al"
 	btn_buy_diamond.icon = TexDiamond
 	btn_buy_diamond.expand_icon = true
-	btn_buy_diamond.custom_minimum_size = Vector2(0, 44)
-	_style_btn(btn_buy_diamond, Color(0.14, 0.24, 0.42, 0.98), Color(0.55, 0.85, 1.0, 0.95), Color(0.92, 0.97, 1.0))
-	btn_buy_diamond.pressed.connect(func():
-		close_modal()
-		open_market_lord_requested.emit()
-	)
+	btn_buy_diamond.custom_minimum_size = Vector2(0, 46)
+	_style_btn(btn_buy_diamond, Color(0.14, 0.26, 0.48, 0.98), Color(0.55, 0.85, 1.0, 0.98), Color(0.92, 0.97, 1.0))
+	btn_buy_diamond.pressed.connect(_on_buy_scroll_diamonds_pressed)
 	right_vb.add_child(btn_buy_diamond)
 
 	# Oran, Uyarı & Önizleme Kutusu
@@ -637,10 +662,69 @@ func _refresh_all() -> void:
 			else:
 				_preview_box.hide()
 
-	# Envanter listesi (sadece takılı olmayanlar)
+	# Envanter listesi (parşömenler + sadece takılı olmayan ekipmanlar)
 	for ch in _inv_grid.get_children():
+		_inv_grid.remove_child(ch)
 		ch.queue_free()
+
+	if scroll_cnt > 0:
+		var is_placed_sc := (_placed_scroll_slot >= 0)
+		var sc_card := ScrollDragTile.new()
+		sc_card.name = "InvUpgradeScrollCard"
+		sc_card.is_shop = false
+		sc_card.scroll_count = scroll_cnt
+		sc_card.custom_minimum_size = Vector2(0, 88)
+		sc_card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		sc_card.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+		var sc_border := Color(1.0, 0.86, 0.30, 1.0) if is_placed_sc else Color(0.55, 0.86, 1.0, 0.95)
+		var sc_bg := Color(0.20, 0.16, 0.09, 0.98) if is_placed_sc else Color(0.10, 0.14, 0.22, 0.96)
+		sc_card.add_theme_stylebox_override("panel", _dark_box_sb(sc_bg, sc_border))
+		sc_card.tile_pressed.connect(_on_inv_scroll_clicked)
+
+		var sc_hb := HBoxContainer.new()
+		sc_hb.add_theme_constant_override("separation", 10)
+		sc_hb.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		sc_card.add_child(sc_hb)
+
+		var sc_ic := TextureRect.new()
+		sc_ic.texture = TexUpgradeScroll
+		sc_ic.custom_minimum_size = Vector2(60, 60)
+		sc_ic.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		sc_ic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		sc_ic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		sc_ic.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		sc_hb.add_child(sc_ic)
+
+		var sc_vb := VBoxContainer.new()
+		sc_vb.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		sc_vb.alignment = BoxContainer.ALIGNMENT_CENTER
+		sc_vb.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		sc_hb.add_child(sc_vb)
+
+		var sc_nl := Label.new()
+		sc_nl.text = "Geliştirme Parşömeni (x%d)" % scroll_cnt
+		sc_nl.add_theme_font_override("font", FontNunitoBold)
+		sc_nl.add_theme_font_size_override("font_size", 19)
+		sc_nl.add_theme_color_override("font_color", Color(1.0, 0.90, 0.46) if is_placed_sc else Color(0.72, 0.92, 1.0))
+		sc_nl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		sc_vb.add_child(sc_nl)
+
+		var sc_sl := Label.new()
+		sc_sl.text = "✓ Örste Yerleştirildi (Çıkar)" if is_placed_sc else "Sürükle veya Dokun · Örse Koy"
+		sc_sl.add_theme_font_override("font", FontNunitoSemiBold)
+		sc_sl.add_theme_font_size_override("font_size", 15)
+		sc_sl.add_theme_color_override("font_color", Color(0.70, 0.96, 0.72) if is_placed_sc else Color(0.84, 0.88, 0.94))
+		sc_sl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		sc_vb.add_child(sc_sl)
+
+		_inv_grid.add_child(sc_card)
+
 	_empty_inv_lbl.visible = items.is_empty()
+	if items.is_empty():
+		if scroll_cnt > 0:
+			_empty_inv_lbl.text = "Geliştirilebilecek boşta ekipman bulunmuyor. Parşömeniniz hazır — takılı ekipmanı Lord ekranından çıkarıp geliştirebilirsiniz."
+		else:
+			_empty_inv_lbl.text = "Geliştirilebilecek boşta ekipman bulunmuyor. Takılı ekipmanları önce Lord ekranından çıkarın."
 	for it in items:
 		var iid := str(it.get("id", ""))
 		var plus := int(it.get("plus", 0))
@@ -779,6 +863,58 @@ func _show_beam(success: bool, msg: String) -> void:
 	_beam_tween.tween_callback(_beam_panel.hide)
 
 
+func _get_current_diamonds() -> int:
+	var loop := Engine.get_main_loop()
+	if loop is SceneTree and (loop as SceneTree).root != null:
+		var root := (loop as SceneTree).root
+		var sm: Node = root.get_node_or_null("StoreManager")
+		if sm != null and sm.has_method("get_diamonds"):
+			return int(sm.call("get_diamonds"))
+		var gs: Node = root.get_node_or_null("GameState")
+		if gs != null and typeof(gs.get("player")) == TYPE_DICTIONARY:
+			return maxi(0, int((gs.get("player") as Dictionary).get("diamonds", 0)))
+	return 0
+
+
+func _on_buy_scroll_diamonds_pressed() -> void:
+	const DIAMOND_COST := 5
+	var diamonds := _get_current_diamonds()
+	if diamonds >= DIAMOND_COST:
+		_show_confirm_dialog(
+			"5 Elmas ile Parşömen Satın Al",
+			"1 adet Lord Geliştirme Parşömeni satın almak için 5 Elmas kullanılacaktır.\n(Mevcut Elmas: %d)\n\nOnaylıyor musunuz?" % diamonds,
+			"Evet (5 Elmas)",
+			func(): _execute_buy_scroll_with_diamonds()
+		)
+	else:
+		close_modal()
+		if open_market_diamonds_requested.get_connections().size() > 0:
+			open_market_diamonds_requested.emit()
+		else:
+			var loop := Engine.get_main_loop()
+			if loop is SceneTree and (loop as SceneTree).root != null:
+				var sm: Node = (loop as SceneTree).root.get_node_or_null("StoreManager")
+				if sm != null and sm.has_method("open_market"):
+					var host: Node = get_parent() if get_parent() != null else (loop as SceneTree).current_scene
+					sm.call("open_market", host, "diamonds")
+
+
+func _execute_buy_scroll_with_diamonds() -> void:
+	var loop := Engine.get_main_loop()
+	var sm: Node = (loop as SceneTree).root.get_node_or_null("StoreManager") if loop is SceneTree and (loop as SceneTree).root != null else null
+	if sm == null or not sm.has_method("buy_scroll"):
+		_show_beam(false, "Mağaza servisi hazır değil.")
+		return
+	var res: Dictionary = sm.call("buy_scroll", "lord_upgrade_scroll", 1)
+	if bool(res.get("ok", false)):
+		if _placed_scroll_slot < 0:
+			_placed_scroll_slot = 0
+		_show_beam(true, "💎 5 Elmas ile Geliştirme Parşömeni alındı!")
+	else:
+		_show_beam(false, str(res.get("error", "Elmas ile satın alma başarısız.")))
+	_refresh_all()
+
+
 func _prompt_buy_scroll_with_resources(auto_place_slot: int = -1) -> void:
 	_show_confirm_dialog(
 		"Geliştirme Parşömeni Satın Al",
@@ -848,6 +984,7 @@ func _show_confirm_dialog(title_txt: String, body_txt: String, ok_txt: String, o
 	vb.add_child(hb)
 
 	var b_no := Button.new()
+	b_no.name = "BtnConfirmDialogNo"
 	b_no.text = "İptal"
 	b_no.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	b_no.custom_minimum_size = Vector2(0, 56)
@@ -859,6 +996,7 @@ func _show_confirm_dialog(title_txt: String, body_txt: String, ok_txt: String, o
 	hb.add_child(b_no)
 
 	var b_yes := Button.new()
+	b_yes.name = "BtnConfirmDialogYes"
 	b_yes.text = ok_txt
 	b_yes.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	b_yes.custom_minimum_size = Vector2(0, 56)

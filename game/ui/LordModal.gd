@@ -4,6 +4,7 @@ extends CanvasLayer
 signal closed()
 signal open_upgrade_requested(item_id: String)
 signal open_market_lord_requested()
+signal open_market_diamonds_requested()
 
 const LordModelScript := preload("res://scripts/model/LordModel.gd")
 const LordUpgradeModalScript := preload("res://ui/LordUpgradeModal.gd")
@@ -24,7 +25,6 @@ var _title_lbl: Label
 var _status_lbl: Label
 var _hero_frame: PanelContainer
 var _hero_tex: TextureRect
-var _hero_gear_overlay_box: HBoxContainer
 var _slot_btns: Dictionary = {}
 
 var _hp_lbl: Label
@@ -87,6 +87,10 @@ func open_upgrade_modal(item_id: String = "") -> void:
 		_upgrade_modal.open_market_lord_requested.connect(func():
 			close_modal()
 			open_market_lord_requested.emit()
+		)
+		_upgrade_modal.open_market_diamonds_requested.connect(func():
+			close_modal()
+			open_market_diamonds_requested.emit()
 		)
 		_upgrade_modal.closed.connect(_refresh_all)
 		var host := get_parent() if get_parent() != null else self
@@ -221,21 +225,6 @@ func _build_ui() -> void:
 	_hero_tex.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	_hero_tex.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
 	hero_overlay_root.add_child(_hero_tex)
-
-	# Kuşanılan ekipmanların Lord görseli üzerindeki canlı rozet/katman göstergesi
-	var gear_bar_panel := PanelContainer.new()
-	gear_bar_panel.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
-	gear_bar_panel.offset_top = -78
-	gear_bar_panel.offset_left = 8
-	gear_bar_panel.offset_right = -8
-	gear_bar_panel.offset_bottom = -8
-	gear_bar_panel.add_theme_stylebox_override("panel", _dark_sb(Color(0.05, 0.05, 0.08, 0.84), Color(0.88, 0.72, 0.32, 0.85)))
-	hero_overlay_root.add_child(gear_bar_panel)
-
-	_hero_gear_overlay_box = HBoxContainer.new()
-	_hero_gear_overlay_box.alignment = BoxContainer.ALIGNMENT_CENTER
-	_hero_gear_overlay_box.add_theme_constant_override("separation", 6)
-	gear_bar_panel.add_child(_hero_gear_overlay_box)
 
 	var right_col := VBoxContainer.new()
 	right_col.name = "RightSlotsCol"
@@ -455,19 +444,10 @@ func _refresh_all() -> void:
 	if float(stats.get("army_hp_pct", 0.0)) > 0.0:
 		ab_parts.append("Ordu HP +%%%.1f" % float(stats["army_hp_pct"]))
 	_army_lbl.text = "Ordu Bonusu: " + (" · ".join(ab_parts) if not ab_parts.is_empty() else "Yok (Nadir/Aksesuar kuşanın)")
-	_scrolls_lbl.text = "📜 Parşömen: %d" % int(ld.get("upgrade_scrolls", 0))
+	var scroll_cnt := int(ld.get("upgrade_scrolls", 0))
+	_scrolls_lbl.text = "📜 Parşömen: %d" % scroll_cnt
 
-	# Lord portre görseli ve üzerindeki canlı ekipman katmanı güncelle
-	for ch in _hero_gear_overlay_box.get_children():
-		ch.queue_free()
 	var eq_cnt := int(stats.get("equipped_count", 0))
-	if eq_cnt == 0:
-		var empty_h := Label.new()
-		empty_h.text = "Henüz ekipman takılı değil — yan slotlara dokun"
-		empty_h.add_theme_font_override("font", FontNunitoSemiBold)
-		empty_h.add_theme_font_size_override("font_size", 16)
-		empty_h.add_theme_color_override("font_color", Color(0.75, 0.74, 0.80))
-		_hero_gear_overlay_box.add_child(empty_h)
 	var rare_glow := false
 
 	for sdef in LordModelScript.SLOTS:
@@ -501,17 +481,6 @@ func _refresh_all() -> void:
 			sub_l.add_theme_color_override("font_color", Color(0.88, 0.90, 0.94))
 			_style_btn(btn, Color(0.14, 0.12, 0.19, 0.98), rc, Color(1, 1, 1))
 
-			# Kahraman portresi üzerindeki görsel ekipman ikon şeridine ekle
-			var mini := PanelContainer.new()
-			mini.custom_minimum_size = Vector2(44, 44)
-			mini.add_theme_stylebox_override("panel", _dark_sb(Color(0.08, 0.07, 0.12, 0.96), rc))
-			var m_tr := TextureRect.new()
-			m_tr.texture = ic.texture
-			m_tr.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-			m_tr.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-			mini.add_child(m_tr)
-			_hero_gear_overlay_box.add_child(mini)
-
 	var frame_col := Color(0.78, 0.50, 1.0, 1.0) if rare_glow else (Color(1.0, 0.82, 0.32, 1.0) if eq_cnt > 0 else Color(0.60, 0.52, 0.32, 0.85))
 	_hero_frame.add_theme_stylebox_override("panel", _dark_sb(Color(0.05, 0.05, 0.08, 1.0), frame_col))
 
@@ -523,9 +492,66 @@ func _refresh_all() -> void:
 		else:
 			_style_btn(fb, Color(0.14, 0.13, 0.20, 0.95), Color(0.45, 0.44, 0.56, 0.85), Color(0.84, 0.86, 0.90))
 
-	# Envanter listesi (takılı eşyalar ASLA görünmez)
+	# Envanter listesi (parşömenler + sadece takılı olmayan ekipmanlar)
 	for ch in _inv_grid.get_children():
+		_inv_grid.remove_child(ch)
 		ch.queue_free()
+	var show_scroll_card := (scroll_cnt > 0 and _inv_filter == "all")
+	if show_scroll_card:
+		var sc_btn := Button.new()
+		sc_btn.name = "LordInvScrollCard"
+		sc_btn.custom_minimum_size = Vector2(0, 92)
+		sc_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		_style_btn(sc_btn, Color(0.11, 0.14, 0.22, 0.98), Color(0.55, 0.86, 1.0, 0.95), Color(1, 1, 1))
+		sc_btn.pressed.connect(func(): open_upgrade_modal())
+
+		var sc_hb := HBoxContainer.new()
+		sc_hb.set_anchors_preset(Control.PRESET_FULL_RECT)
+		sc_hb.add_theme_constant_override("separation", 10)
+		sc_hb.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		sc_btn.add_child(sc_hb)
+
+		var sc_pad := Control.new()
+		sc_pad.custom_minimum_size = Vector2(6, 0)
+		sc_pad.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		sc_hb.add_child(sc_pad)
+
+		var sc_ic := TextureRect.new()
+		sc_ic.texture = TexUpgradeScroll
+		sc_ic.custom_minimum_size = Vector2(64, 64)
+		sc_ic.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		sc_ic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		sc_ic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		sc_ic.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		sc_hb.add_child(sc_ic)
+
+		var sc_tx_vb := VBoxContainer.new()
+		sc_tx_vb.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		sc_tx_vb.alignment = BoxContainer.ALIGNMENT_CENTER
+		sc_tx_vb.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		sc_hb.add_child(sc_tx_vb)
+
+		var sc_nl := Label.new()
+		sc_nl.text = "Geliştirme Parşömeni (x%d)" % scroll_cnt
+		sc_nl.clip_text = true
+		sc_nl.add_theme_font_override("font", FontNunitoBold)
+		sc_nl.add_theme_font_size_override("font_size", 19)
+		sc_nl.add_theme_color_override("font_color", Color(0.72, 0.92, 1.0))
+		sc_nl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		sc_tx_vb.add_child(sc_nl)
+
+		var sc_sl := Label.new()
+		sc_sl.text = "Ekipman Geliştirme · Örs Ekranında Kullan"
+		sc_sl.clip_text = true
+		sc_sl.add_theme_font_override("font", FontNunitoSemiBold)
+		sc_sl.add_theme_font_size_override("font_size", 16)
+		sc_sl.add_theme_color_override("font_color", Color(0.86, 0.90, 0.96))
+		sc_sl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		sc_tx_vb.add_child(sc_sl)
+
+		sc_btn.text = ""
+		_inv_grid.add_child(sc_btn)
+
 	var unequipped: Array[Dictionary] = lm.call("get_unequipped_items")
 	var filtered: Array[Dictionary] = []
 	for it in unequipped:
@@ -536,7 +562,7 @@ func _refresh_all() -> void:
 			continue
 		filtered.append(it)
 
-	_empty_inv_lbl.visible = filtered.is_empty()
+	_empty_inv_lbl.visible = filtered.is_empty() and not show_scroll_card
 	for it in filtered:
 		var iid := str(it.get("id", ""))
 		var plus := int(it.get("plus", 0))

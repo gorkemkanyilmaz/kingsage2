@@ -1990,10 +1990,21 @@ def _message_sig(msg: Any) -> str:
 def _movement_sig(mov: Any) -> tuple:
     if not isinstance(mov, dict):
         return ("",)
+    mid = int(mov.get("id", 0) or 0)
+    st = str(mov.get("state", "outgoing"))
+    if mid > 0:
+        return (
+            int(mov.get("from_village_id", mov.get("village_id", 0)) or 0),
+            int(mov.get("to_village_id", 0) or 0),
+            str(mov.get("type", "")),
+            st,
+            mid,
+        )
     return (
         int(mov.get("from_village_id", mov.get("village_id", 0)) or 0),
         int(mov.get("to_village_id", 0) or 0),
         str(mov.get("type", "")),
+        st,
         int(mov.get("depart_unix", mov.get("start_unix", 0)) or 0),
         int(mov.get("arrive_unix", mov.get("arrival_unix", 0)) or 0),
     )
