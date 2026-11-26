@@ -13,7 +13,7 @@ on:
       build_number:
         description: "TestFlight Build Number (e.g. 1, 2, 3, 4, 5, 6)"
         required: true
-        default: "41"
+        default: "42"
       runner:
         description: "GitHub macOS Runner"
         required: true
@@ -82,7 +82,7 @@ jobs:
           ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
           ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
           ASC_KEY_P8_BASE64: ${{ secrets.ASC_KEY_P8_BASE64 }}
-          BUILD_NUMBER: ${{ inputs.build_number || '41' }}
+          BUILD_NUMBER: ${{ inputs.build_number || '42' }}
         run: |
           set -o pipefail
           mkdir -p "$HOME/.appstoreconnect/private_keys" build/ios
@@ -98,7 +98,7 @@ jobs:
 
       - name: Inject Profile UUID & Build Number into Godot Export Preset
         env:
-          BUILD_NUMBER: ${{ inputs.build_number || '41' }}
+          BUILD_NUMBER: ${{ inputs.build_number || '42' }}
         run: |
           python3 - <<'PY'
           import os, re
@@ -129,6 +129,16 @@ jobs:
                       f.write(new_txt)
                   patched += 1
           print(f"Patched {patched} map .import files to VRAM Compressed (ETC2/ASTC) for iOS (animated_bg kept in fast WebP mode=1)")
+          bg_patched = 0
+          for bg_imp in sorted(glob.glob("game/assets/sprites/village/animated_bg/f_*.webp.import")):
+              with open(bg_imp, "r", encoding="utf-8") as f:
+                  btxt = f.read()
+              bnew = re.sub(r"process/size_limit=\d+", "process/size_limit=960", btxt)
+              if bnew != btxt:
+                  with open(bg_imp, "w", encoding="utf-8") as f:
+                      f.write(bnew)
+                  bg_patched += 1
+          print(f"Patched {bg_patched} animated_bg .import files to process/size_limit=960 (540x960 -> -44% VRAM & decode heat)")
           PY
           python3 - <<'PY'
           import os, re, sys
@@ -303,7 +313,7 @@ jobs:
         env:
           ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
           ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
-          BUILD_NUMBER: ${{ inputs.build_number || '41' }}
+          BUILD_NUMBER: ${{ inputs.build_number || '42' }}
         run: |
           set -o pipefail
           fastlane ios export_and_upload project_path:"$XCODE_PROJ" scheme:"$XCODE_SCHEME" target:"$XCODE_TARGET" 2>&1 | tee fastlane_upload.log

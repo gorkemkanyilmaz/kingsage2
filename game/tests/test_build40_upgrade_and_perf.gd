@@ -10,6 +10,7 @@ const VM := preload("res://scripts/model/VillageModel.gd")
 const LordModalScript := preload("res://ui/LordModal.gd")
 const LordUpgradeModalScript := preload("res://ui/LordUpgradeModal.gd")
 const MapVillageViewScript := preload("res://scenes/map/MapVillageView.gd")
+const VillageScene := preload("res://scenes/Village.tscn")
 
 var _passed: int = 0
 var _failed: int = 0
@@ -167,17 +168,37 @@ func _run_all() -> void:
 	l_mod.free()
 
 	# -------------------------------------------------------------------------
-	# TEST 4: Isınma / Pil Optimizasyonu Doğrulamaları
+	# TEST 4: Isınma / Pil Optimizasyonu + Akıcı 12 FPS Animasyon Doğrulamaları
 	# -------------------------------------------------------------------------
-	_check(int(bgc.get("FRAME_COUNT")) == 48 and is_equal_approx(float(bgc.get("FPS")), 6.0), "VillageBackgroundCache 48 kare / 6 FPS modunda (yarı VRAM & decode)")
+	_check(int(bgc.get("FRAME_COUNT")) == 96 and is_equal_approx(float(bgc.get("FPS")), 12.0) and int(bgc.get("LOW_MEM_STRIDE")) == 2 and int(bgc.get("FRAMES_PER_TICK")) == 1, "VillageBackgroundCache akıcı 96 kare / 12 FPS + nazik 1 kare/tick ısıtma modunda")
+	_check(int(gclk.get("ADAPTIVE_IDLE_FPS")) == 12 and int(gclk.get("ADAPTIVE_STATIC_IDLE_FPS")) == 4 and int(gclk.get("ADAPTIVE_BACKGROUND_FPS")) == 1 and int(gclk.get("ADAPTIVE_MOBILE_TAP_FPS")) == 30 and int(gclk.get("ADAPTIVE_MOBILE_DRAG_FPS")) == 45, "GameClock akıcı Köy 12 FPS & derin mobil pil/ısınma FPS kademeleri aktif")
+	_check(is_equal_approx(float(wm.get("CLOUD_POLL_INTERVAL_SEC")), 45.0), "WorldManager bulut yoklama aralığı 45 sn")
+
+	# Beat-aliasing (kasma/atlama) regresyon testi: 12 FPS (83.3 ms) penceresinde hafif erken gelen 0.081 sn tick'lerde bile her kare akıcı +1 ilerlemeli
+	(gs.get("player") as Dictionary)["tutorial_completed"] = true
+	var v_scene := VillageScene.instantiate()
+	root.add_child(v_scene)
+	await process_frame
+	v_scene.set("_bg_frame_idx", 0)
+	v_scene.set("_bg_frame_timer", 0.0)
+	v_scene.set("_obscured_cache", false)
+	v_scene.set("_obscured_check_accum", 0.0)
+	var smooth_every_tick := true
+	for tick_i in range(1, 13):
+		v_scene.call("_process", 0.081)
+		if int(v_scene.get("_bg_frame_idx")) != tick_i:
+			smooth_every_tick = false
+			break
+	_check(smooth_every_tick and int(v_scene.get("_bg_frame_idx")) == 12, "Köy arka planı 12 ardışık karede atlama/takılma olmadan akıcı ilerledi (12/12)")
+	root.remove_child(v_scene)
+	v_scene.queue_free()
+	await process_frame
+
 	bgc.call("trim_memory")
 	_check(bool(bgc.get("_low_memory_mode")), "Bellek uyarısında düşük bellek modu aktif")
-	for idx in range(0, 48, 4):
+	for idx in range(0, 96, 4):
 		bgc.call("get_frame", idx)
 	_check(bgc.get_frame(3) != null, "Düşük bellek modunda da her zaman geçerli kare döner")
-
-	_check(int(gclk.get("ADAPTIVE_IDLE_FPS")) == 6 and int(gclk.get("ADAPTIVE_STATIC_IDLE_FPS")) == 4 and int(gclk.get("ADAPTIVE_BACKGROUND_FPS")) == 1 and int(gclk.get("ADAPTIVE_MOBILE_TAP_FPS")) == 30, "GameClock mobil & bekleme FPS kademeleri aktif")
-	_check(is_equal_approx(float(wm.get("CLOUD_POLL_INTERVAL_SEC")), 45.0), "WorldManager bulut yoklama aralığı 45 sn")
 
 	var bandit_view := MapVillageViewScript.new()
 	bandit_view.setup({"id": 901, "name": "Haydut Kampı", "owner": "Haydutlar", "x": 102, "y": 102, "is_bandit": true, "buildings": {"main": 3}}, false, false, "")

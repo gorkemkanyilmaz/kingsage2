@@ -107,7 +107,8 @@ func _run_tests() -> void:
 
 	# 2. Tutorial tamamlanınca Quest HUD sol üstte aktifleşmeli (İttifak butonunun tersi)
 	gs.player["tutorial_completed"] = true
-	gs.player["tutorial_step"] = 17
+	gs.player["tutorial_step"] = 20
+	qm.call("_process", 0.30)
 	await _tick(3)
 	_check(qm.call("is_quest_hud_visible") and qm.visible, "Tutorial bittikten sonra Quest HUD aktif")
 

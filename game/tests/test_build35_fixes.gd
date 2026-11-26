@@ -88,7 +88,7 @@ func _test_png_icons_and_bg_cache(bgc: Node, gclk: Node) -> void:
 			break
 	_assert(all_ok, "Tüm 11 nano_banana .png ikonu hatasız yükleniyor")
 
-	_assert(int(bgc.get("FRAMES_PER_TICK")) == 2 and int(bgc.get("THREAD_PREFETCH_WINDOW")) == 4, "VillageBackgroundCache düşük bellek dostu hız sınırlarına sahip (2 kare/tick, 4 pencere)")
+	_assert(int(bgc.get("FRAMES_PER_TICK")) == 1 and int(bgc.get("THREAD_PREFETCH_WINDOW")) == 2, "VillageBackgroundCache düşük bellek ve ısınma dostu nazik hız sınırlarına sahip (1 kare/tick, 2 pencere)")
 	bgc.call("trim_memory")
 	_assert(bool(bgc.get("_low_memory_mode")), "trim_memory() sonrası _low_memory_mode = true")
 	bgc.call("ensure_warming")

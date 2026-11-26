@@ -147,17 +147,17 @@ func _test_village_pause_and_clock(gs: Node, gclk: Node, qm: Node) -> void:
 		_assert(not bool(v_node.call("is_background_obscured")), "BuildingPanel açıkken arka plan akmaya devam ediyor")
 		bp.call("hide")
 
-	# Uygulama arkaplanına alınınca arka plan adımı durmalı ve target FPS = 2
+	# Uygulama arkaplanına alınınca arka plan adımı durmalı ve target FPS = 1
 	gclk.notification(Node.NOTIFICATION_APPLICATION_PAUSED)
 	_assert(bool(v_node.call("is_background_obscured")), "Uygulama arkaplanındayken is_background_obscured() == true")
-	_assert(int(gclk.call("get_current_target_fps")) == 2, "Uygulama arkaplanındayken GameClock = 2 FPS")
+	_assert(int(gclk.call("get_current_target_fps")) == 1, "Uygulama arkaplanındayken GameClock = 1 FPS")
 	var idx_paused_before: int = int(v_node.get("_bg_frame_idx"))
 	v_node.call("_process", 0.25)
 	_assert(int(v_node.get("_bg_frame_idx")) == idx_paused_before, "Arkaplandayken köy video karesi ilerletilmiyor")
 	gclk.notification(Node.NOTIFICATION_APPLICATION_RESUMED)
 	_assert(int(gclk.call("get_current_target_fps")) == 60, "Ön plana dönünce GameClock anında = 60 FPS")
 
-	# Tam ekran Quest detail modalı varken arka plan durmalı ve FPS = 10
+	# Tam ekran Quest detail modalı varken arka plan durmalı ve FPS = 4
 	if qm != null:
 		var dmodal = qm.get("_detail_modal")
 		if dmodal == null:
@@ -169,7 +169,7 @@ func _test_village_pause_and_clock(gs: Node, gclk: Node, qm: Node) -> void:
 		_assert(bool(v_node.call("is_background_obscured")), "Tam ekran modal açıkken arka plan duraklatılıyor")
 		gclk.set("_fps_boost_remaining", 0.0)
 		gclk.call("_apply_adaptive_fps", true)
-		_assert(int(gclk.call("get_current_target_fps")) == 10, "Tam ekran modal açıkken köy hedefi = 10 FPS")
+		_assert(int(gclk.call("get_current_target_fps")) == 4, "Tam ekran modal açıkken köy hedefi = 4 FPS")
 		if dmodal != null:
 			dmodal.hide()
 
@@ -194,16 +194,16 @@ func _test_worldmap_foreign_filter_and_clock(gs: Node, gclk: Node) -> void:
 	_assert(not bool(wmap.get("_had_movements_drawn")), "Yabancı sefer varken WorldMap movements_layer yeniden çizilmiyor")
 	gclk.set("_fps_boost_remaining", 0.0)
 	gclk.call("_apply_adaptive_fps", true)
-	_assert(int(gclk.call("get_current_target_fps")) == 10, "Yalnızca yabancı sefer varken Harita = 10 FPS")
+	_assert(int(gclk.call("get_current_target_fps")) == 4, "Yalnızca yabancı sefer varken Harita = 4 FPS")
 
-	# Kendi seferimiz eklenince 15 FPS & çizim etkin
+	# Kendi seferimiz eklenince 10 FPS & çizim etkin
 	var pv: Dictionary = gs.call("get_active_village")
 	gs.movements = [{"id": 889, "type": "attack", "state": "outgoing", "owner": "Lord Build33", "from_village_id": int(pv.get("id", 1)), "to_village_id": 2, "arrive_unix": now + 300}]
 	wmap.call("_process", 0.2)
 	_assert(bool(wmap.call("has_visible_movements")), "Kendi seferimizde has_visible_movements() = true")
 	_assert(bool(wmap.get("_had_movements_drawn")), "Kendi seferimizde movements_layer çiziliyor")
 	gclk.call("_apply_adaptive_fps", true)
-	_assert(int(gclk.call("get_current_target_fps")) == 15, "Görünür sefer varken Harita = 15 FPS")
+	_assert(int(gclk.call("get_current_target_fps")) == 10, "Görünür sefer varken Harita = 10 FPS")
 
 	gs.movements = []
 	current_scene = prev_scene

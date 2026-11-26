@@ -79,14 +79,14 @@ func _test_adaptive_fps(gclk: Node, gs: Node) -> void:
 	gclk.call("boost_fps", 2.0)
 	_assert(int(gclk.call("get_current_target_fps")) == 60, "Etkileşim sonrası adaptif hedef = 60 FPS")
 
-	# Statik/boş sahnede boost bitince 10 FPS
+	# Statik/boş sahnede boost bitince 4 FPS (Build 40+ derin tasarruf)
 	gclk.set("_fps_boost_remaining", 0.0)
 	gclk.call("_apply_adaptive_fps", true)
-	_assert(int(gclk.call("get_current_target_fps")) == 10, "Boost süresi dolunca statik sahne hedefi = 10 FPS")
+	_assert(int(gclk.call("get_current_target_fps")) == 4, "Boost süresi dolunca statik sahne hedefi = 4 FPS")
 
-	# Arka plana alınınca 2 FPS, geri gelince 60 FPS
+	# Arka plana alınınca 1 FPS, geri gelince 60 FPS
 	gclk.notification(Node.NOTIFICATION_APPLICATION_PAUSED)
-	_assert(int(gclk.call("get_current_target_fps")) == 2, "Uygulama arka plana geçince hedef = 2 FPS")
+	_assert(int(gclk.call("get_current_target_fps")) == 1, "Uygulama arka plana geçince hedef = 1 FPS")
 	gclk.notification(Node.NOTIFICATION_APPLICATION_RESUMED)
 	_assert(int(gclk.call("get_current_target_fps")) == 60, "Uygulama ön plana dönünce hedef = 60 FPS")
 
@@ -220,7 +220,7 @@ func _test_village_quest_bottomnav_worldmap(gs: Node, qm: Node, bgc: Node, _wm: 
 	await _tick(2)
 	gclk.set("_fps_boost_remaining", 0.0)
 	gclk.call("_apply_adaptive_fps", true)
-	_assert(int(gclk.call("get_current_target_fps")) == 10, "Harita sahnesinde aktif sefer yokken hedef = 10 FPS")
+	_assert(int(gclk.call("get_current_target_fps")) == 4, "Harita sahnesinde aktif sefer yokken hedef = 4 FPS")
 	wmap.call("_process", 0.1)
 	_assert(not bool(wmap.get("_had_movements_drawn")), "Sefer yokken WorldMap movements_layer gereksiz queue_redraw çalıştırmıyor")
 
@@ -230,7 +230,7 @@ func _test_village_quest_bottomnav_worldmap(gs: Node, qm: Node, bgc: Node, _wm: 
 	gs.movements = [{"id": 77, "type": "attack", "state": "outgoing", "from_village_id": int(pv.get("id", 1)), "to_village_id": 2, "arrive_unix": int(Time.get_unix_time_from_system()) + 300}]
 	wmap.call("has_visible_movements")
 	gclk.call("_apply_adaptive_fps", true)
-	_assert(int(gclk.call("get_current_target_fps")) == 15, "Haritada aktif sefer varken hedef = 15 FPS")
+	_assert(int(gclk.call("get_current_target_fps")) == 10, "Haritada aktif sefer varken hedef = 10 FPS")
 	wmap.call("_process", 0.1)
 	_assert(bool(wmap.get("_had_movements_drawn")), "Aktif sefer varken WorldMap hareket çizimi etkin")
 	gs.movements = []
@@ -246,7 +246,7 @@ func _test_village_quest_bottomnav_worldmap(gs: Node, qm: Node, bgc: Node, _wm: 
 
 func _test_cloud_sync_skip_unchanged(gs: Node, wm: Node, eb: Node) -> void:
 	print("\n--- 4) Akıllı Bulut Yoklaması (Değişmeyen Veriyi Atlama) Testi ---")
-	_assert(is_equal_approx(float(wm.get("CLOUD_POLL_INTERVAL_SEC")), 15.0), "WorldManager CLOUD_POLL_INTERVAL_SEC = 15.0 sn")
+	_assert(is_equal_approx(float(wm.get("CLOUD_POLL_INTERVAL_SEC")), 45.0), "WorldManager CLOUD_POLL_INTERVAL_SEC = 45.0 sn")
 	var now: int = int(Time.get_unix_time_from_system()) + 50
 	var snap: Dictionary = gs.to_dict()
 	var cloud_resp := {

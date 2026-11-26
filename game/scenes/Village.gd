@@ -375,10 +375,11 @@ var _bg_frame_idx: int = 0
 var _bg_frame_timer: float = 0.0
 var _rendered_village_id: int = -1
 var _last_buildings_refresh_sig: String = ""
-const BG_TOTAL_FRAMES: int = 48 # 48 kare (her 4. kare), 6 FPS = 8.0 saniyelik akıcı döngü & çeyrek VRAM
-const BG_FPS: float = 6.0
+const BG_TOTAL_FRAMES: int = 96 # 96 kare (her 2. kare), 12 FPS = 8.0 saniyelik akıcı döngü & yarı VRAM
+const BG_FPS: float = 12.0
 const BG_FRAME_TIME: float = 1.0 / BG_FPS
 const BG_LOOP_DURATION: float = float(BG_TOTAL_FRAMES) / BG_FPS
+const BG_CADENCE_JITTER_SEC: float = 0.008
 
 
 func _resolve_game_state() -> Node:
@@ -471,12 +472,12 @@ func _process(delta: float) -> void:
 			_cached_bg_cache.call("ensure_warming")
 			_bg_warming_paused = false
 
-	# Arka plan animasyonu: Tam ekran modal/arkaplanda duraklat, görünürken 6 FPS (8 sn döngü) oynat
+	# Arka plan animasyonu: Tam ekran modal/arkaplanda duraklat, görünürken 12 FPS (8 sn döngü) akıcı oynat
 	if background != null and not obscured:
 		_bg_frame_timer += dt
-		if _bg_frame_timer >= BG_FRAME_TIME:
-			var steps: int = int(_bg_frame_timer / BG_FRAME_TIME)
-			_bg_frame_timer = fposmod(_bg_frame_timer, BG_FRAME_TIME)
+		if _bg_frame_timer >= BG_FRAME_TIME - BG_CADENCE_JITTER_SEC:
+			var steps: int = maxi(1, int(floor((_bg_frame_timer + BG_CADENCE_JITTER_SEC) / BG_FRAME_TIME)))
+			_bg_frame_timer = maxf(0.0, _bg_frame_timer - float(steps) * BG_FRAME_TIME)
 			if _cached_bg_cache == null or not is_instance_valid(_cached_bg_cache):
 				var loop := Engine.get_main_loop()
 				if loop is SceneTree and (loop as SceneTree).root != null:
@@ -488,14 +489,14 @@ func _process(delta: float) -> void:
 						var step_clamped := mini(steps, 2) if DisplayServer.get_name() != "headless" else steps
 						_bg_frame_idx = (_bg_frame_idx + step_clamped) % total
 						var tex = _cached_bg_cache.get_frame(_bg_frame_idx)
-						if tex != null:
+						if tex != null and background.texture != tex:
 							background.texture = tex
 					else:
 						var next_idx := (_bg_frame_idx + 1) % total
 						if _cached_bg_cache.has_method("is_frame_ready") and bool(_cached_bg_cache.call("is_frame_ready", next_idx)):
 							_bg_frame_idx = next_idx
 							var tex_ready = _cached_bg_cache.get_frame(_bg_frame_idx)
-							if tex_ready != null:
+							if tex_ready != null and background.texture != tex_ready:
 								background.texture = tex_ready
 
 

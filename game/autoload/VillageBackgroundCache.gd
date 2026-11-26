@@ -1,19 +1,19 @@
 extends Node
-## VillageBackgroundCache — 48 karelik (6 FPS, 8 sn — kaynak 192 kareden her 4. kare)
-## akıcı köy arka plan animasyonunu çeyrek VRAM ve çeyrek decode maliyetiyle oynatan Autoload.
+## VillageBackgroundCache — 96 karelik (12 FPS, 8 sn — kaynak 192 kareden her 2. kare)
+## akıcı köy arka plan animasyonunu yarı VRAM ve dengeli decode maliyetiyle oynatan Autoload.
 
 const SOURCE_FRAME_COUNT: int = 192
-const FRAME_STRIDE: int = 4
-const FRAME_COUNT: int = 48
-const TOTAL_FRAMES: int = 48
-const FPS: float = 6.0
-const TARGET_FPS: float = 6.0
+const FRAME_STRIDE: int = 2
+const FRAME_COUNT: int = 96
+const TOTAL_FRAMES: int = 96
+const FPS: float = 12.0
+const TARGET_FPS: float = 12.0
 const FRAME_DURATION: float = 1.0 / FPS
 const LOOP_DURATION: float = float(FRAME_COUNT) / FPS
-const FRAMES_PER_TICK: int = 2
-const THREAD_PREFETCH_WINDOW: int = 3
-const LOW_MEM_STRIDE: int = 4
-const MAX_MAIN_THREAD_COLLECT_USEC: int = 2500
+const FRAMES_PER_TICK: int = 1
+const THREAD_PREFETCH_WINDOW: int = 2
+const LOW_MEM_STRIDE: int = 2
+const MAX_MAIN_THREAD_COLLECT_USEC: int = 2000
 
 var frames: Array[Texture2D] = []
 var is_fully_loaded: bool = false

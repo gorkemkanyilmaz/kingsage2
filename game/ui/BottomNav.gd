@@ -31,8 +31,14 @@ var _btn_tinted: bool = false
 func _process(delta: float) -> void:
 	if btn_village == null or not is_instance_valid(btn_village):
 		return
+	var loop := Engine.get_main_loop()
+	if loop is SceneTree and (loop as SceneTree).root != null:
+		var gclk: Node = (loop as SceneTree).root.get_node_or_null("GameClock")
+		if gclk != null and bool(gclk.get("_app_backgrounded")):
+			return
 	_alarm_scan_accum += maxf(delta, 0.0)
-	if _alarm_scan_accum >= 0.75:
+	var scan_interval := 0.75 if _has_incoming_alarm else 1.5
+	if _alarm_scan_accum >= scan_interval:
 		_alarm_scan_accum = 0.0
 		_refresh_incoming_alarm_state()
 	if not _has_incoming_alarm:
@@ -56,6 +62,10 @@ func _process(delta: float) -> void:
 func _refresh_incoming_alarm_state() -> void:
 	var gs = Engine.get_main_loop().root.get_node_or_null("GameState") if Engine.get_main_loop() is SceneTree else null
 	if gs == null:
+		_has_incoming_alarm = false
+		return
+	var movs = gs.get("movements")
+	if typeof(movs) == TYPE_ARRAY and (movs as Array).is_empty():
 		_has_incoming_alarm = false
 		return
 	var now_u := int(Time.get_unix_time_from_system())
