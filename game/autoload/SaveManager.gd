@@ -335,10 +335,23 @@ func _apply_offline_catchup(gs: Node, saved_unix: int) -> void:
 	var now := int(Time.get_unix_time_from_system())
 	if saved_unix <= 0:
 		saved_unix = int(gs.world.get("last_saved_unix", 0))
-	if saved_unix <= 0 or now <= saved_unix:
+	var min_res_ts := now
+	for v_chk in gs.villages:
+		if typeof(v_chk) == TYPE_DICTIONARY:
+			var vd_c := v_chk as Dictionary
+			if not bool(vd_c.get("is_bot", false)) and not bool(vd_c.get("is_barbarian", false)):
+				var lr := int(vd_c.get("last_resource_unix", 0))
+				if lr > 0 and lr < min_res_ts:
+					min_res_ts = lr
+	if saved_unix <= 0 and min_res_ts < now:
+		saved_unix = min_res_ts
+	if saved_unix <= 0:
+		return
+	var effective_start := mini(saved_unix, min_res_ts)
+	if now <= effective_start:
 		return
 
-	var elapsed_seconds := float(now - saved_unix)
+	var elapsed_seconds := float(now - effective_start)
 	print("[SaveManager] Offline geçen süre telafi ediliyor: %d saniye (%.1f saat)" % [int(elapsed_seconds), elapsed_seconds / 3600.0])
 
 	var ProdScript = load("res://scripts/sim/economy/Production.gd")
@@ -358,6 +371,10 @@ func _apply_offline_catchup(gs: Node, saved_unix: int) -> void:
 			var vd_h := v_item as Dictionary
 			if not bool(vd_h.get("is_bot", false)) and not bool(vd_h.get("is_barbarian", false)):
 				human_vids[int(vd_h.get("id", -1))] = true
+				var h_lr := int(vd_h.get("last_resource_unix", 0))
+				if h_lr > 0 and h_lr < saved_unix and ProdScript != null:
+					ProdScript.produce(vd_h, float(saved_unix - h_lr))
+					vd_h["last_resource_unix"] = saved_unix
 
 	var bot_interval := maxi(600, int(elapsed_seconds / 3.0))
 	var bot_passes := 0
@@ -377,7 +394,13 @@ func _apply_offline_catchup(gs: Node, saved_unix: int) -> void:
 		if seg_dt > 0.0 and ProdScript != null:
 			for v in state_dict.get("villages", []):
 				if typeof(v) == TYPE_DICTIONARY:
-					ProdScript.produce(v as Dictionary, seg_dt)
+					var vd_p := v as Dictionary
+					var v_lr := int(vd_p.get("last_resource_unix", cursor))
+					var eff_start := maxi(cursor, v_lr if v_lr > 0 else cursor)
+					var eff_dt := float(seg_end - eff_start)
+					if eff_dt > 0.0:
+						ProdScript.produce(vd_p, eff_dt)
+					vd_p["last_resource_unix"] = maxi(v_lr, seg_end)
 
 		if BQScript != null:
 			var bev = BQScript.advance(state_dict, seg_end)
@@ -418,7 +441,18 @@ func _apply_offline_catchup(gs: Node, saved_unix: int) -> void:
 		if rem_dt > 0.0 and ProdScript != null:
 			for v in state_dict.get("villages", []):
 				if typeof(v) == TYPE_DICTIONARY:
-					ProdScript.produce(v as Dictionary, rem_dt)
+					var vd_r := v as Dictionary
+					var r_lr := int(vd_r.get("last_resource_unix", cursor))
+					var r_start := maxi(cursor, r_lr if r_lr > 0 else cursor)
+					var eff_rem := float(now - r_start)
+					if eff_rem > 0.0:
+						ProdScript.produce(vd_r, eff_rem)
+					vd_r["last_resource_unix"] = maxi(r_lr, now)
+	for v_fin in state_dict.get("villages", []):
+		if typeof(v_fin) == TYPE_DICTIONARY:
+			var vf := v_fin as Dictionary
+			if not bool(vf.get("is_bot", false)) and not bool(vf.get("is_barbarian", false)):
+				vf["last_resource_unix"] = maxi(int(vf.get("last_resource_unix", 0)), now)
 		if BQScript != null:
 			var bev2 = BQScript.advance(state_dict, now)
 			if typeof(bev2) == TYPE_ARRAY:

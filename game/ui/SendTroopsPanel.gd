@@ -455,9 +455,7 @@ func _is_target_friendly() -> bool:
 
 
 func _is_target_supportable() -> bool:
-	var gs = Engine.get_main_loop().root.get_node_or_null("GameState") if Engine.get_main_loop() is SceneTree else null
-	var state: Dictionary = gs.to_dict() if gs != null else {}
-	return MovementScript._is_friendly(state, _from_village, _to_village) or MovementScript._is_real_player_target(_to_village)
+	return int(_from_village.get("id", -1)) != int(_to_village.get("id", -2))
 
 
 func _switch_tab(tab: String) -> void:
@@ -563,7 +561,7 @@ func _refresh_troops_mode(state: Dictionary, from_x: int, from_y: int, to_x: int
 			warning_label.hide()
 		return
 
-	var can_support_target := is_friendly or MovementScript._is_real_player_target(_to_village)
+	var can_support_target := _is_target_supportable()
 	if btn_support != null:
 		if can_support_target:
 			btn_support.show()
@@ -857,6 +855,10 @@ func _dispatch(type: String, protection_confirmed: bool = false) -> void:
 				carry[r_key] = val
 		res = MovementScript.send_trade(state, int(_from_village["id"]), int(_to_village["id"]), carry, now)
 	elif type == MovementScript.TYPE_RAID:
+		if MovementScript._is_friendly(state, _from_village, _to_village):
+			warning_label.show()
+			warning_label.text = "İttifak Kuralı: İttifak üyeleri birbirlerine saldıramaz!"
+			return
 		var selected_units := _collect_selected_units()
 		if not protection_confirmed and will_drop_attacker_protection(type, selected_units, now):
 			_show_vizier_protection_warning(type, _attacker_protection_until() - now)
@@ -866,6 +868,10 @@ func _dispatch(type: String, protection_confirmed: bool = false) -> void:
 		var selected_units := _collect_selected_units()
 		res = MovementScript.send_support(state, int(_from_village["id"]), int(_to_village["id"]), selected_units, now)
 	else:
+		if MovementScript._is_friendly(state, _from_village, _to_village):
+			warning_label.show()
+			warning_label.text = "İttifak Kuralı: İttifak üyeleri birbirlerine saldıramaz!"
+			return
 		var selected_units := _collect_selected_units()
 		var total_selected := _sum_units_dict(selected_units)
 		var is_only_spies: bool = total_selected > 0 and int(selected_units.get("spy", 0)) == total_selected

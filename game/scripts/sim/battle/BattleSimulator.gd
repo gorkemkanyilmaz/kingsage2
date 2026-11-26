@@ -157,15 +157,25 @@ static func simulate(attacker: Dictionary, defender: Dictionary, options: Dictio
 	var total_power := attack_value + defence_value
 	var attacker_loss_frac := 0.0
 	var defender_loss_frac := 0.0
-	if total_power > 0.0:
-		attacker_loss_frac = defence_value / total_power
-		defender_loss_frac = attack_value / total_power
-	var attacker_won := attack_value > defence_value
+	var attacker_won := false
+	if attack_raw > 0.0:
+		if defence_value <= 0.0:
+			attacker_won = true
+			attacker_loss_frac = 0.0
+			defender_loss_frac = 1.0
+		elif attack_value > defence_value:
+			attacker_won = true
+			defender_loss_frac = 1.0
+			attacker_loss_frac = clampf(pow(defence_value / attack_value, 1.5), 0.0, 1.0)
+		else:
+			attacker_won = false
+			attacker_loss_frac = 1.0
+			defender_loss_frac = clampf(pow(attack_value / defence_value, 1.5), 0.0, 1.0)
 
-	# --- Kayıplar (int; oran bazlı)
-	var attacker_losses := _distribute_losses(atk_units, attacker_loss_frac)
+	# --- Kayıplar (KingsAge kuralı: kaybeden tarafın muharip ordusu tamamen yok olur; casuslar Faz 2'de çözülür)
+	var attacker_losses := _distribute_losses(attack_pool, attacker_loss_frac)
 	if spy_losses > 0:
-		attacker_losses["spy"] = int(attacker_losses.get("spy", 0)) + spy_losses
+		attacker_losses["spy"] = spy_losses
 	# Sadece > 0 olanlar raporda tutulur.
 	attacker_losses = _positive_only(attacker_losses)
 	var defender_losses := _positive_only(_distribute_losses(def_units, defender_loss_frac))

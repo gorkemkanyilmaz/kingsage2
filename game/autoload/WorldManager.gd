@@ -1679,6 +1679,11 @@ func save_active_world(force_cloud: bool = false, allow_cloud: bool = true) -> b
 	gs.world["sim_now_unix"] = maxi(int(gs.world.get("sim_now_unix", 0)), now)
 
 	var next_state: Dictionary = gs.to_dict()
+	for nv in next_state.get("villages", []):
+		if typeof(nv) == TYPE_DICTIONARY:
+			var nvd := nv as Dictionary
+			if _is_real_player_village_dict(nvd) and _matches_player(str(nvd.get("owner", "")), str(gs.player.get("name", ""))):
+				nvd["last_resource_unix"] = maxi(int(nvd.get("last_resource_unix", 0)), now)
 	if typeof(next_state.get("world")) != TYPE_DICTIONARY:
 		next_state["world"] = {}
 	var nw: Dictionary = next_state["world"]
@@ -1961,6 +1966,46 @@ func _preserve_own_village_progress_from_local(target_w: Dictionary, local_w: Di
 			tvd["name_updated_unix"] = l_nu
 			tvd["name_edit_seq"] = l_ns
 
+		# Canlı yerel hammadde üretimini bulut anketi / save yanıtı geri almasın (sunucu yeni bir savaş düşümü uygulamadıysa)
+		var t_applied_set: Dictionary = {}
+		var l_applied_set: Dictionary = {}
+		var merged_applied: Array = []
+		if typeof(tvd.get("applied_battle_sigs")) == TYPE_ARRAY:
+			for ts in (tvd["applied_battle_sigs"] as Array):
+				var s_t := str(ts)
+				if not s_t.is_empty() and not t_applied_set.has(s_t):
+					t_applied_set[s_t] = true
+					merged_applied.append(s_t)
+		if typeof(lvd.get("applied_battle_sigs")) == TYPE_ARRAY:
+			for ls in (lvd["applied_battle_sigs"] as Array):
+				var s_l := str(ls)
+				if not s_l.is_empty():
+					l_applied_set[s_l] = true
+					if not t_applied_set.has(s_l):
+						merged_applied.append(s_l)
+		if not merged_applied.is_empty():
+			if merged_applied.size() > 100:
+				merged_applied = merged_applied.slice(merged_applied.size() - 100)
+			tvd["applied_battle_sigs"] = merged_applied
+		var has_new_srv_battle := false
+		for ts_k in t_applied_set.keys():
+			if not l_applied_set.has(ts_k):
+				has_new_srv_battle = true
+				break
+		if not has_new_srv_battle and typeof(lvd.get("resources")) == TYPE_DICTIONARY and typeof(tvd.get("resources")) == TYPE_DICTIONARY:
+			var l_res := lvd["resources"] as Dictionary
+			var t_res := tvd["resources"] as Dictionary
+			var l_lr := int(lvd.get("last_resource_unix", 0))
+			var t_lr := int(tvd.get("last_resource_unix", 0))
+			var l_tot := int(l_res.get("wood", 0)) + int(l_res.get("stone", 0)) + int(l_res.get("iron", 0))
+			var t_tot := int(t_res.get("wood", 0)) + int(t_res.get("stone", 0)) + int(t_res.get("iron", 0))
+			var server_added_res := (t_lr > l_lr and t_tot > l_tot)
+			if not server_added_res and (l_lr >= t_lr or l_lr > 0 and t_lr <= 0):
+				tvd["resources"] = l_res.duplicate(true)
+				if typeof(lvd.get("_prod_frac")) == TYPE_DICTIONARY:
+					tvd["_prod_frac"] = (lvd["_prod_frac"] as Dictionary).duplicate(true)
+				tvd["last_resource_unix"] = maxi(l_lr, t_lr)
+
 	if (not protected_buildings.is_empty() or not conquered_vids_applied.is_empty()) and typeof(t_state.get("queues")) == TYPE_ARRAY:
 		var cleaned_q: Array = []
 		for q in (t_state["queues"] as Array):
@@ -2063,6 +2108,12 @@ func _merge_alliances_arrays(local_allies: Array, cloud_allies: Array, p_name: S
 				if merged_map.has(lk):
 					var prev_ca: Dictionary = merged_map[lk]
 					lad["chat_messages"] = _merge_alliance_chat(prev_ca.get("chat_messages", []), lad.get("chat_messages", []))
+					if int(prev_ca.get("announcement_updated_unix", 0)) > int(lad.get("announcement_updated_unix", 0)):
+						lad["internal_announcement"] = prev_ca.get("internal_announcement", lad.get("internal_announcement", ""))
+						lad["announcement_updated_unix"] = prev_ca.get("announcement_updated_unix", 0)
+					if int(prev_ca.get("diplomacy_updated_unix", 0)) > int(lad.get("diplomacy_updated_unix", 0)):
+						lad["diplomacy"] = prev_ca.get("diplomacy", lad.get("diplomacy", {}))
+						lad["diplomacy_updated_unix"] = prev_ca.get("diplomacy_updated_unix", 0)
 					merged_map[lk] = lad
 				else:
 					order.append(lk)
@@ -2078,6 +2129,11 @@ func _merge_alliances_arrays(local_allies: Array, cloud_allies: Array, p_name: S
 						merged_map.erase(cloud_my_key)
 					else:
 						old_ca["members"] = filt_mems
+			elif merged_map.has(lk):
+				var existing_other: Dictionary = merged_map[lk]
+				if int(lad.get("diplomacy_updated_unix", 0)) > int(existing_other.get("diplomacy_updated_unix", 0)):
+					existing_other["diplomacy"] = lad.get("diplomacy", existing_other.get("diplomacy", {}))
+					existing_other["diplomacy_updated_unix"] = lad.get("diplomacy_updated_unix", 0)
 			elif not merged_map.has(lk):
 				var cr := int(lad.get("created_unix", 0))
 				if cr > 0 and int(Time.get_unix_time_from_system()) - cr <= 30:

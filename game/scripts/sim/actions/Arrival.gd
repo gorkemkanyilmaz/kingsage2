@@ -56,6 +56,42 @@ static func resolve(state: Dictionary, movement: Dictionary, now_unix: int) -> D
 #  Savaş / talan (attack, raid)
 # =============================================================================
 
+static func _norm_owner_arr(raw: String) -> String:
+	var s := raw.strip_edges().to_lower()
+	while s.find("  ") >= 0:
+		s = s.replace("  ", " ")
+	return s
+
+
+static func _is_friendly_at_arrival(state: Dictionary, origin: Dictionary, target: Dictionary) -> bool:
+	var a := _norm_owner_arr(str(origin.get("owner", "")))
+	var b := _norm_owner_arr(str(target.get("owner", "")))
+	if a.is_empty() or b.is_empty():
+		return false
+	if a == b:
+		return true
+	var alliances = state.get("alliances", null)
+	if typeof(alliances) != TYPE_ARRAY:
+		return false
+	for ally in (alliances as Array):
+		if typeof(ally) != TYPE_DICTIONARY:
+			continue
+		var mems = (ally as Dictionary).get("members", [])
+		if typeof(mems) != TYPE_ARRAY:
+			continue
+		var has_a := false
+		var has_b := false
+		for m in mems:
+			var mn := _norm_owner_arr(str((m as Dictionary).get("name", ""))) if typeof(m) == TYPE_DICTIONARY else _norm_owner_arr(str(m))
+			if mn == a:
+				has_a = true
+			if mn == b:
+				has_b = true
+		if has_a and has_b:
+			return true
+	return false
+
+
 static func _resolve_battle(
 	state: Dictionary, movement: Dictionary, now_unix: int, is_raid: bool
 ) -> Dictionary:
@@ -65,8 +101,8 @@ static func _resolve_battle(
 	var target := _find_village(state, to_id)
 	var units := _normalize_units(movement.get("units", {}))
 
-	# Hedef yok olduysa (ör. fethedildi/yıkıldı) → ordu boş döner.
-	if origin.is_empty() or target.is_empty():
+	# Hedef yok olduysa veya artık aynı/ittifak üyesi ise → savaş yapılmaz, ordu geri döner.
+	if origin.is_empty() or target.is_empty() or _is_friendly_at_arrival(state, origin, target):
 		return _fizzle(state, movement, origin, units)
 
 	var attacker := _attacker_payload(state, origin, units)

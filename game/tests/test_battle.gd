@@ -27,6 +27,7 @@ func _initialize() -> void:
 	_test_determinism(BS)
 	_test_phases(BS)
 	_test_stronger_army_wins(BS)
+	_test_loser_total_annihilation(BS)
 	_test_wall_bonus(BS)
 	_test_night_bonus(BS)
 	_test_morale_bounds(BS)
@@ -111,6 +112,16 @@ func _test_stronger_army_wins(BS) -> void:
 	_check(_sum(r["attacker_losses"]) < 100, "saldıran az kayıp verdi")
 
 
+func _test_loser_total_annihilation(BS) -> void:
+	_section("Kaybeden taraf tamamen yok olur (KingsAge kuralı)")
+	var attacker := _attacker({"axe": 20, "spear": 15}, 1000, 5)
+	var defender := _defender({"sword": 60, "spear": 40}, 1000, 10, 0)
+	var r = BS.simulate(attacker, defender, {"seed": 11})
+	_check(not bool(r.get("attacker_won", true)), "35 asker güçlü savunmaya karşı kaybetti")
+	_check(_sum(r["attacker_losses"]) == 35, "kaybeden saldıranın 35 askerinin tamamı öldü (kalan=0)")
+	_check(_sum(r["attacker_alive"]) == 0, "hayatta kalan saldıran asker sayısı 0")
+
+
 func _test_wall_bonus(BS) -> void:
 	_section("Sur bonusu")
 	var attacker := _attacker({"axe": 300}, 5000, 20)
@@ -118,8 +129,16 @@ func _test_wall_bonus(BS) -> void:
 	var d20 := _defender({"spear": 200}, 5000, 20, 0)
 	var r0 = BS.simulate(attacker, d0, {"seed": 42})
 	var r20 = BS.simulate(attacker, d20, {"seed": 42})
-	var loss0 := _sum(r0["defender_losses"])
-	var loss20 := _sum(r20["defender_losses"])
+	var atk_loss0 := _sum(r0["attacker_losses"])
+	var atk_loss20 := _sum(r20["attacker_losses"])
+	_check(atk_loss20 > atk_loss0, "sur arttıkça saldıran kaybı artar (%d → %d)" % [atk_loss0, atk_loss20])
+	var small_atk := _attacker({"axe": 150}, 5000, 20)
+	var def_strong := _defender({"spear": 300}, 5000, 0, 0)
+	var def_strong20 := _defender({"spear": 300}, 5000, 20, 0)
+	var rs0 = BS.simulate(small_atk, def_strong, {"seed": 42})
+	var rs20 = BS.simulate(small_atk, def_strong20, {"seed": 42})
+	var loss0 := _sum(rs0["defender_losses"])
+	var loss20 := _sum(rs20["defender_losses"])
 	_check(loss20 < loss0, "sur seviyesi arttıkça savunan kaybı azalır (%d → %d)" % [loss0, loss20])
 	_check(absf(float(r0["morale"]) - float(r20["morale"])) < 0.0001, "moral surdan etkilenmez")
 
@@ -127,7 +146,7 @@ func _test_wall_bonus(BS) -> void:
 func _test_night_bonus(BS) -> void:
 	_section("Gece bonusu")
 	var attacker := _attacker({"axe": 300}, 5000, 20)
-	var defender := _defender({"spear": 200}, 5000, 10, 0)
+	var defender := _defender({"spear": 400}, 5000, 10, 0)
 	var r_day = BS.simulate(attacker, defender, {"seed": 42, "night": false})
 	var r_night = BS.simulate(attacker, defender, {"seed": 42, "night": true})
 	var loss_day := _sum(r_day["defender_losses"])

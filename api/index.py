@@ -1549,6 +1549,12 @@ def _prepare_world_for_player(
                 continue
             filtered_movs.append(raw_mv)
         state["movements"] = filtered_movs
+    now_prep = int(time.time())
+    fallback_prep = int(w.get("last_saved_unix", 0) or 0)
+    prep_spd = _player_speed_mult(w, norm_p, now_prep)
+    for pv in villages:
+        if _is_real_player_village(pv) and _matches_player(str(pv.get("owner", "")), norm_p):
+            _advance_village_resources(pv, now_prep, prep_spd, fallback_prep)
     state["active_village_id"] = active_vid
     state["player"] = {
         "id": 1,
@@ -1646,6 +1652,113 @@ def _reconcile_state_settlers_reserved(state: Any) -> None:
             except Exception:
                 vid = -1
             v["settlers_reserved"] = reserved_by_vid.get(vid, 0)
+
+
+RAW_MATERIAL_PROD_VALUES = [
+    120, 134, 149, 166, 185, 207, 231, 257, 287, 319,
+    356, 397, 443, 494, 550, 614, 684, 763, 851, 948,
+    1057, 1179, 1314, 1465, 1634, 1822, 2031, 2264, 2525, 2815,
+    3138, 3499, 3901, 4350, 4849, 5407, 6028, 6721, 7494, 8355,
+    9315, 10386, 11580, 12911, 14395, 16049, 17894, 19950, 22243, 24800,
+]
+
+WAREHOUSE_CAP_VALUES = [
+    1000, 1150, 1323, 1522, 1750, 2013, 2315, 2663, 3063, 3523,
+    4052, 4661, 5361, 6166, 7092, 8157, 9382, 10792, 12412, 14277,
+    16421, 18887, 21724, 24987, 28739, 33056, 38020, 43731, 50299, 57853,
+    66542, 76536, 88031, 101252, 116460, 133951, 154069, 177209, 203824, 234436,
+    269646, 310145, 356726, 410303, 471926, 542805, 624330, 718098, 825950, 950000,
+]
+
+
+def _player_speed_mult(w_data: Optional[Dict[str, Any]], owner_name: str, now: int) -> float:
+    if not isinstance(w_data, dict):
+        return 1.0
+    st = w_data.get("state") if isinstance(w_data.get("state"), dict) else {}
+    wd = st.get("world") if isinstance(st.get("world"), dict) else {}
+    base_spd = float(wd.get("base_speed", 0) or 0)
+    if base_spd <= 0.0:
+        cur_spd = float(wd.get("speed", 1.0) or 1.0)
+        sb_u = int(wd.get("starter_boost_until_unix", 0) or 0)
+        base_spd = cur_spd / 2.0 if (sb_u > now and cur_spd >= 1.99) else cur_spd
+    if base_spd <= 0.0:
+        base_spd = 1.0
+    norm_o = _norm_p_name(owner_name)
+    boost_until = 0
+    if norm_o:
+        psb = wd.get("player_starter_boost") if isinstance(wd.get("player_starter_boost"), dict) else {}
+        for bk, bv in psb.items():
+            if _matches_player(str(bk), norm_o) and isinstance(bv, dict):
+                boost_until = max(boost_until, int(bv.get("starter_boost_until_unix", 0) or 0))
+        profs = wd.get("player_profiles") if isinstance(wd.get("player_profiles"), dict) else {}
+        for pk, pv in profs.items():
+            if _matches_player(str(pk), norm_o) and isinstance(pv, dict):
+                boost_until = max(boost_until, int(pv.get("starter_boost_until_unix", 0) or 0))
+    return base_spd * (2.0 if boost_until > now else 1.0)
+
+
+def _advance_village_resources(v: Dict[str, Any], now: int, speed_mult: float = 1.0, fallback_ts: int = 0) -> bool:
+    if not isinstance(v, dict) or now <= 0:
+        return False
+    last_ts = int(v.get("last_resource_unix", 0) or 0)
+    if last_ts <= 0:
+        last_ts = int(fallback_ts or v.get("last_sim_unix", 0) or 0)
+        if last_ts <= 0:
+            v["last_resource_unix"] = now
+            return False
+    if now <= last_ts:
+        return False
+    elapsed = min(float(now - last_ts), float(30 * 86400))
+    blds = v.get("buildings") if isinstance(v.get("buildings"), dict) else {}
+    res = v.get("resources")
+    if not isinstance(res, dict):
+        res = {"wood": 0, "stone": 0, "iron": 0}
+        v["resources"] = res
+    frac = v.get("_prod_frac")
+    if not isinstance(frac, dict):
+        frac = {"wood": 0.0, "stone": 0.0, "iron": 0.0}
+        v["_prod_frac"] = frac
+    stor_lvl = max(1, min(len(WAREHOUSE_CAP_VALUES), int(blds.get("storage", 1) or 1)))
+    cap = WAREHOUSE_CAP_VALUES[stor_lvl - 1]
+    bonus_dict = v.get("bonus") if isinstance(v.get("bonus"), dict) else {}
+    bonus_type = str(v.get("bonus_type", "") or "")
+    eff_spd = max(0.1, float(speed_mult or 1.0))
+
+    for rk in ("wood", "stone", "iron"):
+        lvl = int(blds.get(rk, 0) or 0)
+        if lvl <= 0:
+            base_hr = 0.0
+        elif lvl <= len(RAW_MATERIAL_PROD_VALUES):
+            base_hr = float(RAW_MATERIAL_PROD_VALUES[lvl - 1])
+        else:
+            base_hr = float(round(120.0 * (1.115 ** (lvl - 1))))
+        mult = eff_spd
+        raw_bm = bonus_dict.get(rk, 1.0)
+        if isinstance(raw_bm, (int, float)) and not isinstance(raw_bm, bool):
+            mult *= float(raw_bm)
+        if bonus_type == rk:
+            mult *= 1.10
+        elif bonus_type == "production":
+            mult *= 1.03
+
+        old_val = int(res.get(rk, 0) or 0)
+        if cap > 0 and old_val >= cap:
+            res[rk] = old_val
+            frac[rk] = 0.0
+            continue
+        rate_per_sec = (base_hr * mult) / 3600.0
+        acc = float(frac.get(rk, 0.0) or 0.0) + rate_per_sec * elapsed
+        whole = int(math.floor(acc))
+        rem = acc - float(whole)
+        nxt = old_val + whole
+        if cap > 0 and nxt >= cap:
+            nxt = cap
+            rem = 0.0
+        res[rk] = nxt
+        frac[rk] = rem
+
+    v["last_resource_unix"] = now
+    return True
 
 
 def _deduplicate_world_villages(w_data: Optional[Dict[str, Any]], preferred_owner: str = "", preferred_vid: int = -1) -> bool:
@@ -1985,6 +2098,14 @@ def merge_world_state(server_w: Optional[Dict[str, Any]], client_raw: Dict[str, 
         if isinstance(bv, dict) and (_matches_player(bk, act_name) or bk not in s_psb):
             s_psb[bk] = copy.deepcopy(bv)
 
+    act_prof_early: Dict[str, Any] = {}
+    for pk, pv in s_profs.items():
+        if _matches_player(str(pk), act_name) and isinstance(pv, dict):
+            act_prof_early = pv
+            break
+    act_del_sigs_early = {str(x) for x in (act_prof_early.get("deleted_report_sigs") or []) if str(x)}
+    act_read_sigs_early = {str(x) for x in (act_prof_early.get("read_report_sigs") or []) if str(x)}
+
     # 2. Köyleri indeksle ve eşzamanlı yeni köy ID / mesafe çakışmalarını çöz
     s_villages: List[Dict[str, Any]] = [
         copy.deepcopy(v) for v in (s_state.get("villages") or [])
@@ -1998,6 +2119,10 @@ def merge_world_state(server_w: Optional[Dict[str, Any]], client_raw: Dict[str, 
     s_by_id: Dict[int, Dict[str, Any]] = {int(v.get("id", 0)): v for v in s_villages}
     c_by_id: Dict[int, Dict[str, Any]] = {int(v.get("id", 0)): v for v in c_villages}
     max_vid = max(list(s_by_id.keys()) + list(c_by_id.keys()) + [106])
+    acting_client_vids_before = {
+        int(v.get("id", 0)) for v in c_villages
+        if _is_real_player_village(v) and _matches_player(str(v.get("owner", "")), act_name)
+    }
 
     # Client ve server raporlarından yeni savaş / fetih raporlarını topla
     s_report_sigs = {_report_sig(r) for r in (s_state.get("reports") or [])}
@@ -2013,7 +2138,22 @@ def merge_world_state(server_w: Optional[Dict[str, Any]], client_raw: Dict[str, 
             if bool(rdata.get("conquered", False)):
                 all_conquered_target_vids.add(t_vid)
                 server_conquered_vids.add(t_vid)
-            if _report_sig(rep) not in c_report_sigs and t_vid > 0:
+            rsig_str = _report_sig_str(rep)
+            rep_vid_atk = int(rep.get("village_id", 0) or 0)
+            atk_name_rep = str(rdata.get("attacker_name") or rdata.get("attacker_owner") or rdata.get("from_owner") or "").strip()
+            from_vid_rep = int(rdata.get("from_village_id", 0) or 0)
+            is_act_attacker = (
+                (bool(atk_name_rep) and _matches_player(atk_name_rep, act_name))
+                or (from_vid_rep > 0 and from_vid_rep in acting_client_vids_before)
+                or (rep_vid_atk > 0 and rep_vid_atk in acting_client_vids_before and t_vid != rep_vid_atk)
+            )
+            if (
+                _report_sig(rep) not in c_report_sigs
+                and t_vid > 0
+                and not is_act_attacker
+                and rsig_str not in act_del_sigs_early
+                and rsig_str not in act_read_sigs_early
+            ):
                 unseen_server_battles_by_vid.setdefault(t_vid, []).append(rep)
     for rep in (c_state.get("reports") or []):
         if isinstance(rep, dict):
@@ -2032,10 +2172,6 @@ def merge_world_state(server_w: Optional[Dict[str, Any]], client_raw: Dict[str, 
     vid_remap: Dict[int, int] = {}
     remapped_preserve_server: set = set()
     stale_conquered_vids = set()
-    acting_client_vids_before = {
-        int(v.get("id", 0)) for v in c_villages
-        if _is_real_player_village(v) and _matches_player(str(v.get("owner", "")), act_name)
-    }
 
     # Client'taki aktif oyuncunun köylerini kontrol et: başka bir gerçek oyuncunun köy ID'siyle çakışıyor mu veya çift başlangıç köyü mü?
     act_existing_starter = None
@@ -2142,11 +2278,25 @@ def merge_world_state(server_w: Optional[Dict[str, Any]], client_raw: Dict[str, 
                     c_v["name"] = s_v["name"]
                     c_v["name_updated_unix"] = s_nu
                     c_v["name_edit_seq"] = s_ns
-            # Aktif oyuncunun kendi köyü (veya fethettiği köy): henüz client'ın görmediği sunucu savaşlarını koru
+            # Aktif oyuncunun kendi köyü (veya fethettiği köy): henüz client'ın görmediği YENİ sunucu savaşlarını koru (eski/silinmiş raporları asla tekrar düşme!)
+            applied_sigs = {str(x) for x in (c_v.get("applied_battle_sigs") or []) if str(x)}
+            pending_sigs = set()
+            if isinstance(s_v, dict):
+                applied_sigs |= {str(x) for x in (s_v.get("applied_battle_sigs") or []) if str(x)}
+                pending_sigs = {str(x) for x in (s_v.get("server_pending_battle_sigs") or []) if str(x)}
+            conq_u = int(c_v.get("conquered_unix", 0) or 0)
             if vid in unseen_server_battles_by_vid:
                 v_units = dict(c_v.get("units") or {})
                 v_res = dict(c_v.get("resources") or {})
                 for urep in unseen_server_battles_by_vid[vid]:
+                    usig = _report_sig_str(urep)
+                    if usig in applied_sigs:
+                        continue
+                    if pending_sigs and usig not in pending_sigs:
+                        continue
+                    rep_ts = int(urep.get("unix", urep.get("created_unix", 0)) or 0)
+                    if rep_ts > 0 and conq_u > 0 and rep_ts <= conq_u:
+                        continue
                     urdata = urep.get("data") if isinstance(urep.get("data"), dict) else {}
                     for uk, loss in (urdata.get("defender_losses") or {}).items():
                         v_units[uk] = max(0, int(v_units.get(uk, 0) or 0) - int(loss or 0))
@@ -2154,8 +2304,18 @@ def merge_world_state(server_w: Optional[Dict[str, Any]], client_raw: Dict[str, 
                         v_res[rk] = max(0, int(v_res.get(rk, 0) or 0) - int(loot_v or 0))
                     if "realm_after" in urdata and int(urdata.get("realm_after", -1)) >= 0:
                         c_v["realm_of_power"] = int(urdata["realm_after"])
+                    if usig:
+                        applied_sigs.add(usig)
+                        pending_sigs.discard(usig)
                 c_v["units"] = v_units
                 c_v["resources"] = v_res
+            if applied_sigs:
+                c_v["applied_battle_sigs"] = list(applied_sigs)[-100:]
+            if pending_sigs:
+                c_v["server_pending_battle_sigs"] = list(pending_sigs)[-50:]
+            else:
+                c_v.pop("server_pending_battle_sigs", None)
+            c_v["last_resource_unix"] = max(int(c_v.get("last_resource_unix", 0) or 0), now)
             s_by_id[vid] = c_v
             continue
 
@@ -2164,6 +2324,12 @@ def merge_world_state(server_w: Optional[Dict[str, Any]], client_raw: Dict[str, 
             continue
 
         if _is_real_player_village(s_v):
+            _advance_village_resources(
+                s_v,
+                now,
+                _player_speed_mult(merged, str(s_v.get("owner", "")), now),
+                s_last,
+            )
             # Başka gerçek bir oyuncunun köyü! Kendi binalarını/kuyruklarını koru, sadece yeni destek/savaş farkını uygula
             s_sup = list(s_v.get("support") or []) if isinstance(s_v.get("support"), list) else []
             c_sup = list(c_v.get("support") or []) if isinstance(c_v.get("support"), list) else []
@@ -2219,6 +2385,7 @@ def merge_world_state(server_w: Optional[Dict[str, Any]], client_raw: Dict[str, 
                 if int(rdata.get("target_village_id", 0) or 0) != vid:
                     continue
                 if rtype == "battle":
+                    rsig_hit = _report_sig_str(rep)
                     for uk, loss in (rdata.get("defender_losses") or {}).items():
                         v_units[uk] = max(0, int(v_units.get(uk, 0) or 0) - int(loss or 0))
                     s_v["units"] = v_units
@@ -2228,6 +2395,11 @@ def merge_world_state(server_w: Optional[Dict[str, Any]], client_raw: Dict[str, 
                     s_v["resources"] = v_res
                     if "realm_after" in rdata and int(rdata.get("realm_after", -1)) >= 0:
                         s_v["realm_of_power"] = int(rdata["realm_after"])
+                    if rsig_hit:
+                        pend = list(s_v.get("server_pending_battle_sigs") or [])
+                        if rsig_hit not in pend:
+                            pend.append(rsig_hit)
+                        s_v["server_pending_battle_sigs"] = pend[-50:]
                 elif rtype == "trade":
                     v_res = dict(s_v.get("resources") or {})
                     t_res = rdata.get("resources") if isinstance(rdata.get("resources"), dict) else {}
@@ -2466,14 +2638,41 @@ def merge_world_state(server_w: Optional[Dict[str, Any]], client_raw: Dict[str, 
                 s_invs.pop(mk, None)
         sa["invitations"] = list(s_invs.values())
 
-        # Diplomasi / açıklama / lider (eğer aktif oyuncu liderse veya son değişiklik yaptıysa)
-        if _matches_player(str(sa.get("leader", "")), act_name):
-            if isinstance(c_a.get("diplomacy"), dict):
-                sa["diplomacy"] = copy.deepcopy(c_a["diplomacy"])
+        # Diplomasi / açıklama / iç duyuru (ittifak kurucu lideri veya lideri güncellemişse koru; NAP'ı temizle)
+        def _clean_diplo(d_raw: Any) -> Dict[str, Any]:
+            d = copy.deepcopy(d_raw) if isinstance(d_raw, dict) else {}
+            d.pop("nap", None)
+            for lk in ("allies", "enemies", "ally_requests_in", "ally_requests_out"):
+                if not isinstance(d.get(lk), list):
+                    d[lk] = []
+            return d
+
+        sa["diplomacy"] = _clean_diplo(sa.get("diplomacy"))
+        is_sa_founder_or_leader = (
+            _matches_player(str(sa.get("founder", "")), act_name)
+            or _matches_player(str(sa.get("leader", "")), act_name)
+        )
+        if is_sa_founder_or_leader:
+            c_diplo_ts = int(c_a.get("diplomacy_updated_unix", 0) or 0)
+            s_diplo_ts = int(sa.get("diplomacy_updated_unix", 0) or 0)
+            if isinstance(c_a.get("diplomacy"), dict) and (alliance_auth or c_diplo_ts >= s_diplo_ts):
+                sa["diplomacy"] = _clean_diplo(c_a["diplomacy"])
+                if c_diplo_ts > s_diplo_ts:
+                    sa["diplomacy_updated_unix"] = c_diplo_ts
             if "description" in c_a:
                 sa["description"] = c_a["description"]
-            if "internal_announcement" in c_a:
+            c_ann_ts = int(c_a.get("announcement_updated_unix", 0) or 0)
+            s_ann_ts = int(sa.get("announcement_updated_unix", 0) or 0)
+            if "internal_announcement" in c_a and (alliance_auth or c_ann_ts >= s_ann_ts or (s_ann_ts == 0 and c_last >= s_last)):
                 sa["internal_announcement"] = c_a["internal_announcement"]
+                sa["announcement_updated_unix"] = max(c_ann_ts, s_ann_ts, now if alliance_auth else 0)
+        elif act_c_alliance_key != akey:
+            # Kurucu kendi ittifakından bir diğer ittifaka diplomasi daveti/düşmanlık göndermişse karşı ittifaktaki diplomasi güncellemesini al
+            c_diplo_ts_o = int(c_a.get("diplomacy_updated_unix", 0) or 0)
+            s_diplo_ts_o = int(sa.get("diplomacy_updated_unix", 0) or 0)
+            if isinstance(c_a.get("diplomacy"), dict) and c_diplo_ts_o > s_diplo_ts_o:
+                sa["diplomacy"] = _clean_diplo(c_a["diplomacy"])
+                sa["diplomacy_updated_unix"] = c_diplo_ts_o
 
     s_state["alliances"] = list(s_alliances.values())
 

@@ -66,13 +66,17 @@ amacına uygun). `AÇIK SORU:` puan oranı → moral yüzdesi gerçek eğrisi.
 
 ## 4. Kayıp dağıtım eğrisi — `loss_distribution` (`known:false`)
 
-**Seçilen formül** (oransal, simetrik):
+**Seçilen formül** (KingsAge kuralları: kaybeden tarafın muharip birlikleri tamamen yok olur):
 
 ```
 saldırı_değeri = Σ(saldırı × adet) × moral × (1 + şans)
 savunma_değeri = Σ(ağırlıklı_savunma × adet) × sur_bonusu × anıt_bonusu × gece_bonusu
-saldıran_kayıp_oranı = savunma_değeri / (saldırı_değeri + savunma_değeri)
-savunan_kayıp_oranı  = saldırı_değeri / (saldırı_değeri + savunma_değeri)
+if saldırı_değeri > savunma_değeri:
+    saldıran_kayıp_oranı = clamp((savunma_değeri / saldırı_değeri) ** 1.5, 0, 1)
+    savunan_kayıp_oranı  = 1.0
+else:
+    saldıran_kayıp_oranı = 1.0
+    savunan_kayıp_oranı  = clamp((saldırı_değeri / savunma_değeri) ** 1.5, 0, 1)
 kayıp(birim) = round_half_up(adet × oran)        # int, 0..adet
 ```
 

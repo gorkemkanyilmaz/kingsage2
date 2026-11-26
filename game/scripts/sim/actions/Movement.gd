@@ -156,8 +156,6 @@ static func _validate_support(
 	var availability := _units_available(origin, clean)
 	if not bool(availability.get("ok", false)):
 		return availability
-	if not _is_friendly(state, origin, target) and not _is_real_player_target(target):
-		return _fail("foreign_target", "Destek yalnızca kendi köylerinize, ittifak üyesine veya gerçek oyuncu köyüne gönderilebilir.")
 	return _ok()
 
 
@@ -632,10 +630,17 @@ static func _find_village(state: Dictionary, village_id: int) -> Dictionary:
 	return {}
 
 
+static func _norm_owner(raw_name: String) -> String:
+	var s := raw_name.strip_edges().to_lower()
+	while s.find("  ") >= 0:
+		s = s.replace("  ", " ")
+	return s
+
+
 ## Kaynak ve hedef **aynı sahibe** mi ya da **aynı ittifakta** mı? (`docs/12` §7)
 static func _is_friendly(state: Dictionary, origin: Dictionary, target: Dictionary) -> bool:
-	var a := str(origin.get("owner", ""))
-	var b := str(target.get("owner", ""))
+	var a := _norm_owner(str(origin.get("owner", "")))
+	var b := _norm_owner(str(target.get("owner", "")))
 	if a.is_empty() or b.is_empty():
 		return false
 	if a == b:
@@ -644,6 +649,10 @@ static func _is_friendly(state: Dictionary, origin: Dictionary, target: Dictiona
 
 
 static func _share_alliance(state: Dictionary, a: String, b: String) -> bool:
+	var na := _norm_owner(a)
+	var nb := _norm_owner(b)
+	if na.is_empty() or nb.is_empty():
+		return false
 	var alliances = state.get("alliances", null)
 	if typeof(alliances) != TYPE_ARRAY:
 		return false
@@ -658,12 +667,12 @@ static func _share_alliance(state: Dictionary, a: String, b: String) -> bool:
 		for m in members:
 			var m_name := ""
 			if typeof(m) == TYPE_STRING:
-				m_name = m
+				m_name = _norm_owner(str(m))
 			elif typeof(m) == TYPE_DICTIONARY:
-				m_name = str((m as Dictionary).get("name", ""))
-			if m_name == a:
+				m_name = _norm_owner(str((m as Dictionary).get("name", "")))
+			if m_name == na:
 				has_a = true
-			if m_name == b:
+			if m_name == nb:
 				has_b = true
 		if has_a and has_b:
 			return true

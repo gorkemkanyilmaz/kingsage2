@@ -8,6 +8,53 @@ extends RefCounted
 const MAX_TAG_LENGTH := 6
 
 
+static func _norm_name(raw: String) -> String:
+	var s := raw.strip_edges().to_lower()
+	while s.find("  ") >= 0:
+		s = s.replace("  ", " ")
+	return s
+
+
+static func _matches(a: String, b: String) -> bool:
+	var na := _norm_name(a)
+	var nb := _norm_name(b)
+	return not na.is_empty() and na == nb
+
+
+static func is_founder(alliance: Dictionary, player_name: String) -> bool:
+	if alliance.is_empty() or player_name.strip_edges().is_empty():
+		return false
+	var f_name := str(alliance.get("founder", "")).strip_edges()
+	if not f_name.is_empty():
+		return _matches(f_name, player_name)
+	var l_name := str(alliance.get("leader", "")).strip_edges()
+	return not l_name.is_empty() and _matches(l_name, player_name)
+
+
+static func is_leader(alliance: Dictionary, player_name: String) -> bool:
+	if alliance.is_empty() or player_name.strip_edges().is_empty():
+		return false
+	if is_founder(alliance, player_name):
+		return true
+	if _matches(str(alliance.get("leader", "")), player_name):
+		return true
+	for m in alliance.get("members", []):
+		if typeof(m) == TYPE_DICTIONARY and _matches(str((m as Dictionary).get("name", "")), player_name):
+			if bool((m as Dictionary).get("is_leader", false)):
+				return true
+	return false
+
+
+static func _ensure_diplomacy(alliance: Dictionary) -> Dictionary:
+	var diplo: Dictionary = alliance.get("diplomacy", {}) if typeof(alliance.get("diplomacy")) == TYPE_DICTIONARY else {}
+	diplo.erase("nap")
+	for lk in ["allies", "enemies", "ally_requests_in", "ally_requests_out"]:
+		if typeof(diplo.get(lk)) != TYPE_ARRAY:
+			diplo[lk] = []
+	alliance["diplomacy"] = diplo
+	return diplo
+
+
 ## Benzersiz bir kimlik üretir.
 static func _generate_id(state: Dictionary) -> int:
 	var max_id := 0
@@ -112,9 +159,12 @@ static func create_alliance(
 		],
 		"diplomacy": {
 			"allies": [],
-			"nap": [],
-			"enemies": []
-		}
+			"enemies": [],
+			"ally_requests_in": [],
+			"ally_requests_out": []
+		},
+		"diplomacy_updated_unix": now,
+		"announcement_updated_unix": now
 	}
 
 	if typeof(state.get("alliances")) != TYPE_ARRAY:
@@ -342,17 +392,330 @@ static func kick_member(state: Dictionary, kicker_name: String, target_member_na
 	return {"ok": true}
 
 
-## İç duyuruyu günceller (docs/12 §4).
+## İç duyuruyu günceller — yalnızca İttifak Kurucu Lideri (docs/12 §4).
 static func update_announcement(state: Dictionary, alliance_id: int, editor_name: String, text: String) -> Dictionary:
 	var alliance: Dictionary = _find_alliance_by_id(state, alliance_id)
 	if alliance.is_empty():
 		return {"ok": false, "message": "İttifak bulunamadı."}
+	if not is_founder(alliance, editor_name):
+		return {"ok": false, "message": "Yalnızca ittifakı kuran lider iç duyuruyu güncelleyebilir."}
 	alliance["internal_announcement"] = text.strip_edges()
+	alliance["announcement_updated_unix"] = int(Time.get_unix_time_from_system())
 	return {"ok": true}
 
 
-## Diplomasi ilişkisi ekler veya kaldırır (docs/12 §7).
-## relation_type: "allies" | "nap" | "enemies" | "none"
+static func search_alliances(state: Dictionary, exclude_alliance_id: int, query: String) -> Array:
+	var q := query.strip_edges().to_lower()
+	var results: Array = []
+	for a in state.get("alliances", []):
+		if typeof(a) != TYPE_DICTIONARY:
+			continue
+		var ad := a as Dictionary
+		if int(ad.get("id", -1)) == exclude_alliance_id:
+			continue
+		if not q.is_empty():
+			var nm := str(ad.get("name", "")).to_lower()
+			var tg := str(ad.get("tag", "")).to_lower()
+			if nm.find(q) < 0 and tg.find(q) < 0:
+				continue
+		results.append(ad)
+	results.sort_custom(func(x: Dictionary, y: Dictionary) -> bool:
+		return str(x.get("name", "")).to_lower() < str(y.get("name", "")).to_lower()
+	)
+	return results
+
+
+static func _append_unique_tag(arr: Array, tag: String) -> void:
+	var clean := tag.strip_edges().to_upper()
+	if clean.is_empty():
+		return
+	for it in arr:
+		if str(it).strip_edges().to_upper() == clean:
+			return
+	arr.append(clean)
+
+
+static func _remove_tag(arr: Array, tag: String) -> void:
+	var clean := tag.strip_edges().to_upper()
+	for i in range(arr.size() - 1, -1, -1):
+		if str(arr[i]).strip_edges().to_upper() == clean:
+			arr.remove_at(i)
+
+
+static func _has_tag(arr: Array, tag: String) -> bool:
+	var clean := tag.strip_edges().to_upper()
+	for it in arr:
+		if str(it).strip_edges().to_upper() == clean:
+			return true
+	return false
+
+
+static func _find_req_by_aid(arr: Array, aid: int, tag: String = "") -> int:
+	var clean_tag := tag.strip_edges().to_upper()
+	for i in range(arr.size()):
+		if typeof(arr[i]) != TYPE_DICTIONARY:
+			continue
+		var rd := arr[i] as Dictionary
+		if aid > 0 and int(rd.get("alliance_id", -1)) == aid:
+			return i
+		if not clean_tag.is_empty() and str(rd.get("tag", "")).strip_edges().to_upper() == clean_tag:
+			return i
+	return -1
+
+
+static func _remove_req_by_aid(arr: Array, aid: int, tag: String = "") -> void:
+	var clean_tag := tag.strip_edges().to_upper()
+	for i in range(arr.size() - 1, -1, -1):
+		if typeof(arr[i]) != TYPE_DICTIONARY:
+			continue
+		var rd := arr[i] as Dictionary
+		var match_id := (aid > 0 and int(rd.get("alliance_id", -1)) == aid)
+		var match_tag := (not clean_tag.is_empty() and str(rd.get("tag", "")).strip_edges().to_upper() == clean_tag)
+		if match_id or match_tag:
+			arr.remove_at(i)
+
+
+static func _push_sys_chat(alliance: Dictionary, text: String, now_u: int) -> void:
+	if typeof(alliance.get("chat_messages")) != TYPE_ARRAY:
+		alliance["chat_messages"] = []
+	(alliance["chat_messages"] as Array).append({
+		"sender": "Sistem",
+		"text": text,
+		"timestamp_unix": now_u,
+	})
+
+
+static func send_ally_invite(state: Dictionary, from_alliance_id: int, actor_name: String, target_alliance_id: int) -> Dictionary:
+	var from_a := _find_alliance_by_id(state, from_alliance_id)
+	var target_a := _find_alliance_by_id(state, target_alliance_id)
+	if from_a.is_empty() or target_a.is_empty():
+		return {"ok": false, "message": "İttifak bulunamadı."}
+	if not is_founder(from_a, actor_name):
+		return {"ok": false, "message": "Diplomasi yönetimini yalnızca ittifakı kuran lider yapabilir."}
+	if from_alliance_id == target_alliance_id:
+		return {"ok": false, "message": "Kendi ittifakınıza davet gönderemezsiniz."}
+
+	var f_diplo := _ensure_diplomacy(from_a)
+	var t_diplo := _ensure_diplomacy(target_a)
+	var from_tag := str(from_a.get("tag", "")).strip_edges().to_upper()
+	var from_name := str(from_a.get("name", ""))
+	var target_tag := str(target_a.get("tag", "")).strip_edges().to_upper()
+	var target_name := str(target_a.get("name", ""))
+
+	if _has_tag(f_diplo["allies"] as Array, target_tag):
+		return {"ok": false, "message": "[%s] %s zaten müttefikiniz." % [target_tag, target_name]}
+	if _find_req_by_aid(f_diplo["ally_requests_out"] as Array, target_alliance_id, target_tag) >= 0:
+		return {"ok": false, "message": "[%s] %s ittifakına zaten bekleyen müttefiklik daveti gönderilmiş." % [target_tag, target_name]}
+	if _find_req_by_aid(f_diplo["ally_requests_in"] as Array, target_alliance_id, target_tag) >= 0:
+		return respond_ally_invite(state, from_alliance_id, actor_name, target_alliance_id, true)
+
+	var now := int(Time.get_unix_time_from_system())
+	(f_diplo["ally_requests_out"] as Array).append({
+		"alliance_id": target_alliance_id,
+		"tag": target_tag,
+		"name": target_name,
+		"sent_by": actor_name,
+		"created_unix": now,
+	})
+	(t_diplo["ally_requests_in"] as Array).append({
+		"alliance_id": from_alliance_id,
+		"tag": from_tag,
+		"name": from_name,
+		"sent_by": actor_name,
+		"created_unix": now,
+	})
+	from_a["diplomacy_updated_unix"] = now
+	target_a["diplomacy_updated_unix"] = now
+
+	var t_leader := str(target_a.get("founder", target_a.get("leader", ""))).strip_edges()
+	if not t_leader.is_empty():
+		if typeof(state.get("messages")) != TYPE_ARRAY:
+			state["messages"] = []
+		(state["messages"] as Array).append({
+			"id": now * 1000 + 21,
+			"from": "[%s] %s (%s)" % [from_tag, from_name, actor_name],
+			"to": t_leader,
+			"subject": "🤝 Müttefiklik Daveti: [%s] %s" % [from_tag, from_name],
+			"body": "Sayın %s,\n\n[%s] %s ittifakı sizinle müttefik olmak istiyor. İttifak > Diplomasi sekmesinden daveti kabul veya reddedebilirsiniz." % [t_leader, from_tag, from_name],
+			"created_unix": now,
+			"read": false,
+		})
+
+	return {"ok": true, "message": "[%s] %s ittifakına müttefiklik daveti gönderildi." % [target_tag, target_name]}
+
+
+static func cancel_ally_invite(state: Dictionary, from_alliance_id: int, actor_name: String, target_alliance_id: int) -> Dictionary:
+	var from_a := _find_alliance_by_id(state, from_alliance_id)
+	if from_a.is_empty():
+		return {"ok": false, "message": "İttifak bulunamadı."}
+	if not is_founder(from_a, actor_name):
+		return {"ok": false, "message": "Diplomasi yönetimini yalnızca ittifakı kuran lider yapabilir."}
+	var target_a := _find_alliance_by_id(state, target_alliance_id)
+	var from_tag := str(from_a.get("tag", "")).strip_edges().to_upper()
+	var target_tag := str(target_a.get("tag", "")).strip_edges().to_upper() if not target_a.is_empty() else ""
+	var f_diplo := _ensure_diplomacy(from_a)
+	_remove_req_by_aid(f_diplo["ally_requests_out"] as Array, target_alliance_id, target_tag)
+	var now := int(Time.get_unix_time_from_system())
+	from_a["diplomacy_updated_unix"] = now
+	if not target_a.is_empty():
+		var t_diplo := _ensure_diplomacy(target_a)
+		_remove_req_by_aid(t_diplo["ally_requests_in"] as Array, from_alliance_id, from_tag)
+		target_a["diplomacy_updated_unix"] = now
+	return {"ok": true}
+
+
+static func respond_ally_invite(state: Dictionary, my_alliance_id: int, actor_name: String, from_alliance_id: int, accept: bool) -> Dictionary:
+	var my_a := _find_alliance_by_id(state, my_alliance_id)
+	if my_a.is_empty():
+		return {"ok": false, "message": "İttifak bulunamadı."}
+	if not is_founder(my_a, actor_name):
+		return {"ok": false, "message": "Müttefiklik davetlerini yalnızca ittifakı kuran lider yanıtlayabilir."}
+	var from_a := _find_alliance_by_id(state, from_alliance_id)
+	var my_tag := str(my_a.get("tag", "")).strip_edges().to_upper()
+	var my_name := str(my_a.get("name", ""))
+	var from_tag := str(from_a.get("tag", "")).strip_edges().to_upper() if not from_a.is_empty() else ""
+	var from_name := str(from_a.get("name", "")) if not from_a.is_empty() else ""
+
+	var my_diplo := _ensure_diplomacy(my_a)
+	var req_idx := _find_req_by_aid(my_diplo["ally_requests_in"] as Array, from_alliance_id, from_tag)
+	if req_idx < 0:
+		return {"ok": false, "message": "Bekleyen müttefiklik daveti bulunamadı."}
+	if from_tag.is_empty():
+		var req_d: Dictionary = (my_diplo["ally_requests_in"] as Array)[req_idx]
+		from_tag = str(req_d.get("tag", "")).strip_edges().to_upper()
+		from_name = str(req_d.get("name", from_tag))
+
+	_remove_req_by_aid(my_diplo["ally_requests_in"] as Array, from_alliance_id, from_tag)
+	_remove_req_by_aid(my_diplo["ally_requests_out"] as Array, from_alliance_id, from_tag)
+	var now := int(Time.get_unix_time_from_system())
+
+	if accept:
+		_remove_tag(my_diplo["enemies"] as Array, from_tag)
+		_append_unique_tag(my_diplo["allies"] as Array, from_tag)
+		_push_sys_chat(my_a, "🤝 [%s] %s ittifakı ile müttefik olundu!" % [from_tag, from_name], now)
+
+	my_a["diplomacy_updated_unix"] = now
+
+	if not from_a.is_empty():
+		var f_diplo := _ensure_diplomacy(from_a)
+		_remove_req_by_aid(f_diplo["ally_requests_out"] as Array, my_alliance_id, my_tag)
+		_remove_req_by_aid(f_diplo["ally_requests_in"] as Array, my_alliance_id, my_tag)
+		if accept:
+			_remove_tag(f_diplo["enemies"] as Array, my_tag)
+			_append_unique_tag(f_diplo["allies"] as Array, my_tag)
+			_push_sys_chat(from_a, "🤝 [%s] %s müttefiklik davetinizi kabul etti!" % [my_tag, my_name], now)
+		from_a["diplomacy_updated_unix"] = now
+
+	return {
+		"ok": true,
+		"accepted": accept,
+		"message": ("[%s] %s ile müttefiklik kuruldu!" if accept else "[%s] %s daveti reddedildi.") % [from_tag, from_name]
+	}
+
+
+static func remove_ally(state: Dictionary, my_alliance_id: int, actor_name: String, target_tag: String) -> Dictionary:
+	var my_a := _find_alliance_by_id(state, my_alliance_id)
+	if my_a.is_empty():
+		return {"ok": false, "message": "İttifak bulunamadı."}
+	if not is_founder(my_a, actor_name):
+		return {"ok": false, "message": "Diplomasi yönetimini yalnızca ittifakı kuran lider yapabilir."}
+	var clean_tag := target_tag.strip_edges().to_upper()
+	var my_tag := str(my_a.get("tag", "")).strip_edges().to_upper()
+	var my_diplo := _ensure_diplomacy(my_a)
+	_remove_tag(my_diplo["allies"] as Array, clean_tag)
+	var now := int(Time.get_unix_time_from_system())
+	my_a["diplomacy_updated_unix"] = now
+	_push_sys_chat(my_a, "💔 [%s] ile müttefiklik sonlandırıldı." % clean_tag, now)
+
+	var target_a := find_by_tag(state, clean_tag)
+	if not target_a.is_empty():
+		var t_diplo := _ensure_diplomacy(target_a)
+		_remove_tag(t_diplo["allies"] as Array, my_tag)
+		target_a["diplomacy_updated_unix"] = now
+		_push_sys_chat(target_a, "💔 [%s] %s müttefikliği sonlandırdı." % [my_tag, str(my_a.get("name", ""))], now)
+	return {"ok": true}
+
+
+static func declare_enemy(state: Dictionary, from_alliance_id: int, actor_name: String, target_alliance_id: int) -> Dictionary:
+	var from_a := _find_alliance_by_id(state, from_alliance_id)
+	var target_a := _find_alliance_by_id(state, target_alliance_id)
+	if from_a.is_empty() or target_a.is_empty():
+		return {"ok": false, "message": "İttifak bulunamadı."}
+	if not is_founder(from_a, actor_name):
+		return {"ok": false, "message": "Diplomasi yönetimini yalnızca ittifakı kuran lider yapabilir."}
+	if from_alliance_id == target_alliance_id:
+		return {"ok": false, "message": "Kendi ittifakınızı düşman ilan edemezsiniz."}
+
+	var from_tag := str(from_a.get("tag", "")).strip_edges().to_upper()
+	var from_name := str(from_a.get("name", ""))
+	var target_tag := str(target_a.get("tag", "")).strip_edges().to_upper()
+	var target_name := str(target_a.get("name", ""))
+	var now := int(Time.get_unix_time_from_system())
+
+	var f_diplo := _ensure_diplomacy(from_a)
+	_remove_tag(f_diplo["allies"] as Array, target_tag)
+	_remove_req_by_aid(f_diplo["ally_requests_out"] as Array, target_alliance_id, target_tag)
+	_remove_req_by_aid(f_diplo["ally_requests_in"] as Array, target_alliance_id, target_tag)
+	_append_unique_tag(f_diplo["enemies"] as Array, target_tag)
+	from_a["diplomacy_updated_unix"] = now
+	_push_sys_chat(from_a, "⚔️ [%s] %s ittifakı düşman ilan edildi!" % [target_tag, target_name], now)
+
+	var t_diplo := _ensure_diplomacy(target_a)
+	_remove_tag(t_diplo["allies"] as Array, from_tag)
+	_remove_req_by_aid(t_diplo["ally_requests_in"] as Array, from_alliance_id, from_tag)
+	_remove_req_by_aid(t_diplo["ally_requests_out"] as Array, from_alliance_id, from_tag)
+	_append_unique_tag(t_diplo["enemies"] as Array, from_tag)
+	target_a["diplomacy_updated_unix"] = now
+	_push_sys_chat(target_a, "🚨 [%s] %s ittifakı sizi düşman ittifak ilan etti! Saldırılara karşı dikkatli olun." % [from_tag, from_name], now)
+
+	# Karşı ittifaktaki TÜM üyelere mesaj kutusu uyarısı gönder
+	if typeof(state.get("messages")) != TYPE_ARRAY:
+		state["messages"] = []
+	var msgs_arr: Array = state["messages"]
+	var members: Array = target_a.get("members", []) if typeof(target_a.get("members")) == TYPE_ARRAY else []
+	for idx in range(members.size()):
+		var m = members[idx]
+		var m_name := str((m as Dictionary).get("name", "")) if typeof(m) == TYPE_DICTIONARY else str(m)
+		m_name = m_name.strip_edges()
+		if m_name.is_empty():
+			continue
+		msgs_arr.append({
+			"id": now * 1000 + 100 + idx,
+			"from": "[%s] %s (Diplomasi)" % [from_tag, from_name],
+			"to": m_name,
+			"subject": "⚔️ Düşman İlanı: [%s] %s" % [from_tag, from_name],
+			"body": "Dikkat Sayın %s,\n\n[%s] %s ittifakı ittifakınızı düşman ittifak ilan etti. Saldırılara karşı dikkatli olun ve köy savunmanızı güçlendirin!" % [m_name, from_tag, from_name],
+			"created_unix": now,
+			"read": false,
+		})
+
+	return {"ok": true, "message": "[%s] %s düşman ilan edildi ve tüm üyelerine uyarı gönderildi." % [target_tag, target_name]}
+
+
+static func remove_enemy(state: Dictionary, my_alliance_id: int, actor_name: String, target_tag: String) -> Dictionary:
+	var my_a := _find_alliance_by_id(state, my_alliance_id)
+	if my_a.is_empty():
+		return {"ok": false, "message": "İttifak bulunamadı."}
+	if not is_founder(my_a, actor_name):
+		return {"ok": false, "message": "Diplomasi yönetimini yalnızca ittifakı kuran lider yapabilir."}
+	var clean_tag := target_tag.strip_edges().to_upper()
+	var my_tag := str(my_a.get("tag", "")).strip_edges().to_upper()
+	var my_diplo := _ensure_diplomacy(my_a)
+	_remove_tag(my_diplo["enemies"] as Array, clean_tag)
+	var now := int(Time.get_unix_time_from_system())
+	my_a["diplomacy_updated_unix"] = now
+	_push_sys_chat(my_a, "🏳️ [%s] ittifakı ile düşmanlık kaldırıldı." % clean_tag, now)
+
+	var target_a := find_by_tag(state, clean_tag)
+	if not target_a.is_empty():
+		var t_diplo := _ensure_diplomacy(target_a)
+		_remove_tag(t_diplo["enemies"] as Array, my_tag)
+		target_a["diplomacy_updated_unix"] = now
+	return {"ok": true}
+
+
+## Diplomasi ilişkisi ekler veya kaldırır (docs/12 §7 — Saldırmazlık Paktı kaldırılmıştır).
+## relation_type: "allies" | "enemies" | "none"
 static func set_diplomacy(
 	state: Dictionary,
 	alliance_id: int,
@@ -362,24 +725,22 @@ static func set_diplomacy(
 	var alliance: Dictionary = _find_alliance_by_id(state, alliance_id)
 	if alliance.is_empty():
 		return {"ok": false, "message": "İttifak bulunamadı."}
+	if relation_type == "nap":
+		return {"ok": false, "message": "Saldırmazlık Paktı kaldırılmıştır."}
 
 	var clean_tag := target_tag.strip_edges().to_upper()
 	if clean_tag == str(alliance.get("tag", "")).to_upper():
 		return {"ok": false, "message": "Kendi ittifakınızla diplomasi yapamazsınız."}
 
-	var diplo: Dictionary = alliance.get("diplomacy", {})
-	for list_key in ["allies", "nap", "enemies"]:
-		if typeof(diplo.get(list_key)) != TYPE_ARRAY:
-			diplo[list_key] = []
-		var arr: Array = diplo[list_key]
-		var idx := arr.find(clean_tag)
-		if idx >= 0:
-			arr.remove_at(idx)
+	var diplo := _ensure_diplomacy(alliance)
+	for list_key in ["allies", "enemies"]:
+		_remove_tag(diplo[list_key] as Array, clean_tag)
 
 	if relation_type != "none" and diplo.has(relation_type):
-		(diplo[relation_type] as Array).append(clean_tag)
+		_append_unique_tag(diplo[relation_type] as Array, clean_tag)
 
 	alliance["diplomacy"] = diplo
+	alliance["diplomacy_updated_unix"] = int(Time.get_unix_time_from_system())
 	return {"ok": true}
 
 

@@ -607,13 +607,18 @@ func _update_production_table(cur_lvl: int) -> void:
 	if _prod_box == null or _prod_vbox == null:
 		return
 
-	if not (_current_key in ["wood", "stone", "iron", "storage", "main"]):
+	if not (_current_key in ["wood", "stone", "iron", "storage", "main", "farm"]):
 		_prod_box.hide()
 		return
 
 	_prod_box.show()
 	var spd_mult: float = _get_speed_mult()
 	var prod_sig := "%s:%d:%d" % [_current_key, cur_lvl, int(round(spd_mult * 100.0))]
+	var used_pop := 0
+	if _current_key == "farm":
+		var pop_sum: Dictionary = EconomyAPI.population_summary(_village)
+		used_pop = int(pop_sum.get("used", 0))
+		prod_sig += ":%d:%s" % [used_pop, str(_village.get("bonus_type", ""))]
 	if prod_sig == _last_prod_table_sig and _prod_vbox.get_child_count() > 0:
 		return
 	_last_prod_table_sig = prod_sig
@@ -626,8 +631,142 @@ func _update_production_table(cur_lvl: int) -> void:
 		_build_storage_table(cur_lvl)
 	elif _current_key == "main":
 		_build_castle_speedup_table(cur_lvl)
+	elif _current_key == "farm":
+		_build_mill_population_table(cur_lvl, used_pop)
 	else:
 		_build_mine_production_table(cur_lvl)
+
+
+func _mill_max_pop_for_level(lvl: int) -> int:
+	var base: int = RulesEngineScript.max_population(lvl)
+	if str(_village.get("bonus_type", "")) == "citizen":
+		base = int(floor(float(base) * 1.10 + 0.5))
+	return base
+
+
+func _build_mill_population_table(cur_lvl: int, used_pop: int) -> void:
+	# 1. Başlık Satırı (Değirmen | Nüfus | Boş)
+	var header_panel := PanelContainer.new()
+	var h_sb := StyleBoxFlat.new()
+	h_sb.bg_color = Color(0.85, 0.74, 0.56, 0.95)
+	h_sb.set_corner_radius_all(8)
+	h_sb.content_margin_left = 14
+	h_sb.content_margin_right = 14
+	h_sb.content_margin_top = 8
+	h_sb.content_margin_bottom = 8
+	header_panel.add_theme_stylebox_override("panel", h_sb)
+
+	var h_row := HBoxContainer.new()
+	var col1_lbl := Label.new()
+	col1_lbl.text = "Değirmen"
+	col1_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	col1_lbl.add_theme_font_override("font", FontNunitoBold)
+	col1_lbl.add_theme_font_size_override("font_size", 28)
+	col1_lbl.add_theme_color_override("font_color", Color(0.12, 0.08, 0.04))
+	h_row.add_child(col1_lbl)
+
+	var col2_lbl := Label.new()
+	col2_lbl.text = "Nüfus (Kullanılan/Maks)"
+	col2_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	col2_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	col2_lbl.add_theme_font_override("font", FontNunitoBold)
+	col2_lbl.add_theme_font_size_override("font_size", 24)
+	col2_lbl.add_theme_color_override("font_color", Color(0.12, 0.08, 0.04))
+	h_row.add_child(col2_lbl)
+
+	var col3_lbl := Label.new()
+	col3_lbl.text = "boş"
+	col3_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	col3_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	col3_lbl.add_theme_font_override("font", FontNunitoBold)
+	col3_lbl.add_theme_font_size_override("font_size", 28)
+	col3_lbl.add_theme_color_override("font_color", Color(0.12, 0.08, 0.04))
+	h_row.add_child(col3_lbl)
+
+	header_panel.add_child(h_row)
+	_prod_vbox.add_child(header_panel)
+
+	# 2. Güncel Satırı
+	var active_lvl: int = maxi(1, cur_lvl)
+	var cur_cap: int = _mill_max_pop_for_level(active_lvl)
+	var current_panel := _make_mill_population_row("Güncel (Sv.%d)" % active_lvl, IconCitizens, used_pop, cur_cap, true)
+	current_panel.name = "MillCurrentRow"
+	_prod_vbox.add_child(current_panel)
+
+	# 3. Sonraki 4 Seviye
+	var start_next_lvl := active_lvl + 1
+	for i in range(4):
+		var lvl := start_next_lvl + i
+		if lvl > 50:
+			break
+		var cap := _mill_max_pop_for_level(lvl)
+		var lvl_panel := _make_mill_population_row("Seviye %d" % lvl, IconCitizens, used_pop, cap, false)
+		lvl_panel.name = "MillNextRow_%d" % lvl
+		_prod_vbox.add_child(lvl_panel)
+
+
+func _make_mill_population_row(label_text: String, icon_tex: Texture2D, used_pop: int, cap_pop: int, is_highlighted: bool) -> PanelContainer:
+	var pc := PanelContainer.new()
+	var sb := StyleBoxFlat.new()
+	if is_highlighted:
+		sb.bg_color = Color(0.98, 0.76, 0.36, 0.90)
+		sb.border_color = Color(0.85, 0.58, 0.18, 0.95)
+		sb.set_border_width_all(1)
+	else:
+		sb.bg_color = Color(0.95, 0.89, 0.77, 0.65)
+		sb.border_color = Color(0.80, 0.72, 0.58, 0.50)
+		sb.border_width_bottom = 1
+	sb.set_corner_radius_all(6)
+	sb.content_margin_left = 14
+	sb.content_margin_right = 14
+	sb.content_margin_top = 6
+	sb.content_margin_bottom = 6
+	pc.add_theme_stylebox_override("panel", sb)
+
+	var row := HBoxContainer.new()
+	row.alignment = BoxContainer.ALIGNMENT_CENTER
+
+	var c1 := Label.new()
+	c1.text = label_text
+	c1.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	c1.add_theme_font_override("font", FontNunitoBold)
+	c1.add_theme_font_size_override("font_size", 25)
+	c1.add_theme_color_override("font_color", Color(0.12, 0.08, 0.04))
+	row.add_child(c1)
+
+	var c2 := HBoxContainer.new()
+	c2.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	c2.alignment = BoxContainer.ALIGNMENT_CENTER
+	c2.add_theme_constant_override("separation", 8)
+	if icon_tex != null:
+		var tr := TextureRect.new()
+		tr.texture = icon_tex
+		tr.custom_minimum_size = Vector2(28, 28)
+		tr.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		tr.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		c2.add_child(tr)
+	var pop_lbl := Label.new()
+	pop_lbl.text = "%s / %s" % [_format_number(used_pop), _format_number(cap_pop)]
+	pop_lbl.add_theme_font_override("font", FontNunitoBold)
+	pop_lbl.add_theme_font_size_override("font_size", 25)
+	pop_lbl.add_theme_color_override("font_color", Color(0.12, 0.08, 0.04))
+	c2.add_child(pop_lbl)
+	row.add_child(c2)
+
+	var c3 := HBoxContainer.new()
+	c3.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	c3.alignment = BoxContainer.ALIGNMENT_CENTER
+	var free_pop := maxi(0, cap_pop - used_pop)
+	var free_lbl := Label.new()
+	free_lbl.text = ("+%s" % _format_number(free_pop)) if free_pop > 0 else "0"
+	free_lbl.add_theme_font_override("font", FontNunitoBold)
+	free_lbl.add_theme_font_size_override("font_size", 25)
+	free_lbl.add_theme_color_override("font_color", Color(0.08, 0.40, 0.14) if free_pop > 0 else Color(0.60, 0.14, 0.12))
+	c3.add_child(free_lbl)
+	row.add_child(c3)
+
+	pc.add_child(row)
+	return pc
 
 
 func _build_castle_speedup_table(cur_lvl: int) -> void:
@@ -1365,8 +1504,8 @@ func refresh() -> void:
 			_desc_label.text = desc
 			_desc_box.show()
 
-	# Taş Ocağı, Oduncu Kampı, Maden Ocağı, Depo ve Kale için üretim / kapasite / hızlanma tablosu
-	if _current_tab == Tab.UPGRADE and _current_key in ["wood", "stone", "iron", "storage", "main"]:
+	# Taş Ocağı, Oduncu Kampı, Maden Ocağı, Depo, Kale ve Değirmen için tablo
+	if _current_tab == Tab.UPGRADE and _current_key in ["wood", "stone", "iron", "storage", "main", "farm"]:
 		_update_production_table(cur_lvl)
 	else:
 		if _prod_box != null:
@@ -1535,7 +1674,7 @@ func _refresh_upgrade_view(state: Dictionary, cur_lvl: int, max_lvl: int) -> voi
 
 	var chain: Array = RulesEngineScript.requirement_chain(_village.get("buildings", {}), _current_key, tgt_lvl)
 	var is_upgradable: bool = bool(details.get("ok", false))
-	var has_tall_box: bool = is_res_bldg or (_current_key == "main") or (_special_box != null and _special_box.visible)
+	var has_tall_box: bool = is_res_bldg or (_current_key in ["main", "farm"]) or (_special_box != null and _special_box.visible)
 
 	if is_upgradable:
 		_clear_req_container()
@@ -3361,6 +3500,14 @@ func _update_special_building_actions(_cur_lvl: int) -> void:
 		_build_barracks_garrison_and_support_view(state)
 
 
+const GARRISON_CATEGORIES := [
+	{"id": "infantry", "title": "⚔️ Piyade Birlikleri", "color": Color(0.98, 0.82, 0.44), "keys": ["farmer", "spear", "sword", "axe"]},
+	{"id": "ranged_recon", "title": "🏹 Menzilli & Keşif", "color": Color(0.55, 0.90, 1.0), "keys": ["bow", "spy"]},
+	{"id": "cavalry", "title": "🐎 Süvari Birlikleri", "color": Color(0.98, 0.66, 0.42), "keys": ["light", "heavy"]},
+	{"id": "siege_special", "title": "🏛️ Kuşatma & Özel", "color": Color(0.86, 0.70, 1.0), "keys": ["ram", "kata", "snob"]},
+]
+
+
 func _format_unit_breakdown_line(u_dict: Dictionary) -> String:
 	var parts: Array[String] = []
 	for u_key in ["farmer", "spear", "sword", "axe", "bow", "spy", "light", "heavy", "ram", "kata", "snob"]:
@@ -3370,6 +3517,117 @@ func _format_unit_breakdown_line(u_dict: Dictionary) -> String:
 			var u_ico: String = str(UNIT_ICONS.get(u_key, "⚔️"))
 			parts.append("%s %s %s" % [u_ico, _format_number(cnt), u_name])
 	return "  •  ".join(parts)
+
+
+func _sum_units_map(u_dict: Dictionary) -> int:
+	var tot := 0
+	for k in u_dict.keys():
+		tot += maxi(0, int(u_dict.get(k, 0)))
+	return tot
+
+
+func _add_categorized_unit_cards(parent: VBoxContainer, u_dict: Dictionary, empty_text: String, prefix: String = "Own") -> void:
+	var any_unit := false
+	for cat in GARRISON_CATEGORIES:
+		var cat_keys: Array = cat["keys"]
+		var cat_sum := 0
+		for uk in cat_keys:
+			cat_sum += maxi(0, int(u_dict.get(uk, 0)))
+		if cat_sum <= 0:
+			continue
+		any_unit = true
+
+		var cat_hdr := PanelContainer.new()
+		cat_hdr.name = "%sCatHeader_%s" % [prefix, str(cat["id"])]
+		var ch_sb := StyleBoxFlat.new()
+		ch_sb.bg_color = Color(0.16, 0.13, 0.19, 0.94)
+		ch_sb.border_color = cat["color"]
+		ch_sb.border_width_left = 4
+		ch_sb.set_corner_radius_all(6)
+		ch_sb.content_margin_left = 10
+		ch_sb.content_margin_right = 10
+		ch_sb.content_margin_top = 4
+		ch_sb.content_margin_bottom = 4
+		cat_hdr.add_theme_stylebox_override("panel", ch_sb)
+		var ch_row := HBoxContainer.new()
+		cat_hdr.add_child(ch_row)
+
+		var cat_lbl := Label.new()
+		cat_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		cat_lbl.text = str(cat["title"])
+		cat_lbl.add_theme_font_override("font", FontNunitoBold)
+		cat_lbl.add_theme_font_size_override("font_size", 20)
+		cat_lbl.add_theme_color_override("font_color", cat["color"])
+		ch_row.add_child(cat_lbl)
+
+		var sum_lbl := Label.new()
+		sum_lbl.text = "Toplam: %s" % _format_number(cat_sum)
+		sum_lbl.add_theme_font_override("font", FontNunitoBold)
+		sum_lbl.add_theme_font_size_override("font_size", 19)
+		sum_lbl.add_theme_color_override("font_color", Color(0.95, 0.93, 0.86))
+		ch_row.add_child(sum_lbl)
+		parent.add_child(cat_hdr)
+
+		var grid := GridContainer.new()
+		grid.columns = 2
+		grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		grid.add_theme_constant_override("h_separation", 8)
+		grid.add_theme_constant_override("v_separation", 8)
+		parent.add_child(grid)
+
+		for uk in cat_keys:
+			var cnt := maxi(0, int(u_dict.get(uk, 0)))
+			if cnt <= 0:
+				continue
+			var u_card := PanelContainer.new()
+			u_card.name = "%sUnitCard_%s" % [prefix, str(uk)]
+			u_card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			var uc_sb := StyleBoxFlat.new()
+			uc_sb.bg_color = Color(0.11, 0.10, 0.14, 0.96)
+			uc_sb.border_color = Color(0.45, 0.38, 0.28, 0.75)
+			uc_sb.set_border_width_all(1)
+			uc_sb.set_corner_radius_all(8)
+			uc_sb.content_margin_left = 10
+			uc_sb.content_margin_right = 12
+			uc_sb.content_margin_top = 6
+			uc_sb.content_margin_bottom = 6
+			u_card.add_theme_stylebox_override("panel", uc_sb)
+
+			var uc_hb := HBoxContainer.new()
+			uc_hb.add_theme_constant_override("separation", 8)
+			u_card.add_child(uc_hb)
+
+			var ico_lbl := Label.new()
+			ico_lbl.text = str(UNIT_ICONS.get(uk, "⚔️"))
+			ico_lbl.add_theme_font_size_override("font_size", 22)
+			uc_hb.add_child(ico_lbl)
+
+			var nm_lbl := Label.new()
+			nm_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			nm_lbl.text = GameDataScript.get_singleton().get_unit_name(uk)
+			nm_lbl.add_theme_font_override("font", FontNunitoSemiBold)
+			nm_lbl.add_theme_font_size_override("font_size", 19)
+			nm_lbl.add_theme_color_override("font_color", Color(0.92, 0.90, 0.84))
+			uc_hb.add_child(nm_lbl)
+
+			var cnt_lbl := Label.new()
+			cnt_lbl.text = _format_number(cnt)
+			cnt_lbl.add_theme_font_override("font", FontNunitoBold)
+			cnt_lbl.add_theme_font_size_override("font_size", 22)
+			cnt_lbl.add_theme_color_override("font_color", Color(1.0, 0.88, 0.42))
+			uc_hb.add_child(cnt_lbl)
+
+			grid.add_child(u_card)
+
+	if not any_unit:
+		var emp_lbl := Label.new()
+		emp_lbl.name = "%sUnitsEmptyLabel" % prefix
+		emp_lbl.text = empty_text
+		emp_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		emp_lbl.add_theme_font_override("font", FontNunitoSemiBold)
+		emp_lbl.add_theme_font_size_override("font_size", 20)
+		emp_lbl.add_theme_color_override("font_color", Color(0.75, 0.72, 0.66))
+		parent.add_child(emp_lbl)
 
 
 func _build_barracks_garrison_and_support_view(state: Dictionary) -> void:
@@ -3428,7 +3686,8 @@ func _build_barracks_garrison_and_support_view(state: Dictionary) -> void:
 
 	var scroll := ScrollContainer.new()
 	scroll.name = "BarracksGarrisonScroll"
-	scroll.custom_minimum_size = Vector2(0, 176 if (not support_list.is_empty() or not outgoing_supports.is_empty()) else 118)
+	var has_any_troops := (not own_units.is_empty()) or (not support_list.is_empty()) or (not outgoing_supports.is_empty())
+	scroll.custom_minimum_size = Vector2(0, 240 if has_any_troops else 124)
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_special_vbox.add_child(scroll)
@@ -3436,21 +3695,20 @@ func _build_barracks_garrison_and_support_view(state: Dictionary) -> void:
 	var list_vb := VBoxContainer.new()
 	list_vb.name = "GarrisonListVBox"
 	list_vb.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	list_vb.add_theme_constant_override("separation", 8)
+	list_vb.add_theme_constant_override("separation", 10)
 	scroll.add_child(list_vb)
 
-	# 1. Köyün Kendi Mevcut Askerleri
-	var own_line := _format_unit_breakdown_line(own_units)
-	var own_lbl := Label.new()
-	own_lbl.name = "OwnGarrisonUnitsLabel"
-	own_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	own_lbl.add_theme_font_override("font", FontNunitoBold)
-	own_lbl.add_theme_font_size_override("font_size", 22)
-	own_lbl.add_theme_color_override("font_color", Color(0.95, 0.93, 0.86))
-	own_lbl.text = "🏠 Köyün Kendi Birlikleri: " + (own_line if not own_line.is_empty() else "Mevcut asker yok")
-	list_vb.add_child(own_lbl)
+	# 1. Köyün Kendi Mevcut Askerleri (Kategorize Kart Grid)
+	var own_hdr := Label.new()
+	own_hdr.name = "OwnGarrisonUnitsLabel"
+	own_hdr.text = "🏠 Köyün Kendi Birlikleri (%s Asker)" % _format_number(_sum_units_map(own_units))
+	own_hdr.add_theme_font_override("font", FontNunitoBold)
+	own_hdr.add_theme_font_size_override("font_size", 22)
+	own_hdr.add_theme_color_override("font_color", Color(0.96, 0.94, 0.86))
+	list_vb.add_child(own_hdr)
+	_add_categorized_unit_cards(list_vb, own_units, "Mevcut asker yok", "Own")
 
-	# 2. Başka Köylerden Gelen Destek Birlikleri (Oyuncu Adı + Geri Gönder Butonu)
+	# 2. Başka Köylerden Gelen Destek Birlikleri (Kart + Geri Gönder Butonu)
 	for s_idx in range(support_list.size()):
 		var s_raw = support_list[s_idx]
 		if typeof(s_raw) != TYPE_DICTIONARY:
@@ -3463,28 +3721,43 @@ func _build_barracks_garrison_and_support_view(state: Dictionary) -> void:
 			sup_owner = str(from_v.get("owner", "Müttefik"))
 		var sup_vname := str(s_entry.get("from_village_name", from_v.get("name", "Köy #%d" % from_vid))).strip_edges()
 		var s_units: Dictionary = s_entry.get("units", {}) if typeof(s_entry.get("units")) == TYPE_DICTIONARY else {}
-		var s_line := _format_unit_breakdown_line(s_units)
-		if s_line.is_empty():
+		if _sum_units_map(s_units) <= 0:
 			continue
 
+		var sup_card := PanelContainer.new()
+		sup_card.name = "IncomingSupportRow_%d" % s_idx
+		var sc_sb := StyleBoxFlat.new()
+		sc_sb.bg_color = Color(0.10, 0.16, 0.22, 0.94)
+		sc_sb.border_color = Color(0.45, 0.82, 0.98, 0.85)
+		sc_sb.set_border_width_all(1)
+		sc_sb.set_corner_radius_all(10)
+		sc_sb.content_margin_left = 10
+		sc_sb.content_margin_right = 10
+		sc_sb.content_margin_top = 8
+		sc_sb.content_margin_bottom = 8
+		sup_card.add_theme_stylebox_override("panel", sc_sb)
+
+		var sc_vb := VBoxContainer.new()
+		sc_vb.add_theme_constant_override("separation", 6)
+		sup_card.add_child(sc_vb)
+
 		var row := HBoxContainer.new()
-		row.name = "IncomingSupportRow_%d" % s_idx
 		row.add_theme_constant_override("separation", 10)
 		var s_lbl := Label.new()
 		s_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		s_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		s_lbl.add_theme_font_override("font", FontNunitoSemiBold)
+		s_lbl.add_theme_font_override("font", FontNunitoBold)
 		s_lbl.add_theme_font_size_override("font_size", 21)
 		s_lbl.add_theme_color_override("font_color", Color(0.58, 0.90, 1.0))
-		s_lbl.text = "🛡️ Destek — %s (%s): %s" % [sup_owner, sup_vname, s_line]
+		s_lbl.text = "🛡️ Destek — %s (%s)" % [sup_owner, sup_vname]
 		row.add_child(s_lbl)
 
 		var btn_back := Button.new()
 		btn_back.name = "SendBackSupportBtn_%d" % s_idx
 		btn_back.text = "↩ Geri Gönder"
-		btn_back.custom_minimum_size = Vector2(168, 44)
+		btn_back.custom_minimum_size = Vector2(168, 42)
 		btn_back.add_theme_font_override("font", FontNunitoBold)
-		btn_back.add_theme_font_size_override("font_size", 20)
+		btn_back.add_theme_font_size_override("font_size", 19)
 		var bsb := StyleBoxFlat.new()
 		bsb.bg_color = Color(0.48, 0.16, 0.16, 0.96)
 		bsb.border_color = Color(0.95, 0.56, 0.44, 0.95)
@@ -3495,9 +3768,11 @@ func _build_barracks_garrison_and_support_view(state: Dictionary) -> void:
 		btn_back.add_theme_color_override("font_color", Color(1.0, 0.94, 0.90))
 		btn_back.pressed.connect(_on_recall_or_return_support_pressed.bind(active_vid, from_vid, s_idx))
 		row.add_child(btn_back)
-		list_vb.add_child(row)
+		sc_vb.add_child(row)
+		_add_categorized_unit_cards(sc_vb, s_units, "", "InSup%d_" % s_idx)
+		list_vb.add_child(sup_card)
 
-	# 3. Bu Köyden Başka Köylere Gönderilen Dış Destekler (Oyuncu Adı + Geri Çek Butonu)
+	# 3. Bu Köyden Başka Köylere Gönderilen Dış Destekler (Kart + Geri Çek Butonu)
 	for out_idx in range(outgoing_supports.size()):
 		var out_item: Dictionary = outgoing_supports[out_idx]
 		var t_vid := int(out_item.get("target_village_id", 0))
@@ -3505,28 +3780,43 @@ func _build_barracks_garrison_and_support_view(state: Dictionary) -> void:
 		var t_owner := str(out_item.get("target_owner", "Oyuncu"))
 		var s_idx2 := int(out_item.get("support_index", -1))
 		var o_units: Dictionary = out_item.get("units", {}) if typeof(out_item.get("units")) == TYPE_DICTIONARY else {}
-		var o_line := _format_unit_breakdown_line(o_units)
-		if o_line.is_empty():
+		if _sum_units_map(o_units) <= 0:
 			continue
 
+		var out_card := PanelContainer.new()
+		out_card.name = "OutgoingSupportRow_%d" % out_idx
+		var oc_sb := StyleBoxFlat.new()
+		oc_sb.bg_color = Color(0.18, 0.14, 0.09, 0.94)
+		oc_sb.border_color = Color(0.96, 0.78, 0.36, 0.85)
+		oc_sb.set_border_width_all(1)
+		oc_sb.set_corner_radius_all(10)
+		oc_sb.content_margin_left = 10
+		oc_sb.content_margin_right = 10
+		oc_sb.content_margin_top = 8
+		oc_sb.content_margin_bottom = 8
+		out_card.add_theme_stylebox_override("panel", oc_sb)
+
+		var oc_vb := VBoxContainer.new()
+		oc_vb.add_theme_constant_override("separation", 6)
+		out_card.add_child(oc_vb)
+
 		var row_out := HBoxContainer.new()
-		row_out.name = "OutgoingSupportRow_%d" % out_idx
 		row_out.add_theme_constant_override("separation", 10)
 		var o_lbl := Label.new()
 		o_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		o_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		o_lbl.add_theme_font_override("font", FontNunitoSemiBold)
+		o_lbl.add_theme_font_override("font", FontNunitoBold)
 		o_lbl.add_theme_font_size_override("font_size", 21)
 		o_lbl.add_theme_color_override("font_color", Color(0.98, 0.84, 0.52))
-		o_lbl.text = "🚩 Dışarıdaki Desteğimiz → %s (%s): %s" % [t_owner, t_vname, o_line]
+		o_lbl.text = "🚩 Dışarıdaki Desteğimiz → %s (%s)" % [t_owner, t_vname]
 		row_out.add_child(o_lbl)
 
 		var btn_recall := Button.new()
 		btn_recall.name = "RecallSupportBtn_%d" % t_vid
 		btn_recall.text = "↩ Geri Çek"
-		btn_recall.custom_minimum_size = Vector2(154, 44)
+		btn_recall.custom_minimum_size = Vector2(154, 42)
 		btn_recall.add_theme_font_override("font", FontNunitoBold)
-		btn_recall.add_theme_font_size_override("font_size", 20)
+		btn_recall.add_theme_font_size_override("font_size", 19)
 		var rsb := StyleBoxFlat.new()
 		rsb.bg_color = Color(0.18, 0.36, 0.56, 0.96)
 		rsb.border_color = Color(0.58, 0.86, 1.0, 0.95)
@@ -3537,9 +3827,11 @@ func _build_barracks_garrison_and_support_view(state: Dictionary) -> void:
 		btn_recall.add_theme_color_override("font_color", Color(0.95, 0.98, 1.0))
 		btn_recall.pressed.connect(_on_recall_or_return_support_pressed.bind(t_vid, active_vid, s_idx2))
 		row_out.add_child(btn_recall)
-		list_vb.add_child(row_out)
+		oc_vb.add_child(row_out)
+		_add_categorized_unit_cards(oc_vb, o_units, "", "OutSup%d_" % out_idx)
+		list_vb.add_child(out_card)
 
-	# 4. En Altta Toplam Askeri Birlik Bilgisi (Kendi + Gelen Tüm Destekler)
+	# 4. En Altta Kategori Bazlı Toplam Garnizon Özeti
 	var tot_panel := PanelContainer.new()
 	tot_panel.name = "TotalGarrisonSummaryPanel"
 	var t_sb := StyleBoxFlat.new()
@@ -3549,17 +3841,25 @@ func _build_barracks_garrison_and_support_view(state: Dictionary) -> void:
 	t_sb.set_corner_radius_all(10)
 	t_sb.content_margin_left = 12
 	t_sb.content_margin_right = 12
-	t_sb.content_margin_top = 6
-	t_sb.content_margin_bottom = 6
+	t_sb.content_margin_top = 8
+	t_sb.content_margin_bottom = 8
 	tot_panel.add_theme_stylebox_override("panel", t_sb)
-	var tot_line := _format_unit_breakdown_line(total_units)
+	var cat_summary_parts: Array[String] = []
+	for cat in GARRISON_CATEGORIES:
+		var csum := 0
+		for uk in (cat["keys"] as Array):
+			csum += maxi(0, int(total_units.get(uk, 0)))
+		if csum > 0:
+			var short_name := str(cat["title"]).replace(" Birlikleri", "")
+			cat_summary_parts.append("%s: %s" % [short_name, _format_number(csum)])
+	var grand_total := _sum_units_map(total_units)
 	var tot_lbl := Label.new()
 	tot_lbl.name = "TotalGarrisonUnitsLabel"
 	tot_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	tot_lbl.add_theme_font_override("font", FontNunitoBold)
-	tot_lbl.add_theme_font_size_override("font_size", 22)
+	tot_lbl.add_theme_font_size_override("font_size", 21)
 	tot_lbl.add_theme_color_override("font_color", Color(0.65, 1.0, 0.72))
-	tot_lbl.text = "⚔️ Toplam Askeri Birlik (Köy + Destek): " + (tot_line if not tot_line.is_empty() else "0 Asker")
+	tot_lbl.text = "⚔️ Toplam Garnizon: %s Asker" % _format_number(grand_total) + (("  (%s)" % "  |  ".join(cat_summary_parts)) if not cat_summary_parts.is_empty() else "")
 	tot_panel.add_child(tot_lbl)
 	_special_vbox.add_child(tot_panel)
 

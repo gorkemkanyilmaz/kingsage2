@@ -352,8 +352,8 @@ func _test_support() -> void:
 	var s3 := _state_from([_own_origin(), enemy])
 	_find_village(s3, 1)["units"]["spear"] = 20
 	var foreign := MovementScript.send_support(s3, 1, 4, {"spear": 20}, NOW)
-	_check(not bool(foreign.get("ok", false)) and str(foreign.get("code", "")) == "foreign_target",
-		"yabancı köye destek reddedildi [%s]" % str(foreign.get("code", "")))
+	_check(bool(foreign.get("ok", false)),
+		"yabancı/bot/barbar her köye destek izinli [%s]" % str(foreign.get("code", "")))
 
 	# Kendi köyüne saldırı yasak.
 	_find_village(s2, 1)["units"]["axe"] = 100

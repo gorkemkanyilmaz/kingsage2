@@ -165,7 +165,7 @@ func _test_alliances_turkish_and_mojibake(wm: Node, gs: Node, auth: Node) -> voi
 		"members": [{"name": "Lord Build35", "points": 110, "is_leader": true}],
 		"invitations": [],
 		"chat_messages": [{"sender": "Sistem", "text": bad_msg, "timestamp_unix": int(Time.get_unix_time_from_system())}],
-		"diplomacy": {"allies": [], "nap": [], "enemies": []},
+		"diplomacy": {"allies": [], "enemies": [], "ally_requests_in": [], "ally_requests_out": []},
 	}]
 	var now_s := int(Time.get_unix_time_from_system()) + 20
 	wm.call("apply_cloud_sync", {

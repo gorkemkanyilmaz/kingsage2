@@ -132,12 +132,15 @@ func _on_tick(delta_seconds: float) -> void:
 
 
 func _notification(what: int) -> void:
-	if what == NOTIFICATION_APPLICATION_FOCUS_IN:
+	if what == NOTIFICATION_APPLICATION_FOCUS_IN or what == NOTIFICATION_APPLICATION_RESUMED:
 		call_deferred("_on_tick", 0.0)
-	elif what == NOTIFICATION_APPLICATION_FOCUS_OUT or what == NOTIFICATION_WM_CLOSE_REQUEST:
+	elif what == NOTIFICATION_APPLICATION_FOCUS_OUT or what == NOTIFICATION_APPLICATION_PAUSED or what == NOTIFICATION_WM_CLOSE_REQUEST:
 		var sm := _autoload("SaveManager")
 		if sm != null and sm.has_method("save_game"):
 			sm.save_game()
+		var wm := _autoload("WorldManager")
+		if wm != null and wm.has_method("save_active_world"):
+			wm.call("save_active_world", false, true)
 
 
 func _next_sim_event_unix(state: Dictionary, max_unix: int) -> int:

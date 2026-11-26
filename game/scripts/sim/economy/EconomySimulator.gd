@@ -38,7 +38,10 @@ static func process_tick(state: Dictionary, now_unix: int, delta_seconds: float)
 	for v in (villages as Array):
 		if typeof(v) != TYPE_DICTIONARY:
 			continue
-		PROD.produce(v as Dictionary, delta_seconds)
+		var vd := v as Dictionary
+		PROD.produce(vd, delta_seconds)
+		if now_unix > 0:
+			vd["last_resource_unix"] = now_unix
 
 	# 2) İnşaat kuyruğu (tamamlananlar uygulanır).
 	events.append_array(BQ.advance(state, now_unix))

@@ -24,6 +24,13 @@ var _draft_create_tag: String = ""
 var _draft_create_desc: String = ""
 var _draft_chat_text: String = ""
 var _draft_invite_text: String = ""
+var _editing_announcement: bool = false
+var _ann_edit_input: TextEdit = null
+var _draft_ann_text: String = ""
+var _diplo_search_input: LineEdit = null
+var _draft_diplo_search: String = ""
+var _diplo_status_msg: String = ""
+var _diplo_status_ok: bool = true
 
 
 func _ready() -> void:
@@ -97,6 +104,10 @@ func _capture_input_drafts() -> void:
 		_draft_chat_text = _chat_input.text
 	if _invite_input != null and is_instance_valid(_invite_input):
 		_draft_invite_text = _invite_input.text
+	if _ann_edit_input != null and is_instance_valid(_ann_edit_input):
+		_draft_ann_text = _ann_edit_input.text
+	if _diplo_search_input != null and is_instance_valid(_diplo_search_input):
+		_draft_diplo_search = _diplo_search_input.text
 
 
 func _on_state_changed() -> void:
@@ -109,11 +120,11 @@ func _on_state_changed() -> void:
 	var alliance: Dictionary = AllianceModelScript.get_player_alliance(gs.to_dict(), p_name)
 	var aid: int = int(alliance.get("id", -1)) if not alliance.is_empty() else -1
 	if aid == _last_rendered_alliance_id:
-		if _has_focused_text_input():
+		if _editing_announcement or _has_focused_text_input():
 			return
 		if not _is_member_view_rendered and _non_member_tab == "create":
 			return
-		if _is_member_view_rendered and _active_tab == "invite":
+		if _is_member_view_rendered and _active_tab in ["invite", "diplomacy"]:
 			return
 	refresh_view()
 
@@ -125,6 +136,8 @@ func refresh_view() -> void:
 	_create_desc_input = null
 	_chat_input = null
 	_invite_input = null
+	_ann_edit_input = null
+	_diplo_search_input = null
 	for child in content_area.get_children():
 		content_area.remove_child(child)
 		child.queue_free()
@@ -487,14 +500,16 @@ func _build_member_view(gs: Node, alliance: Dictionary, player_name: String) -> 
 	)
 	ib_hbox.add_child(leave_btn)
 
-	# İç Duyuru Paneli
+	# İç Duyuru Paneli (Kurucu Lider düzenleyebilir, tüm üyeler görür)
 	var wm_node = Engine.get_main_loop().root.get_node_or_null("WorldManager") if Engine.get_main_loop() is SceneTree else null
 	var raw_ann: String = str(alliance.get("internal_announcement", ""))
 	if wm_node != null and wm_node.get_script() != null and wm_node.get_script().has_method("repair_mojibake_str"):
 		raw_ann = str(wm_node.get_script().call("repair_mojibake_str", raw_ann))
 	var ann_text: String = raw_ann.strip_edges()
-	if not ann_text.is_empty():
+	var is_founder_user := AllianceModelScript.is_founder(alliance, player_name)
+	if not ann_text.is_empty() or is_founder_user:
 		var ann_box := PanelContainer.new()
+		ann_box.name = "InternalAnnouncementCard"
 		var ann_sb := StyleBoxFlat.new()
 		ann_sb.bg_color = Color(0.18, 0.15, 0.08, 0.95)
 		ann_sb.border_color = Color(0.95, 0.78, 0.30, 0.9)
@@ -507,13 +522,93 @@ func _build_member_view(gs: Node, alliance: Dictionary, player_name: String) -> 
 		ann_box.add_theme_stylebox_override("panel", ann_sb)
 		vbox.add_child(ann_box)
 
+		var ann_vb := VBoxContainer.new()
+		ann_vb.add_theme_constant_override("separation", 8)
+		ann_box.add_child(ann_vb)
+
+		var ann_hdr := HBoxContainer.new()
+		ann_hdr.add_theme_constant_override("separation", 10)
+		ann_vb.add_child(ann_hdr)
+
 		var ann_lbl := Label.new()
-		ann_lbl.text = "📢 İç Duyuru: " + ann_text
+		ann_lbl.size_flags_horizontal = SIZE_EXPAND_FILL
+		ann_lbl.text = "📢 İç Duyuru: " + (ann_text if not ann_text.is_empty() else "Henüz bir iç duyuru eklenmedi.")
 		ann_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		ann_lbl.add_theme_font_override("font", FontNunitoBold)
 		ann_lbl.add_theme_font_size_override("font_size", 22)
 		ann_lbl.add_theme_color_override("font_color", Color(1.0, 0.92, 0.60))
-		ann_box.add_child(ann_lbl)
+		ann_hdr.add_child(ann_lbl)
+
+		if is_founder_user and not _editing_announcement:
+			var edit_ann_btn := Button.new()
+			edit_ann_btn.name = "EditAnnouncementBtn"
+			edit_ann_btn.text = "✏️ Düzenle"
+			edit_ann_btn.custom_minimum_size = Vector2(132, 40)
+			edit_ann_btn.add_theme_font_override("font", FontNunitoBold)
+			edit_ann_btn.add_theme_font_size_override("font_size", 20)
+			_style_gold_btn(edit_ann_btn)
+			edit_ann_btn.pressed.connect(func():
+				_draft_ann_text = ann_text
+				_editing_announcement = true
+				refresh_view()
+			)
+			ann_hdr.add_child(edit_ann_btn)
+
+		if is_founder_user and _editing_announcement:
+			var gc_ann: Node = Engine.get_main_loop().root.get_node_or_null("GameConfig") if Engine.get_main_loop() is SceneTree else null
+			var ann_edit := TextEdit.new()
+			ann_edit.name = "AnnouncementEditInput"
+			ann_edit.custom_minimum_size = Vector2(0, 96)
+			ann_edit.text = _draft_ann_text if not _draft_ann_text.is_empty() else ann_text
+			ann_edit.placeholder_text = "Tüm ittifak üyelerinin göreceği iç duyuruyu yazın..."
+			ann_edit.add_theme_font_override("font", FontNunitoRegular)
+			ann_edit.add_theme_font_size_override("font_size", 21)
+			_style_input(ann_edit)
+			if gc_ann != null and gc_ann.has_method("bind_keyboard_dismiss"):
+				gc_ann.call("bind_keyboard_dismiss", ann_edit)
+			_ann_edit_input = ann_edit
+			ann_vb.add_child(ann_edit)
+
+			var ann_btns := HBoxContainer.new()
+			ann_btns.add_theme_constant_override("separation", 10)
+			ann_vb.add_child(ann_btns)
+
+			var save_ann_btn := Button.new()
+			save_ann_btn.name = "SaveAnnouncementBtn"
+			save_ann_btn.text = "💾 Kaydet"
+			save_ann_btn.custom_minimum_size = Vector2(140, 44)
+			save_ann_btn.add_theme_font_override("font", FontNunitoBold)
+			save_ann_btn.add_theme_font_size_override("font_size", 20)
+			_style_gold_btn(save_ann_btn)
+			save_ann_btn.pressed.connect(func():
+				if gc_ann != null and gc_ann.has_method("dismiss_keyboard_for"):
+					gc_ann.call("dismiss_keyboard_for", null)
+				var st_a: Dictionary = gs.to_dict()
+				var a_id := int(alliance.get("id", -1))
+				var u_res := AllianceModelScript.update_announcement(st_a, a_id, player_name, ann_edit.text)
+				if bool(u_res.get("ok", false)):
+					_editing_announcement = false
+					_draft_ann_text = ""
+					_suppress_state_refresh = true
+					gs.from_dict(st_a)
+					_save_game(true)
+					_suppress_state_refresh = false
+					refresh_view()
+			)
+			ann_btns.add_child(save_ann_btn)
+
+			var cancel_ann_btn := Button.new()
+			cancel_ann_btn.text = "İptal"
+			cancel_ann_btn.custom_minimum_size = Vector2(110, 44)
+			cancel_ann_btn.add_theme_font_override("font", FontNunitoBold)
+			cancel_ann_btn.add_theme_font_size_override("font_size", 20)
+			_style_danger_btn(cancel_ann_btn)
+			cancel_ann_btn.pressed.connect(func():
+				_editing_announcement = false
+				_draft_ann_text = ""
+				refresh_view()
+			)
+			ann_btns.add_child(cancel_ann_btn)
 
 	# Sekmeler
 	var tab_bar := HBoxContainer.new()
@@ -591,6 +686,7 @@ func _build_chat_tab(parent: Control, gs: Node, alliance: Dictionary, player_nam
 		var b_sb := StyleBoxFlat.new()
 		var is_me := (sender == player_name)
 		var is_sys := (sender == "Sistem")
+		var is_sender_leader := (not is_sys) and AllianceModelScript.is_leader(alliance, sender)
 
 		if is_sys:
 			b_sb.bg_color = Color(0.18, 0.16, 0.12, 0.9)
@@ -615,10 +711,11 @@ func _build_chat_tab(parent: Control, gs: Node, alliance: Dictionary, player_nam
 		bubble.add_child(b_vbox)
 
 		var s_lbl := Label.new()
-		s_lbl.text = "%s  —  %s" % [sender, time_str]
+		var disp_sender := ("👑 " + sender) if is_sender_leader else sender
+		s_lbl.text = "%s  —  %s" % [disp_sender, time_str]
 		s_lbl.add_theme_font_override("font", FontNunitoBold)
 		s_lbl.add_theme_font_size_override("font_size", 20)
-		s_lbl.add_theme_color_override("font_color", Color(1.0, 0.88, 0.40) if is_me else (Color(0.50, 0.85, 1.0) if not is_sys else Color(0.85, 0.70, 0.40)))
+		s_lbl.add_theme_color_override("font_color", Color(1.0, 0.88, 0.35) if (is_me or is_sender_leader) else (Color(0.50, 0.85, 1.0) if not is_sys else Color(0.85, 0.70, 0.40)))
 		b_vbox.add_child(s_lbl)
 
 		var t_lbl := Label.new()
@@ -714,7 +811,7 @@ func _build_members_tab(parent: Control, gs: Node, alliance: Dictionary, player_
 		card.add_child(hbox)
 
 		var icon_lbl := Label.new()
-		icon_lbl.text = "" if m_is_lead else ""
+		icon_lbl.text = "👑" if (m_is_lead or AllianceModelScript.is_leader(alliance, m_name)) else "🛡️"
 		icon_lbl.add_theme_font_size_override("font_size", 30)
 		hbox.add_child(icon_lbl)
 
@@ -818,38 +915,419 @@ func _build_invite_tab(parent: Control, gs: Node, alliance: Dictionary, player_n
 
 # --- Sekme 4: Diplomasi ------------------------------------------------------
 
+func _apply_diplo_action(gs: Node, res: Dictionary) -> void:
+	_diplo_status_ok = bool(res.get("ok", false))
+	_diplo_status_msg = str(res.get("message", "İşlem tamamlandı." if _diplo_status_ok else "İşlem başarısız."))
+	if _diplo_status_ok:
+		var st: Dictionary = gs.to_dict()
+		_suppress_state_refresh = true
+		gs.from_dict(st)
+		_save_game(true)
+		_suppress_state_refresh = false
+	refresh_view()
+
+
 func _build_diplomacy_tab(parent: Control, gs: Node, alliance: Dictionary, player_name: String) -> void:
+	var scroll := ScrollContainer.new()
+	scroll.size_flags_vertical = SIZE_EXPAND_FILL
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	scroll.scroll_deadzone = 12
+	parent.add_child(scroll)
+
 	var vbox := VBoxContainer.new()
+	vbox.size_flags_horizontal = SIZE_EXPAND_FILL
 	vbox.add_theme_constant_override("separation", 14)
-	parent.add_child(vbox)
+	scroll.add_child(vbox)
 
-	var diplo: Dictionary = alliance.get("diplomacy", {})
-	var allies: Array = diplo.get("allies", [])
-	var nap: Array = diplo.get("nap", [])
-	var enemies: Array = diplo.get("enemies", [])
+	var a_id := int(alliance.get("id", -1))
+	var state: Dictionary = gs.to_dict()
+	var diplo: Dictionary = alliance.get("diplomacy", {}) if typeof(alliance.get("diplomacy")) == TYPE_DICTIONARY else {}
+	var allies: Array = diplo.get("allies", []) if typeof(diplo.get("allies")) == TYPE_ARRAY else []
+	var enemies: Array = diplo.get("enemies", []) if typeof(diplo.get("enemies")) == TYPE_ARRAY else []
+	var req_in: Array = diplo.get("ally_requests_in", []) if typeof(diplo.get("ally_requests_in")) == TYPE_ARRAY else []
+	var req_out: Array = diplo.get("ally_requests_out", []) if typeof(diplo.get("ally_requests_out")) == TYPE_ARRAY else []
+	var is_founder_user := AllianceModelScript.is_founder(alliance, player_name)
 
+	if not _diplo_status_msg.is_empty():
+		var st_lbl := Label.new()
+		st_lbl.name = "DiplomacyStatusLabel"
+		st_lbl.text = _diplo_status_msg
+		st_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		st_lbl.add_theme_font_override("font", FontNunitoBold)
+		st_lbl.add_theme_font_size_override("font_size", 21)
+		st_lbl.add_theme_color_override("font_color", Color(0.45, 0.95, 0.58) if _diplo_status_ok else Color(1.0, 0.42, 0.42))
+		vbox.add_child(st_lbl)
+
+	# 1. Mevcut İlişkiler Kartı (Müttefikler & Düşmanlar — NAP kaldırıldı)
 	var card := _make_card()
 	vbox.add_child(card)
 	var c_vbox := VBoxContainer.new()
-	c_vbox.add_theme_constant_override("separation", 12)
+	c_vbox.add_theme_constant_override("separation", 10)
 	card.add_child(c_vbox)
 
 	var t1 := Label.new()
-	t1.text = " Diplomasi İlişkileri"
+	t1.text = "⚖️ Diplomasi İlişkileri"
 	t1.add_theme_font_override("font", FontNunitoBold)
 	t1.add_theme_font_size_override("font_size", 24)
 	t1.add_theme_color_override("font_color", Color(1.0, 0.90, 0.45))
 	c_vbox.add_child(t1)
 
-	var d_lbl := Label.new()
-	d_lbl.text = "• Müttefikler (Sarı Renk): %s\n• Saldırmazlık Paktı / NAP (Turuncu Renk): %s\n• Düşmanlar (Kırmızı Renk): %s" % [
-		str(allies) if not allies.is_empty() else "Yok",
-		str(nap) if not nap.is_empty() else "Yok",
-		str(enemies) if not enemies.is_empty() else "Yok"
-	]
-	d_lbl.add_theme_font_size_override("font_size", 22)
-	d_lbl.add_theme_color_override("font_color", Color(0.85, 0.82, 0.75))
-	c_vbox.add_child(d_lbl)
+	var ally_hdr := Label.new()
+	ally_hdr.text = "🤝 Müttefikler (%d):" % allies.size()
+	ally_hdr.add_theme_font_override("font", FontNunitoBold)
+	ally_hdr.add_theme_font_size_override("font_size", 21)
+	ally_hdr.add_theme_color_override("font_color", Color(0.45, 0.92, 0.55))
+	c_vbox.add_child(ally_hdr)
+
+	if allies.is_empty():
+		var no_ally := Label.new()
+		no_ally.text = "  • Henüz müttefik ittifak yok."
+		no_ally.add_theme_font_override("font", FontNunitoRegular)
+		no_ally.add_theme_font_size_override("font_size", 20)
+		no_ally.add_theme_color_override("font_color", Color(0.72, 0.70, 0.65))
+		c_vbox.add_child(no_ally)
+	else:
+		for a_tag_raw in allies:
+			var a_tag := str(a_tag_raw).strip_edges().to_upper()
+			var tgt_a := AllianceModelScript.find_by_tag(state, a_tag)
+			var disp := ("[%s] %s" % [a_tag, str(tgt_a.get("name", ""))]) if not tgt_a.is_empty() else ("[%s]" % a_tag)
+			var r_hb := HBoxContainer.new()
+			r_hb.add_theme_constant_override("separation", 10)
+			c_vbox.add_child(r_hb)
+			var rl := Label.new()
+			rl.size_flags_horizontal = SIZE_EXPAND_FILL
+			rl.text = "🤝 " + disp
+			rl.add_theme_font_override("font", FontNunitoBold)
+			rl.add_theme_font_size_override("font_size", 21)
+			rl.add_theme_color_override("font_color", Color(0.95, 0.94, 0.88))
+			r_hb.add_child(rl)
+			if is_founder_user:
+				var rem_btn := Button.new()
+				rem_btn.text = "💔 Sonlandır"
+				rem_btn.custom_minimum_size = Vector2(138, 40)
+				rem_btn.add_theme_font_override("font", FontNunitoBold)
+				rem_btn.add_theme_font_size_override("font_size", 18)
+				_style_danger_btn(rem_btn)
+				rem_btn.pressed.connect(func():
+					var st2: Dictionary = gs.to_dict()
+					var r2 := AllianceModelScript.remove_ally(st2, a_id, player_name, a_tag)
+					if bool(r2.get("ok", false)):
+						_suppress_state_refresh = true
+						gs.from_dict(st2)
+						_save_game(true)
+						_suppress_state_refresh = false
+					_diplo_status_ok = bool(r2.get("ok", false))
+					_diplo_status_msg = "Müttefiklik sonlandırıldı: [%s]" % a_tag
+					refresh_view()
+				)
+				r_hb.add_child(rem_btn)
+
+	var enemy_hdr := Label.new()
+	enemy_hdr.text = "⚔️ Düşman İttifaklar (%d):" % enemies.size()
+	enemy_hdr.add_theme_font_override("font", FontNunitoBold)
+	enemy_hdr.add_theme_font_size_override("font_size", 21)
+	enemy_hdr.add_theme_color_override("font_color", Color(1.0, 0.45, 0.45))
+	c_vbox.add_child(enemy_hdr)
+
+	if enemies.is_empty():
+		var no_en := Label.new()
+		no_en.text = "  • Henüz düşman ilan edilmiş ittifak yok."
+		no_en.add_theme_font_override("font", FontNunitoRegular)
+		no_en.add_theme_font_size_override("font_size", 20)
+		no_en.add_theme_color_override("font_color", Color(0.72, 0.70, 0.65))
+		c_vbox.add_child(no_en)
+	else:
+		for e_tag_raw in enemies:
+			var e_tag := str(e_tag_raw).strip_edges().to_upper()
+			var tgt_e := AllianceModelScript.find_by_tag(state, e_tag)
+			var disp_e := ("[%s] %s" % [e_tag, str(tgt_e.get("name", ""))]) if not tgt_e.is_empty() else ("[%s]" % e_tag)
+			var e_hb := HBoxContainer.new()
+			e_hb.add_theme_constant_override("separation", 10)
+			c_vbox.add_child(e_hb)
+			var el := Label.new()
+			el.size_flags_horizontal = SIZE_EXPAND_FILL
+			el.text = "⚔️ " + disp_e
+			el.add_theme_font_override("font", FontNunitoBold)
+			el.add_theme_font_size_override("font_size", 21)
+			el.add_theme_color_override("font_color", Color(1.0, 0.76, 0.72))
+			e_hb.add_child(el)
+			if is_founder_user:
+				var clr_btn := Button.new()
+				clr_btn.text = "🏳️ Kaldır"
+				clr_btn.custom_minimum_size = Vector2(120, 40)
+				clr_btn.add_theme_font_override("font", FontNunitoBold)
+				clr_btn.add_theme_font_size_override("font_size", 18)
+				_style_gold_btn(clr_btn)
+				clr_btn.pressed.connect(func():
+					var st2: Dictionary = gs.to_dict()
+					var r2 := AllianceModelScript.remove_enemy(st2, a_id, player_name, e_tag)
+					if bool(r2.get("ok", false)):
+						_suppress_state_refresh = true
+						gs.from_dict(st2)
+						_save_game(true)
+						_suppress_state_refresh = false
+					_diplo_status_ok = bool(r2.get("ok", false))
+					_diplo_status_msg = "Düşmanlık kaldırıldı: [%s]" % e_tag
+					refresh_view()
+				)
+				e_hb.add_child(clr_btn)
+
+	if not is_founder_user:
+		var lock_lbl := Label.new()
+		lock_lbl.name = "DiplomacyFounderOnlyNotice"
+		lock_lbl.text = "ℹ️ Diplomasi yönetimini yalnızca İttifak Kurucu Lideri yapabilir."
+		lock_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		lock_lbl.add_theme_font_override("font", FontNunitoRegular)
+		lock_lbl.add_theme_font_size_override("font_size", 20)
+		lock_lbl.add_theme_color_override("font_color", Color(0.82, 0.80, 0.72))
+		vbox.add_child(lock_lbl)
+		return
+
+	# 2. Gelen Müttefiklik Davetleri (Kurucu Lider Kabul/Red)
+	if not req_in.is_empty():
+		var in_card := _make_card()
+		in_card.name = "IncomingAllyRequestsCard"
+		vbox.add_child(in_card)
+		var in_vb := VBoxContainer.new()
+		in_vb.add_theme_constant_override("separation", 10)
+		in_card.add_child(in_vb)
+		var in_t := Label.new()
+		in_t.text = "📨 Gelen Müttefiklik Davetleri (%d)" % req_in.size()
+		in_t.add_theme_font_override("font", FontNunitoBold)
+		in_t.add_theme_font_size_override("font_size", 22)
+		in_t.add_theme_color_override("font_color", Color(0.52, 0.92, 1.0))
+		in_vb.add_child(in_t)
+
+		for rq_raw in req_in:
+			if typeof(rq_raw) != TYPE_DICTIONARY:
+				continue
+			var rq := rq_raw as Dictionary
+			var fid := int(rq.get("alliance_id", -1))
+			var ftag := str(rq.get("tag", ""))
+			var fname := str(rq.get("name", ftag))
+			var rhb := HBoxContainer.new()
+			rhb.add_theme_constant_override("separation", 8)
+			in_vb.add_child(rhb)
+			var rlbl := Label.new()
+			rlbl.size_flags_horizontal = SIZE_EXPAND_FILL
+			rlbl.text = "[%s] %s" % [ftag, fname]
+			rlbl.add_theme_font_override("font", FontNunitoBold)
+			rlbl.add_theme_font_size_override("font_size", 21)
+			rlbl.add_theme_color_override("font_color", Color(0.95, 0.95, 0.90))
+			rhb.add_child(rlbl)
+
+			var acc_btn := Button.new()
+			acc_btn.name = "AcceptAllyInviteBtn_%d" % fid
+			acc_btn.text = "✅ Kabul Et"
+			acc_btn.custom_minimum_size = Vector2(126, 42)
+			acc_btn.add_theme_font_override("font", FontNunitoBold)
+			acc_btn.add_theme_font_size_override("font_size", 18)
+			_style_gold_btn(acc_btn)
+			acc_btn.pressed.connect(func():
+				var st_a: Dictionary = gs.to_dict()
+				var r_acc := AllianceModelScript.respond_ally_invite(st_a, a_id, player_name, fid, true)
+				if bool(r_acc.get("ok", false)):
+					_suppress_state_refresh = true
+					gs.from_dict(st_a)
+					_save_game(true)
+					_suppress_state_refresh = false
+				_diplo_status_ok = bool(r_acc.get("ok", false))
+				_diplo_status_msg = str(r_acc.get("message", ""))
+				refresh_view()
+			)
+			rhb.add_child(acc_btn)
+
+			var rej_btn := Button.new()
+			rej_btn.text = "❌ Reddet"
+			rej_btn.custom_minimum_size = Vector2(110, 42)
+			rej_btn.add_theme_font_override("font", FontNunitoBold)
+			rej_btn.add_theme_font_size_override("font_size", 18)
+			_style_danger_btn(rej_btn)
+			rej_btn.pressed.connect(func():
+				var st_a: Dictionary = gs.to_dict()
+				var r_rej := AllianceModelScript.respond_ally_invite(st_a, a_id, player_name, fid, false)
+				if bool(r_rej.get("ok", false)):
+					_suppress_state_refresh = true
+					gs.from_dict(st_a)
+					_save_game(true)
+					_suppress_state_refresh = false
+				_diplo_status_ok = bool(r_rej.get("ok", false))
+				_diplo_status_msg = str(r_rej.get("message", ""))
+				refresh_view()
+			)
+			rhb.add_child(rej_btn)
+
+	# 3. Gönderilen Müttefiklik Davetleri
+	if not req_out.is_empty():
+		var out_card := _make_card()
+		vbox.add_child(out_card)
+		var out_vb := VBoxContainer.new()
+		out_vb.add_theme_constant_override("separation", 8)
+		out_card.add_child(out_vb)
+		var out_t := Label.new()
+		out_t.text = "⏳ Bekleyen Müttefiklik Davetleriniz (%d)" % req_out.size()
+		out_t.add_theme_font_override("font", FontNunitoBold)
+		out_t.add_theme_font_size_override("font_size", 21)
+		out_t.add_theme_color_override("font_color", Color(0.98, 0.85, 0.45))
+		out_vb.add_child(out_t)
+		for oq_raw in req_out:
+			if typeof(oq_raw) != TYPE_DICTIONARY:
+				continue
+			var oq := oq_raw as Dictionary
+			var tid := int(oq.get("alliance_id", -1))
+			var ohb := HBoxContainer.new()
+			ohb.add_theme_constant_override("separation", 8)
+			out_vb.add_child(ohb)
+			var olbl := Label.new()
+			olbl.size_flags_horizontal = SIZE_EXPAND_FILL
+			olbl.text = "[%s] %s (Yanıt bekleniyor)" % [str(oq.get("tag", "")), str(oq.get("name", ""))]
+			olbl.add_theme_font_override("font", FontNunitoRegular)
+			olbl.add_theme_font_size_override("font_size", 20)
+			olbl.add_theme_color_override("font_color", Color(0.88, 0.86, 0.78))
+			ohb.add_child(olbl)
+			var can_btn := Button.new()
+			can_btn.text = "İptal"
+			can_btn.custom_minimum_size = Vector2(96, 38)
+			_style_danger_btn(can_btn)
+			can_btn.pressed.connect(func():
+				var st_a: Dictionary = gs.to_dict()
+				var r_c := AllianceModelScript.cancel_ally_invite(st_a, a_id, player_name, tid)
+				if bool(r_c.get("ok", false)):
+					_suppress_state_refresh = true
+					gs.from_dict(st_a)
+					_save_game(true)
+					_suppress_state_refresh = false
+				_diplo_status_ok = true
+				_diplo_status_msg = "Müttefiklik daveti iptal edildi."
+				refresh_view()
+			)
+			ohb.add_child(can_btn)
+
+	# 4. İttifak Ara ve Müttefik Daveti / Düşman İlan Et
+	var search_card := _make_card()
+	search_card.name = "DiplomacySearchCard"
+	vbox.add_child(search_card)
+	var sc_vb := VBoxContainer.new()
+	sc_vb.add_theme_constant_override("separation", 12)
+	search_card.add_child(sc_vb)
+
+	var sc_title := Label.new()
+	sc_title.text = "🔍 İttifak Ara & Diplomasi Başlat"
+	sc_title.add_theme_font_override("font", FontNunitoBold)
+	sc_title.add_theme_font_size_override("font_size", 23)
+	sc_title.add_theme_color_override("font_color", Color(1.0, 0.90, 0.45))
+	sc_vb.add_child(sc_title)
+
+	var gc_d: Node = Engine.get_main_loop().root.get_node_or_null("GameConfig") if Engine.get_main_loop() is SceneTree else null
+	var search_in := LineEdit.new()
+	search_in.name = "DiplomacySearchInput"
+	search_in.placeholder_text = "İttifak adı veya etiketi ara..."
+	search_in.text = _draft_diplo_search
+	search_in.custom_minimum_size = Vector2(0, 50)
+	search_in.add_theme_font_override("font", FontNunitoRegular)
+	search_in.add_theme_font_size_override("font_size", 22)
+	_style_input(search_in)
+	if gc_d != null and gc_d.has_method("bind_keyboard_dismiss"):
+		gc_d.call("bind_keyboard_dismiss", search_in)
+	_diplo_search_input = search_in
+	sc_vb.add_child(search_in)
+
+	var results_vb := VBoxContainer.new()
+	results_vb.name = "DiplomacySearchResults"
+	results_vb.add_theme_constant_override("separation", 10)
+	sc_vb.add_child(results_vb)
+
+	var populate_results := func(q_txt: String) -> void:
+		for ch in results_vb.get_children():
+			results_vb.remove_child(ch)
+			ch.queue_free()
+		var cur_st: Dictionary = gs.to_dict()
+		var matches := AllianceModelScript.search_alliances(cur_st, a_id, q_txt)
+		if matches.is_empty():
+			var empty_r := Label.new()
+			empty_r.text = "Eşleşen başka ittifak bulunamadı."
+			empty_r.add_theme_font_override("font", FontNunitoRegular)
+			empty_r.add_theme_font_size_override("font_size", 20)
+			empty_r.add_theme_color_override("font_color", Color(0.68, 0.65, 0.60))
+			results_vb.add_child(empty_r)
+			return
+		for other_a in matches:
+			var oa := other_a as Dictionary
+			var o_id := int(oa.get("id", -1))
+			var o_tag := str(oa.get("tag", "")).strip_edges().to_upper()
+			var o_name := str(oa.get("name", ""))
+			var o_mems: int = (oa.get("members", []) as Array).size()
+			var row_vb := HBoxContainer.new()
+			row_vb.name = "DiplomacyTargetRow_%d" % o_id
+			row_vb.add_theme_constant_override("separation", 8)
+			results_vb.add_child(row_vb)
+
+			var o_lbl := Label.new()
+			o_lbl.size_flags_horizontal = SIZE_EXPAND_FILL
+			o_lbl.text = "[%s] %s (%d üye)" % [o_tag, o_name, o_mems]
+			o_lbl.add_theme_font_override("font", FontNunitoBold)
+			o_lbl.add_theme_font_size_override("font_size", 21)
+			o_lbl.add_theme_color_override("font_color", Color(0.95, 0.93, 0.86))
+			row_vb.add_child(o_lbl)
+
+			var already_ally := AllianceModelScript._has_tag(allies, o_tag)
+			var already_enemy := AllianceModelScript._has_tag(enemies, o_tag)
+			var pending_out := AllianceModelScript._find_req_by_aid(req_out, o_id, o_tag) >= 0
+
+			if not already_ally:
+				var inv_btn := Button.new()
+				inv_btn.name = "SendAllyInviteBtn_%d" % o_id
+				inv_btn.text = "⏳ Bekliyor" if pending_out else "🤝 Müttefik Daveti"
+				inv_btn.disabled = pending_out
+				inv_btn.custom_minimum_size = Vector2(180, 44)
+				inv_btn.add_theme_font_override("font", FontNunitoBold)
+				inv_btn.add_theme_font_size_override("font_size", 18)
+				_style_gold_btn(inv_btn)
+				inv_btn.pressed.connect(func():
+					if gc_d != null and gc_d.has_method("dismiss_keyboard_for"):
+						gc_d.call("dismiss_keyboard_for", null)
+					var st_a: Dictionary = gs.to_dict()
+					var res_i := AllianceModelScript.send_ally_invite(st_a, a_id, player_name, o_id)
+					if bool(res_i.get("ok", false)):
+						_suppress_state_refresh = true
+						gs.from_dict(st_a)
+						_save_game(true)
+						_suppress_state_refresh = false
+					_diplo_status_ok = bool(res_i.get("ok", false))
+					_diplo_status_msg = str(res_i.get("message", ""))
+					refresh_view()
+				)
+				row_vb.add_child(inv_btn)
+
+			if not already_enemy:
+				var en_btn := Button.new()
+				en_btn.name = "DeclareEnemyBtn_%d" % o_id
+				en_btn.text = "⚔️ Düşman İlan Et"
+				en_btn.custom_minimum_size = Vector2(170, 44)
+				en_btn.add_theme_font_override("font", FontNunitoBold)
+				en_btn.add_theme_font_size_override("font_size", 18)
+				_style_danger_btn(en_btn)
+				en_btn.pressed.connect(func():
+					if gc_d != null and gc_d.has_method("dismiss_keyboard_for"):
+						gc_d.call("dismiss_keyboard_for", null)
+					var st_a: Dictionary = gs.to_dict()
+					var res_e := AllianceModelScript.declare_enemy(st_a, a_id, player_name, o_id)
+					if bool(res_e.get("ok", false)):
+						_suppress_state_refresh = true
+						gs.from_dict(st_a)
+						_save_game(true)
+						_suppress_state_refresh = false
+					_diplo_status_ok = bool(res_e.get("ok", false))
+					_diplo_status_msg = str(res_e.get("message", ""))
+					refresh_view()
+				)
+				row_vb.add_child(en_btn)
+
+	populate_results.call(_draft_diplo_search)
+	search_in.text_changed.connect(func(new_q: String):
+		_draft_diplo_search = new_q
+		populate_results.call(new_q)
+	)
 
 
 # =============================================================================
