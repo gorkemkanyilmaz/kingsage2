@@ -138,9 +138,24 @@ static func simulate(attacker: Dictionary, defender: Dictionary, options: Dictio
 	# Casuslar faz 2'de işini yapıp ayrılır; normal asker savaşına katılmazlar.
 	var attack_pool := _without_key(atk_units, "spy")
 	var class_attack := _class_attack_totals(attack_pool)
+	var atk_lord := _as_dict(attacker.get("lord", {}))
+	var def_lord := _as_dict(defender.get("lord", {}))
+	var atk_lord_present := bool(atk_lord.get("present", false))
+	var def_lord_present := bool(def_lord.get("present", false))
+
+	if atk_lord_present:
+		var inf_b := clampf(float(atk_lord.get("infantry_atk_pct", 0.0)), 0.0, 35.0)
+		var arch_b := clampf(float(atk_lord.get("archer_atk_pct", 0.0)), 0.0, 35.0)
+		class_attack["infantry"] = float(class_attack.get("infantry", 0.0)) * (1.0 + inf_b / 100.0)
+		class_attack["archer"] = float(class_attack.get("archer", 0.0)) * (1.0 + arch_b / 100.0)
+
 	var attack_raw := 0.0
 	for bucket in class_attack.keys():
 		attack_raw += float(class_attack[bucket])
+	if atk_lord_present and total_attacker_units > 0:
+		var army_hp_b := clampf(float(atk_lord.get("army_hp_pct", 0.0)), 0.0, 35.0)
+		attack_raw *= (1.0 + army_hp_b * 0.0025)
+		attack_raw += float(atk_lord.get("attack", 120.0)) * (1.0 + float(atk_lord.get("hp", 500.0)) / 2000.0)
 
 	var morale := _morale(atk_points, def_points)
 	var luck := rng.randf_range(_luck_min, _luck_max)
@@ -152,6 +167,13 @@ static func simulate(attacker: Dictionary, defender: Dictionary, options: Dictio
 	var defence_mult := wall_bonus * memorial_bonus * night_bonus
 
 	var defence_raw := _defence_raw(def_units, class_attack, attack_raw)
+	if def_lord_present:
+		var cav_def_b := clampf(float(def_lord.get("cavalry_def_pct", 0.0)), 0.0, 35.0)
+		var def_hp_b := clampf(float(def_lord.get("army_hp_pct", 0.0)), 0.0, 35.0)
+		var def_lord_pct := clampf(float(def_lord.get("defense_pct", 0.0)), 0.0, 120.0)
+		if defence_raw > 0.0:
+			defence_raw *= (1.0 + (cav_def_b * 0.0025 + def_hp_b * 0.0025 + def_lord_pct * 0.001))
+		defence_raw += float(def_lord.get("defense", 100.0)) * (1.0 + float(def_lord.get("hp", 500.0)) / 2000.0)
 	var defence_value := defence_raw * defence_mult
 
 	var total_power := attack_value + defence_value
@@ -182,6 +204,9 @@ static func simulate(attacker: Dictionary, defender: Dictionary, options: Dictio
 
 	var attacker_alive := _subtract(atk_units, attacker_losses)
 	var defender_alive := _subtract(def_units, defender_losses)
+
+	var attacker_lord_injured := atk_lord_present and ((not attacker_won) or attacker_loss_frac >= 0.75)
+	var defender_lord_injured := def_lord_present and attacker_won
 
 	# ========================================================================
 	#  FAZ 4 — Binalara zarar (Mancınık)
@@ -284,6 +309,10 @@ static func simulate(attacker: Dictionary, defender: Dictionary, options: Dictio
 			"memorial_bonus": memorial_bonus,
 			"night_bonus": night_bonus,
 			"attacker_won": attacker_won,
+			"attacker_lord_present": atk_lord_present,
+			"defender_lord_present": def_lord_present,
+			"attacker_lord_injured": attacker_lord_injured,
+			"defender_lord_injured": defender_lord_injured,
 		},
 	})
 	phases.append({
@@ -363,6 +392,12 @@ static func simulate(attacker: Dictionary, defender: Dictionary, options: Dictio
 		"is_raid": is_raid,
 		"night": night_active,
 		"seed": int(options.get("seed", 0)),
+		"attacker_loss_frac": attacker_loss_frac,
+		"defender_loss_frac": defender_loss_frac,
+		"attacker_lord_present": atk_lord_present,
+		"defender_lord_present": def_lord_present,
+		"attacker_lord_injured": attacker_lord_injured,
+		"defender_lord_injured": defender_lord_injured,
 	}
 
 

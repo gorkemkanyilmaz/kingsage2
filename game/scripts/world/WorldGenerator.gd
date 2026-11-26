@@ -18,6 +18,8 @@ class_name WorldGenerator
 ##
 ## Bilinmeyen oranlar ve seçilen sabitler: `game/scripts/world/ASSUMPTIONS.md`
 
+const LordModelScript := preload("res://scripts/model/LordModel.gd")
+
 ## Dünya kenarı (alan). `WorldModel.SIZE` ile **aynı** olmalıdır (test doğrular).
 const SIZE := 200
 
@@ -537,8 +539,18 @@ static func _make_village(
 	var units := starting_units()
 	var researched := starting_researched()
 	var bonus_type := ""
+	var is_bandit := false
+	var bandit_level := 0
+	var custom_name := _unique_name(rng, NAME_A, NAME_B, used_names, true)
 	if is_bot:
-		owner = _owner_name(rng, used_owners)
+		is_bandit = true
+		bandit_level = clampi(1 + ((id * 7 + 3) % 10), 1, 10)
+		var btmpl := LordModelScript.bandit_template(bandit_level)
+		owner = str(btmpl.get("owner", "Haydutlar"))
+		custom_name = str(btmpl.get("name", "Haydut Köyü Sv.%d" % bandit_level))
+		buildings = (btmpl.get("buildings", buildings) as Dictionary).duplicate(true)
+		units = (btmpl.get("units", units) as Dictionary).duplicate(true)
+		researched = researched_for_units(units)
 	elif is_bonus:
 		owner = BONUS_OWNER
 		bonus_type = str(placement.get("bonus_type", ""))
@@ -549,13 +561,18 @@ static func _make_village(
 		units = barbarian_units(tier, int(buildings.get("barracks", 0)), rng)
 		researched = researched_for_units(units)
 	var points := village_points(buildings)
+	if is_bandit:
+		points = int(LordModelScript.bandit_template(bandit_level).get("points", points))
 	return {
 		"id": id,
-		"name": _unique_name(rng, NAME_A, NAME_B, used_names, true),
+		"name": custom_name,
 		"x": x,
 		"y": y,
 		"owner": owner,
 		"is_bot": is_bot,
+		"is_bandit": is_bandit,
+		"bandit_level": bandit_level,
+		"bandit_initialized": is_bandit,
 		"is_barbarian": is_barbarian,
 		"buildings": buildings,
 		"resources": starting_resources(),

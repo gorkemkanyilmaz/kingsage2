@@ -18,6 +18,7 @@ const TexGelismemis := preload("res://assets/sprites/map/gelismemis.png")
 const TexOrtaGelismis := preload("res://assets/sprites/map/orta-gelismis.png")
 const TexGelismis := preload("res://assets/sprites/map/gelismis.png")
 const ProtectionScript := preload("res://scripts/sim/actions/Protection.gd")
+const LordModelScript := preload("res://scripts/model/LordModel.gd")
 const FontNunitoBold := preload("res://assets/fonts/Nunito-Bold.ttf")
 
 const SPRITE_SIZE := Vector2(296, 296)
@@ -27,6 +28,7 @@ var village_data: Dictionary = {}
 var is_player: bool = false
 var is_alliance_member: bool = false
 var is_barbarian: bool = false
+var is_bandit: bool = false
 var alliance_tag: String = ""
 
 var _btn: Button
@@ -46,6 +48,8 @@ static var _sb_ring_ally: StyleBoxFlat
 static var _sb_card_player: StyleBoxFlat
 static var _sb_card_ally: StyleBoxFlat
 static var _sb_card_enemy: StyleBoxFlat
+static var _sb_card_bandit: StyleBoxFlat
+static var _bandit_shader_mat: ShaderMaterial
 
 
 static func _ensure_shared_styles() -> void:
@@ -101,6 +105,15 @@ static func _ensure_shared_styles() -> void:
 	if _sb_card_enemy == null:
 		_sb_card_enemy = _sb_card_player.duplicate() as StyleBoxFlat
 		_sb_card_enemy.border_color = Color(0.95, 0.45, 0.38, 0.95)
+	if _sb_card_bandit == null:
+		_sb_card_bandit = _sb_card_player.duplicate() as StyleBoxFlat
+		_sb_card_bandit.bg_color = Color(0.14, 0.14, 0.16, 0.88)
+		_sb_card_bandit.border_color = Color(0.56, 0.56, 0.60, 0.85)
+	if _bandit_shader_mat == null:
+		var sh := Shader.new()
+		sh.code = "shader_type canvas_item;\nvoid fragment() {\n\tvec4 c = texture(TEXTURE, UV) * COLOR;\n\tfloat g = dot(c.rgb, vec3(0.299, 0.587, 0.114));\n\tCOLOR = vec4(mix(c.rgb, vec3(g * 0.82), 0.92), c.a * 0.72);\n}"
+		_bandit_shader_mat = ShaderMaterial.new()
+		_bandit_shader_mat.shader = sh
 
 
 func _init() -> void:
@@ -115,6 +128,7 @@ func setup(v_data: Dictionary, is_own: bool, is_ally: bool = false, ally_tag: St
 	is_alliance_member = is_ally
 	alliance_tag = ally_tag
 	is_barbarian = false
+	is_bandit = (not is_own) and (bool(v_data.get("is_bandit", false)) or bool(v_data.get("is_bot", false)))
 	_build_ui()
 
 
@@ -160,6 +174,11 @@ func _build_ui() -> void:
 		_sprite.texture = TexOrtaGelismis
 	else:
 		_sprite.texture = TexGelismis
+
+	_ensure_shared_styles()
+	if is_bandit:
+		_sprite.material = _bandit_shader_mat
+		_sprite.modulate = Color(0.84, 0.84, 0.88, 0.82)
 
 	add_child(_sprite)
 
@@ -216,7 +235,8 @@ func _build_ui() -> void:
 	_info_card.position = Vector2((size.x - 280.0) * 0.5, 312.0)
 	_info_card.pivot_offset = Vector2(140, 38)
 	_info_card.mouse_filter = MOUSE_FILTER_IGNORE
-	_info_card.add_theme_stylebox_override("panel", _sb_card_player if is_player else (_sb_card_ally if is_alliance_member else _sb_card_enemy))
+	var card_style := _sb_card_player if is_player else (_sb_card_ally if is_alliance_member else (_sb_card_bandit if is_bandit else _sb_card_enemy))
+	_info_card.add_theme_stylebox_override("panel", card_style)
 
 	var vbox := VBoxContainer.new()
 	vbox.add_theme_constant_override("separation", 2)
@@ -227,6 +247,8 @@ func _build_ui() -> void:
 	if owner_name.is_empty():
 		owner_name = "Lord Gorkem" if is_player else "Düşman"
 
+	var bandit_lvl := LordModelScript.bandit_level_for_village(village_data) if is_bandit else 0
+
 	_owner_label = Label.new()
 	if is_player:
 		_owner_label.text = "👑 " + owner_name
@@ -235,6 +257,9 @@ func _build_ui() -> void:
 		var tag_prefix := ("[" + alliance_tag + "] ") if not alliance_tag.is_empty() else ""
 		_owner_label.text = "🤝 " + tag_prefix + owner_name
 		_owner_label.add_theme_color_override("font_color", Color(0.55, 0.85, 1.0))
+	elif is_bandit:
+		_owner_label.text = "🏴 Haydut Köyü • Sv.%d" % bandit_lvl
+		_owner_label.add_theme_color_override("font_color", Color(0.76, 0.78, 0.82))
 	else:
 		_owner_label.text = "⚔️ " + owner_name
 		_owner_label.add_theme_color_override("font_color", Color(1.0, 0.65, 0.60))

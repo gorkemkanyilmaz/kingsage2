@@ -25,6 +25,7 @@ const RE := preload("res://scripts/rules/RulesEngine.gd")
 const BS := preload("res://scripts/sim/battle/BattleSimulator.gd")
 const BR := preload("res://scripts/sim/battle/BattleReport.gd")
 const Protection := preload("res://scripts/sim/actions/Protection.gd")
+const LordModelScript := preload("res://scripts/model/LordModel.gd")
 
 const RESOURCES := ["wood", "stone", "iron"]
 
@@ -105,8 +106,11 @@ static func _resolve_battle(
 	if origin.is_empty() or target.is_empty() or _is_friendly_at_arrival(state, origin, target):
 		return _fizzle(state, movement, origin, units)
 
-	var attacker := _attacker_payload(state, origin, units)
-	var defender := _defender_payload(target, movement)
+	var is_bandit := bool(target.get("is_bandit", false)) or bool(target.get("is_bot", false))
+	var bandit_lvl := LordModelScript.bandit_level_for_village(target) if is_bandit else 0
+
+	var attacker := _attacker_payload(state, origin, units, movement, now_unix)
+	var defender := _defender_payload(state, target, movement, is_bandit, bandit_lvl, now_unix)
 	var options := {
 		"seed": int(movement.get("battle_seed", 0)),
 		"is_raid": is_raid,
@@ -122,9 +126,9 @@ static func _resolve_battle(
 	_subtract_units(target, def_losses)
 	_subtract_support_losses(target, def_before, def_losses)
 
-	# --- Bina hasarı (kalıcı) ---
+	# --- Bina hasarı (kalıcı, haydut köylerinde şablona sıfırlanır) ---
 	var buildings_after = result.get("buildings_after", {})
-	if typeof(buildings_after) == TYPE_DICTIONARY and not (buildings_after as Dictionary).is_empty():
+	if not is_bandit and typeof(buildings_after) == TYPE_DICTIONARY and not (buildings_after as Dictionary).is_empty():
 		target["buildings"] = (buildings_after as Dictionary).duplicate(true)
 		_refresh_points(target)
 	var points := int(target.get("points", 0))
@@ -133,9 +137,23 @@ static func _resolve_battle(
 	var loot := _normalize_resources(result.get("loot", {}))
 	_subtract_resources(target, loot)
 
+	# --- Haydut Köyü: asla fethedilemez ve ordusu savaş bitince anında yenilenir ---
+	if is_bandit:
+		var tmpl := LordModelScript.bandit_template(bandit_lvl)
+		target["is_bandit"] = true
+		target["is_bot"] = true
+		target["bandit_level"] = bandit_lvl
+		target["bandit_initialized"] = true
+		target["owner"] = str(tmpl.get("owner", "Haydutlar"))
+		target["units"] = (tmpl.get("units", {}) as Dictionary).duplicate(true)
+		target["buildings"] = (tmpl.get("buildings", {}) as Dictionary).duplicate(true)
+		target["points"] = int(tmpl.get("points", points))
+		target["realm_of_power"] = int(tmpl.get("points", points))
+		points = int(target["points"])
+
 	# --- Fetih / Güç Alanı ---
 	var conquest_protected := Protection.is_conquest_protected(target, now_unix)
-	var conquered := bool(result.get("conquered", false)) and not is_raid and not conquest_protected
+	var conquered := bool(result.get("conquered", false)) and not is_raid and not conquest_protected and not is_bandit
 	var count_survived := bool(result.get("count_survived", false))
 	var conquest_blocked := conquest_protected and not is_raid and bool(result.get("attacker_won", false)) and count_survived
 
@@ -151,13 +169,42 @@ static func _resolve_battle(
 				"reason": "conquest_protection",
 			})
 		var realm_after := int(result.get("realm_of_power_after", -1))
-		if not conquest_protected and realm_after >= 0:
+		if is_bandit:
+			target["realm_of_power"] = points
+		elif not conquest_protected and realm_after >= 0:
 			target["realm_of_power"] = clampi(realm_after, 0, maxi(0, points))
 		else:
 			target["realm_of_power"] = clampi(int(target.get("realm_of_power", maxi(0, points))), 0, maxi(0, points))
 
+	# --- Haydut Köyü Rastgele Ekipman Düşürme & Lord Yaralanma ---
+	var dropped_item: Dictionary = {}
+	var atk_is_player := _is_state_player_village(state, origin)
+	var def_is_player := (not is_bandit) and _is_state_player_village(state, target)
+	if is_bandit and bool(result.get("attacker_won", false)) and atk_is_player:
+		dropped_item = _grant_bandit_drop_in_state(state, bandit_lvl, str(target.get("name", "")), now_unix)
+		if not dropped_item.is_empty():
+			events.append({
+				"type": "lord_item_dropped",
+				"village_id": from_id,
+				"bandit_level": bandit_lvl,
+				"item": dropped_item.duplicate(true),
+			})
+
+	if bool(result.get("attacker_lord_injured", false)) and atk_is_player:
+		var injured_until := _injure_player_lord_in_state(state, float(result.get("attacker_loss_frac", 1.0)), now_unix)
+		events.append({"type": "lord_injured", "village_id": from_id, "injured_until_unix": injured_until})
+	if bool(result.get("defender_lord_injured", false)) and def_is_player:
+		var def_injured_until := _injure_player_lord_in_state(state, float(result.get("defender_loss_frac", 1.0)), now_unix)
+		events.append({"type": "lord_injured", "village_id": to_id, "injured_until_unix": def_injured_until})
+
 	# --- Savaş raporu ---
-	_add_report(state, "battle", from_id, now_unix, _battle_report_data(result, attacker, defender, movement, is_raid, conquered, conquest_blocked, target))
+	var rep_data := _battle_report_data(result, attacker, defender, movement, is_raid, conquered, conquest_blocked, target)
+	if not dropped_item.is_empty():
+		rep_data["dropped_item"] = dropped_item.duplicate(true)
+	if is_bandit:
+		rep_data["is_bandit"] = true
+		rep_data["bandit_level"] = bandit_lvl
+	_add_report(state, "battle", from_id, now_unix, rep_data)
 
 	events.append({
 		"type": "battle_resolved",
@@ -167,6 +214,9 @@ static func _resolve_battle(
 		"is_raid": is_raid,
 		"loot": loot.duplicate(true),
 		"conquered": conquered,
+		"is_bandit": is_bandit,
+		"bandit_level": bandit_lvl,
+		"dropped_item": dropped_item.duplicate(true),
 		"attacker_losses": (result.get("attacker_losses", {}) as Dictionary).duplicate(true),
 		"defender_losses": (result.get("defender_losses", {}) as Dictionary).duplicate(true),
 	})
@@ -253,7 +303,7 @@ static func _resolve_spy(state: Dictionary, movement: Dictionary, now_unix: int)
 		return _fizzle(state, movement, origin, units)
 
 	var attacker := _attacker_payload(state, origin, units)
-	var defender := _defender_payload(target, movement)
+	var defender := _defender_payload(state, target, movement)
 	var result: Dictionary = BS.simulate(attacker, defender, {
 		"seed": int(movement.get("battle_seed", 0)),
 		"is_raid": false,
@@ -440,8 +490,116 @@ static func _fizzle(
 	}], "return": return_movement}
 
 
-static func _attacker_payload(state: Dictionary, origin: Dictionary, units: Dictionary) -> Dictionary:
+static func _is_state_player_village(state: Dictionary, village: Dictionary) -> bool:
+	if bool(village.get("is_bot", false)) or bool(village.get("is_barbarian", false)) or bool(village.get("is_bandit", false)):
+		return false
+	var p = state.get("player", {})
+	if typeof(p) != TYPE_DICTIONARY:
+		return false
+	var p_name := _norm_owner_arr(str((p as Dictionary).get("name", "")))
+	var v_name := _norm_owner_arr(str(village.get("owner", "")))
+	return (not p_name.is_empty()) and (v_name == p_name)
+
+
+static func _player_lord_combat_payload(state: Dictionary, now_unix: int) -> Dictionary:
+	var p = state.get("player", {})
+	if typeof(p) != TYPE_DICTIONARY:
+		return {"present": false}
+	var ld := LordModelScript.ensure_state_dict((p as Dictionary).get("lord", null))
+	if int(ld.get("injured_until_unix", 0)) > now_unix:
+		return {"present": false}
+	var st := LordModelScript.compute_lord_stats(ld)
+	st["present"] = true
+	return st
+
+
+static func _push_speech_to_state_lord(ld: Dictionary, type: String, title: String, text: String, target_action: String, item_id: String, now_unix: int) -> void:
+	var q: Array = ld.get("speech_queue", []) if typeof(ld.get("speech_queue")) == TYPE_ARRAY else []
+	q.append({
+		"id": "%s_%d_%d" % [type, now_unix, q.size()],
+		"type": type,
+		"title": title,
+		"text": text,
+		"target_action": target_action,
+		"item_id": item_id,
+		"created_unix": now_unix,
+	})
+	while q.size() > 12:
+		q.remove_at(0)
+	ld["speech_queue"] = q
+
+
+static func _grant_bandit_drop_in_state(state: Dictionary, bandit_level: int, village_name: String, now_unix: int) -> Dictionary:
+	if typeof(state.get("player")) != TYPE_DICTIONARY:
+		return {}
+	var p := state["player"] as Dictionary
+	var ld := LordModelScript.ensure_state_dict(p.get("lord", null))
+	var rng := RandomNumberGenerator.new()
+	rng.randomize()
+	var seq := maxi(1, int(ld.get("next_item_seq", 1)))
+	ld["next_item_seq"] = seq + 1
+	var item := LordModelScript.roll_bandit_drop(bandit_level, rng, seq, village_name, now_unix)
+	(ld["inventory"] as Array).append(item)
+	var lvl := clampi(bandit_level, 1, 10)
+	var prev_hi := int(ld.get("highest_bandit_cleared", 0))
+	if lvl > prev_hi:
+		ld["highest_bandit_cleared"] = lvl
+		if lvl < 10 and (lvl == 3 or lvl == 5 or lvl == 7):
+			_push_speech_to_state_lord(
+				ld, "bandit_unlock", "Yeni Haydut Seviyesi!",
+				"Sv.%d Haydut Köyünü aştın! Haritada Sv.%d+ köylerinden daha nadir ganimet düşürebilirsin." % [lvl, lvl + 1],
+				"lord_screen", "", now_unix
+			)
+	_push_speech_to_state_lord(
+		ld, "item_drop", "Yeni Ekipman Kazandın!",
+		"%s yağmasından [%s] %s (+%d) elde ettin!" % [
+			village_name if not village_name.is_empty() else ("Haydut Köyü Sv.%d" % lvl),
+			LordModelScript.rarity_label(str(item.get("rarity", "common"))),
+			str(item.get("name", "Ekipman")),
+			int(item.get("plus", 0)),
+		],
+		"item_detail", str(item.get("id", "")), now_unix
+	)
+	ld["updated_unix"] = now_unix
+	p["lord"] = ld
+	return item
+
+
+static func _injure_player_lord_in_state(state: Dictionary, loss_ratio: float, now_unix: int) -> int:
+	if typeof(state.get("player")) != TYPE_DICTIONARY:
+		return 0
+	var p := state["player"] as Dictionary
+	var ld := LordModelScript.ensure_state_dict(p.get("lord", null))
+	var dur := clampi(
+		int(round(lerpf(float(LordModelScript.INJURY_MIN_SECONDS), float(LordModelScript.INJURY_MAX_SECONDS), clampf(loss_ratio, 0.0, 1.0)))),
+		LordModelScript.INJURY_MIN_SECONDS,
+		LordModelScript.INJURY_MAX_SECONDS
+	)
+	var until := maxi(int(ld.get("injured_until_unix", 0)), now_unix + dur)
+	ld["injured_until_unix"] = until
+	ld["last_injury_duration"] = dur
+	ld["recovery_notified_until"] = 0
+	var mins := int(ceil(float(dur) / 60.0))
+	_push_speech_to_state_lord(
+		ld, "lord_injured", "Lord Yaralandı!",
+		"Savaşta ağır darbe aldım. Ekipmanlarım güvende ancak %d dakika iyileşmem gerekiyor." % mins,
+		"lord_screen", "", now_unix
+	)
+	ld["updated_unix"] = now_unix
+	p["lord"] = ld
+	return until
+
+
+static func _attacker_payload(state: Dictionary, origin: Dictionary, units: Dictionary, movement: Dictionary = {}, now_unix: int = 0) -> Dictionary:
 	var owner := str(origin.get("owner", ""))
+	var atk_lord: Dictionary = {"present": false}
+	if bool(movement.get("include_lord", false)):
+		var snap = movement.get("lord_snapshot", {})
+		if typeof(snap) == TYPE_DICTIONARY and not (snap as Dictionary).is_empty():
+			atk_lord = (snap as Dictionary).duplicate(true)
+			atk_lord["present"] = true
+		elif _is_state_player_village(state, origin):
+			atk_lord = _player_lord_combat_payload(state, now_unix)
 	return {
 		"name": owner if not owner.is_empty() else "Saldıran",
 		"village_name": str(origin.get("name", "")),
@@ -451,10 +609,11 @@ static func _attacker_payload(state: Dictionary, origin: Dictionary, units: Dict
 		"realm_of_power": int(origin.get("realm_of_power", 0)),
 		"has_statue": bool(origin.get("has_statue", false)),
 		"barracks_level": _building_level(origin, "barracks"),
+		"lord": atk_lord,
 	}
 
 
-static func _defender_payload(target: Dictionary, movement: Dictionary) -> Dictionary:
+static func _defender_payload(state: Dictionary, target: Dictionary, movement: Dictionary, is_bandit: bool = false, bandit_lvl: int = 0, now_unix: int = 0) -> Dictionary:
 	var buildings = target.get("buildings", {})
 	var def_points := int(movement.get("target_points", 0))
 	if def_points <= 0:
@@ -463,6 +622,12 @@ static func _defender_payload(target: Dictionary, movement: Dictionary) -> Dicti
 	var raw_rop := int(target.get("realm_of_power", -1))
 	if not target.has("realm_of_power") or raw_rop < 0:
 		raw_rop = mini(maxi(0, def_points), 10000)
+	var def_lord: Dictionary = {"present": false}
+	if is_bandit:
+		def_lord = (LordModelScript.bandit_template(bandit_lvl).get("lord", {"present": true}) as Dictionary).duplicate(true)
+		def_lord["present"] = true
+	elif _is_state_player_village(state, target):
+		def_lord = _player_lord_combat_payload(state, now_unix)
 	return {
 		"name": def_owner if not def_owner.is_empty() else "Savunan",
 		"village_name": str(target.get("name", "")),
@@ -473,6 +638,7 @@ static func _defender_payload(target: Dictionary, movement: Dictionary) -> Dicti
 		"points": def_points,
 		"realm_of_power": raw_rop,
 		"resources": _normalize_resources(target.get("resources", {})),
+		"lord": def_lord,
 	}
 
 

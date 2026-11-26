@@ -18,6 +18,9 @@ const IconScrollTrain := preload("res://assets/sprites/ui/nano_banana/sharp_scro
 const IconScrollResearch := preload("res://assets/sprites/ui/nano_banana/sharp_scroll_research.png")
 const IconScrollMarch := preload("res://assets/sprites/ui/nano_banana/sharp_scroll_march.png")
 const IconReportSeal := preload("res://assets/sprites/ui/nano_banana/sharp_icon_report_seal.png")
+const TexLordPortraitBtn := preload("res://assets/sprites/lord/lord_portrait_btn.png")
+const LordModalScript := preload("res://ui/LordModal.gd")
+const MarketModalScript := preload("res://ui/MarketModal.gd")
 
 @onready var resource_bar: PanelContainer = $ResourceBar
 @onready var bottom_nav: PanelContainer = $BottomNav
@@ -28,6 +31,7 @@ const IconReportSeal := preload("res://assets/sprites/ui/nano_banana/sharp_icon_
 @onready var queue_list: VBoxContainer = $QueueHUD/VBox/Scroll/QueueList if has_node("QueueHUD/VBox/Scroll/QueueList") else ($QueueHUD/VBox/QueueList if has_node("QueueHUD/VBox/QueueList") else null)
 @onready var background: TextureRect = $VillageArea/Background
 @onready var btn_alliance: Button = $BtnAlliance if has_node("BtnAlliance") else (find_child("BtnAlliance", true, false) as Button)
+@onready var btn_lord: Button = $BtnLord if has_node("BtnLord") else (find_child("BtnLord", true, false) as Button)
 
 
 ## 15 binanın köy peyzajındaki kesin piksel koordinatları (1080x1920)
@@ -187,11 +191,23 @@ var _queue_ui_accum: float = 0.0
 var _alarm_scan_accum: float = 0.0
 var _cached_incoming_attacks: Array[Dictionary] = []
 var _alarm_visual_active: bool = false
+var _lord_name_lbl: Label = null
+var _lord_status_badge: PanelContainer = null
+var _lord_status_lbl: Label = null
+var _lord_notif_dot: Panel = null
+var _lord_speech_bubble: PanelContainer = null
+var _lord_speech_title: Label = null
+var _lord_speech_text: Label = null
+var _lord_modal: CanvasLayer = null
+var _lord_market_modal: CanvasLayer = null
+var _lord_hud_accum: float = 0.0
 
 
 func _ensure_nodes() -> void:
 	if btn_alliance == null:
 		btn_alliance = get_node_or_null("BtnAlliance") if has_node("BtnAlliance") else (find_child("BtnAlliance", true, false) as Button)
+	if btn_lord == null:
+		btn_lord = get_node_or_null("BtnLord") if has_node("BtnLord") else (find_child("BtnLord", true, false) as Button)
 	if building_panel == null and has_node("BuildingPanel"):
 		resource_bar = $ResourceBar
 		bottom_nav = $BottomNav
@@ -259,6 +275,8 @@ func _ready() -> void:
 		_style_alliance_btn()
 		if not btn_alliance.pressed.is_connected(_on_alliance_btn_pressed):
 			btn_alliance.pressed.connect(_on_alliance_btn_pressed)
+
+	_setup_lord_hud()
 
 	_setup_overscan_bg()
 	_ensure_attack_alarm_ui()
@@ -408,7 +426,7 @@ func is_background_obscured() -> bool:
 				return true
 			elif q_modal is CanvasLayer and (q_modal as CanvasLayer).visible:
 				return true
-		for modal_name in ["MarketModal", "StoreModal", "SpeedupModal", "IncomingAttackAlertModal", "ConqueredModal"]:
+		for modal_name in ["MarketModal", "RoyalMarketModal", "LordModal", "LordUpgradeModal", "StoreModal", "SpeedupModal", "IncomingAttackAlertModal", "ConqueredModal"]:
 			var m_local := get_node_or_null(modal_name)
 			if m_local != null and bool(m_local.get("visible")):
 				return true
@@ -423,6 +441,10 @@ func _process(delta: float) -> void:
 	if _queue_ui_accum >= 0.5:
 		_queue_ui_accum = 0.0
 		_update_queue_ui()
+	_lord_hud_accum += maxf(delta, 0.0)
+	if _lord_hud_accum >= 1.0:
+		_lord_hud_accum = 0.0
+		_refresh_lord_hud()
 	_update_incoming_attack_alarm(delta, false)
 	_progress_timer += delta
 	if _progress_timer >= 0.5:
@@ -1445,9 +1467,17 @@ func _sync_top_bar_layout() -> void:
 	if btn_alliance != null:
 		btn_alliance.offset_top = top_h + 14.0
 		btn_alliance.offset_bottom = top_h + 70.0
+	if btn_lord != null:
+		btn_lord.offset_top = top_h + 80.0
+		btn_lord.offset_bottom = top_h + 178.0
+	if _lord_speech_bubble != null:
+		_lord_speech_bubble.offset_top = top_h + 84.0
+		_lord_speech_bubble.offset_bottom = top_h + 220.0
 	if _attack_alarm_banner != null:
 		_attack_alarm_banner.offset_top = top_h + 84.0
 		_attack_alarm_banner.offset_bottom = top_h + 138.0
+		_attack_alarm_banner.offset_left = -280.0
+		_attack_alarm_banner.offset_right = 120.0
 
 
 func _ensure_attack_alarm_ui() -> void:
@@ -1729,3 +1759,298 @@ func focus_building_for_tutorial(b_key: String) -> void:
 		elif grect.position.y < safe_top:
 			village_area.position.y += (safe_top - grect.position.y + 12.0)
 		_clamp_village_area()
+
+
+# =============================================================================
+#  LORD BUTONU, KONUŞMA BALONU & MODALLAR (Build 38)
+# =============================================================================
+
+func _setup_lord_hud() -> void:
+	if btn_lord == null:
+		btn_lord = get_node_or_null("BtnLord") if has_node("BtnLord") else (find_child("BtnLord", true, false) as Button)
+	if btn_lord != null:
+		btn_lord.z_index = 100
+		btn_lord.z_as_relative = false
+		btn_lord.mouse_filter = Control.MOUSE_FILTER_STOP
+		_style_lord_btn()
+		if not btn_lord.pressed.is_connected(_on_lord_btn_pressed):
+			btn_lord.pressed.connect(_on_lord_btn_pressed)
+
+	_ensure_lord_speech_bubble()
+	var lm: Node = Engine.get_main_loop().root.get_node_or_null("LordManager") if Engine.get_main_loop() is SceneTree else null
+	if lm != null:
+		if lm.has_signal("lord_changed") and not lm.lord_changed.is_connected(_refresh_lord_hud):
+			lm.lord_changed.connect(_refresh_lord_hud)
+		if lm.has_signal("speech_queued") and not lm.speech_queued.is_connected(_on_lord_speech_queued):
+			lm.speech_queued.connect(_on_lord_speech_queued)
+		if lm.has_signal("lord_recovered") and not lm.lord_recovered.is_connected(_refresh_lord_hud):
+			lm.lord_recovered.connect(_refresh_lord_hud)
+	_refresh_lord_hud()
+
+
+func _style_lord_btn() -> void:
+	if btn_lord == null:
+		return
+	btn_lord.text = ""
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color(0.11, 0.09, 0.16, 0.96)
+	sb.border_color = Color(0.95, 0.78, 0.34, 0.96)
+	sb.set_border_width_all(3)
+	sb.set_corner_radius_all(16)
+	sb.content_margin_left = 10
+	sb.content_margin_right = 12
+	sb.content_margin_top = 8
+	sb.content_margin_bottom = 8
+	var hov := sb.duplicate() as StyleBoxFlat
+	hov.bg_color = Color(0.18, 0.14, 0.25, 0.99)
+	hov.border_color = Color(1.0, 0.88, 0.45, 1.0)
+	btn_lord.add_theme_stylebox_override("normal", sb)
+	btn_lord.add_theme_stylebox_override("hover", hov)
+	btn_lord.add_theme_stylebox_override("pressed", hov)
+
+	if btn_lord.get_node_or_null("LordContent") != null:
+		return
+
+	var hb := HBoxContainer.new()
+	hb.name = "LordContent"
+	hb.set_anchors_preset(Control.PRESET_FULL_RECT)
+	hb.add_theme_constant_override("separation", 10)
+	hb.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	btn_lord.add_child(hb)
+
+	var pic_box := PanelContainer.new()
+	pic_box.custom_minimum_size = Vector2(72, 72)
+	pic_box.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	pic_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var psb := StyleBoxFlat.new()
+	psb.bg_color = Color(0.06, 0.05, 0.09, 1.0)
+	psb.border_color = Color(0.92, 0.76, 0.34, 0.92)
+	psb.set_border_width_all(2)
+	psb.set_corner_radius_all(12)
+	psb.set_content_margin_all(2)
+	pic_box.add_theme_stylebox_override("panel", psb)
+	hb.add_child(pic_box)
+
+	var pic := TextureRect.new()
+	pic.texture = TexLordPortraitBtn
+	pic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	pic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+	pic.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	pic_box.add_child(pic)
+
+	var tx_vb := VBoxContainer.new()
+	tx_vb.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	tx_vb.alignment = BoxContainer.ALIGNMENT_CENTER
+	tx_vb.add_theme_constant_override("separation", 2)
+	tx_vb.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	hb.add_child(tx_vb)
+
+	var l_tag := Label.new()
+	l_tag.text = "LORD"
+	l_tag.add_theme_font_override("font", FontCinzelBold)
+	l_tag.add_theme_font_size_override("font_size", 18)
+	l_tag.add_theme_color_override("font_color", Color(1.0, 0.86, 0.38))
+	l_tag.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	tx_vb.add_child(l_tag)
+
+	_lord_name_lbl = Label.new()
+	_lord_name_lbl.name = "LordPlayerName"
+	_lord_name_lbl.text = "Hükümdar"
+	_lord_name_lbl.clip_text = true
+	_lord_name_lbl.add_theme_font_override("font", FontCinzelBold)
+	_lord_name_lbl.add_theme_font_size_override("font_size", 20)
+	_lord_name_lbl.add_theme_color_override("font_color", Color(1.0, 0.96, 0.88))
+	_lord_name_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	tx_vb.add_child(_lord_name_lbl)
+
+	_lord_status_badge = PanelContainer.new()
+	_lord_status_badge.name = "LordInjuredBadge"
+	_lord_status_badge.visible = false
+	_lord_status_badge.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var bsb := StyleBoxFlat.new()
+	bsb.bg_color = Color(0.62, 0.12, 0.14, 0.96)
+	bsb.border_color = Color(1.0, 0.50, 0.45, 1.0)
+	bsb.set_border_width_all(1)
+	bsb.set_corner_radius_all(6)
+	bsb.content_margin_left = 6
+	bsb.content_margin_right = 6
+	_lord_status_badge.add_theme_stylebox_override("panel", bsb)
+	tx_vb.add_child(_lord_status_badge)
+
+	_lord_status_lbl = Label.new()
+	_lord_status_lbl.text = "🩸 Yaralı"
+	_lord_status_lbl.add_theme_font_size_override("font_size", 14)
+	_lord_status_lbl.add_theme_color_override("font_color", Color(1.0, 0.92, 0.92))
+	_lord_status_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_lord_status_badge.add_child(_lord_status_lbl)
+
+	_lord_notif_dot = Panel.new()
+	_lord_notif_dot.name = "LordNotifDot"
+	_lord_notif_dot.visible = false
+	_lord_notif_dot.custom_minimum_size = Vector2(18, 18)
+	_lord_notif_dot.size = Vector2(18, 18)
+	_lord_notif_dot.position = Vector2(6, 6)
+	_lord_notif_dot.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var dsb := StyleBoxFlat.new()
+	dsb.bg_color = Color(1.0, 0.78, 0.14, 1.0)
+	dsb.border_color = Color(0.12, 0.08, 0.02, 1.0)
+	dsb.set_border_width_all(2)
+	dsb.set_corner_radius_all(9)
+	_lord_notif_dot.add_theme_stylebox_override("panel", dsb)
+	btn_lord.add_child(_lord_notif_dot)
+
+
+func _ensure_lord_speech_bubble() -> void:
+	if _lord_speech_bubble != null and is_instance_valid(_lord_speech_bubble):
+		return
+	_lord_speech_bubble = PanelContainer.new()
+	_lord_speech_bubble.name = "LordSpeechBubble"
+	_lord_speech_bubble.visible = false
+	_lord_speech_bubble.z_index = 105
+	_lord_speech_bubble.z_as_relative = false
+	_lord_speech_bubble.anchor_left = 1.0
+	_lord_speech_bubble.anchor_right = 1.0
+	_lord_speech_bubble.anchor_top = 0.0
+	_lord_speech_bubble.anchor_bottom = 0.0
+	var top_h := _get_top_bar_height()
+	_lord_speech_bubble.offset_left = -630.0
+	_lord_speech_bubble.offset_right = -256.0
+	_lord_speech_bubble.offset_top = top_h + 84.0
+	_lord_speech_bubble.offset_bottom = top_h + 220.0
+	_lord_speech_bubble.mouse_filter = Control.MOUSE_FILTER_STOP
+
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color(0.11, 0.09, 0.16, 0.97)
+	sb.border_color = Color(0.96, 0.80, 0.36, 1.0)
+	sb.set_border_width_all(2)
+	sb.border_width_right = 4
+	sb.set_corner_radius_all(14)
+	sb.set_content_margin_all(10)
+	_lord_speech_bubble.add_theme_stylebox_override("panel", sb)
+	add_child(_lord_speech_bubble)
+
+	var vb := VBoxContainer.new()
+	vb.add_theme_constant_override("separation", 4)
+	_lord_speech_bubble.add_child(vb)
+
+	var hdr := HBoxContainer.new()
+	hdr.add_theme_constant_override("separation", 6)
+	vb.add_child(hdr)
+
+	_lord_speech_title = Label.new()
+	_lord_speech_title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_lord_speech_title.clip_text = true
+	_lord_speech_title.add_theme_font_override("font", FontCinzelBold)
+	_lord_speech_title.add_theme_font_size_override("font_size", 18)
+	_lord_speech_title.add_theme_color_override("font_color", Color(1.0, 0.88, 0.44))
+	hdr.add_child(_lord_speech_title)
+
+	var btn_x := Button.new()
+	btn_x.name = "BtnCloseSpeechBubble"
+	btn_x.text = "✕"
+	btn_x.custom_minimum_size = Vector2(36, 32)
+	var xsb := StyleBoxFlat.new()
+	xsb.bg_color = Color(0.32, 0.14, 0.16, 0.95)
+	xsb.border_color = Color(0.90, 0.48, 0.48, 0.9)
+	xsb.set_border_width_all(1)
+	xsb.set_corner_radius_all(8)
+	btn_x.add_theme_stylebox_override("normal", xsb)
+	btn_x.add_theme_stylebox_override("hover", xsb)
+	btn_x.add_theme_color_override("font_color", Color(1, 0.92, 0.92))
+	btn_x.pressed.connect(_on_speech_bubble_dismiss)
+	hdr.add_child(btn_x)
+
+	var click_btn := Button.new()
+	click_btn.name = "BtnOpenSpeechTarget"
+	click_btn.flat = true
+	click_btn.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	click_btn.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	click_btn.pressed.connect(_on_speech_bubble_pressed)
+	vb.add_child(click_btn)
+
+	_lord_speech_text = Label.new()
+	_lord_speech_text.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_lord_speech_text.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_lord_speech_text.add_theme_font_size_override("font_size", 17)
+	_lord_speech_text.add_theme_color_override("font_color", Color(0.96, 0.94, 0.88))
+	_lord_speech_text.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	click_btn.add_child(_lord_speech_text)
+
+
+func _on_lord_speech_queued(_entry: Dictionary) -> void:
+	_refresh_lord_hud()
+
+
+func _refresh_lord_hud() -> void:
+	var gs := _resolve_game_state()
+	if _lord_name_lbl != null and gs != null and typeof(gs.player) == TYPE_DICTIONARY:
+		var pn := str(gs.player.get("name", "Hükümdar")).strip_edges()
+		if pn.is_empty():
+			pn = "Hükümdar"
+		_lord_name_lbl.text = pn
+
+	var lm: Node = Engine.get_main_loop().root.get_node_or_null("LordManager") if Engine.get_main_loop() is SceneTree else null
+	if lm == null:
+		return
+	var injured := bool(lm.call("is_injured"))
+	if _lord_status_badge != null and _lord_status_lbl != null:
+		_lord_status_badge.visible = injured
+		if injured:
+			var rem := int(lm.call("get_injury_remaining_secs"))
+			var mins := int(ceil(float(rem) / 60.0))
+			_lord_status_lbl.text = "🩸 %d dk" % maxi(1, mins)
+
+	var q_cnt := int(lm.call("get_speech_count"))
+	if _lord_notif_dot != null:
+		_lord_notif_dot.visible = q_cnt > 0
+
+	if _lord_speech_bubble != null:
+		if q_cnt > 0 and not is_background_obscured():
+			var entry: Dictionary = lm.call("peek_speech")
+			_lord_speech_title.text = str(entry.get("title", "Lord"))
+			_lord_speech_text.text = str(entry.get("text", ""))
+			_lord_speech_bubble.show()
+		else:
+			_lord_speech_bubble.hide()
+
+
+func _on_speech_bubble_dismiss() -> void:
+	var lm: Node = Engine.get_main_loop().root.get_node_or_null("LordManager") if Engine.get_main_loop() is SceneTree else null
+	if lm != null:
+		lm.call("dismiss_current_speech")
+	_refresh_lord_hud()
+
+
+func _on_speech_bubble_pressed() -> void:
+	var lm: Node = Engine.get_main_loop().root.get_node_or_null("LordManager") if Engine.get_main_loop() is SceneTree else null
+	var action := ""
+	var item_id := ""
+	if lm != null:
+		var entry: Dictionary = lm.call("peek_speech")
+		action = str(entry.get("target_action", "lord_screen"))
+		item_id = str(entry.get("item_id", ""))
+		lm.call("dismiss_current_speech")
+	_refresh_lord_hud()
+	open_lord_modal(action, item_id)
+
+
+func _on_lord_btn_pressed() -> void:
+	open_lord_modal()
+
+
+func open_lord_modal(focus_action: String = "", focus_item_id: String = "") -> void:
+	if _lord_modal == null or not is_instance_valid(_lord_modal):
+		_lord_modal = LordModalScript.new()
+		_lord_modal.name = "LordModal"
+		if _lord_modal.has_signal("open_market_lord_requested"):
+			_lord_modal.connect("open_market_lord_requested", open_market_lord_tab)
+		add_child(_lord_modal)
+	_lord_modal.call("open_modal", focus_action, focus_item_id)
+
+
+func open_market_lord_tab() -> void:
+	if _lord_market_modal == null or not is_instance_valid(_lord_market_modal):
+		_lord_market_modal = MarketModalScript.new()
+		add_child(_lord_market_modal)
+	_lord_market_modal.call("open_tab", "lord")
+

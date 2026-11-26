@@ -323,7 +323,29 @@ func _run_tests() -> void:
 
 	active_v = gs.call("get_active_village")
 	_check(int(active_v.get("units", {}).get("spear", 0)) >= 10, "En az 10 Silahtar eğitildi (%d)" % int(active_v.get("units", {}).get("spear", 0)))
-	_check(int(tm.call("get_current_step")) == 17, "Adım 17 (GRADUATION_MODAL) geçildi")
+	_check(int(tm.call("get_current_step")) == 17, "Adım 17 (LORD_EQUIP_TOUR) geçildi")
+
+	# 10. Lord ekranı + ekipman kuşanma + kılıç +0 -> +1 geliştirme (Adım 17 -> 18 -> 19)
+	var lm := root.get_node_or_null("LordManager")
+	_check(lm != null, "LordManager autoload yüklü")
+	var ld_tut: Dictionary = lm.call("get_lord_state")
+	_check(int(ld_tut.get("upgrade_scrolls", 0)) >= 1 and (ld_tut.get("inventory", []) as Array).size() >= 3, "Tutorial başlangıç Lord ekipmanları (+0) ve 1 parşömen verildi")
+	var helmet_id := ""
+	var sword_id := ""
+	for it in (ld_tut.get("inventory", []) as Array):
+		if typeof(it) == TYPE_DICTIONARY:
+			if str((it as Dictionary).get("slot_type", "")) == "helmet":
+				helmet_id = str((it as Dictionary).get("id", ""))
+			elif str((it as Dictionary).get("slot_type", "")) == "sword":
+				sword_id = str((it as Dictionary).get("id", ""))
+	_check(not helmet_id.is_empty() and not sword_id.is_empty(), "Starter kask ve kılıç envanterde")
+	lm.call("equip_item", "helmet", helmet_id)
+	await _tick(3)
+	_check(int(tm.call("get_current_step")) == 18, "Adım 18 (LORD_UPGRADE_SWORD) geçildi")
+	var upg_tut_res: Dictionary = lm.call("upgrade_item", sword_id)
+	await _tick(3)
+	_check(bool(upg_tut_res.get("upgraded", false)) and int(upg_tut_res.get("new_plus", 0)) == 1, "Tutorial kılıcı +0 → +1 seviyesine yükseltildi")
+	_check(int(tm.call("get_current_step")) == 19, "Adım 19 (GRADUATION_MODAL) geçildi")
 
 	var vmodal := tm.get("_victory_modal") as Control
 	_check(vmodal != null and vmodal.visible, "Mezuniyet ödül penceresi göründü")

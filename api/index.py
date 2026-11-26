@@ -745,6 +745,7 @@ SPEEDUP_SCROLLS: List[Dict[str, Any]] = [
     {"id": "march_10m", "category": "march", "seconds": 600, "cost_diamonds": 8, "name": "Sefer Hızlandırma 10 Dk"},
     {"id": "march_30m", "category": "march", "seconds": 1800, "cost_diamonds": 18, "name": "Sefer Hızlandırma 30 Dk"},
     {"id": "march_60m", "category": "march", "seconds": 3600, "cost_diamonds": 30, "name": "Sefer Hızlandırma 1 Saat"},
+    {"id": "lord_upgrade_scroll", "category": "lord", "seconds": 0, "cost_diamonds": 5, "name": "Lord Geliştirme Parşömeni"},
 ]
 
 RESOURCE_PACKS: List[Dict[str, Any]] = [
@@ -884,11 +885,55 @@ POINTS_PER_LEVEL_PY = {
 def _calc_village_points(blds: Dict[str, Any]) -> int:
     return sum(int(POINTS_PER_LEVEL_PY.get(str(k), 0)) * int(v or 0) for k, v in (blds or {}).items())
 
+def _bandit_template_py(lvl: int) -> Dict[str, Any]:
+    lvl = max(1, min(10, int(lvl)))
+    wall_lvl = min(16, lvl + (1 if lvl >= 5 else 0))
+    units = {
+        "farmer": 6 + lvl * 4,
+        "spear": 4 + lvl * 6,
+        "sword": (lvl * 4) if lvl >= 2 else 0,
+        "axe": (lvl * 3) if lvl >= 4 else 0,
+        "bow": (lvl * 5) if lvl >= 3 else 0,
+        "spy": 2 + lvl,
+        "light": 0,
+        "heavy": ((lvl - 5) * 3) if lvl >= 6 else 0,
+        "ram": 0,
+        "kata": 0,
+        "snob": 0,
+    }
+    blds = {
+        "main": lvl + 1,
+        "stone": lvl,
+        "wood": lvl,
+        "iron": lvl,
+        "farm": lvl + 2,
+        "storage": lvl + 1,
+        "barracks": min(20, 1 + lvl * 2),
+        "wall": wall_lvl,
+        "hide": min(15, lvl),
+        "market": 0,
+        "stable": 0,
+        "smith": 0,
+        "garage": 0,
+        "snob": 0,
+        "statue": 0,
+    }
+    pts = 120 + lvl * 220
+    return {
+        "bandit_level": lvl,
+        "name": f"Haydut Köyü Sv.{lvl}",
+        "owner": "Haydutlar",
+        "buildings": blds,
+        "units": units,
+        "points": pts,
+    }
+
+
 def _build_world1_bot_villages(now: int) -> List[Dict[str, Any]]:
     rng = random.Random(1001)
     placed: List[tuple] = []
     out: List[Dict[str, Any]] = []
-    for idx, bname in enumerate(WORLD1_BOT_NAMES, start=1):
+    for idx, _bname in enumerate(WORLD1_BOT_NAMES, start=1):
         bx, by = 15, 15
         for _ in range(300):
             cx = rng.randint(15, 185)
@@ -900,35 +945,27 @@ def _build_world1_bot_villages(now: int) -> List[Dict[str, Any]]:
                 bx, by = cx, cy
                 break
         placed.append((bx, by))
-        tier_boost = idx % 3
-        blds = {
-            "main": 1 + (tier_boost >= 1),
-            "farm": 1 + (tier_boost >= 1),
-            "wood": 1 + (idx % 2),
-            "stone": 1 + ((idx + 1) % 2),
-            "iron": 1 + (tier_boost == 2),
-            "storage": 1 + (tier_boost >= 1),
-            "barracks": 1 if idx % 2 == 0 else 0,
-            "wall": 1 if idx % 3 == 0 else 0,
-            "hide": 1,
-        }
-        pts = _calc_village_points(blds)
-        units = {"spear": 4 + (idx % 7), "sword": (2 + idx % 4) if blds["barracks"] > 0 else 0}
+        lvl = 1 + ((idx * 7 + 3) % 10)
+        tmpl = _bandit_template_py(lvl)
+        pts = tmpl["points"]
         out.append({
             "id": idx,
-            "name": f"Kale {bname}",
+            "name": tmpl["name"],
             "x": bx,
             "y": by,
-            "owner": bname,
+            "owner": tmpl["owner"],
             "points": pts,
             "realm_of_power": pts,
             "is_bot": True,
+            "is_bandit": True,
+            "bandit_level": lvl,
+            "bandit_initialized": True,
             "is_barbarian": False,
             "bonus_type": "",
-            "buildings": blds,
+            "buildings": copy.deepcopy(tmpl["buildings"]),
             "resources": {"wood": 800, "stone": 800, "iron": 800},
-            "units": units,
-            "researched": {"spear": True, "sword": True} if blds["barracks"] > 0 else {"spear": True},
+            "units": copy.deepcopy(tmpl["units"]),
+            "researched": {"spear": True, "sword": True, "axe": True, "bow": True},
             "support": [],
             "protection_until": 0,
             "conquest_protection_until": 0,
@@ -1034,14 +1071,9 @@ def _ensure_world1_bots_seeded(cursor, now: int) -> None:
 
 
 def _simulate_server_bots(w_data: Dict[str, Any], cursor, now: int) -> bool:
-    """Barışçıl bot gelişimi: 50 bot köyü binalarını geliştirir ve asker eğitir; kimseye saldırmaz."""
+    """Tüm bot köylerini sabit Haydut Köyü olarak korur; artık kendi kendine gelişmez veya saldırmazlar."""
     if not isinstance(w_data, dict):
         return False
-    last_sim = int(w_data.get("last_bot_sim_unix", 0) or 0)
-    elapsed = now - last_sim
-    if elapsed < 300:
-        return False
-    elapsed = min(elapsed, 86400)
     st = w_data.get("state")
     if not isinstance(st, dict):
         return False
@@ -1049,70 +1081,29 @@ def _simulate_server_bots(w_data: Dict[str, Any], cursor, now: int) -> bool:
     if not isinstance(vills, list):
         return False
 
-    build_steps = max(1, min(6, elapsed // 180))
     changed = False
     for v in vills:
-        if not isinstance(v, dict) or not bool(v.get("is_bot", False)):
+        if not isinstance(v, dict) or (not bool(v.get("is_bot", False)) and not bool(v.get("is_bandit", False))):
             continue
-        blds = v.setdefault("buildings", {})
-        res = v.setdefault("resources", {"wood": 800, "stone": 800, "iron": 800})
-        units = v.setdefault("units", {})
-
-        # Kaynak üretimi
-        stor_lvl = max(1, int(blds.get("storage", 1) or 1))
-        cap = int(round(1000 * (1.23 ** (stor_lvl - 1))))
-        for rk in ("wood", "stone", "iron"):
-            lvl = max(1, int(blds.get(rk, 1) or 1))
-            rate_hr = 30.0 * (1.16 ** (lvl - 1)) * 2.0
-            res[rk] = min(cap, int(res.get(rk, 0) or 0) + int(rate_hr * elapsed / 3600.0))
-
-        # Barışçıl köy geliştirme ve asker eğitimi (botlar kimseye saldırmaz)
-        did_upgrade = False
-        for _ in range(build_steps):
-            # Kışla açmayı teşvik et (gerekli önkoşullar main 3, farm 3, storage 3 -> sonra barracks 1)
-            target_order = ["wood", "stone", "iron", "farm", "storage", "main", "barracks", "wall", "hide"]
-            if int(blds.get("main", 1) or 1) >= 3 and int(blds.get("farm", 1) or 1) >= 3 and int(blds.get("storage", 1) or 1) >= 3 and int(blds.get("barracks", 0) or 0) < 1:
-                pick = "barracks"
-            else:
-                pick = min(target_order, key=lambda k: (int(blds.get(k, 0) or 0), target_order.index(k)))
-                if pick == "barracks" and int(blds.get("barracks", 0) or 0) == 0:
-                    if int(blds.get("main", 1) or 1) < 3:
-                        pick = "main"
-                    elif int(blds.get("farm", 1) or 1) < 3:
-                        pick = "farm"
-                    elif int(blds.get("storage", 1) or 1) < 3:
-                        pick = "storage"
-
-            cur_lvl = int(blds.get(pick, 0) or 0)
-            max_lvl = 25 if pick in ("wood", "stone", "iron", "farm", "storage", "main") else 15
-            if cur_lvl < max_lvl:
-                cost = int(65 * (1.32 ** cur_lvl))
-                if res.get("wood", 0) >= cost and res.get("stone", 0) >= cost and res.get("iron", 0) >= cost:
-                    res["wood"] -= cost
-                    res["stone"] -= cost
-                    res["iron"] -= cost
-                    blds[pick] = cur_lvl + 1
-                    did_upgrade = True
-
-            # Kışlası açık botlar asker üretir (kışla yoksa temel çiftçi milisi)
-            if int(blds.get("barracks", 0) or 0) >= 1:
-                total_u = sum(int(val or 0) for val in units.values())
-                add_n = 2
-                if total_u < 120 and res.get("wood", 0) >= 50 * add_n and res.get("stone", 0) >= 30 * add_n and res.get("iron", 0) >= 40 * add_n:
-                    uk = "spear" if (total_u % 2 == 0) else "sword"
-                    res["wood"] -= 50 * add_n
-                    res["stone"] -= 30 * add_n
-                    res["iron"] -= 40 * add_n
-                    units[uk] = int(units.get(uk, 0) or 0) + add_n
-                    v.setdefault("researched", {})["spear"] = True
-                    v["researched"]["sword"] = True
-                    did_upgrade = True
-
-        if did_upgrade:
-            pts = _calc_village_points(blds)
-            v["points"] = pts
-            v["realm_of_power"] = pts
-            v["last_sim_unix"] = now
+        vid = max(1, int(v.get("id", 1) or 1))
+        lvl = int(v.get("bandit_level", 0) or 0)
+        if lvl <= 0:
+            lvl = 1 + ((vid * 7 + 3) % 10)
+        tmpl = _bandit_template_py(lvl)
+        if not bool(v.get("is_bandit", False)) or not bool(v.get("bandit_initialized", False)) or int(v.get("bandit_level", 0) or 0) != lvl:
+            v["is_bot"] = True
+            v["is_bandit"] = True
+            v["is_barbarian"] = False
+            v["bandit_level"] = lvl
+            v["bandit_initialized"] = True
+            v["owner"] = tmpl["owner"]
+            v["name"] = tmpl["name"]
+            v["buildings"] = copy.deepcopy(tmpl["buildings"])
+            v["units"] = copy.deepcopy(tmpl["units"])
+            v["points"] = tmpl["points"]
+            v["realm_of_power"] = tmpl["points"]
+            v["protection_until"] = 0
+            v["conquest_protection_until"] = 0
             changed = True
 
     w_data["last_bot_sim_unix"] = now
@@ -1956,6 +1947,19 @@ def _merge_player_profile_dicts(base_prof: Any, inc_prof: Any, c_is_newer: bool 
     out["unread_toggled_sigs"] = merged_unreads
     out["read_message_sigs"] = msg_read_sigs
     out["deleted_message_sigs"] = msg_del_sigs
+
+    # Lord state monotonic merge by updated_unix / item count
+    b_lord = bp.get("lord") if isinstance(bp.get("lord"), dict) else {}
+    i_lord = ip.get("lord") if isinstance(ip.get("lord"), dict) else {}
+    if b_lord or i_lord:
+        b_u = int(b_lord.get("updated_unix", 0) or 0)
+        i_u = int(i_lord.get("updated_unix", 0) or 0)
+        b_inv = len(b_lord.get("inventory") or [])
+        i_inv = len(i_lord.get("inventory") or [])
+        if i_lord and (not b_lord or i_u > b_u or (i_u == b_u and (c_is_newer or i_inv >= b_inv))):
+            out["lord"] = copy.deepcopy(i_lord)
+        elif b_lord:
+            out["lord"] = copy.deepcopy(b_lord)
     return out
 
 
@@ -2044,6 +2048,7 @@ def merge_world_state(server_w: Optional[Dict[str, Any]], client_raw: Dict[str, 
                 "gold_armour": int(c_player.get("gold_armour", s_existing_prof.get("gold_armour", 0)) or 0),
                 "diamonds": c_diamonds,
                 "scrolls": c_scrolls,
+                "lord": copy.deepcopy(c_player["lord"]) if isinstance(c_player.get("lord"), dict) else copy.deepcopy(s_existing_prof.get("lord") if isinstance(s_existing_prof.get("lord"), dict) else {}),
                 "active_village_id": int(c_state.get("active_village_id", s_existing_prof.get("active_village_id", -1)) or -1),
             }
             if isinstance(c_player.get("read_report_sigs"), list):

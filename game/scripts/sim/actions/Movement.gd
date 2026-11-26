@@ -237,6 +237,13 @@ static func _send_military(
 	if not bool(check.get("ok", false)):
 		return check
 
+	if bool(options.get("include_lord", false)):
+		var p_d = state.get("player", {})
+		if typeof(p_d) == TYPE_DICTIONARY and typeof((p_d as Dictionary).get("lord")) == TYPE_DICTIONARY:
+			var l_d := (p_d as Dictionary).get("lord") as Dictionary
+			if int(l_d.get("injured_until_unix", 0)) > now_unix:
+				return _fail("lord_injured", "Lord yaralı olduğu için sefere katılamaz.")
+
 	var origin := _find_village(state, from_village_id)
 	var target := _find_village(state, to_village_id)
 	var clean := normalize_units(units)
@@ -611,6 +618,9 @@ static func _build(
 
 	var movement := Travel.make_movement(data)
 	movement["owner"] = str(origin.get("owner", ""))
+	movement["include_lord"] = bool(options.get("include_lord", false))
+	if typeof(options.get("lord_snapshot")) == TYPE_DICTIONARY:
+		movement["lord_snapshot"] = (options["lord_snapshot"] as Dictionary).duplicate(true)
 	return movement
 
 

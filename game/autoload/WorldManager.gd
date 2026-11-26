@@ -15,6 +15,7 @@ const WorldGeneratorScript := preload("res://scripts/world/WorldGenerator.gd")
 const VillageModelScript := preload("res://scripts/model/VillageModel.gd")
 const ConqueredModalScript := preload("res://ui/ConqueredModal.gd")
 const TrainingScript := preload("res://scripts/sim/army/Training.gd")
+const LordModelScript := preload("res://scripts/model/LordModel.gd")
 
 const WORLDS_COUNT := 10
 const BASE_SEED := 1000
@@ -1359,6 +1360,17 @@ func _merge_profile_dicts(base_p: Dictionary, inc_p: Dictionary, prefer_inc_read
 	out["unread_toggled_sigs"] = final_unreads
 	out["read_message_sigs"] = _merge_string_sig_arrays(base_p.get("read_message_sigs", []), inc_p.get("read_message_sigs", []))
 	out["deleted_message_sigs"] = _merge_string_sig_arrays(base_p.get("deleted_message_sigs", []), inc_p.get("deleted_message_sigs", []))
+	var b_lord: Dictionary = base_p.get("lord", {}) if typeof(base_p.get("lord")) == TYPE_DICTIONARY else {}
+	var i_lord: Dictionary = inc_p.get("lord", {}) if typeof(inc_p.get("lord")) == TYPE_DICTIONARY else {}
+	if not b_lord.is_empty() or not i_lord.is_empty():
+		var bu := int(b_lord.get("updated_unix", 0))
+		var iu := int(i_lord.get("updated_unix", 0))
+		var b_cnt := (b_lord.get("inventory", []) as Array).size() if typeof(b_lord.get("inventory")) == TYPE_ARRAY else 0
+		var i_cnt := (i_lord.get("inventory", []) as Array).size() if typeof(i_lord.get("inventory")) == TYPE_ARRAY else 0
+		if not i_lord.is_empty() and (b_lord.is_empty() or iu > bu or (iu == bu and (prefer_inc_read or i_cnt >= b_cnt))):
+			out["lord"] = LordModelScript.ensure_state_dict(i_lord)
+		elif not b_lord.is_empty():
+			out["lord"] = LordModelScript.ensure_state_dict(b_lord)
 	return out
 
 
@@ -1494,6 +1506,7 @@ func _sync_player_profile_to_world(state_dict: Dictionary) -> void:
 		"gold_armour": int(p.get("gold_armour", 0)),
 		"diamonds": p_diamonds,
 		"scrolls": scrolls_copy,
+		"lord": LordModelScript.ensure_state_dict(p.get("lord", existing_prof.get("lord", null))),
 		"read_report_sigs": read_sigs,
 		"deleted_report_sigs": del_sigs,
 		"unread_toggled_sigs": _merge_string_sig_arrays(p.get("unread_toggled_sigs", []) if p.has("unread_toggled_sigs") else existing_prof.get("unread_toggled_sigs", []), [], 200),
@@ -1513,6 +1526,8 @@ func _sync_player_profile_to_world(state_dict: Dictionary) -> void:
 	p["unread_toggled_sigs"] = (merged_prof.get("unread_toggled_sigs", []) as Array).duplicate(true)
 	p["read_message_sigs"] = (merged_prof.get("read_message_sigs", []) as Array).duplicate(true)
 	p["deleted_message_sigs"] = (merged_prof.get("deleted_message_sigs", []) as Array).duplicate(true)
+	if typeof(merged_prof.get("lord")) == TYPE_DICTIONARY:
+		p["lord"] = LordModelScript.ensure_state_dict(merged_prof["lord"])
 
 
 ## İlgili oyuncunun profilini dünya haritasından `state_dict["player"]` içine yükler.
@@ -1562,7 +1577,7 @@ func _restore_player_profile_from_world(state_dict: Dictionary, player_name: Str
 	var tut_reward_claimed := bool(found.get("tutorial_reward_claimed", false)) or (cur_same and bool(cur_p.get("tutorial_reward_claimed", false)))
 	var tut_step := maxi(int(found.get("tutorial_step", 0)), int(cur_p.get("tutorial_step", 0)) if cur_same else 0)
 	if not tut_completed:
-		if tut_skipped or tut_reward_claimed or tut_step >= 18:
+		if tut_skipped or tut_reward_claimed or tut_step >= 19:
 			tut_completed = true
 		else:
 			var owned_cnt := 0
@@ -1596,6 +1611,7 @@ func _restore_player_profile_from_world(state_dict: Dictionary, player_name: Str
 		"gold_armour": int(found.get("gold_armour", 0)),
 		"diamonds": r_diamonds,
 		"scrolls": r_scrolls,
+		"lord": LordModelScript.ensure_state_dict(found.get("lord", cur_p.get("lord", null) if cur_same else null)),
 		"read_report_sigs": r_read_sigs,
 		"deleted_report_sigs": r_del_sigs,
 		"unread_toggled_sigs": _merge_string_sig_arrays(found.get("unread_toggled_sigs", []), cur_p.get("unread_toggled_sigs", []) if cur_same else [], 200),
@@ -2497,6 +2513,8 @@ func _live_sync_game_state_from_world(merged_w: Dictionary, p_name: String) -> v
 			gs.player["unread_toggled_sigs"] = (merged_live_p.get("unread_toggled_sigs", []) as Array).duplicate(true)
 			gs.player["read_message_sigs"] = (merged_live_p.get("read_message_sigs", []) as Array).duplicate(true)
 			gs.player["deleted_message_sigs"] = (merged_live_p.get("deleted_message_sigs", []) as Array).duplicate(true)
+			if typeof(merged_live_p.get("lord")) == TYPE_DICTIONARY:
+				gs.player["lord"] = LordModelScript.ensure_state_dict(merged_live_p["lord"])
 
 	var owned_vids: Dictionary = {}
 	for v in gs.villages:

@@ -5,6 +5,8 @@ extends Node
 ## Simülasyon katmanları (ekonomi, ordu, savaş …) bu durumu okur/yazar;
 ## kalıcılık SaveManager üzerinden sağlanır.
 
+const LordModelScript := preload("res://scripts/model/LordModel.gd")
+
 ## Yükleme sırasında varsayılan değerler (yeni oyun).
 const START_RESOURCES := {"wood": 1000, "stone": 1000, "iron": 1000}
 
@@ -83,6 +85,7 @@ func reset() -> void:
 		"conquest_protection_until_unix": 0,
 		"diamonds": 35,
 		"scrolls": {},
+		"lord": LordModelScript.default_lord_state(),
 		"premium": false,
 	}
 	villages = []
@@ -318,6 +321,7 @@ func sync_from_live_dict(data: Dictionary, emit_state: bool = false) -> void:
 		player["diamonds"] = maxi(0, int(player.get("diamonds", 35)))
 	if not player.has("scrolls") or typeof(player.get("scrolls")) != TYPE_DICTIONARY:
 		player["scrolls"] = {}
+	player["lord"] = LordModelScript.ensure_state_dict(player.get("lord", null))
 	if typeof(data.get("villages")) == TYPE_ARRAY and not is_same(villages, data["villages"]):
 		villages = data["villages"] as Array
 	if data.has("active_village_id"):
@@ -352,6 +356,7 @@ func from_dict(data: Dictionary) -> bool:
 		player["diamonds"] = maxi(0, int(player.get("diamonds", 35)))
 	if not player.has("scrolls") or typeof(player.get("scrolls")) != TYPE_DICTIONARY:
 		player["scrolls"] = {}
+	player["lord"] = LordModelScript.ensure_state_dict(player.get("lord", null))
 	villages = _as_array(data.get("villages", []))
 	if data.has("active_village_id"):
 		active_village_id = int(data.get("active_village_id", -1))

@@ -1,80 +1,56 @@
 class_name BotSimulator
 extends RefCounted
-## BotSimulator — Bot yapay zeka simülasyon yöneticisi (§7b sim modülü).
+## BotSimulator — Tüm eski bot köylerini sabit Haydut Köyü'ne dönüştürür ve korur.
 ##
-## Taht ve Kılıç / A-BOT
-##
-## Bu modül, dünyadaki bot köylerini (`village.is_bot == true`) periyodik olarak yönetir.
-## Botlar, oyuncuyla aynı kural motorunu ve API'lerini (`EconomyAPI`, `ArmyAPI`, `Movement`)
-## kullanarak gerçekçi ve hilesiz bir şekilde gelişir.
-##
-## §7b Sim modül protokolü:
-##   static func process_tick(state: Dictionary, now_unix: int, delta_seconds: float) -> Array
+## Taht ve Kılıç (Build 38+):
+##   • Bot köyleri artık kendi kendine gelişmez, bina basmaz ve kimseye saldırmaz.
+##   • Her bot köyü (`is_bot == true`), seviyesine (1..10) uygun sabit bir garnizon,
+##     sur ve Haydut Reisi (Lord) barındıran bir Haydut Köyü'dür (`is_bandit = true`).
+##   • Asla fethedilemez; saldırı sonunda ordusu anında eski haline döner.
 
-const BotProfileScript := preload("res://scripts/bot/BotProfile.gd")
-const BotEconomyScript := preload("res://scripts/bot/BotEconomy.gd")
-const BotArmyScript := preload("res://scripts/bot/BotArmy.gd")
-const BotWarScript := preload("res://scripts/bot/BotWar.gd")
+const LordModelScript := preload("res://scripts/model/LordModel.gd")
 
 
-static func process_tick(state: Dictionary, now_unix: int, delta_seconds: float) -> Array:
-	var villages: Array = state.get("villages", [])
-	if villages.is_empty():
+static func ensure_bandit_village(village: Dictionary) -> bool:
+	if typeof(village) != TYPE_DICTIONARY:
+		return false
+	if not bool(village.get("is_bot", false)) and not bool(village.get("is_bandit", false)):
+		return false
+	var lvl := LordModelScript.bandit_level_for_village(village)
+	var tmpl := LordModelScript.bandit_template(lvl)
+	var changed := false
+	if not bool(village.get("is_bandit", false)) or int(village.get("bandit_level", 0)) != lvl:
+		changed = true
+	village["is_bandit"] = true
+	village["is_bot"] = true
+	village["is_barbarian"] = false
+	village["bandit_level"] = lvl
+	village["owner"] = str(tmpl.get("owner", "Haydutlar"))
+	var cur_name := str(village.get("name", ""))
+	if not cur_name.begins_with("Haydut Köyü"):
+		village["name"] = str(tmpl.get("name", "Haydut Köyü Sv.%d" % lvl))
+		changed = true
+	var tmpl_b: Dictionary = tmpl.get("buildings", {}) as Dictionary
+	var blds: Dictionary = village.get("buildings", {}) if typeof(village.get("buildings")) == TYPE_DICTIONARY else {}
+	if int(blds.get("wall", -1)) != int(tmpl_b.get("wall", 1)) or not village.has("bandit_initialized"):
+		village["buildings"] = tmpl_b.duplicate(true)
+		village["units"] = (tmpl.get("units", {}) as Dictionary).duplicate(true)
+		village["points"] = int(tmpl.get("points", 300))
+		village["realm_of_power"] = int(tmpl.get("points", 300))
+		village["bandit_initialized"] = true
+		changed = true
+	village["protection_until"] = 0
+	village["protection_until_unix"] = 0
+	village["conquest_protection_until"] = 0
+	village["conquest_protection_until_unix"] = 0
+	return changed
+
+
+static func process_tick(state: Dictionary, _now_unix: int, _delta_seconds: float) -> Array:
+	var villages = state.get("villages", [])
+	if typeof(villages) != TYPE_ARRAY:
 		return []
-
-	var world: Dictionary = state.get("world", {})
-	var world_seed: int = int(world.get("seed", 42))
-
-	var events: Array = []
-
-	for v in villages:
-		if typeof(v) != TYPE_DICTIONARY:
-			continue
-		var village: Dictionary = v
-		if not bool(village.get("is_bot", false)):
-			continue
-
-		var vid: int = int(village.get("id", 1))
-		var profile: Dictionary = BotProfileScript.get_profile(village, world_seed)
-		var think_interval: int = int(profile.get("think_interval", 120))
-
-		var next_think: int = int(village.get("next_bot_think_unix", -1))
-		if next_think < 0:
-			# Başlangıçta tüm botların aynı saniyede yük bindirmesini önlemek için dağıt
-			next_think = now_unix + (vid % 37)
-			village["next_bot_think_unix"] = next_think
-
-		if now_unix >= next_think:
-			# 1. Ekonomi kararı (bina yükseltme)
-			var econ_res := BotEconomyScript.think_build(village, profile, state)
-			if bool(econ_res.get("action_taken", false)):
-				events.append({
-					"type": "bot_build_started",
-					"village_id": vid,
-					"building": econ_res.get("building", ""),
-				})
-
-			# 2. Askeri karar (araştırma / eğitim)
-			var army_res := BotArmyScript.think_army(village, profile, state, now_unix)
-			if bool(army_res.get("action_taken", false)):
-				events.append({
-					"type": "bot_army_action",
-					"village_id": vid,
-					"action": army_res.get("type", ""),
-					"unit_key": army_res.get("unit_key", ""),
-				})
-
-			# 3. Savaş/Yağma kararı (barış modunda botlar kimseye saldırmaz)
-			if not BotWarScript.peace_mode:
-				var war_res := BotWarScript.think_war(village, profile, state, now_unix)
-				if bool(war_res.get("action_taken", false)):
-					events.append({
-						"type": "bot_raid_sent",
-						"village_id": vid,
-						"target_id": war_res.get("target_id", -1),
-						"units": war_res.get("units", {}),
-					})
-
-			village["next_bot_think_unix"] = now_unix + think_interval
-
-	return events
+	for v in (villages as Array):
+		if typeof(v) == TYPE_DICTIONARY and (bool((v as Dictionary).get("is_bot", false)) or bool((v as Dictionary).get("is_bandit", false))):
+			ensure_bandit_village(v as Dictionary)
+	return []

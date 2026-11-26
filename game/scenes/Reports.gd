@@ -1631,6 +1631,27 @@ func _render_battle_report(parent: Control, rep: Dictionary) -> void:
 	var loot_card := _make_loot_card(loot, carry_cap)
 	parent.add_child(loot_card)
 
+	var drop_item = data.get("dropped_item", raw.get("dropped_item", {}))
+	if typeof(drop_item) == TYPE_DICTIONARY and not (drop_item as Dictionary).is_empty():
+		var d_it := drop_item as Dictionary
+		var d_box := PanelContainer.new()
+		var d_sb := StyleBoxFlat.new()
+		d_sb.bg_color = Color(0.16, 0.12, 0.24, 0.96)
+		d_sb.border_color = Color(0.95, 0.78, 0.34, 1.0)
+		d_sb.set_border_width_all(2)
+		d_sb.set_corner_radius_all(14)
+		d_sb.set_content_margin_all(14)
+		d_box.add_theme_stylebox_override("panel", d_sb)
+		var d_lbl := Label.new()
+		d_lbl.text = "👑 LORD GANİMETİ: +%d %s düşürüldü!" % [int(d_it.get("plus", 0)), str(d_it.get("name", "Ekipman"))]
+		d_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		d_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		d_lbl.add_theme_font_override("font", FontNunitoBold)
+		d_lbl.add_theme_font_size_override("font_size", 25)
+		d_lbl.add_theme_color_override("font_color", Color(1.0, 0.90, 0.45))
+		d_box.add_child(d_lbl)
+		parent.add_child(d_box)
+
 	# 5. ÖZEL ETKİLER (SUR HASARI & FETİH)
 	var wall_pct: float = float(data.get("wall_damage_pct", raw.get("wall_damage_pct", 0.0)))
 	var wall_before: int = int(data.get("wall_level_before", raw.get("wall_level_before", 0)))

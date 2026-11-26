@@ -16,6 +16,7 @@ const IconScrollResearch := preload("res://assets/sprites/ui/nano_banana/sharp_s
 const IconScrollMarch := preload("res://assets/sprites/ui/nano_banana/sharp_scroll_march.png")
 const IconDiamondChest := preload("res://assets/sprites/ui/nano_banana/sharp_pack_diamond_chest.png")
 const IconResourceCaravan := preload("res://assets/sprites/ui/nano_banana/sharp_pack_resource_caravan.png")
+const IconLordUpgradeScroll := preload("res://assets/sprites/lord/upgrade_scroll.png")
 const TexRoyalBtnBg := preload("res://assets/sprites/ui/nano_banana/sharp_ui_royal_btn_bg.png")
 
 const FALLBACK_PACKS: Array[Dictionary] = [
@@ -39,6 +40,7 @@ const FALLBACK_SCROLLS: Array[Dictionary] = [
 	{"id": "march_10m", "category": "march", "seconds": 600, "cost_diamonds": 8, "name": "Sefer Hızlandırma 10 Dk"},
 	{"id": "march_30m", "category": "march", "seconds": 1800, "cost_diamonds": 18, "name": "Sefer Hızlandırma 30 Dk"},
 	{"id": "march_60m", "category": "march", "seconds": 3600, "cost_diamonds": 30, "name": "Sefer Hızlandırma 1 Saat"},
+	{"id": "lord_upgrade_scroll", "category": "lord", "seconds": 0, "cost_diamonds": 5, "name": "Lord Geliştirme Parşömeni"},
 ]
 
 const FALLBACK_RESOURCE_PACKS: Array[Dictionary] = [
@@ -55,6 +57,7 @@ const TABS := [
 	{"key": "train", "label": "Askeri"},
 	{"key": "research", "label": "Araştırma"},
 	{"key": "march", "label": "Sefer"},
+	{"key": "lord", "label": "Lord"},
 	{"key": "resources", "label": "Kaynak Al"},
 	{"key": "diamonds", "label": "Elmas Al"},
 ]
@@ -66,6 +69,7 @@ func _scroll_tex_for_cat(cat: String) -> Texture2D:
 		"train": return IconScrollTrain
 		"research": return IconScrollResearch
 		"march": return IconScrollMarch
+		"lord": return IconLordUpgradeScroll
 		"resources": return IconResourceCaravan
 		"diamonds": return IconDiamondChest
 	return IconScrollBuild
@@ -77,6 +81,7 @@ func _scroll_accent_for_cat(cat: String) -> Color:
 		"train": return Color(0.92, 0.38, 0.36)
 		"research": return Color(0.45, 0.80, 1.0)
 		"march": return Color(0.44, 0.88, 0.56)
+		"lord": return Color(0.98, 0.82, 0.36)
 		"resources": return Color(0.96, 0.78, 0.36)
 		"diamonds": return Color(0.55, 0.86, 1.0)
 	return Color(0.95, 0.78, 0.36)
@@ -644,6 +649,8 @@ func _populate_scrolls_tab(cat: String) -> void:
 			cat_desc = "🔬 Kışla birim araştırma sürelerini kısaltır."
 		"march":
 			cat_desc = "🐴 Gidiş veya dönüşteki ordu ve ticaret seferlerinin varış süresini kısaltır."
+		"lord":
+			cat_desc = "👑 Lord ekipmanlarını +0'dan +8'e yükseltmek için Kraliyet Örsünde kullanılan Geliştirme Parşömenleri."
 
 	var intro := PanelContainer.new()
 	intro.mouse_filter = Control.MOUSE_FILTER_PASS
@@ -698,8 +705,8 @@ func _populate_scrolls_tab(cat: String) -> void:
 		row.add_theme_constant_override("separation", 14)
 		card.add_child(row)
 
-		var tier_txt := "1 SAAT" if secs >= 3600 else ("%d DK" % (secs / 60))
-		var tier_col := Color(1.0, 0.86, 0.34) if secs >= 3600 else (Color(0.54, 0.88, 1.0) if secs >= 1800 else Color(0.68, 0.94, 0.64))
+		var tier_txt := "LORD" if cat == "lord" else ("1 SAAT" if secs >= 3600 else ("%d DK" % (secs / 60)))
+		var tier_col := Color(0.98, 0.86, 0.34) if (cat == "lord" or secs >= 3600) else (Color(0.54, 0.88, 1.0) if secs >= 1800 else Color(0.68, 0.94, 0.64))
 		var cat_accent := _scroll_accent_for_cat(cat)
 
 		var icon_box := _make_medallion(_scroll_tex_for_cat(cat), cat_accent, tier_txt, tier_col)
@@ -722,7 +729,7 @@ func _populate_scrolls_tab(cat: String) -> void:
 		info_vb.add_child(name_lbl)
 
 		var desc_lbl := Label.new()
-		desc_lbl.text = "Süreyi %s azaltır • Fiyat: 💎 %d Elmas" % [dur_label, cost]
+		desc_lbl.text = ("Lord ekipmanı yükseltme (+0..+8) • Fiyat: 💎 %d Elmas" % cost) if cat == "lord" else ("Süreyi %s azaltır • Fiyat: 💎 %d Elmas" % [dur_label, cost])
 		desc_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		desc_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		desc_lbl.add_theme_font_override("font", FontNunitoSemiBold)
@@ -762,7 +769,7 @@ func _populate_scrolls_tab(cat: String) -> void:
 		btn_col.mouse_filter = Control.MOUSE_FILTER_PASS
 		row.add_child(btn_col)
 
-		if owned > 0:
+		if owned > 0 and cat != "lord":
 			var use_btn := Button.new()
 			use_btn.name = "MarketUseScrollBtn_" + s_id
 			use_btn.text = "⚡ Kullan (%d)" % owned

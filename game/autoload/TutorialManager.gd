@@ -41,10 +41,12 @@ enum Step {
 	BUILD_BARRACKS_LV1 = 14,
 	RESEARCH_SPEAR = 15,
 	TRAIN_10_SPEAR = 16,
-	GRADUATION_MODAL = 17,
+	LORD_EQUIP_TOUR = 17,
+	LORD_UPGRADE_SWORD = 18,
+	GRADUATION_MODAL = 19,
 }
 
-const TOTAL_VISIBLE_STEPS := 17
+const TOTAL_VISIBLE_STEPS := 19
 const TRACKED_SCENES := ["Village.tscn", "WorldMap.tscn", "Alliance.tscn"]
 
 ## Testler tarafından headless modda öğreticiyi açmak için kullanılır.
@@ -1029,6 +1031,14 @@ func _advance_to(next_step: int, gs: Node, scene_node: Node = null) -> void:
 		var bp = scene_node.get("building_panel")
 		if bp != null and bp.visible:
 			bp.hide()
+	if _current_step == Step.LORD_EQUIP_TOUR:
+		if scene_node != null:
+			var bp2 = scene_node.get("building_panel")
+			if bp2 != null and bp2.visible:
+				bp2.hide()
+		var lm_adv := _lord_mgr()
+		if lm_adv != null and lm_adv.has_method("grant_tutorial_starter_kit"):
+			lm_adv.call("grant_tutorial_starter_kit")
 
 
 func _ensure_min_resources(v: Dictionary, need_w: int, need_s: int, need_i: int) -> void:
@@ -1169,9 +1179,27 @@ func _evaluate_progression(scene_node: Node, scene_name: String, gs: Node) -> vo
 		Step.TRAIN_10_SPEAR:
 			var spear_cnt := int(v.get("units", {}).get("spear", 0))
 			if spear_cnt >= 10:
-				_advance_to(Step.GRADUATION_MODAL, gs, scene_node)
+				_advance_to(Step.LORD_EQUIP_TOUR, gs, scene_node)
 			elif _active_queues(gs, "train").is_empty():
 				_ensure_min_resources(v, 260, 160, 360)
+
+		Step.LORD_EQUIP_TOUR:
+			var lm := _lord_mgr()
+			if lm != null:
+				if lm.has_method("grant_tutorial_starter_kit"):
+					lm.call("grant_tutorial_starter_kit")
+				var lstats: Dictionary = lm.call("get_lord_stats")
+				if int(lstats.get("equipped_count", 0)) >= 1:
+					_advance_to(Step.LORD_UPGRADE_SWORD, gs, scene_node)
+
+		Step.LORD_UPGRADE_SWORD:
+			var lm2 := _lord_mgr()
+			if lm2 != null:
+				var ld: Dictionary = lm2.call("get_lord_state")
+				for it in (ld.get("inventory", []) as Array):
+					if typeof(it) == TYPE_DICTIONARY and str((it as Dictionary).get("slot_type", "")) == "sword" and int((it as Dictionary).get("plus", 0)) >= 1:
+						_advance_to(Step.GRADUATION_MODAL, gs, scene_node)
+						break
 
 
 # =============================================================================
@@ -1731,12 +1759,62 @@ func _get_step_copy(scene_node: Node, _scene_name: String, gs: Node) -> Dictiona
 					"hint": "+10 Seçin"
 				}
 			return {
-				"chapter": "BÖLÜM 5/5 • 10 SİLAHTAR",
+				"chapter": "BÖLÜM 5/6 • 10 SİLAHTAR",
 				"title": "Eğitimi Başlatın!",
 				"dialogue": "[b][color=#FFD86B]Lordum,[/color][/b] [b]%d Silahtar[/b] için kılıçlar ve kalkanlar hazır! Yeşil 'Eğit' butonuna basarak emri verin." % spin_val,
 				"objective": "Silahtar kartındaki 'Eğit' butonuna dokunun.",
 				"next_text": "",
 				"hint": "10 Silahtar Eğit"
+			}
+
+		Step.LORD_EQUIP_TOUR:
+			var lmod := _get_lord_modal(scene_node)
+			if lmod == null:
+				return {
+					"chapter": "BÖLÜM 6/6 • LORD VE EKİPMAN",
+					"title": "Lord Ekranını Açın",
+					"dialogue": "[b][color=#FFD86B]Lordum,[/color][/b] ordunuza önderlik edecek kahramanınıza başlangıç teçhizatı (+0 Kılıç, Kask, Göğüslük) ve 1 Parşömen verdik! Sağ üstteki [b]Lord[/b] butonuna dokunun.",
+					"objective": "Sağ üstteki Lord butonuna dokunun.",
+					"next_text": "",
+					"hint": "Lord Ekranı"
+				}
+			return {
+				"chapter": "BÖLÜM 6/6 • LORD VE EKİPMAN",
+				"title": "İlk Ekipmanı Kuşanın",
+				"dialogue": "[b][color=#FFD86B]Lordum,[/color][/b] bir slota veya alttaki envanterden bir ekipmana dokunarak Lordunuza ilk teçhizatını kuşandırın.",
+				"objective": "En az 1 ekipmanı Lord slotuna kuşanın.",
+				"next_text": "",
+				"hint": "Ekipman Kuşan"
+			}
+
+		Step.LORD_UPGRADE_SWORD:
+			var upg_mod := _get_lord_upgrade_modal(scene_node)
+			if upg_mod != null:
+				return {
+					"chapter": "BÖLÜM 6/6 • EKİPMAN GELİŞTİRME",
+					"title": "Kılıcı +1 Seviyeye Yükseltin",
+					"dialogue": "[b][color=#FFD86B]Lordum,[/color][/b] alttan [b]Acemi Lord Kılıcı (+0)[/b] seçip parşömen yuvasına tıklayın ve [b]GELİŞTİR[/b] butonuna basın (%100 başarı).",
+					"objective": "Acemi Lord Kılıcını +0 → +1 seviyesine yükseltin.",
+					"next_text": "",
+					"hint": "Kılıcı Geliştir"
+				}
+			var lmod2 := _get_lord_modal(scene_node)
+			if lmod2 != null:
+				return {
+					"chapter": "BÖLÜM 6/6 • EKİPMAN GELİŞTİRME",
+					"title": "Kraliyet Örsüne Geçin",
+					"dialogue": "[b][color=#FFD86B]Lordum,[/color][/b] şimdi +0 kılıcımızı [b]+1[/b] yapmak için yukarıdaki [b]Ekipman Geliştir[/b] butonuna basın.",
+					"objective": "'Ekipman Geliştir' butonuna dokunun.",
+					"next_text": "",
+					"hint": "Örs Ekranı"
+				}
+			return {
+				"chapter": "BÖLÜM 6/6 • EKİPMAN GELİŞTİRME",
+				"title": "Lord Ekranını Açın",
+				"dialogue": "[b][color=#FFD86B]Lordum,[/color][/b] kılıcınızı +1 seviyesine yükseltmek için Lord ekranını açın.",
+				"objective": "Sağ üstteki Lord butonuna dokunun.",
+				"next_text": "",
+				"hint": "Lord Ekranı"
 			}
 
 	return {
@@ -1969,7 +2047,50 @@ func _resolve_target_control(scene_node: Node, scene_name: String, gs: Node) -> 
 				return bp.find_child("BtnPlus10_spear", true, false) as Control
 			return bp.find_child("TrainBtn_spear", true, false) as Control
 
+		Step.LORD_EQUIP_TOUR:
+			var lm_cur := _get_lord_modal(scene_node)
+			if lm_cur == null and scene_node != null:
+				return scene_node.find_child("BtnLord", true, false) as Control
+			return lm_cur.find_child("Slot_helmet", true, false) as Control if lm_cur != null else _btn_next
+
+		Step.LORD_UPGRADE_SWORD:
+			var upg_cur := _get_lord_upgrade_modal(scene_node)
+			if upg_cur != null:
+				return upg_cur.find_child("BtnDoUpgrade", true, false) as Control
+			var lm_cur2 := _get_lord_modal(scene_node)
+			if lm_cur2 != null:
+				return lm_cur2.find_child("BtnOpenLordUpgrade", true, false) as Control
+			return scene_node.find_child("BtnLord", true, false) as Control if scene_node != null else _btn_next
+
 	return _btn_next
+
+
+func _lord_mgr() -> Node:
+	var loop := Engine.get_main_loop()
+	return (loop as SceneTree).root.get_node_or_null("LordManager") if loop is SceneTree else null
+
+
+func _get_lord_modal(scene_node: Node) -> CanvasLayer:
+	if scene_node == null:
+		return null
+	var m := scene_node.find_child("LordModal", true, false)
+	if m is CanvasLayer and (m as CanvasLayer).visible:
+		return m as CanvasLayer
+	return null
+
+
+func _get_lord_upgrade_modal(scene_node: Node) -> CanvasLayer:
+	if scene_node == null:
+		return null
+	var m := scene_node.find_child("LordUpgradeModal", true, false)
+	if m is CanvasLayer and (m as CanvasLayer).visible:
+		return m as CanvasLayer
+	var lm := _get_lord_modal(scene_node)
+	if lm != null:
+		var um = lm.get("_upgrade_modal")
+		if um is CanvasLayer and (um as CanvasLayer).visible:
+			return um as CanvasLayer
+	return null
 
 
 func _building_view_ctrl(scene_node: Node, b_key: String) -> Control:
@@ -2016,7 +2137,9 @@ func _update_visual_animations(delta: float, scene_node: Node, scene_name: Strin
 
 	var mkt_modal := _get_market_modal(scene_node)
 	var spd_modal := _get_speedup_modal(scene_node)
-	var modal_open := (mkt_modal != null or spd_modal != null)
+	var lord_modal := _get_lord_modal(scene_node)
+	var upg_modal := _get_lord_upgrade_modal(scene_node)
+	var modal_open := (mkt_modal != null or spd_modal != null or lord_modal != null or upg_modal != null)
 	layer = 170 if modal_open else 110
 
 	var target_ctrl := _resolve_target_control(scene_node, scene_name, gs)

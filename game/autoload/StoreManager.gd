@@ -164,6 +164,14 @@ const SPEEDUP_SCROLLS: Array[Dictionary] = [
 		"name": "Sefer Hızlandırma 1 Saat",
 		"description": "Ordu yürüyüş veya dönüş süresini 1 saat kısaltır.",
 	},
+	{
+		"id": "lord_upgrade_scroll",
+		"category": "lord",
+		"seconds": 0,
+		"cost_diamonds": 5,
+		"name": "Lord Geliştirme Parşömeni",
+		"description": "Lord ekipmanlarını +0 ile +8 arasında yükseltmek için kullanılır.",
+	},
 ]
 
 const RESOURCE_PACKS: Array[Dictionary] = [
@@ -521,6 +529,13 @@ func buy_scroll(scroll_id: String, qty: int = 1) -> Dictionary:
 	var new_count := maxi(0, int(scrolls_dict.get(scroll_id, 0))) + qty
 	player_dict["diamonds"] = new_diamonds
 	scrolls_dict[scroll_id] = new_count
+	if scroll_id == "lord_upgrade_scroll":
+		var lm := _autoload("LordManager")
+		if lm != null and lm.has_method("ensure_lord_state"):
+			var ld: Dictionary = lm.call("ensure_lord_state")
+			ld["upgrade_scrolls"] = new_count
+			ld["updated_unix"] = _current_sim_now()
+			lm.emit_signal("lord_changed")
 
 	_suppress_bus_sync = true
 	_emit_wallet_and_state(true)

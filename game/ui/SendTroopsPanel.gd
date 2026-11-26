@@ -8,6 +8,7 @@ const MovementScript := preload("res://scripts/sim/actions/Movement.gd")
 const RulesEngineScript := preload("res://scripts/rules/RulesEngine.gd")
 const TravelScript := preload("res://scripts/world/Travel.gd")
 const ProtectionScript := preload("res://scripts/sim/actions/Protection.gd")
+const LordModelScript := preload("res://scripts/model/LordModel.gd")
 const FontNunitoBold := preload("res://assets/fonts/Nunito-Bold.ttf")
 const FontCinzelBold := preload("res://assets/fonts/Cinzel-Bold.ttf")
 const TexVizier := preload("res://assets/sprites/ui/tutorial/vizier_portrait.png")
@@ -19,6 +20,9 @@ var _unit_inputs: Dictionary = {}
 var _resource_inputs: Dictionary = {}
 var _current_tab: String = "troops" # "troops" | "trade"
 var _btn_switch_to_village: Button = null
+var _lord_row: PanelContainer = null
+var _lord_check: CheckBox = null
+var _lord_status_label: Label = null
 var btn_support: Button = null
 var _protection_modal: CanvasLayer = null
 
@@ -306,9 +310,14 @@ func _populate_target_info() -> void:
 	var from_x: int = int(_from_village.get("x", 0))
 	var from_y: int = int(_from_village.get("y", 0))
 	var dist: float = TravelScript.distance(from_x, from_y, to_x, to_y)
+	var is_bandit := bool(_to_village.get("is_bandit", false)) or bool(_to_village.get("is_bot", false))
 
 	target_header_label.text = " %s (%d|%d)" % [to_name, to_x, to_y]
-	target_info_label.text = "Hedef: %s (%d|%d) — Mesafe: %.1f alan" % [to_name, to_x, to_y, dist]
+	if is_bandit:
+		var blvl := LordModelScript.bandit_level_for_village(_to_village)
+		target_info_label.text = "🏴 Haydut Köyü Sv.%d (%d|%d) — Fethedilemez · Ekipman Düşer · Mesafe: %.1f alan" % [blvl, to_x, to_y, dist]
+	else:
+		target_info_label.text = "Hedef: %s (%d|%d) — Mesafe: %.1f alan" % [to_name, to_x, to_y, dist]
 
 	var owner_name: String = str(_to_village.get("owner", ""))
 	if owner_name.is_empty():
@@ -343,6 +352,72 @@ func _populate_target_info() -> void:
 	points_label.text = " Puan: %d" % points
 
 	distance_label.text = " Mesafe: %.1f alan" % dist
+
+
+func _ensure_lord_row() -> void:
+	if _lord_row != null and is_instance_valid(_lord_row):
+		return
+	var vbox := get_node_or_null("VBox") as VBoxContainer
+	if vbox == null:
+		return
+	_lord_row = PanelContainer.new()
+	_lord_row.name = "LordMarchCard"
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color(0.14, 0.11, 0.19, 0.95)
+	sb.border_color = Color(0.86, 0.70, 0.34, 0.85)
+	sb.set_border_width_all(2)
+	sb.set_corner_radius_all(10)
+	sb.content_margin_left = 12
+	sb.content_margin_right = 12
+	sb.content_margin_top = 8
+	sb.content_margin_bottom = 8
+	_lord_row.add_theme_stylebox_override("panel", sb)
+
+	var hb := HBoxContainer.new()
+	hb.add_theme_constant_override("separation", 10)
+	_lord_row.add_child(hb)
+
+	_lord_check = CheckBox.new()
+	_lord_check.name = "ChkIncludeLord"
+	_lord_check.text = "👑 Lord'u Sefere Dahil Et"
+	_lord_check.button_pressed = true
+	_lord_check.add_theme_font_override("font", FontNunitoBold)
+	_lord_check.add_theme_font_size_override("font_size", 24)
+	_lord_check.add_theme_color_override("font_color", Color(1.0, 0.93, 0.65))
+	hb.add_child(_lord_check)
+
+	_lord_status_label = Label.new()
+	_lord_status_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_lord_status_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	_lord_status_label.add_theme_font_override("font", FontNunitoBold)
+	_lord_status_label.add_theme_font_size_override("font_size", 21)
+	hb.add_child(_lord_status_label)
+
+	vbox.add_child(_lord_row)
+	vbox.move_child(_lord_row, scroll_troops.get_index())
+
+
+func _refresh_lord_row(is_friendly: bool) -> void:
+	_ensure_lord_row()
+	if _lord_row == null:
+		return
+	if _current_tab != "troops" or is_friendly:
+		_lord_row.hide()
+		return
+	_lord_row.show()
+	var lm: Node = Engine.get_main_loop().root.get_node_or_null("LordManager") if Engine.get_main_loop() is SceneTree else null
+	if lm != null and lm.has_method("is_injured") and bool(lm.call("is_injured")):
+		var rem := int(lm.call("get_injury_remaining_secs"))
+		var mins := int(ceil(float(rem) / 60.0))
+		_lord_check.button_pressed = false
+		_lord_check.disabled = true
+		_lord_status_label.text = "🩸 Lord Yaralı (~%d dk)" % maxi(1, mins)
+		_lord_status_label.add_theme_color_override("font_color", Color(1.0, 0.52, 0.48))
+	else:
+		_lord_check.disabled = false
+		var st: Dictionary = lm.call("get_lord_stats") if lm != null else LordModelScript.compute_lord_stats({})
+		_lord_status_label.text = "⚔️ %d · 🛡️ %d · ❤️ %d" % [int(st.get("attack", 120)), int(st.get("defense", 100)), int(st.get("hp", 500))]
+		_lord_status_label.add_theme_color_override("font_color", Color(0.60, 0.95, 0.68))
 
 
 func _populate_units() -> void:
@@ -505,6 +580,7 @@ func refresh() -> void:
 	if _current_tab == "troops":
 		_refresh_troops_mode(state, from_x, from_y, to_x, to_y, dist, now)
 	else:
+		_refresh_lord_row(true)
 		_refresh_trade_mode(state, from_x, from_y, to_x, to_y, dist, now)
 
 
@@ -540,6 +616,7 @@ func _refresh_troops_mode(state: Dictionary, from_x: int, from_y: int, to_x: int
 	var from_id := int(_from_village.get("id", -1))
 	var to_id := int(_to_village.get("id", -1))
 	var is_friendly := MovementScript._is_friendly(state, _from_village, _to_village)
+	_refresh_lord_row(is_friendly)
 
 	if is_friendly:
 		btn_attack.hide()
@@ -875,13 +952,19 @@ func _dispatch(type: String, protection_confirmed: bool = false) -> void:
 		var selected_units := _collect_selected_units()
 		var total_selected := _sum_units_dict(selected_units)
 		var is_only_spies: bool = total_selected > 0 and int(selected_units.get("spy", 0)) == total_selected
+		var atk_opts := {}
+		if _lord_check != null and not _lord_check.disabled and _lord_check.button_pressed:
+			var lm2: Node = Engine.get_main_loop().root.get_node_or_null("LordManager") if Engine.get_main_loop() is SceneTree else null
+			atk_opts["include_lord"] = true
+			if lm2 != null and lm2.has_method("get_combat_payload"):
+				atk_opts["lord_snapshot"] = lm2.call("get_combat_payload", now)
 		if is_only_spies:
 			res = MovementScript.send_spy(state, int(_from_village["id"]), int(_to_village["id"]), selected_units, now)
 		else:
 			if not protection_confirmed and will_drop_attacker_protection(MovementScript.TYPE_ATTACK, selected_units, now):
 				_show_vizier_protection_warning(MovementScript.TYPE_ATTACK, _attacker_protection_until() - now)
 				return
-			res = MovementScript.send_attack(state, int(_from_village["id"]), int(_to_village["id"]), selected_units, now)
+			res = MovementScript.send_attack(state, int(_from_village["id"]), int(_to_village["id"]), selected_units, now, atk_opts)
 
 	if bool(res.get("ok", false)) and gs != null:
 		gs.from_dict(state)
