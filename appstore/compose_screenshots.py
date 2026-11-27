@@ -9,9 +9,11 @@ FONTS_DIR = os.path.join(ROOT_DIR, "game", "assets", "fonts")
 RAW_DIR = os.path.join(BASE_DIR, "raw")
 
 OUT_69_TR = os.path.join(BASE_DIR, "screenshots_6_9")
+OUT_63_TR = os.path.join(BASE_DIR, "screenshots_6_3")
 OUT_LEGACY_TR = os.path.join(BASE_DIR, "screenshots")
 OUT_69_EN = os.path.join(BASE_DIR, "screenshots_en")
-for d in (OUT_69_TR, OUT_LEGACY_TR, OUT_69_EN):
+OUT_63_EN = os.path.join(BASE_DIR, "screenshots_6_3_en")
+for d in (OUT_69_TR, OUT_63_TR, OUT_LEGACY_TR, OUT_69_EN, OUT_63_EN):
     os.makedirs(d, exist_ok=True)
 
 SLIDES = [
@@ -303,5 +305,7 @@ def compose_one(slide: dict, w: int, h: int, lang: str, out_dir: str) -> str:
 if __name__ == "__main__":
     for sl in SLIDES:
         compose_one(sl, 1320, 2868, "tr", OUT_69_TR)
+        compose_one(sl, 1206, 2622, "tr", OUT_63_TR)
         compose_one(sl, 1290, 2796, "tr", OUT_LEGACY_TR)
         compose_one(sl, 1320, 2868, "en", OUT_69_EN)
+        compose_one(sl, 1206, 2622, "en", OUT_63_EN)
