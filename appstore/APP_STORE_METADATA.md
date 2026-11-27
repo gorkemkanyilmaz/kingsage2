@@ -1,6 +1,8 @@
-# App Store Connect & TestFlight Yayın Paketi — Taht ve Kılıç (KingsAge 2)
+# App Store Connect & TestFlight Yayın Paketi — Taht ve Kılıç (Build 43 / v1.0)
 
-> **Not:** Bu dosya, App Store Connect ve TestFlight sürüm yüklemesi için ASO (App Store Optimization) araştırması yapılmış tüm alanları birebir kopyalanabilir veya tarayıcı otomasyonuyla girilebilir biçimde sunar.
+> **Organik Büyüme & Niş ASO Stratejisi:**
+> Apple App Store Türkiye (`TR`) mağazası hem **Türkçe (`tr`)** hem de **English U.K. (`en-GB`)** yerelleştirmelerini **birlikte indeksler** (Cross-Localization). Bu sayede tek bir mağazada hem niş Türkçe aramaları (`köy kurma`, `kale savaşı`, `klan fetih`, `ittifak`, `ordu`, `haydut`, `kuşatma`) hem de Türkiye'den yapılan İngilizce aramaları (`medieval strategy`, `castle builder`, `alliance`, `raid`, `pvp`) **sıfır kelime tekrarı ile 2× anahtar kelime kotası** kullanarak yakalayabiliriz.
+> Ayrıca ABD/Küresel İngilizce pazarı için **`en-US`** ayrıca optimize edilmiştir.
 
 ---
 
@@ -8,126 +10,145 @@
 
 | Alan | Değer |
 | :--- | :--- |
-| **Platform** | iOS (iPhone Portrait 6.7" / 6.5" / 5.5") |
+| **Platform** | iOS (iPhone 6.9" `1320 × 2868` & `1290 × 2796` RGB PNG) |
+| **App ID** | `6835198115` |
 | **Ana Dil (Primary Language)** | Türkçe (`tr`) |
-| **İkincil Dil** | English (`en-US`) |
+| **Çapraz İndeks (TR Storefront)** | English (U.K.) (`en-GB`) |
+| **Küresel İkincil Dil** | English (U.S.) (`en-US`) |
 | **Bundle ID** | `com.tahtkilic.kingsage2` |
-| **SKU** | `TAHTVEKILIC_IOS_001` |
-| **Versiyon / Build** | `1.0.0` (Build `1`) |
+| **Versiyon / Build** | `1.0.0` (Build `43`) |
 | **Birincil Kategori** | Oyunlar > Strateji (`Games > Strategy`) |
 | **İkincil Kategori** | Oyunlar > Simülasyon (`Games > Simulation`) |
-| **Yaş Sınırı (Age Rating)** | `12+` (Sık / Yoğun Orta Çağ Savaş Stratejisi) |
 | **Telif Hakkı (Copyright)** | `© 2026 Taht ve Kılıç Stüdyo` |
 | **Gizlilik Politikası URL** | `https://tahtkilic.vercel.app/privacy` |
 | **Destek (Support) URL** | `https://tahtkilic.vercel.app/support` |
-| **İletişim E-posta** | `support@tahtkilic.app` |
-| **İhracat Uyumluluğu (Export Compliance)** | Hayır — yalnızca standart HTTPS/TLS (`ITSAppUsesNonExemptEncryption = false`) |
 
 ---
 
-## 2. ASO Keyword Araştırması & Alan Optimizasyonu
+## 2. Organik Niş ASO Keyword Havuzu & Alan Dağılımı
 
 ### A. Ana Pazar: Türkçe (`tr`)
 
-- **Uygulama Adı (App Name — maks. 30 karakter):**
-  `Taht ve Kılıç: Krallık Kur` *(26 karakter — marka + en yüksek hacimli iki Türkçe arama terimi: "krallık kur")*
-- **Alt Başlık (Subtitle — maks. 30 karakter):**
-  `Orta Çağ Strateji & Köy Fethi` *(29 karakter — kategori + ana oynanış vaadi: "orta çağ strateji", "köy fethi")*
-- **Anahtar Kelimeler (Keywords — maks. 100 karakter, boşluksuz virgül ayrımı, tekrar yok):**
+- **Uygulama Adı (App Name — 29 / 30 karakter):**
   ```
-  kale,savaş,ordu,fetih,ittifak,imparatorluk,kuşatma,köy,klan,mmo,gerçek,zamanlı,taktik,casus,şövalye
+  Taht ve Kılıç: Köy & Kale MMO
   ```
-  *(Tam 99 karakter! App Store algoritması Ad + Alt Başlık + Keywords içindeki kelimeleri otomatik çapraz eşler: `taht`, `kılıç`, `krallık`, `kur`, `orta`, `çağ`, `strateji`, `köy`, `fethi`, `kale`, `savaş`, `ordu`, `fetih`, `ittifak`, `imparatorluk`, `kuşatma`, `klan`, `mmo`, `gerçek`, `zamanlı`, `taktik`, `casus`, `şövalye`.)*
-
-#### ASO Strateji Notları (Neden Bu Kelimeler?)
-1. **Çekirdek yüksek hacimli Türkçe sorgular:** `krallık kur`, `orta çağ strateji`, `kale savaş`, `köy fethi`, `gerçek zamanlı strateji`, `ittifak savaşı`, `klan`.
-2. **Niş / yüksek dönüşüm uzun kuyruklar:** `ordu eğit`, `kuşatma`, `casus`, `şövalye`, `imparatorluk`, `taktik`.
-3. **Sıfır kelime tekrarı:** App Name ve Subtitle'daki (`taht`, `kılıç`, `krallık`, `kur`, `orta`, `çağ`, `strateji`, `köy`, `fethi`) kelimeleri Keywords alanına tekrar koyulmadı, böylece 100 karakterlik kota %100 verimli kullanıldı.
-
-- **Tanıtım Metni (Promotional Text — maks. 170 karakter, incelemesiz güncellenebilir):**
+- **Alt Başlık (Subtitle — 29 / 30 karakter):**
   ```
-  Vezir eşliğinde köyünü kur, 7/24 canlı ortak haritada ordunu eğit ve Kont göndererek rakip kaleleri fethet! Yeni başlayanlara ilk 7 gün 2× gelişim hızı!
+  Orta Çağ Strateji, Klan Fetih
   ```
-  *(152 karakter)*
-
+- **Anahtar Kelimeler (Keywords — 98 / 100 karakter, boşluksuz virgül ayrımı, 0 tekrar):**
+  ```
+  kurma,savaş,ittifak,krallık,ordu,lord,ekipman,haydut,kuşatma,casus,şövalye,imparatorluk,pvp,taktik
+  ```
+- **Tanıtım Metni (Promotional Text — 139 / 170 karakter):**
+  ```
+  7/24 canlı haritada köyünü kur, Lorduna +8 ekipman bas, haydut avla ve ittifakınla kaleleri fethet! Yeni oyunculara ilk 7 gün 2× gelişim hızı.
+  ```
+- **Bu Sürümdeki Yenilikler (What's New — Build 43):**
+  ```
+  • Lord & 13 Slotlu Ekipman Sistemi: Kılıç, kalkan, zırh ve takıları kuşanın, Örs'te +8'e kadar güçlendirin!
+  • Haydut Köyleri: Haritadaki Sv.1–Sv.10 haydut kamplarına saldırıp nadir ekipman düşürün; yeni oyuncu koruma kalkanınız bozulmaz.
+  • İttifak Katılma İstekleri & Diplomasi: İttifakları üye sayılarıyla listeleyin, başvurun, müttefik/düşman ilan edin ve lider bildirim rozetini takip edin.
+  • Yenilenmiş Arayüz & Akıllı Kaynak Senkronu: Gizli Depo 5 seviye tablosu, kategorize Kışla ve iOS pil/ısınma optimizasyonu.
+  ```
 - **Uygulama Açıklaması (Description — Türkçe):**
   ```
-  Sıradan bir köyün beyi olarak başla, görkemli bir imparatorluğun tek hakimi ol!
+  Küçük bir Orta Çağ köyünün beyi olarak başla; Lordunu nadir +8 zırhlarla donat, ordunu eğit, ittifakını kur ve binlerce oyuncunun çarpıştığı ortak dünya haritasında imparatorluğunu genişlet!
 
-  Taht ve Kılıç, klasik gerçek zamanlı Orta Çağ köy kurma ve fetih stratejisini modern mobil deneyime taşıyor. Tüm oyuncularla tek ve ortak canlı bir dünya haritasında buluş; hamlelerini planla, ittifakını kur ve tarihe adını yaz!
+  Taht ve Kılıç, tarayıcı dönemi klasik gerçek zamanlı köy kurma, kaynak yönetimi ve kale fetih stratejisini modern mobil arayüzle birleştirir. Oyundan çıktığında bile madenlerin çalışır, inşaatların tamamlanır ve orduların seferine devam eder.
 
-  BAŞLICA ÖZELLİKLER:
-  • GERÇEK ZAMANLI KÖY VE EKONOMİ YÖNETİMİ
-    Kale, Kışla, Oduncu Kampı, Taş Ocağı, Maden Ocağı, Değirmen, Depo, Market, Simyager, Sur, Köşk ve Kuyumcu binalarını stratejik sırayla geliştir. Oyundan çıktığında bile üretim, inşaat ve asker eğitimi 7/24 kesintisiz sürer!
+  ÖNE ÇIKAN ÖZELLİKLER:
 
-  • VEZİR REHBERLİĞİ & AKTİF GÖREV SİSTEMİ
-    Adım adım rehberli eğitim ve Vezir görevleriyle ilk saniyeden itibaren yolunu bul, görev hedeflerini tamamla ve büyük kaynak ödüllerini topla.
+  • LORD (KAHRAMAN) VE +0..+8 EKİPMAN ÖRSÜ
+    Lorduna 13 farklı slotta kılıç, kalkan, miğfer, zırh ve tılsımlar kuşan. Parşömen kullanarak Örs'te ekipmanlarına +8'e kadar seviye bas, ordu saldırı/savunma bonuslarını katla!
 
-  • 11 FARKLI ORTA ÇAĞ BİRLİĞİ
-    Silahtar, Muhafız, Baltacı ve Okçu ile hatları tut; Akıncı ve Kara Şövalye ile akın düzenle; Casus ile düşman kalelerini gözetle; Şahmerdan ve Mancınık ile surları yık!
+  • HAYDUT KÖYLERİ & GANİMET AVı
+    Dünya haritasındaki Sv.1–Sv.10 Haydut Köylerine akın düzenleyerek ganimet ve rastgele nadir ekipmanlar kazan. Üstelik haydut avları yeni oyuncu koruma kalkanını bozmaz!
 
-  • KONT İLE KÖY FETHİ & ÇOKLU KÖY YÖNTEMİ
-    Köşk ve Kuyumcu'da Altın Zırh dövüp Kont eğit. Saldırılarla rakip köyün sadakat puanını sıfırla, köyü kalıcı olarak krallığına kat ve tüm köylerini tek parmakla yönet.
+  • GERÇEK ZAMANLI KÖY KURMA VE EKONOMİ
+    Kale, Kışla, Oduncu Kampı, Taş Ocağı, Maden Ocağı, Değirmen, Depo, Gizli Depo, Market, Simyager, Sur, Köşk ve Kuyumcu binalarını stratejik sırayla geliştir. 7/24 kesintisiz kaynak ve inşaat akışıyla geri kalma.
 
-  • ORTAK DÜNYA HARİTASI, İTTİFAKLAR VE YENİ OYUNCU AVANTAJI
-    Her yeni oyuncu kendi ilk 7 günü boyunca 2× hızlandırılmış gelişim ve başlangıç kalkanı avantajıyla oyuna başlar. Müttefiklerine destek ordusu gönder, raporlarla savaşları analiz et ve sıralamada zirveye çık!
-  ```
+  • 11 ORTA ÇAĞ BİRLİĞİ & KATEGORİZE KIŞLA
+    Piyade, Okçu, Süvari ve Kuşatma sınıflarındaki 11 birliği araştırıp eğit. Casuslarla rakip köyleri gözetle; Şahmerdan ve Mancınık ile surları yık!
 
-- **Bu Sürümdeki Yenilikler (What's New — v1.0.0):**
-  ```
-  • İlk iOS / TestFlight sürümü yayında!
-  • İnteraktif Vezir rehberi ve sol üst canlı görev takip sistemi.
-  • Kont ile sadakat düşürme ve çoklu köy yönetim sistemi.
-  • Yeni başlayan her oyuncuya özel ilk 7 gün 2× hız desteği.
+  • KONT İLE KÖY FETHİ & ÇOKLU KÖY YÖNETİMİ
+    Kuyumcu'da Altın Zırh döv, Köşk'te Kont eğit. Hedef kalenin güç alanını sıfırlayarak köyü kalıcı olarak kendi krallığına kat.
+
+  • CANLI İTTİFAK DİPLOMASİSİ & SAVAŞLAR
+    Mevcut ittifaklara başvuru yap veya kendi sancağını aç. Kurucu lider olarak müttefik davetleri yönet, düşman ittifak ilan et, iç duyuru yayınla ve üye profilinden katılma isteklerini onayla. Müttefik köylere destek ordusu gönder, raporlarla her savaşı analiz et!
   ```
 
 ---
 
-### B. İkincil Lokalizasyon: English (`en-US`)
+### B. Türkiye Çapraz İndeksleme: English (U.K.) (`en-GB`)
 
-- **App Name (<=30 chars):** `Throne & Sword: Kingdom War` *(27 chars)*
-- **Subtitle (<=30 chars):** `Medieval Strategy & Conquest` *(28 chars)*
-- **Keywords (<=100 chars):**
-  ```
-  castle,village,empire,army,siege,knight,spy,alliance,rts,mmo,war,kingdom,builder,tactics,clans,raid
-  ```
-  *(98 chars)*
-- **Promotional Text:**
-  ```
-  Build your stronghold, train medieval armies, spy on rivals, and conquer enemy castles on one shared 24/7 live world map! 2× starter speed for your first 7 days.
-  ```
-- **Description (`en-US`):**
-  ```
-  Begin as the lord of a humble settlement and forge a mighty medieval empire!
+> **Neden `en-GB`?** Apple, Türkiye mağazasında `tr` yanında `en-GB` alanlarını da aktif olarak indeksler. Buraya koyacağımız İngilizce niş kelimeler `tr` kotasından yer çalmadan Türkiye'deki İngilizce aramalarda sıralama kazandırır.
 
-  Throne & Sword brings classic real-time village building, resource strategy, espionage, and castle conquest to iOS on a shared persistent world map where thousands of players compete simultaneously.
+- **App Name (29 / 30 chars):**
+  ```
+  Throne & Sword: Castle & Clan
+  ```
+- **Subtitle (29 / 30 chars):**
+  ```
+  Medieval Village Strategy MMO
+  ```
+- **Keywords (99 / 100 chars, zero overlap with `en-GB` Name/Subtitle or `tr` words):**
+  ```
+  builder,conquer,siege,alliance,kingdom,empire,army,pvp,rts,lord,gear,upgrade,bandit,raid,spy,knight
+  ```
+- **Promotional Text (131 / 170 chars):**
+  ```
+  Build your medieval village on a 24/7 live world map, forge +8 Lord gear, raid bandit strongholds, and conquer castles with your clan!
+  ```
+- **What's New (`en-GB`):**
+  ```
+  • Lord Hero & +8 Anvil Upgrades: Equip 13 gear slots and forge swords, armor, and relics with upgrade scrolls.
+  • Bandit Strongholds: Raid Lv.1–Lv.10 bandit villages for rare gear without losing your newcomer shield.
+  • Alliance Requests & Diplomacy: Browse clans, send join requests, manage allies/enemies, and coordinate live raids.
+  • Hideout 5-level capacity table, categorized Barracks UI, and iOS battery/thermal improvements.
+  ```
+- **Description (`en-GB`):**
+  ```
+  Start as the lord of a humble medieval settlement, forge +8 hero equipment, raise armies across 11 tactical unit types, and conquer enemy castles on one shared persistent world map!
+
+  Throne & Sword delivers classic real-time village building, resource economy, espionage, and alliance warfare built natively for iOS. Production, construction queues, and marches keep running 24/7 even when you are offline.
 
   KEY FEATURES:
-  • 24/7 Persistent World: Production, construction, and marches continue in real time even while offline.
-  • Guided Vizier Quests: Interactive onboarding and live mission tracker with generous rewards.
-  • Tactical Medieval Armies: Research and train infantry, archers, cavalry, spies, battering rams, catapults, and Counts.
-  • True Village Conquest: Mint gold armor, train Counts, lower enemy loyalty, and expand your multi-village realm.
-  • 2× Newcomer Boost: Every new player enjoys a personal 7-day 2× progression boost and starter shield.
+  • HERO LORD & 13-SLOT +8 UPGRADE ANVIL: Equip swords, shields, helms, armor, and accessories. Collect scrolls to upgrade gear up to +8 and boost your army combat power.
+  • BANDIT CAMPS & RARE LOOT: Raid Lv.1–Lv.10 Bandit Villages on the shared world map to farm resources and rare equipment drops—without dropping your starter protection shield.
+  • 24/7 PERSISTENT VILLAGE ECONOMY: Upgrade Castle, Barracks, Lumber Camp, Quarry, Iron Mine, Mill, Warehouse, Hideout, Market, Alchemist, Wall, Noble Hall, and Goldsmith.
+  • 11 MEDIEVAL UNITS & SIEGE TACTICS: Train pikemen, swordsmen, axemen, archers, cavalry, spies, battering rams, catapults, and Counts.
+  • TRUE CASTLE CONQUEST & ALLIANCE DIPLOMACY: Mint Gold Armor, train Counts, lower rival loyalty to zero, and expand your multi-village realm. Browse alliances, send join requests, declare allies or enemies, and send reinforcements on the live map!
   ```
 
 ---
 
-## 3. Görsel Varlık Kontrol Listesi (`appstore/`)
+### C. Küresel İngilizce Pazar: English (U.S.) (`en-US`)
 
-| Dosya | Boyut | Mod / Format | Açıklama |
-| :--- | :--- | :--- | :--- |
-| `appstore/app_icon_1024.png` | `1024 × 1024` | RGB PNG (Alpha Yok) | Taht ve Kılıç altın taç, kılıç ve kalkan arması |
-| `appstore/screenshots/01_koy_ve_gorevler.png` | `1290 × 2796` | RGB PNG | Gerçek oyun içi Köy + Sol üst Görevler |
-| `appstore/screenshots/02_kisla_ve_ordu.png` | `1290 × 2796` | RGB PNG | Gerçek oyun içi Kışla Birim Eğitimi |
-| `appstore/screenshots/03_dunya_haritasi.png` | `1290 × 2796` | RGB PNG | Gerçek oyun içi Canlı Dünya Haritası & Seferler |
-| `appstore/screenshots/04_fetih_ve_zafer.png` | `1290 × 2796` | RGB PNG | Gerçek oyun içi Savaş & Fetih Zafer Raporu |
+- **App Name (30 / 30 chars):**
+  ```
+  Throne & Sword: Castle MMO War
+  ```
+- **Subtitle (29 / 30 chars):**
+  ```
+  Medieval Village & Clan Siege
+  ```
+- **Keywords (100 / 100 chars, zero overlap with `en-US` Name/Subtitle):**
+  ```
+  strategy,builder,conquer,alliance,kingdom,empire,army,pvp,rts,lord,gear,upgrade,bandit,raid,spy,hero
+  ```
+- **Promotional Text (135 / 170 chars):**
+  ```
+  Build your medieval village on a 24/7 live world map, forge +8 Lord gear, raid bandit camps, and conquer castles with your alliance!
+  ```
+- **What's New (`en-US`):** `en-GB` ile aynı güncel Build 43 notları.
+- **Description (`en-US`):** `en-GB` ile aynı güncel Build 43 İngilizce açıklaması.
 
 ---
 
-## 4. App Review & TestFlight Notları
+## 3. Görsel Varlık Kontrol Listesi (Build 43 — Büyük Ekran iPhone Çerçevesi)
 
-- **Demo Hesap Gereksinimi:** Hayır. İnceleme ekibi Apple/Google veya Misafir/Oyuncu Adı ile tek dokunuşta yeni köy açabilir.
-- **TestFlight Test Talimatı:**
-  1. Uygulama açıldığında doğrudan "Yeni Oyun / Giriş" ekranı gelir; adınızı yazıp başlangıç yönünü (Kuzeybatı/Kuzeydoğu/Güneybatı/Güneydoğu) seçerek Dünya 1'e katılın.
-  2. Kısa Vezir eğitimini takip ederek Kale, Oduncu Kampı ve Kışla'yı kurun; ardından sol üstteki **Görevler** menüsünden ilerlemeyi ve ödülleri test edin.
-  3. Harita sekmesinden komşu köylere tıklayıp casusluk, yağma veya saldırı gönderin.
+- `appstore/screenshots_6_9/01..07_*.png` — **`1320 × 2868`** RGB PNG (Alpha yok, Türkçe, 6.9" iPhone zorunlu/kanonik tier)
+- `appstore/screenshots/01..07_*.png` — **`1290 × 2796`** RGB PNG (Alpha yok, Türkçe)
+- `appstore/screenshots_en/01..07_*.png` — **`1320 × 2868`** RGB PNG (Alpha yok, English `en-GB` & `en-US`)

@@ -1,302 +1,307 @@
 import os
-import math
 import cv2
 import numpy as np
-from PIL import Image, ImageDraw, ImageFont, ImageFilter
+from PIL import Image, ImageDraw, ImageFont
 
-W, H = 1290, 2796
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 ROOT_DIR = os.path.dirname(BASE_DIR)
 FONTS_DIR = os.path.join(ROOT_DIR, "game", "assets", "fonts")
-ARTIFACTS_DIR = r"C:\Users\Gorkem\.gemini\antigravity\brain\9410c4be-d8ee-495d-ad94-e06026c63fb2"
-OUT_DIR = os.path.join(BASE_DIR, "screenshots")
-os.makedirs(OUT_DIR, exist_ok=True)
+RAW_DIR = os.path.join(BASE_DIR, "raw")
 
-ITEMS = [
+OUT_69_TR = os.path.join(BASE_DIR, "screenshots_6_9")
+OUT_LEGACY_TR = os.path.join(BASE_DIR, "screenshots")
+OUT_69_EN = os.path.join(BASE_DIR, "screenshots_en")
+for d in (OUT_69_TR, OUT_LEGACY_TR, OUT_69_EN):
+    os.makedirs(d, exist_ok=True)
+
+SLIDES = [
     {
-        "out": "01_koy_ve_gorevler.png",
-        "mockup": os.path.join(ARTIFACTS_DIR, "hand_mockup_01_1794770854888.jpg"),
-        "game_shot": os.path.join(BASE_DIR, "raw", "raw_01_village_quests.png"),
-        "tag": "ORTA ÇAĞ KRALLIK STRATEJİSİ",
-        "title": ["KRALLIĞINI KUR,", "KÖYÜNÜ YÖNET"],
-        "subtitle": "Vezir görevlerini tamamla, binalarını yükselt\nve kaynaklarını stratejik biçimde büyüt.",
-        "zoom": 1.16,
-        "phone_y_shift": 180,
-        "top_tint": (18, 12, 10),
+        "file": "01_koy_ve_lord.png",
+        "raw": "raw_01_village_lord_quests.png",
+        "tag_tr": "7/24 GERÇEK ZAMANLI KÖY & GÖREVLER",
+        "title_tr": ["KÖYÜNÜ KUR,", "KRALLIĞINI BÜYÜT"],
+        "sub_tr": "Vezir görevlerini tamamla, binaları yükselt, 7/24 hammadde üret.",
+        "tag_en": "24/7 PERSISTENT MEDIEVAL VILLAGE",
+        "title_en": ["BUILD YOUR VILLAGE,", "RULE AN EMPIRE"],
+        "sub_en": "Complete Vizier quests, upgrade buildings & produce offline 24/7.",
+        "bg_top": (18, 12, 10),
+        "bg_bot": (36, 22, 14),
+        "glow": (195, 130, 52),
     },
     {
-        "out": "02_kisla_ve_ordu.png",
-        "mockup": os.path.join(ARTIFACTS_DIR, "hand_mockup_02_v2_1794770923040.jpg"),
-        "game_shot": os.path.join(BASE_DIR, "raw", "raw_02_barracks_train.png"),
-        "tag": "GERÇEK ZAMANLI ORDU EĞİTİMİ",
-        "title": ["YENİLMEZ BİR", "ORDU EĞİT"],
-        "subtitle": "Silahtar, Baltacı, Okçu, Şövalye ve Casus\nbirliklerini araştır, kuşatmaya hazırlan.",
-        "zoom": 1.14,
-        "phone_y_shift": 360,
-        "top_tint": (16, 12, 14),
+        "file": "02_lord_ve_ekipman.png",
+        "raw": "raw_02_lord_equipment.png",
+        "tag_tr": "13 SLOTLU KAHRAMAN LORD SİSTEMİ",
+        "title_tr": ["LORDUNU KUŞAT,", "ORDUNU GÜÇLENDİR"],
+        "sub_tr": "Kılıç, zırh, kalkan ve takılarla savaş gücünü anında katla.",
+        "tag_en": "13-SLOT HERO LORD EQUIPMENT",
+        "title_en": ["EQUIP YOUR LORD,", "BOOST EVERY ARMY"],
+        "sub_en": "Unlock swords, shields, armor & relics to power up your troops.",
+        "bg_top": (14, 12, 22),
+        "bg_bot": (32, 22, 46),
+        "glow": (160, 110, 215),
     },
     {
-        "out": "03_dunya_haritasi.png",
-        "mockup": os.path.join(ARTIFACTS_DIR, "hand_mockup_03_v2_1794770903212.jpg"),
-        "game_shot": os.path.join(BASE_DIR, "raw", "raw_03_world_map.png"),
-        "tag": "ORTAK ÇEVRİMİÇİ DÜNYA",
-        "title": ["CANLI DÜNYA", "HARİTASI"],
-        "subtitle": "Binlerce oyuncuyla aynı haritada buluş,\ncasus gönder ve gerçek zamanlı akın düzenle.",
-        "zoom": 1.24,
-        "phone_y_shift": 160,
-        "top_tint": (12, 15, 13),
+        "file": "03_ekipman_gelistirme.png",
+        "raw": "raw_03_lord_upgrade_anvil.png",
+        "tag_tr": "KRALİYET ÖRSÜ • +0'DAN +8'E BAS",
+        "title_tr": ["ÖRS'TE GÜÇLENDİR,", "EFSANEYİ DÖV"],
+        "sub_tr": "Parşömen kullan, nadir ekipmanlara +8 seviye bas ve parlat.",
+        "tag_en": "ROYAL ANVIL • +0 TO +8 UPGRADES",
+        "title_en": ["FORGE +8 GEAR", "AT THE ANVIL"],
+        "sub_en": "Use upgrade scrolls to temper rare weapons and armor up to +8.",
+        "bg_top": (22, 11, 10),
+        "bg_bot": (52, 20, 14),
+        "glow": (235, 118, 45),
     },
     {
-        "out": "04_fetih_ve_zafer.png",
-        "mockup": os.path.join(ARTIFACTS_DIR, "hand_mockup_04_1794770870691.jpg"),
-        "game_shot": os.path.join(BASE_DIR, "raw", "raw_05_reports_detail.png"),
-        "tag": "KONT & KÖY FETHİ SİSTEMİ",
-        "title": ["KONT GÖNDER,", "KÖY FETHET!"],
-        "subtitle": "Düşman kalelerinin sadakatini kır,\nganimet topla ve imparatorluğunu genişlet.",
-        "zoom": 1.18,
-        "phone_y_shift": 240,
-        "top_tint": (22, 10, 14),
+        "file": "04_dunya_haritasi.png",
+        "raw": "raw_04_world_map_bandits.png",
+        "tag_tr": "ORTAK CANLI DÜNYA HARİTASI",
+        "title_tr": ["HAYDUT AVLA,", "KÖYLERİ FETHET"],
+        "sub_tr": "Sv.1–10 haydut kamplarına baskın at; koruma kalkanın bozulmasın.",
+        "tag_en": "SHARED LIVE WORLD MAP",
+        "title_en": ["RAID BANDITS ON", "ONE LIVE MAP"],
+        "sub_en": "Plunder Lv.1–10 bandit strongholds without losing your starter shield.",
+        "bg_top": (10, 18, 13),
+        "bg_bot": (18, 40, 24),
+        "glow": (86, 178, 110),
+    },
+    {
+        "file": "05_kisla_ve_ordu.png",
+        "raw": "raw_05_barracks_army.png",
+        "tag_tr": "11 ORTA ÇAĞ ASKERİ BİRLİĞİ",
+        "title_tr": ["ORDUNU EĞİT,", "KUŞATMAYA HAZIRLAN"],
+        "sub_tr": "Piyade, Okçu, Süvari, Casus, Şahmerdan ve Kont ile zafere yürü.",
+        "tag_en": "11 MEDIEVAL TROOP TYPES",
+        "title_en": ["TRAIN 11 UNITS,", "LEAD THE SIEGE"],
+        "sub_en": "Infantry, archers, cavalry, spies, rams, catapults & Counts.",
+        "bg_top": (18, 13, 14),
+        "bg_bot": (44, 24, 22),
+        "glow": (212, 92, 74),
+    },
+    {
+        "file": "06_ittifak_diplomasi.png",
+        "raw": "raw_06_alliance_diplomacy.png",
+        "tag_tr": "KLAN SAVAŞLARI & DİPLOMASİ",
+        "title_tr": ["İTTİFAK KUR,", "DİPLOMASİ YÖNET"],
+        "sub_tr": "Müttefik seç, düşman ilan et, katılma isteklerini tek tıkla onayla.",
+        "tag_en": "ALLIANCE WARS & DIPLOMACY",
+        "title_en": ["FORGE ALLIANCES,", "WAGE CLAN WARS"],
+        "sub_en": "Declare allies or enemies, approve recruits & send reinforcements.",
+        "bg_top": (12, 15, 24),
+        "bg_bot": (22, 30, 54),
+        "glow": (95, 148, 228),
+    },
+    {
+        "file": "07_savas_ganimet.png",
+        "raw": "raw_07_bandit_loot_report.png",
+        "tag_tr": "YAĞMA & NADİR EKİPMAN GANİMETİ",
+        "title_tr": ["SAVAŞ, YAĞMALA,", "NADİR EŞYA KAP!"],
+        "sub_tr": "Haydut savaşlarını kazan, ganimet ve nadir Lord ekipmanları topla.",
+        "tag_en": "VICTORY REPORTS & RARE DROPS",
+        "title_en": ["WIN BATTLES,", "LOOT RARE GEAR"],
+        "sub_en": "Analyze detailed combat reports and claim rare Lord equipment.",
+        "bg_top": (20, 12, 22),
+        "bg_bot": (48, 20, 44),
+        "glow": (210, 120, 225),
     },
 ]
 
 
-def order_quad(pts: np.ndarray) -> np.ndarray:
-    rect = np.zeros((4, 2), dtype="float32")
-    s = pts.sum(axis=1)
-    rect[0] = pts[np.argmin(s)]  # TL
-    rect[2] = pts[np.argmax(s)]  # BR
-    diff = np.diff(pts, axis=1)
-    rect[1] = pts[np.argmin(diff)]  # TR
-    rect[3] = pts[np.argmax(diff)]  # BL
-    return rect
+def _make_background(w: int, h: int, bg_top, bg_bot, glow) -> Image.Image:
+    yy = np.linspace(0.0, 1.0, h, dtype=np.float32)[:, None, None]
+    top_arr = np.array(bg_top, dtype=np.float32).reshape(1, 1, 3)
+    bot_arr = np.array(bg_bot, dtype=np.float32).reshape(1, 1, 3)
+    grad = top_arr * (1.0 - yy ** 0.85) + bot_arr * (yy ** 0.85)
+
+    # Warm radial glow behind top edge of the oversized phone
+    y_grid, x_grid = np.mgrid[0:h, 0:w].astype(np.float32)
+    cx, cy = w * 0.5, h * 0.25
+    dx = (x_grid - cx) / (w * 0.62)
+    dy = (y_grid - cy) / (h * 0.24)
+    rad = np.exp(-(dx * dx + dy * dy) * 1.45)[:, :, None]
+    glow_arr = np.array(glow, dtype=np.float32).reshape(1, 1, 3)
+    img_arr = np.clip(grad + rad * glow_arr * 0.28, 0, 255).astype(np.uint8)
+    return Image.fromarray(img_arr, "RGB").convert("RGBA")
 
 
-def build_phone_display_image(game_path: str, target_aspect_h_over_w: float) -> np.ndarray:
-    """Loads crisp Godot capture, upscales cleanly, and adds authentic slim iPhone Dynamic Island status bar."""
-    raw = cv2.imread(game_path, cv2.IMREAD_COLOR)
-    assert raw is not None, f"Missing {game_path}"
-    gh, gw = raw.shape[:2]
-
-    # Upscale cleanly for razor-sharp UI inside iPhone frame
-    up_w = 1350
-    up_h = int(round(gh * (up_w / gw)))
-    up = cv2.resize(raw, (up_w, up_h), interpolation=cv2.INTER_LANCZOS4)
-
-    # Subtle micro-sharpening so tiny Turkish UI text stays tack-sharp inside mockup
-    blur = cv2.GaussianBlur(up, (0, 0), 0.9)
-    up = cv2.addWeighted(up, 1.15, blur, -0.15, 0)
-
-    # Exact aspect ratio match with tiny slim iPhone safe-area status bar at top + home pill at bottom
-    total_h = max(up_h + 132, int(round(up_w * target_aspect_h_over_w)))
-    bar_h = total_h - up_h
-    top_bar_h = int(min(130, max(96, bar_h * 0.72)))
-    # Fit game image seamlessly into remaining screen height (minor ~1-3% aspect fit if needed)
-    game_target_h = total_h - top_bar_h - 36
-    if abs(game_target_h - up_h) > 6:
-        up = cv2.resize(up, (up_w, game_target_h), interpolation=cv2.INTER_LANCZOS4)
-        up_h = game_target_h
-    bot_bar_h = total_h - up_h - top_bar_h
-
-    canvas = np.zeros((total_h, up_w, 3), dtype=np.uint8)
-    canvas[:, :] = (20, 15, 19)  # BGR dark obsidian matching game top HUD
-    canvas[top_bar_h:top_bar_h + up_h, :] = up
-
-    # Draw authentic slim iPhone status bar (clock left beside Dynamic Island, signal/battery right) + home bar
-    pil_c = Image.fromarray(cv2.cvtColor(canvas, cv2.COLOR_BGR2RGB))
-    d = ImageDraw.Draw(pil_c)
-    f_status = ImageFont.truetype(os.path.join(FONTS_DIR, "Nunito-Bold.ttf"), 40)
-    status_y = int(top_bar_h * 0.44)
-    d.text((int(up_w * 0.145), status_y), "22:30", font=f_status, fill=(242, 240, 245), anchor="mm")
-
-    # Signal bars & battery outline on right side beside Dynamic Island
-    rx = int(up_w * 0.76)
-    ry = status_y - 12
-    for idx, bh in enumerate([10, 15, 20, 25]):
-        bx = rx + idx * 12
-        d.rounded_rectangle([bx, ry + (25 - bh), bx + 8, ry + 25], radius=2, fill=(242, 240, 245))
-    bat_x = rx + 62
-    d.rounded_rectangle([bat_x, ry + 1, bat_x + 50, ry + 25], radius=6, outline=(220, 220, 228), width=3)
-    d.rounded_rectangle([bat_x + 4, ry + 5, bat_x + 42, ry + 21], radius=3, fill=(242, 240, 245))
-    d.rectangle([bat_x + 52, ry + 9, bat_x + 55, ry + 17], fill=(200, 200, 210))
-
-    # Home indicator pill at bottom
-    if bot_bar_h >= 20:
-        hy = total_h - int(bot_bar_h * 0.45)
-        d.rounded_rectangle([int(up_w * 0.34), hy - 5, int(up_w * 0.66), hy + 5], radius=5, fill=(215, 210, 224))
-
-    return cv2.cvtColor(np.array(pil_c), cv2.COLOR_RGB2BGR)
+def _fit_text(draw: ImageDraw.ImageDraw, text: str, font_path: str, max_w: int, start_size: int, min_size: int = 24) -> ImageFont.FreeTypeFont:
+    sz = start_size
+    while sz >= min_size:
+        f = ImageFont.truetype(font_path, sz)
+        bbox = draw.textbbox((0, 0), text, font=f)
+        if (bbox[2] - bbox[0]) <= max_w:
+            return f
+        sz -= 2
+    return ImageFont.truetype(font_path, min_size)
 
 
-def find_green_mask_and_quad(bg_bgr: np.ndarray):
-    hsv = cv2.cvtColor(bg_bgr, cv2.COLOR_BGR2HSV)
-    # Main bright green screen region
-    mask = cv2.inRange(hsv, (36, 95, 95), (86, 255, 255))
-    # Keep only largest connected component (the iPhone screen)
-    num_lbl, labels, stats, _ = cv2.connectedComponentsWithStats(mask)
-    if num_lbl <= 1:
-        raise RuntimeError("No green screen found in mockup!")
-    best_lbl = 1 + int(np.argmax(stats[1:, cv2.CC_STAT_AREA]))
-    clean_mask = np.where(labels == best_lbl, 255, 0).astype(np.uint8)
+def _draw_dynamic_island_and_status(screen_img: Image.Image, w: int) -> None:
+    d = ImageDraw.Draw(screen_img)
+    s = w / 1120.0
+    status_h = int(round(88 * s))
 
-    # Tight minAreaRect on the green screen contour gives exact rotated rectangle corners
-    contours, _ = cv2.findContours(clean_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    big_cnt = max(contours, key=cv2.contourArea)
-    rect = cv2.minAreaRect(big_cnt)
-    box = cv2.boxPoints(rect)
-    quad = order_quad(box)
+    # Solid top obsidian safe strip matching ResourceBar dark frame
+    d.rectangle([0, 0, w, status_h], fill=(16, 13, 19, 255))
 
-    # Expand quad outward slightly by 2px so no green anti-alias ring appears inside edges
-    center = quad.mean(axis=0)
-    dirs = quad - center
-    norms = np.linalg.norm(dirs, axis=1, keepdims=True)
-    quad_expanded = quad + (dirs / np.maximum(norms, 1e-6)) * 2.5
+    # Dynamic Island pill
+    di_w = int(round(290 * s))
+    di_h = int(round(58 * s))
+    di_x0 = (w - di_w) // 2
+    di_y0 = int(round(16 * s))
+    d.rounded_rectangle([di_x0, di_y0, di_x0 + di_w, di_y0 + di_h], radius=di_h // 2, fill=(4, 4, 6, 255))
+    # Subtle camera lens highlight
+    lens_r = int(round(10 * s))
+    lx = di_x0 + di_w - int(round(44 * s))
+    ly = di_y0 + di_h // 2
+    d.ellipse([lx - lens_r, ly - lens_r, lx + lens_r, ly + lens_r], fill=(18, 24, 38, 255))
 
-    # Also build soft edge-despilled mask covering anti-aliased fringe around screen & Dynamic Island
-    dilated = cv2.dilate(clean_mask, np.ones((5, 5), np.uint8), iterations=1)
-    # Only include dilated border pixels if they actually lean green in RGB (G > R and G > B)
-    b, g, r = cv2.split(bg_bgr)
-    green_tint = ((g.astype(np.int16) - np.maximum(r, b).astype(np.int16)) > 12).astype(np.uint8) * 255
-    mask_final = np.maximum(clean_mask, cv2.bitwise_and(dilated, green_tint))
-    alpha = cv2.GaussianBlur(mask_final.astype(np.float32) / 255.0, (3, 3), 0.7)
-    return quad_expanded, alpha
+    # Clock on left
+    f_clock = ImageFont.truetype(os.path.join(FONTS_DIR, "Nunito-Bold.ttf"), int(round(34 * s)))
+    d.text((int(round(124 * s)), di_y0 + di_h // 2), "22:30", font=f_clock, fill=(244, 242, 248, 255), anchor="mm")
+
+    # Signal bars + Battery on right
+    rx = w - int(round(215 * s))
+    ry = di_y0 + int(round(18 * s))
+    for i, bh in enumerate([9, 13, 17, 22]):
+        bx = rx + int(round(i * 11 * s))
+        bw = int(round(7 * s))
+        bhh = int(round(bh * s))
+        full_h = int(round(22 * s))
+        d.rounded_rectangle([bx, ry + full_h - bhh, bx + bw, ry + full_h], radius=2, fill=(244, 242, 248, 255))
+    bat_x = rx + int(round(58 * s))
+    bat_w = int(round(46 * s))
+    bat_h = int(round(22 * s))
+    d.rounded_rectangle([bat_x, ry, bat_x + bat_w, ry + bat_h], radius=int(round(6 * s)), outline=(225, 225, 232, 255), width=max(2, int(round(2.5 * s))))
+    d.rounded_rectangle([bat_x + 4, ry + 4, bat_x + bat_w - 6, ry + bat_h - 4], radius=3, fill=(244, 242, 248, 255))
+    d.rectangle([bat_x + bat_w + 2, ry + int(round(7 * s)), bat_x + bat_w + 5, ry + bat_h - int(round(7 * s))], fill=(210, 210, 220, 255))
 
 
-def composite_item(cfg: dict) -> str:
-    mockup_bgr = cv2.imread(cfg["mockup"], cv2.IMREAD_COLOR)
-    assert mockup_bgr is not None, f"Missing mockup: {cfg['mockup']}"
-    mh, mw = mockup_bgr.shape[:2]
+def _rounded_mask(w: int, h: int, radius: int) -> Image.Image:
+    # Supersampled 2x rounded rectangle alpha mask for crisp anti-aliasing
+    mw, mh, mr = w * 2, h * 2, radius * 2
+    mask = Image.new("L", (mw, mh), 0)
+    md = ImageDraw.Draw(mask)
+    md.rounded_rectangle([0, 0, mw - 1, mh - 1], radius=mr, fill=255)
+    return mask.resize((w, h), Image.Resampling.LANCZOS)
 
-    # Zoom slightly around horizontal center so phone is prominent yet hands remain authentic
-    zoom = cfg["zoom"]
-    scale = (W / mw) * zoom
-    nw, nh = int(round(mw * scale)), int(round(mh * scale))
-    resized = cv2.resize(mockup_bgr, (nw, nh), interpolation=cv2.INTER_LANCZOS4)
 
-    # Crop horizontally to W=1290
-    x0 = max(0, (nw - W) // 2)
-    cropped = resized[:, x0:x0 + W]
-    ch, cw = cropped.shape[:2]
+def compose_one(slide: dict, w: int, h: int, lang: str, out_dir: str) -> str:
+    raw_path = os.path.join(RAW_DIR, slide["raw"])
+    raw_bgr = cv2.imread(raw_path, cv2.IMREAD_COLOR)
+    assert raw_bgr is not None, f"Missing raw screenshot: {raw_path}"
 
-    # Create full 1290x2796 base canvas by extending top blurred color smoothly
-    canvas = np.zeros((H, W, 3), dtype=np.uint8)
-    y_place = H - ch + cfg["phone_y_shift"]
-    if y_place > 0:
-        # Fill upper space with smooth top-edge sample gradient to tint color
-        top_strip = cropped[:24, :, :]
-        avg_top = np.median(top_strip.reshape(-1, 3), axis=0)
-        tint_bgr = np.array([cfg["top_tint"][2], cfg["top_tint"][1], cfg["top_tint"][0]], dtype=np.float32)
-        for yy in range(y_place):
-            t = yy / max(1, y_place)
-            col = tint_bgr * (1.0 - t) + avg_top * t
-            canvas[yy, :, :] = np.clip(col, 0, 255).astype(np.uint8)
-        avail_h = min(ch, H - y_place)
-        canvas[y_place:y_place + avail_h, :] = cropped[:avail_h, :]
-        # Soft blend seam around y_place
-        seam_h = min(140, y_place)
-        for dy in range(-seam_h // 2, seam_h // 2):
-            yy = y_place + dy
-            if 0 <= yy < H and yy - y_place < avail_h:
-                t = (dy + seam_h / 2) / max(1, seam_h)
-                row_ext = tint_bgr * (1.0 - t * 0.7) + avg_top * (t * 0.7)
-                canvas[yy] = np.clip(row_ext * (1.0 - t) + canvas[yy].astype(np.float32) * t, 0, 255).astype(np.uint8)
-    else:
-        src_y0 = -y_place
-        canvas[:, :] = cropped[src_y0:src_y0 + H, :]
+    canvas = _make_background(w, h, slide["bg_top"], slide["bg_bot"], slide["glow"])
+    s = w / 1320.0
 
-    # Detect screen quad + alpha on the positioned mockup canvas
-    quad, screen_alpha = find_green_mask_and_quad(canvas)
-    screen_w = np.linalg.norm(quad[1] - quad[0])
-    screen_h = np.linalg.norm(quad[3] - quad[0])
-    aspect = float(screen_h / max(1.0, screen_w))
+    # --- Top Marketing Typography (Compact ~18% height so the phone is HUGE!) ---
+    draw = ImageDraw.Draw(canvas)
+    tag_text = slide[f"tag_{lang}"]
+    title_lines = slide[f"title_{lang}"]
+    sub_text = slide[f"sub_{lang}"]
 
-    game_bgr = build_phone_display_image(cfg["game_shot"], aspect)
-    gh, gw = game_bgr.shape[:2]
-    src_quad = np.array([[0, 0], [gw - 1, 0], [gw - 1, gh - 1], [0, gh - 1]], dtype=np.float32)
-    M = cv2.getPerspectiveTransform(src_quad, quad)
-    warped_game = cv2.warpPerspective(game_bgr, M, (W, H), flags=cv2.INTER_LANCZOS4)
-
-    # Subtle realistic diagonal OLED screen glass sheen (very faint 3.5% top-left highlight)
-    yy_grid, xx_grid = np.mgrid[0:H, 0:W].astype(np.float32)
-    sheen = np.clip(1.0 - ((xx_grid / W) * 0.7 + (yy_grid / H) * 0.9), 0.0, 1.0) ** 2.4
-    warped_sheen = np.clip(warped_game.astype(np.float32) + sheen[:, :, None] * 14.0, 0, 255).astype(np.uint8)
-
-    # Composite warped genuine game UI into phone screen mask (preserving Dynamic Island & hands!)
-    a3 = screen_alpha[:, :, None]
-    comp_bgr = (warped_sheen.astype(np.float32) * a3 + canvas.astype(np.float32) * (1.0 - a3)).astype(np.uint8)
-
-    # Despill any remaining 1px green fringe right outside screen edge (never touching hands/UI)
-    edge_band = np.clip(cv2.dilate(screen_alpha, np.ones((7, 7), np.uint8)) - screen_alpha, 0.0, 1.0)
-    b, g, r = cv2.split(comp_bgr)
-    max_rb = np.maximum(r, b)
-    despill_g = np.where((edge_band > 0.05) & (g > max_rb), max_rb, g)
-    comp_bgr = cv2.merge([b, despill_g.astype(np.uint8), r])
-
-    # Switch to PIL RGB for crisp golden medieval App Store typography header
-    pil_img = Image.fromarray(cv2.cvtColor(comp_bgr, cv2.COLOR_BGR2RGB)).convert("RGBA")
-
-    # Atmospheric dark gradient scrim behind top typography (top 950px, fading cleanly to zero)
-    scrim = Image.new("RGBA", (W, H), (0, 0, 0, 0))
-    scrim_arr = np.zeros((H, W, 4), dtype=np.uint8)
-    tint_r, tint_g, tint_b = cfg["top_tint"]
-    for yy in range(960):
-        # Smooth ease-out curve
-        p = yy / 960.0
-        alpha_val = int(round(230 * (1.0 - p) ** 1.35))
-        scrim_arr[yy, :, 0] = tint_r
-        scrim_arr[yy, :, 1] = tint_g
-        scrim_arr[yy, :, 2] = tint_b
-        scrim_arr[yy, :, 3] = alpha_val
-    scrim = Image.fromarray(scrim_arr, "RGBA")
-    pil_img = Image.alpha_composite(pil_img, scrim)
-
-    draw = ImageDraw.Draw(pil_img)
-    font_tag = ImageFont.truetype(os.path.join(FONTS_DIR, "Nunito-Bold.ttf"), 30)
-    font_title = ImageFont.truetype(os.path.join(FONTS_DIR, "Cinzel-Bold.ttf"), 92)
-    font_sub = ImageFont.truetype(os.path.join(FONTS_DIR, "Nunito-SemiBold.ttf"), 38)
-
-    # Gold pill tag at top
-    tag_text = cfg["tag"]
+    font_tag = ImageFont.truetype(os.path.join(FONTS_DIR, "Nunito-Bold.ttf"), int(round(26 * s)))
     tb = draw.textbbox((0, 0), tag_text, font=font_tag)
     tw, th = tb[2] - tb[0], tb[3] - tb[1]
-    pad_x, pad_y = 34, 14
-    pill_x0 = (W - (tw + pad_x * 2)) // 2
-    pill_y0 = 128
+    pad_x, pad_y = int(round(28 * s)), int(round(11 * s))
+    pill_x0 = (w - (tw + pad_x * 2)) // 2
+    pill_y0 = int(round(62 * s))
     draw.rounded_rectangle(
         [pill_x0, pill_y0, pill_x0 + tw + pad_x * 2, pill_y0 + th + pad_y * 2],
-        radius=28,
-        fill=(32, 24, 22, 220),
-        outline=(212, 170, 82, 210),
-        width=3,
+        radius=int(round(24 * s)),
+        fill=(28, 20, 18, 225),
+        outline=(226, 182, 92, 225),
+        width=max(2, int(round(3 * s))),
     )
-    draw.text((W // 2, pill_y0 + pad_y + th // 2 - 2), tag_text, font=font_tag, fill=(244, 210, 128, 255), anchor="mm")
+    draw.text((w // 2, pill_y0 + pad_y + th // 2 - 1), tag_text, font=font_tag, fill=(248, 214, 128, 255), anchor="mm")
 
-    # Main 2-line royal gold-ivory title with soft drop shadow
-    y_cursor = 236
-    for idx, line in enumerate(cfg["title"]):
-        fill_col = (255, 226, 145, 255) if idx == 0 else (252, 248, 240, 255)
-        draw.text((W // 2 + 4, y_cursor + 5), line, font=font_title, fill=(0, 0, 0, 200), anchor="mt")
-        draw.text((W // 2, y_cursor), line, font=font_title, fill=fill_col, anchor="mt")
-        y_cursor += 108
+    y_cur = int(round(138 * s))
+    cinzel_path = os.path.join(FONTS_DIR, "Cinzel-Bold.ttf")
+    for idx, line in enumerate(title_lines):
+        f_title = _fit_text(draw, line, cinzel_path, int(round(w * 0.90)), int(round(88 * s)), int(round(56 * s)))
+        fill_col = (255, 224, 134, 255) if idx == 0 else (252, 248, 240, 255)
+        draw.text((w // 2 + int(round(3 * s)), y_cur + int(round(4 * s))), line, font=f_title, fill=(0, 0, 0, 210), anchor="mt")
+        draw.text((w // 2, y_cur), line, font=f_title, fill=fill_col, anchor="mt")
+        y_cur += int(round(98 * s))
 
-    # Subtle ornamental gold divider
-    div_y = y_cursor + 24
-    draw.line([(W // 2 - 190, div_y), (W // 2 + 190, div_y)], fill=(214, 172, 86, 180), width=3)
-    draw.polygon([(W // 2, div_y - 8), (W // 2 + 10, div_y), (W // 2, div_y + 8), (W // 2 - 10, div_y)], fill=(246, 214, 130, 240))
+    sub_font_path = os.path.join(FONTS_DIR, "Nunito-SemiBold.ttf")
+    f_sub = _fit_text(draw, sub_text, sub_font_path, int(round(w * 0.90)), int(round(33 * s)), int(round(24 * s)))
+    sub_y = y_cur + int(round(14 * s))
+    draw.text((w // 2 + 2, sub_y + 2), sub_text, font=f_sub, fill=(0, 0, 0, 195), anchor="mt")
+    draw.text((w // 2, sub_y), sub_text, font=f_sub, fill=(230, 224, 214, 245), anchor="mt")
 
-    # Crisp 2-line subtitle
-    sub_y = div_y + 34
-    for sub_line in cfg["subtitle"].split("\n"):
-        draw.text((W // 2 + 2, sub_y + 3), sub_line, font=font_sub, fill=(0, 0, 0, 190), anchor="mt")
-        draw.text((W // 2, sub_y), sub_line, font=font_sub, fill=(224, 218, 206, 245), anchor="mt")
-        sub_y += 52
+    # --- Oversized iPhone Chassis (~84.5% of width, showing full screen including BottomNav!) ---
+    phone_w = int(round(1116 * s))
+    phone_x = (w - phone_w) // 2
+    phone_y = int(round(430 * s))
+    bezel = int(round(20 * s))
+    screen_w = phone_w - bezel * 2
+    outer_radius = int(round(116 * s))
+    inner_radius = outer_radius - bezel
 
-    out_path = os.path.join(OUT_DIR, cfg["out"])
-    final_rgb = pil_img.convert("RGB")
+    # Prepare razor-sharp upscaled game screen + slim iPhone Dynamic Island header
+    gh, gw = raw_bgr.shape[:2]
+    status_top_h = int(round(82 * (screen_w / 1120.0)))
+    game_h = int(round(gh * (screen_w / float(gw))))
+    up = cv2.resize(raw_bgr, (screen_w, game_h), interpolation=cv2.INTER_LANCZOS4)
+    blur = cv2.GaussianBlur(up, (0, 0), 1.0)
+    up = cv2.addWeighted(up, 1.18, blur, -0.18, 0)
+    up_rgb = cv2.cvtColor(up, cv2.COLOR_BGR2RGB)
+
+    screen_h = max(h - phone_y + int(round(30 * s)), status_top_h + game_h + int(round(16 * s)))
+    phone_h = screen_h + bezel * 2
+
+    screen_rgba = Image.new("RGBA", (screen_w, screen_h), (16, 13, 19, 255))
+    screen_rgba.paste(Image.fromarray(up_rgb, "RGB").convert("RGBA"), (0, status_top_h))
+    _draw_dynamic_island_and_status(screen_rgba, screen_w)
+
+    # Bottom safe-bar tint if screen extends slightly below raw height
+    bot_start = status_top_h + game_h
+    if bot_start < screen_h:
+        sd = ImageDraw.Draw(screen_rgba)
+        sd.rectangle([0, bot_start, screen_w, screen_h], fill=(22, 16, 14, 255))
+
+    # Drop shadow behind phone frame
+    shadow_layer = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+    sh_d = ImageDraw.Draw(shadow_layer)
+    sh_pad = int(round(18 * s))
+    sh_d.rounded_rectangle(
+        [phone_x - sh_pad, phone_y - sh_pad // 2, phone_x + phone_w + sh_pad, phone_y + phone_h],
+        radius=outer_radius + sh_pad,
+        fill=(0, 0, 0, 140),
+    )
+    from PIL import ImageFilter
+    shadow_layer = shadow_layer.filter(ImageFilter.GaussianBlur(int(round(28 * s))))
+    canvas = Image.alpha_composite(canvas, shadow_layer)
+
+    # Draw crisp dark titanium metallic outer chassis + black bezel
+    chassis = Image.new("RGBA", (phone_w, phone_h), (0, 0, 0, 0))
+    cd = ImageDraw.Draw(chassis)
+    # Outer metallic titanium ring
+    cd.rounded_rectangle([0, 0, phone_w - 1, phone_h - 1], radius=outer_radius, fill=(48, 44, 42, 255), outline=(146, 128, 96, 235), width=max(2, int(round(4 * s))))
+    # Inner dark bezel body
+    ring_w = int(round(7 * s))
+    cd.rounded_rectangle([ring_w, ring_w, phone_w - 1 - ring_w, phone_h - 1 - ring_w], radius=outer_radius - ring_w, fill=(10, 10, 12, 255), outline=(72, 66, 62, 220), width=max(2, int(round(2 * s))))
+
+    screen_mask = _rounded_mask(screen_w, screen_h, inner_radius)
+    chassis.paste(screen_rgba, (bezel, bezel), screen_mask)
+
+    # Paste cropped-bottom chassis onto main canvas cleanly
+    visible_h = h - phone_y
+    if visible_h > 0:
+        crop_ch = chassis.crop((0, 0, phone_w, min(phone_h, visible_h)))
+        canvas.paste(crop_ch, (phone_x, phone_y), crop_ch)
+
+    out_path = os.path.join(out_dir, slide["file"])
+    final_rgb = canvas.convert("RGB")
     final_rgb.save(out_path, "PNG", optimize=True)
-    print(f"Generated {out_path} ({final_rgb.size}, screen={int(screen_w)}x{int(screen_h)} at y~{int(quad[0][1])})")
+    print(f"Generated {out_path} ({final_rgb.size}, screen_w={screen_w}px at y={phone_y})")
     return out_path
 
 
 if __name__ == "__main__":
-    for item in ITEMS:
-        composite_item(item)
+    for sl in SLIDES:
+        compose_one(sl, 1320, 2868, "tr", OUT_69_TR)
+        compose_one(sl, 1290, 2796, "tr", OUT_LEGACY_TR)
+        compose_one(sl, 1320, 2868, "en", OUT_69_EN)
