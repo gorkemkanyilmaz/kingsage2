@@ -26,6 +26,7 @@ offset_right = 1080.0
 offset_bottom = 2036.0
 
 [node name="Background" type="TextureRect" parent="VillageArea"]
+texture_filter = 2
 custom_minimum_size = Vector2(1080, 1920)
 layout_mode = 0
 offset_right = 1080.0

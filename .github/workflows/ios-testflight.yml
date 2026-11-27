@@ -33,6 +33,7 @@ jobs:
       GODOT_VERSION: "4.7.2-stable"
       APP_BUNDLE_ID: "com.tahtkilic.kingsage2"
       APPLE_TEAM_ID: "H2TTF8894Z"
+      DEFAULT_BUILD_NUMBER: "43"
 
     steps:
       - name: Checkout repository
@@ -82,7 +83,7 @@ jobs:
           ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
           ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
           ASC_KEY_P8_BASE64: ${{ secrets.ASC_KEY_P8_BASE64 }}
-          BUILD_NUMBER: ${{ inputs.build_number || '43' }}
+          BUILD_NUMBER: ${{ inputs.build_number || env.DEFAULT_BUILD_NUMBER }}
         run: |
           set -o pipefail
           mkdir -p "$HOME/.appstoreconnect/private_keys" build/ios
@@ -98,7 +99,7 @@ jobs:
 
       - name: Inject Profile UUID & Build Number into Godot Export Preset
         env:
-          BUILD_NUMBER: ${{ inputs.build_number || '43' }}
+          BUILD_NUMBER: ${{ inputs.build_number || env.DEFAULT_BUILD_NUMBER }}
         run: |
           python3 - <<'PY'
           import os, re
@@ -117,7 +118,7 @@ jobs:
       - name: Import Godot Assets & Export iOS Project
         run: |
           python3 - <<'PY'
-          import glob, re
+          import glob, os, re
           patched = 0
           targets = sorted(glob.glob("game/assets/sprites/map/harita-*.jpg.import"))
           for imp_path in targets:
@@ -128,17 +129,45 @@ jobs:
                   with open(imp_path, "w", encoding="utf-8") as f:
                       f.write(new_txt)
                   patched += 1
-          print(f"Patched {patched} map .import files to VRAM Compressed (ETC2/ASTC) for iOS (animated_bg kept in fast WebP mode=1)")
+          print(f"Patched {patched} map .import files to VRAM Compressed (ETC2/ASTC) for iOS")
+
+          def patch_import_astc_hq(imp_path: str) -> bool:
+              with open(imp_path, "r", encoding="utf-8") as f:
+                  txt = f.read()
+              new_txt = txt
+              new_txt = re.sub(r"compress/mode=\d+", "compress/mode=2", new_txt)
+              new_txt = re.sub(r"compress/high_quality=(?:true|false)", "compress/high_quality=true", new_txt)
+              new_txt = re.sub(r"mipmaps/generate=(?:true|false)", "mipmaps/generate=false", new_txt)
+              new_txt = re.sub(r"process/size_limit=\d+", "process/size_limit=0", new_txt)
+              if new_txt != txt:
+                  with open(imp_path, "w", encoding="utf-8") as f:
+                      f.write(new_txt)
+                  return True
+              return False
+
+          landscape_imp = "game/assets/sprites/village/village_landscape.jpg.import"
+          if os.path.exists(landscape_imp):
+              patch_import_astc_hq(landscape_imp)
+              print("Patched village_landscape.jpg.import to ASTC 4x4 high_quality full resolution")
+
           bg_patched = 0
+          odd_removed = 0
           for bg_imp in sorted(glob.glob("game/assets/sprites/village/animated_bg/f_*.webp.import")):
-              with open(bg_imp, "r", encoding="utf-8") as f:
-                  btxt = f.read()
-              bnew = re.sub(r"process/size_limit=\d+", "process/size_limit=960", btxt)
-              if bnew != btxt:
-                  with open(bg_imp, "w", encoding="utf-8") as f:
-                      f.write(bnew)
-                  bg_patched += 1
-          print(f"Patched {bg_patched} animated_bg .import files to process/size_limit=960 (540x960 -> -44% VRAM & decode heat)")
+              m = re.search(r"f_(\d+)\.webp\.import$", bg_imp)
+              if not m:
+                  continue
+              idx = int(m.group(1))
+              if idx % 2 == 1:
+                  # Odd frames are unused by VillageBackgroundCache (FRAME_STRIDE=2); strip on CI runner only
+                  webp_path = bg_imp[:-len(".import")]
+                  for p in (bg_imp, webp_path):
+                      if os.path.exists(p):
+                          os.remove(p)
+                  odd_removed += 1
+              else:
+                  if patch_import_astc_hq(bg_imp):
+                      bg_patched += 1
+          print(f"Patched {bg_patched} active even animated_bg .import files to full 720x1280 ASTC 4x4 (0 CPU decode, -55.5% VRAM) and pruned {odd_removed} unused odd frames")
           PY
           python3 - <<'PY'
           import os, re, sys
@@ -313,7 +342,7 @@ jobs:
         env:
           ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
           ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
-          BUILD_NUMBER: ${{ inputs.build_number || '42' }}
+          BUILD_NUMBER: ${{ inputs.build_number || env.DEFAULT_BUILD_NUMBER }}
         run: |
           set -o pipefail
           fastlane ios export_and_upload project_path:"$XCODE_PROJ" scheme:"$XCODE_SCHEME" target:"$XCODE_TARGET" 2>&1 | tee fastlane_upload.log
