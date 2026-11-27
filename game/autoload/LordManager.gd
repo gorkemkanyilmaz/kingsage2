@@ -425,6 +425,7 @@ func grant_tutorial_starter_kit() -> Dictionary:
 	var seq := maxi(1, int(ld.get("next_item_seq", 1)))
 	var sword := LordModelScript.create_item("sword", "common", 0, seq, "Eğitim Başlangıcı", _now_unix())
 	sword["name"] = "Acemi Lord Kılıcı"
+	ld["tutorial_sword_id"] = str(sword.get("id", ""))
 	seq += 1
 	var boots := LordModelScript.create_item("boots", "common", 0, seq, "Eğitim Başlangıcı", _now_unix())
 	boots["name"] = "Acemi Lord Çizmesi"

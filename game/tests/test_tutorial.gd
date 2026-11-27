@@ -338,6 +338,11 @@ func _run_tests() -> void:
 	var lmod := village.find_child("LordModal", true, false) as CanvasLayer
 	_check(lmod != null and lmod.visible, "BtnLord basılınca LordModal açıldı")
 	_check(lmod.find_child("StarterGiftEffect", true, false) != null, "LordModal açılınca hediye efekt katmanı (StarterGiftEffect) oluştu")
+	var btn_gift_ok := lmod.find_child("BtnGiftConfirm", true, false) as BaseButton
+	_check(btn_gift_ok != null and tm.call("_resolve_target_control", village, "Village.tscn", gs) == btn_gift_ok, "İlk başta hediye 3 item popup'ında Tamam butonu hedefleniyor")
+	_press_button(btn_gift_ok)
+	await _tick(3)
+	_check(not bool(lmod.call("is_starter_gift_open")), "Tamam'a basılınca hediye popup'ı kapandı")
 
 	var ld_tut: Dictionary = lm.call("get_lord_state")
 	var tut_inv: Array = ld_tut.get("inventory", [])
@@ -448,14 +453,42 @@ func _run_tests() -> void:
 	_press_button(btn_det_eq2)
 	await _tick(3)
 
-	_check(int(tm.call("get_current_step")) == 19, "+1 Kılıç tekrar kuşanılınca Adım 19 (LORD_BANDIT_BRIEFING) geçildi")
+	_check(int(tm.call("get_current_step")) == 19, "+1 Kılıç tekrar kuşanılınca Adım 19 (LORD_CLOSE_AND_OPEN_MAP) geçildi")
+	var btn_close_lord := lmod.find_child("BtnCloseLordModal", true, false) as BaseButton
+	_check(btn_close_lord != null and tm.call("_resolve_target_control", village, "Village.tscn", gs) == btn_close_lord, "Adım 19 önce Lord ekranını kapatmayı hedefliyor")
+	_press_button(btn_close_lord)
+	await _tick(3)
+	var btn_map_tut := village.find_child("BtnMap", true, false) as BaseButton
+	_check(btn_map_tut != null and tm.call("_resolve_target_control", village, "Village.tscn", gs) == btn_map_tut, "Lord kapanınca parmak alt menüdeki Harita butonunu gösteriyor")
+
+	var map_tut := await _swap_scene("res://scenes/WorldMap.tscn")
+	await _tick(3)
+	_check(int(tm.call("get_current_step")) == 20, "Haritaya geçince Adım 20 (LORD_BANDIT_MAP_TOUR) geçildi")
 	var dial_lbl := tm.get("_dialogue_label") as RichTextLabel
-	_check(dial_lbl != null and "Haydut" in dial_lbl.text and "seviye" in dial_lbl.text, "Adım 19 Haydut Köylerinden yüksek seviyeye göre ekipman düşme anlatımını içeriyor")
+	_check(dial_lbl != null and "Haydut" in dial_lbl.text and "seviye" in dial_lbl.text, "Adım 20 Haydut Köylerinden yüksek seviyeye göre ekipman düşme anlatımını içeriyor")
+	var bandit_rect: Rect2 = map_tut.call("get_tutorial_bandit_screen_rect")
+	_check(bandit_rect.size.x >= 50.0, "Harita üzerinde haydut köyü odak karesi hesaplandı")
 	var btn_next_bandit := tm.get("_btn_next") as BaseButton
-	_check(btn_next_bandit != null and tm.call("_resolve_target_control", village, "Village.tscn", gs) == btn_next_bandit, "Adım 19 parmak hedefi 'Devam Et' butonunu gösteriyor")
+	_check(btn_next_bandit != null and tm.call("_resolve_target_control", map_tut, "WorldMap.tscn", gs) == btn_next_bandit, "Adım 20 devam butonu hedefleniyor")
 	_press_button(btn_next_bandit)
 	await _tick(3)
-	_check(int(tm.call("get_current_step")) == 20, "Adım 20 (GRADUATION_MODAL) geçildi")
+	_check(int(tm.call("get_current_step")) == 21, "Adım 21 (RETURN_FROM_BANDIT_MAP) geçildi")
+
+	village = await _swap_scene("res://scenes/Village.tscn")
+	await _tick(3)
+	_check(int(tm.call("get_current_step")) == 22, "Köy'e dönünce Adım 22 (QUEST_BAR_TOUR) geçildi")
+	var qm := root.get_node_or_null("QuestManager")
+	_check(qm != null and bool(qm.call("is_quest_hud_visible")), "Görevler barı Adım 22'de görünür oldu")
+	var q_hdr_btn := qm.call("get_header_button") as BaseButton
+	_check(q_hdr_btn != null and tm.call("_resolve_target_control", village, "Village.tscn", gs) == q_hdr_btn, "Sol üst GÖREVLER barı parmakla hedefleniyor")
+	_press_button(q_hdr_btn)
+	await _tick(3)
+	_check(bool(qm.call("is_expanded")), "GÖREVLER barı tıklanınca açıldı")
+	var btn_finish_q := tm.get("_btn_next") as BaseButton
+	_check(btn_finish_q != null and btn_finish_q.visible, "Görevler barı açılınca Eğitimi Tamamla butonu göründü")
+	_press_button(btn_finish_q)
+	await _tick(3)
+	_check(int(tm.call("get_current_step")) == 23, "Adım 23 (GRADUATION_MODAL) geçildi")
 
 	var vmodal := tm.get("_victory_modal") as Control
 	_check(vmodal != null and vmodal.visible, "Mezuniyet ödül penceresi göründü")

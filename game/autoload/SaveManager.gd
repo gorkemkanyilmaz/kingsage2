@@ -141,6 +141,11 @@ func _event_bus() -> Node:
 
 ## Çalışma zamanında hızlı peş peşe mutasyonlarda disk/JSON yükünü birleştirir; headless testlerde anında yazar.
 func request_save_game() -> void:
+	var loop = Engine.get_main_loop()
+	if loop is SceneTree:
+		var wm: Node = (loop as SceneTree).root.get_node_or_null("WorldManager")
+		if wm != null and wm.has_method("notify_local_mutation"):
+			wm.call("notify_local_mutation")
 	if DisplayServer.get_name() == "headless":
 		save_game(true)
 		return
@@ -151,7 +156,7 @@ func request_save_game() -> void:
 		_save_debounce_timer.wait_time = 0.6
 		_save_debounce_timer.timeout.connect(func():
 			if _save_dirty:
-				save_game(true)
+				save_game(false, true)
 		)
 		add_child(_save_debounce_timer)
 	_save_debounce_timer.start(0.6)

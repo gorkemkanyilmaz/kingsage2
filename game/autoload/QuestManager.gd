@@ -859,12 +859,13 @@ func is_quest_hud_visible() -> bool:
 	if gs == null or not gs.has_active_village():
 		return false
 
-	if not bool(gs.player.get("tutorial_completed", false)):
-		return false
-
 	var tm := _tm()
-	if tm != null and tm.has_method("is_tutorial_active") and tm.is_tutorial_active():
-		return false
+	var in_quest_tour: bool = (tm != null and tm.has_method("is_quest_bar_tour_step") and bool(tm.call("is_quest_bar_tour_step")))
+	if not in_quest_tour:
+		if not bool(gs.player.get("tutorial_completed", false)):
+			return false
+		if tm != null and tm.has_method("is_tutorial_active") and tm.is_tutorial_active():
+			return false
 
 	# BuildingPanel açıkken bile arka planda çakışmaması için: BuildingPanel üstte zaten kapatılana kadar modal yoksaTracker gösterilir; BuildingPanel tam panel ise gizlemek daha temiz!
 	var bp = cur.get("building_panel")
@@ -872,6 +873,14 @@ func is_quest_hud_visible() -> bool:
 		return false
 
 	return true
+
+
+func get_header_button() -> Control:
+	return _btn_header
+
+
+func get_tracker_panel() -> Control:
+	return _tracker_panel
 
 
 func is_point_over_ui(pos: Vector2) -> bool:

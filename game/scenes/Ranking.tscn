@@ -20,7 +20,7 @@ corner_radius_top_right = 16
 corner_radius_bottom_right = 16
 corner_radius_bottom_left = 16
 shadow_color = Color(0, 0, 0, 0.4)
-shadow_size = 10
+shadow_size = 0
 
 [node name="Ranking" type="Control"]
 layout_mode = 3

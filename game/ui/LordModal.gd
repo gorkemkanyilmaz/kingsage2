@@ -103,6 +103,27 @@ func scroll_to_control(ctrl: Control) -> void:
 	_body_scroll.scroll_vertical = desired
 
 
+func is_starter_gift_open() -> bool:
+	return _gift_fx_root != null and is_instance_valid(_gift_fx_root) and _gift_fx_root.visible
+
+
+func _dismiss_starter_gift_effect() -> void:
+	if _gift_fx_root == null or not is_instance_valid(_gift_fx_root):
+		_gift_fx_root = null
+		return
+	var fx := _gift_fx_root
+	_gift_fx_root = null
+	if DisplayServer.get_name() == "headless" or not is_inside_tree():
+		fx.queue_free()
+		return
+	var tw := create_tween()
+	tw.tween_property(fx, "modulate:a", 0.0, 0.18)
+	tw.tween_callback(func():
+		if is_instance_valid(fx):
+			fx.queue_free()
+	)
+
+
 func play_starter_gift_effect(items: Array) -> void:
 	if _root_ctrl == null or not is_instance_valid(_root_ctrl) or items.is_empty():
 		return
@@ -113,26 +134,32 @@ func play_starter_gift_effect(items: Array) -> void:
 	_gift_fx_root = Control.new()
 	_gift_fx_root.name = "StarterGiftEffect"
 	_gift_fx_root.set_anchors_preset(Control.PRESET_FULL_RECT)
-	_gift_fx_root.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_gift_fx_root.mouse_filter = Control.MOUSE_FILTER_STOP
 	_gift_fx_root.z_index = 25
 	_root_ctrl.add_child(_gift_fx_root)
 
+	var gift_dim := ColorRect.new()
+	gift_dim.set_anchors_preset(Control.PRESET_FULL_RECT)
+	gift_dim.color = Color(0.02, 0.02, 0.04, 0.72)
+	gift_dim.mouse_filter = Control.MOUSE_FILTER_STOP
+	_gift_fx_root.add_child(gift_dim)
+
 	var cc := CenterContainer.new()
 	cc.set_anchors_preset(Control.PRESET_FULL_RECT)
-	cc.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	cc.mouse_filter = Control.MOUSE_FILTER_PASS
 	_gift_fx_root.add_child(cc)
 
 	var card := PanelContainer.new()
-	card.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	card.mouse_filter = Control.MOUSE_FILTER_STOP
 	card.custom_minimum_size = Vector2(720, 0)
 	var sb := StyleBoxFlat.new()
-	sb.bg_color = Color(0.11, 0.08, 0.04, 0.94)
+	sb.bg_color = Color(0.11, 0.08, 0.04, 0.98)
 	sb.border_color = Color(1.0, 0.85, 0.30, 1.0)
 	sb.set_border_width_all(3)
 	sb.set_corner_radius_all(20)
-	sb.set_content_margin_all(20)
-	sb.shadow_color = Color(1.0, 0.82, 0.25, 0.45)
-	sb.shadow_size = 18
+	sb.set_content_margin_all(22)
+	sb.shadow_color = Color(0, 0, 0, 0.65)
+	sb.shadow_size = 0
 	card.add_theme_stylebox_override("panel", sb)
 	cc.add_child(card)
 
@@ -201,18 +228,29 @@ func play_starter_gift_effect(items: Array) -> void:
 		row.add_child(tile)
 		tile_nodes.append(tile)
 
+	var btn_confirm := Button.new()
+	btn_confirm.name = "BtnGiftConfirm"
+	btn_confirm.text = "Tamam"
+	btn_confirm.custom_minimum_size = Vector2(260, 56)
+	btn_confirm.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	btn_confirm.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	_style_btn(btn_confirm, Color(0.18, 0.56, 0.28, 1.0), Color(0.62, 0.96, 0.68, 1.0), Color(1.0, 1.0, 1.0))
+	btn_confirm.add_theme_font_size_override("font_size", 24)
+	btn_confirm.pressed.connect(_dismiss_starter_gift_effect)
+	vb.add_child(btn_confirm)
+
 	if DisplayServer.get_name() == "headless" or not is_inside_tree():
 		return
 
-	card.pivot_offset = Vector2(360, 120)
+	card.pivot_offset = Vector2(360, 140)
 	card.scale = Vector2(0.72, 0.72)
 	_gift_fx_root.modulate = Color(1, 1, 1, 0)
 	var tw := create_tween()
 	tw.set_parallel(true)
-	tw.tween_property(_gift_fx_root, "modulate:a", 1.0, 0.24)
-	tw.tween_property(card, "scale", Vector2(1.04, 1.04), 0.34).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	tw.tween_property(_gift_fx_root, "modulate:a", 1.0, 0.22)
+	tw.tween_property(card, "scale", Vector2(1.03, 1.03), 0.30).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 	var tw2 := create_tween()
-	tw2.tween_interval(0.34)
+	tw2.tween_interval(0.30)
 	tw2.tween_property(card, "scale", Vector2(1.0, 1.0), 0.14)
 	for i in range(tile_nodes.size()):
 		var tn := tile_nodes[i]
@@ -220,16 +258,9 @@ func play_starter_gift_effect(items: Array) -> void:
 		tn.scale = Vector2(0.2, 0.2)
 		tn.modulate = Color(1, 1, 1, 0)
 		var ttw := create_tween()
-		ttw.tween_interval(0.12 * float(i))
-		ttw.tween_property(tn, "modulate:a", 1.0, 0.22)
-		ttw.parallel().tween_property(tn, "scale", Vector2(1.0, 1.0), 0.34).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
-	tw2.tween_interval(1.65)
-	tw2.tween_property(_gift_fx_root, "modulate:a", 0.0, 0.40)
-	tw2.tween_callback(func():
-		if is_instance_valid(_gift_fx_root):
-			_gift_fx_root.queue_free()
-			_gift_fx_root = null
-	)
+		ttw.tween_interval(0.10 * float(i))
+		ttw.tween_property(tn, "modulate:a", 1.0, 0.20)
+		ttw.parallel().tween_property(tn, "scale", Vector2(1.0, 1.0), 0.30).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 
 
 func open_upgrade_modal(item_id: String = "") -> void:

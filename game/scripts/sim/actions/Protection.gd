@@ -117,11 +117,14 @@ static func outlawed_penalty_days() -> int:
 #  Köy türü ve süre uygulaması
 # =============================================================================
 
-## Terkedilmiş (soyguncu) veya bonus köy → **koruma taşımaz** (`docs/11` §10.5).
+## Terkedilmiş (soyguncu), haydut, bot veya bonus köy → **koruma taşımaz** (`docs/11` §10.5).
 static func is_unprotected_kind(village: Dictionary) -> bool:
-	if bool(village.get("is_barbarian", false)):
+	if bool(village.get("is_barbarian", false)) or bool(village.get("is_bandit", false)) or bool(village.get("is_bot", false)):
 		return true
-	return not str(village.get("bonus_type", "")).is_empty()
+	if not str(village.get("bonus_type", "")).is_empty():
+		return true
+	var own := str(village.get("owner", "")).strip_edges().to_lower()
+	return own in ["haydut", "haydutlar", "barbar", "barbarian", "soyguncular"]
 
 
 ## Köye **saldırı** yapılabilir mi? (Yeni oyuncu koruması — faz 1.)

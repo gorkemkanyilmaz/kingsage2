@@ -2039,6 +2039,47 @@ func _preserve_own_village_progress_from_local(target_w: Dictionary, local_w: Di
 			cleaned_q.append(q)
 		t_state["queues"] = cleaned_q
 
+	# Yerel oyuncu az önce inşaat/eğitim/araştırma mutasyonu yaptıysa stale bulut anketinin kuyruğu silmesini önle
+	if not l_by_id.is_empty():
+		var now_pq := int(Time.get_unix_time_from_system())
+		var mut_recent := (_last_local_mutation_unix > 0 and (now_pq - _last_local_mutation_unix) <= 60)
+		if mut_recent and typeof(l_state.get("queues")) == TYPE_ARRAY and typeof(t_state.get("queues")) == TYPE_ARRAY:
+			var t_q_arr := t_state["queues"] as Array
+			var seen_tq: Dictionary = {}
+			for tq in t_q_arr:
+				if typeof(tq) == TYPE_DICTIONARY:
+					var tqd := tq as Dictionary
+					seen_tq["%d:%s:%s:%d:%d" % [
+						int(tqd.get("village_id", -1)),
+						str(tqd.get("type", "")),
+						str(tqd.get("key", "")),
+						int(tqd.get("target_level", 0)),
+						int(tqd.get("finish_unix", 0))
+					]] = true
+			for lq in (l_state["queues"] as Array):
+				if typeof(lq) != TYPE_DICTIONARY:
+					continue
+				var lqd := lq as Dictionary
+				var lq_vid := int(lqd.get("village_id", -1))
+				if not l_by_id.has(lq_vid):
+					continue
+				if str(lqd.get("type", "")) == "build":
+					var lq_key := str(lqd.get("key", ""))
+					if protected_buildings.has(lq_vid) and (protected_buildings[lq_vid] as Dictionary).has(lq_key):
+						if int(lqd.get("target_level", 0)) <= int((protected_buildings[lq_vid] as Dictionary)[lq_key]):
+							continue
+				var l_sig := "%d:%s:%s:%d:%d" % [
+					lq_vid,
+					str(lqd.get("type", "")),
+					str(lqd.get("key", "")),
+					int(lqd.get("target_level", 0)),
+					int(lqd.get("finish_unix", 0))
+				]
+				if not seen_tq.has(l_sig):
+					seen_tq[l_sig] = true
+					t_q_arr.append(lqd.duplicate(true))
+			t_state["queues"] = t_q_arr
+
 
 func _alliance_key(a: Dictionary) -> String:
 	var nm := str(a.get("name", "")).strip_edges().to_lower()
@@ -2130,6 +2171,11 @@ func _merge_alliances_arrays(local_allies: Array, cloud_allies: Array, p_name: S
 					if int(prev_ca.get("diplomacy_updated_unix", 0)) > int(lad.get("diplomacy_updated_unix", 0)):
 						lad["diplomacy"] = prev_ca.get("diplomacy", lad.get("diplomacy", {}))
 						lad["diplomacy_updated_unix"] = prev_ca.get("diplomacy_updated_unix", 0)
+					var l_jr_ts := int(lad.get("join_requests_updated_unix", 0))
+					var c_jr_ts := int(prev_ca.get("join_requests_updated_unix", 0))
+					if c_jr_ts > l_jr_ts:
+						lad["join_requests"] = (prev_ca.get("join_requests", []) as Array).duplicate(true) if typeof(prev_ca.get("join_requests")) == TYPE_ARRAY else []
+						lad["join_requests_updated_unix"] = c_jr_ts
 					merged_map[lk] = lad
 				else:
 					order.append(lk)
@@ -2150,6 +2196,9 @@ func _merge_alliances_arrays(local_allies: Array, cloud_allies: Array, p_name: S
 				if int(lad.get("diplomacy_updated_unix", 0)) > int(existing_other.get("diplomacy_updated_unix", 0)):
 					existing_other["diplomacy"] = lad.get("diplomacy", existing_other.get("diplomacy", {}))
 					existing_other["diplomacy_updated_unix"] = lad.get("diplomacy_updated_unix", 0)
+				if int(lad.get("join_requests_updated_unix", 0)) > int(existing_other.get("join_requests_updated_unix", 0)):
+					existing_other["join_requests"] = (lad.get("join_requests", []) as Array).duplicate(true) if typeof(lad.get("join_requests")) == TYPE_ARRAY else []
+					existing_other["join_requests_updated_unix"] = lad.get("join_requests_updated_unix", 0)
 			elif not merged_map.has(lk):
 				var cr := int(lad.get("created_unix", 0))
 				if cr > 0 and int(Time.get_unix_time_from_system()) - cr <= 30:
@@ -2761,7 +2810,13 @@ func _compute_cloud_poll_sig(res_data: Dictionary, cloud_w: Dictionary, cloud_ts
 		if typeof(ra) == TYPE_DICTIONARY:
 			var ad := ra as Dictionary
 			var mems = ad.get("members", [])
-			ally_parts.append("%s:%d" % [str(ad.get("id", ad.get("tag", ""))), (mems as Array).size() if typeof(mems) == TYPE_ARRAY else 0])
+			var jrs = ad.get("join_requests", [])
+			ally_parts.append("%s:%d:%d:%d" % [
+				str(ad.get("id", ad.get("tag", ""))),
+				(mems as Array).size() if typeof(mems) == TYPE_ARRAY else 0,
+				(jrs as Array).size() if typeof(jrs) == TYPE_ARRAY else 0,
+				int(ad.get("join_requests_updated_unix", 0))
+			])
 	return "%s|%d|%s|%d|%d|%d|%d|%d|%d|%d|%s|%s|%s" % [
 		str(res_data.get("updated_unix", 0)),
 		cloud_ts,

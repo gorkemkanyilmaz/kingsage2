@@ -725,7 +725,7 @@ func _test_travel_symmetry() -> void:
 # ============================================================================
 
 func _state_two() -> Dictionary:
-	return _state_from([_own_origin(), _village(2, "Düşman Köyü", 110, 100, "Düşman", true, _buildings(0, 0, 0, 0), {})])
+	return _state_from([_own_origin(), _village(2, "Düşman Köyü", 110, 100, "Düşman", false, _buildings(0, 0, 0, 0), {})])
 
 
 func _state_from(villages: Array) -> Dictionary:

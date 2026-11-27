@@ -19,7 +19,7 @@ corner_radius_top_right = 20
 corner_radius_bottom_right = 20
 corner_radius_bottom_left = 20
 shadow_color = Color(0, 0, 0, 0.6)
-shadow_size = 14
+shadow_size = 0
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_target_card"]
 content_margin_left = 18.0
@@ -37,7 +37,7 @@ corner_radius_top_right = 14
 corner_radius_bottom_right = 14
 corner_radius_bottom_left = 14
 shadow_color = Color(0, 0, 0, 0.6)
-shadow_size = 8
+shadow_size = 0
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_est_card"]
 content_margin_left = 18.0
@@ -55,7 +55,7 @@ corner_radius_top_right = 12
 corner_radius_bottom_right = 12
 corner_radius_bottom_left = 12
 shadow_color = Color(0, 0, 0, 0.6)
-shadow_size = 6
+shadow_size = 0
 
 [node name="SendTroopsPanel" type="PanelContainer"]
 custom_minimum_size = Vector2(1040, 780)

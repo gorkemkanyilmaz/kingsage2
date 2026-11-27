@@ -2654,6 +2654,37 @@ def merge_world_state(server_w: Optional[Dict[str, Any]], client_raw: Dict[str, 
                 s_invs.pop(mk, None)
         sa["invitations"] = list(s_invs.values())
 
+        # Katılma isteklerini birleştir (lider kendi ittifakında onay/red yapabilir; üye olmayan kendi isteğini ekler/iptal eder)
+        s_jrs = {str(r.get("player_name", "")).strip().lower(): copy.deepcopy(r) for r in (sa.get("join_requests") or []) if isinstance(r, dict)}
+        c_jrs = {str(r.get("player_name", "")).strip().lower(): copy.deepcopy(r) for r in (c_a.get("join_requests") or []) if isinstance(r, dict)}
+        is_sa_leader_jr = (
+            _matches_player(str(sa.get("founder", "")), act_name)
+            or _matches_player(str(sa.get("leader", "")), act_name)
+        )
+        c_jr_ts = int(c_a.get("join_requests_updated_unix", 0) or 0)
+        s_jr_ts = int(sa.get("join_requests_updated_unix", 0) or 0)
+        if is_sa_leader_jr and (alliance_auth or c_jr_ts >= s_jr_ts):
+            for jk in list(s_jrs.keys()):
+                if jk not in c_jrs and int(s_jrs[jk].get("created_unix", 0) or 0) <= s_jr_ts:
+                    s_jrs.pop(jk, None)
+            for jk, jv in c_jrs.items():
+                if jk not in s_jrs:
+                    s_jrs[jk] = jv
+            sa["join_requests_updated_unix"] = max(c_jr_ts, s_jr_ts)
+        else:
+            if act_name:
+                act_l = act_name.strip().lower()
+                if act_l in c_jrs:
+                    s_jrs[act_l] = c_jrs[act_l]
+                    sa["join_requests_updated_unix"] = max(c_jr_ts, s_jr_ts, now)
+                elif act_l in s_jrs and c_jr_ts > s_jr_ts:
+                    s_jrs.pop(act_l, None)
+                    sa["join_requests_updated_unix"] = max(c_jr_ts, s_jr_ts, now)
+        for mk in list(s_jrs.keys()):
+            if mk in s_mems:
+                s_jrs.pop(mk, None)
+        sa["join_requests"] = list(s_jrs.values())
+
         # Diplomasi / açıklama / iç duyuru (ittifak kurucu lideri veya lideri güncellemişse koru; NAP'ı temizle)
         def _clean_diplo(d_raw: Any) -> Dict[str, Any]:
             d = copy.deepcopy(d_raw) if isinstance(d_raw, dict) else {}
@@ -4674,12 +4705,27 @@ def store_use_scroll(req: UseScrollRequest, user: Dict[str, Any] = Depends(get_c
                 ]
                 matching_q.sort(key=lambda q: (int(q.get("start_unix", 0) or 0), int(q.get("finish_unix", 0) or 0), int(q.get("id", 0) or 0)))
                 if matching_q:
+                    mq0 = matching_q[0]
+                    mq0_s = int(mq0.get("start_unix", now) or now)
+                    mq0_f = int(mq0.get("finish_unix", now) or now)
+                    if mq0_s > now:
+                        mq0_dur = max(1, mq0_f - mq0_s)
+                        mq0["start_unix"] = now
+                        mq0["finish_unix"] = now + mq0_dur
+                    start_idx = 0
+                    if req.target_id is not None and str(req.target_id).strip() != "":
+                        tgt_s = str(req.target_id).strip()
+                        for qi, qm in enumerate(matching_q):
+                            if str(qm.get("id", "")) == tgt_s or str(qm.get("key", "")) == tgt_s:
+                                start_idx = qi
+                                break
                     pool = scroll_secs
                     saved = 0
-                    for idx_q, q in enumerate(matching_q):
+                    for idx_q in range(start_idx, len(matching_q)):
+                        q = matching_q[idx_q]
                         old_s = int(q.get("start_unix", now) or now)
                         old_f = int(q.get("finish_unix", now) or now)
-                        if idx_q > 0 and saved > 0 and old_s > now:
+                        if idx_q > start_idx and saved > 0 and old_s > now:
                             sh = min(saved, old_s - now)
                             old_s -= sh
                             old_f = max(old_s, old_f - sh)
@@ -4689,7 +4735,12 @@ def store_use_scroll(req: UseScrollRequest, user: Dict[str, Any] = Depends(get_c
                             eff_s = max(now, old_s)
                             cur_rem = max(0, old_f - eff_s)
                             rem_s = min(cur_rem, pool)
-                            new_f = max(1, old_f - rem_s)
+                            new_f = old_f - rem_s
+                            if idx_q == 0 and cur_rem <= pool:
+                                new_f = min(new_f, now)
+                            elif eff_s > now:
+                                new_f = max(old_s, new_f)
+                            new_f = max(old_s if old_s > now else 1, new_f)
                             q["finish_unix"] = new_f
                             pool -= rem_s
                             saved += rem_s

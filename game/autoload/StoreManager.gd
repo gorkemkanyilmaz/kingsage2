@@ -719,6 +719,17 @@ func _apply_scroll_to_village_queue(gs: Node, scroll_id: String, category: Strin
 		return int(a.get("id", 0)) < int(b.get("id", 0))
 	)
 
+	# Ardışık kuyruktaki ilk öğenin başlangıç zamanını normalize et (sürenin donmasını engelle)
+	var head_item := matching[0] as Dictionary
+	var h_start := int(head_item.get("start_unix", now))
+	var h_finish := int(head_item.get("finish_unix", now))
+	if h_start > now:
+		var h_dur := maxi(1, h_finish - h_start)
+		head_item["start_unix"] = now
+		head_item["finish_unix"] = now + h_dur
+	elif h_finish < h_start:
+		head_item["finish_unix"] = h_start
+
 	var start_idx := _find_queue_target_index(matching, target_id)
 	if start_idx < 0:
 		return {"ok": false, "error": "Hedef kuyruk öğesi bulunamadı."}
@@ -745,11 +756,13 @@ func _apply_scroll_to_village_queue(gs: Node, scroll_id: String, category: Strin
 			var cur_rem := maxi(0, old_finish - eff_start)
 			var rem_secs := mini(cur_rem, pool)
 			var new_finish := old_finish - rem_secs
-			if cur_rem <= pool:
+			if i == 0 and cur_rem <= pool:
 				new_finish = mini(new_finish, now)
-				if eff_start <= now:
-					any_completed = true
-			new_finish = maxi(1, new_finish)
+				any_completed = true
+			elif eff_start > now:
+				# Sırada bekleyen öğenin bitiş zamanını başlangıcının altına düşürme
+				new_finish = maxi(old_start, new_finish)
+			new_finish = maxi(old_start if old_start > now else 1, new_finish)
 			item["finish_unix"] = new_finish
 			pool -= rem_secs
 			total_reduced += rem_secs
@@ -767,6 +780,42 @@ func _apply_scroll_to_village_queue(gs: Node, scroll_id: String, category: Strin
 	_consume_scroll(gs, scroll_id, category, target_id, active_vid)
 	if any_completed:
 		_trigger_simulation(gs, now)
+
+	# Tamamlanma veya kısaltma sonrası kalan baş öğenin başlangıcını anlık saate hizala
+	var post_q_raw = gs.get("queues")
+	if typeof(post_q_raw) == TYPE_ARRAY:
+		var post_matching: Array = []
+		for q_it in (post_q_raw as Array):
+			if typeof(q_it) == TYPE_DICTIONARY and int((q_it as Dictionary).get("village_id", -1)) == active_vid and str((q_it as Dictionary).get("type", "")) == category:
+				post_matching.append(q_it)
+		post_matching.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
+			var sa := int(a.get("start_unix", 0))
+			var sb := int(b.get("start_unix", 0))
+			return sa < sb if sa != sb else int(a.get("finish_unix", 0)) < int(b.get("finish_unix", 0))
+		)
+		if not post_matching.is_empty():
+			var new_head := post_matching[0] as Dictionary
+			var nh_s := int(new_head.get("start_unix", now))
+			var nh_f := int(new_head.get("finish_unix", now))
+			if nh_s > now:
+				var nh_dur := maxi(1, nh_f - nh_s)
+				new_head["start_unix"] = now
+				new_head["finish_unix"] = now + nh_dur
+			var prev_f := int(new_head.get("finish_unix", now))
+			for pk in range(1, post_matching.size()):
+				var p_it := post_matching[pk] as Dictionary
+				var ps := int(p_it.get("start_unix", prev_f))
+				var pf := int(p_it.get("finish_unix", prev_f))
+				var pd := maxi(1, pf - ps)
+				if ps < prev_f or pf < ps:
+					p_it["start_unix"] = prev_f
+					p_it["finish_unix"] = prev_f + pd
+					prev_f = prev_f + pd
+				else:
+					prev_f = pf
+
+	if wm_mut != null and wm_mut.has_method("request_save_active_world"):
+		wm_mut.call("request_save_active_world", true)
 
 	_emit_wallet_and_state(true)
 	scroll_used.emit(category, scroll_id, total_reduced)

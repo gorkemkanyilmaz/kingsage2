@@ -263,23 +263,24 @@ static func _send_military(
 		if not protection_event.is_empty():
 			events.append(protection_event)
 
-	# 10:1 oranı → Kanun Kaçağı (saldırı yine yapılır).
+	# 10:1 oranı → Kanun Kaçağı (yalnızca gerçek oyuncu köylerine saldırıda uygulanır; haydut/barbar köylerde uygulanmaz).
 	var result := {
 		"ok": true, "code": "", "message": "",
 		"movement": movement, "events": events, "outlawed": false,
 	}
-	var attacker_points := Protection.player_points(state, str(origin.get("owner", "")))
-	var defender_points := int(target.get("points", 0))
-	if Protection.ratio_exceeded(attacker_points, defender_points):
-		var mark := Protection.mark_outlaw(state, origin, now_unix)
-		result["outlawed"] = true
-		events.append({
-			"type": "outlawed",
-			"village_id": from_village_id,
-			"owner": str(origin.get("owner", "")),
-			"until": int(mark.get("until", 0)),
-			"days": int(mark.get("days", 0)),
-		})
+	if not Protection.is_unprotected_kind(target):
+		var attacker_points := Protection.player_points(state, str(origin.get("owner", "")))
+		var defender_points := int(target.get("points", 0))
+		if Protection.ratio_exceeded(attacker_points, defender_points):
+			var mark := Protection.mark_outlaw(state, origin, now_unix)
+			result["outlawed"] = true
+			events.append({
+				"type": "outlawed",
+				"village_id": from_village_id,
+				"owner": str(origin.get("owner", "")),
+				"until": int(mark.get("until", 0)),
+				"days": int(mark.get("days", 0)),
+			})
 	return result
 
 

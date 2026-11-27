@@ -318,11 +318,40 @@ static func reschedule(state: Dictionary, village_id: int, now_unix: int) -> voi
 #  İlerleme (tick)
 # =============================================================================
 
+## Sıradaki baş inşaat işinin `start_unix <= now_unix` olmasını garantiler ve ardışık zinciri düzeltir.
+static func _normalize_village_heads(state: Dictionary, village_id: int, now_unix: int) -> void:
+	var v_items := items(state, village_id)
+	if v_items.is_empty():
+		return
+	var first := v_items[0] as Dictionary
+	var f_start := int(first.get("start_unix", now_unix))
+	var f_finish := int(first.get("finish_unix", now_unix))
+	if f_start > now_unix:
+		var rem_dur := maxi(1, f_finish - f_start)
+		f_start = now_unix
+		f_finish = now_unix + rem_dur
+		first["start_unix"] = f_start
+		first["finish_unix"] = f_finish
+	var prev_finish := maxi(now_unix, f_finish)
+	for i in range(1, v_items.size()):
+		var nxt := v_items[i] as Dictionary
+		var ns := int(nxt.get("start_unix", prev_finish))
+		var nf := int(nxt.get("finish_unix", prev_finish))
+		var ndur := maxi(1, nf - ns)
+		if ns < prev_finish or nf < ns:
+			nxt["start_unix"] = prev_finish
+			nxt["finish_unix"] = prev_finish + ndur
+			prev_finish = prev_finish + ndur
+		else:
+			prev_finish = nf
+
+
 ## Tamamlanan bina işlerini uygular ve olayları döndürür (`docs/19` §7b).
 ## Aynı anda birden çok iş tamamlanabilir (offline hızlı-ileri).
 static func advance(state: Dictionary, now_unix: int) -> Array:
 	var events := []
 	var q := queues(state)
+	var touched_vids: Dictionary = {}
 	var steps := 0
 	while steps < MAX_STEPS:
 		steps += 1
@@ -340,12 +369,15 @@ static func advance(state: Dictionary, now_unix: int) -> Array:
 		var level := int(item.get("target_level", 0))
 		VM.set_building_level(village, key, level)  # puan + Güç Alanı tavanını tazeler
 		_remove_by_id(q, item_id)
+		touched_vids[vid] = true
 		events.append({
 			"type": "building_completed",
 			"village_id": vid,
 			"key": key,
 			"level": level,
 		})
+	for tv_id in touched_vids.keys():
+		_normalize_village_heads(state, int(tv_id), now_unix)
 	return events
 
 

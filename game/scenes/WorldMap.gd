@@ -779,6 +779,56 @@ func _smooth_zoom(factor: float) -> void:
 	, _zoom, target_zoom, 0.22)
 
 
+var _tutorial_bandit_vid: int = -1
+
+
+func focus_nearest_bandit_village_for_tutorial() -> Dictionary:
+	var gs = Engine.get_main_loop().root.get_node_or_null("GameState") if Engine.get_main_loop() is SceneTree else null
+	if gs == null:
+		return {}
+	var active_v: Dictionary = gs.get_active_village() if gs.has_active_village() else {}
+	var hx := float(active_v.get("x", 100))
+	var hy := float(active_v.get("y", 100))
+	var best_v: Dictionary = {}
+	var best_d2 := 1e12
+	for v_raw in gs.villages:
+		if typeof(v_raw) != TYPE_DICTIONARY:
+			continue
+		var vd := v_raw as Dictionary
+		var is_band := bool(vd.get("is_bandit", false)) or str(vd.get("owner", "")).strip_edges().to_lower() == "haydut"
+		if not is_band:
+			continue
+		var vx := float(vd.get("x", 0))
+		var vy := float(vd.get("y", 0))
+		var d2 := (vx - hx) * (vx - hx) + (vy - hy) * (vy - hy)
+		if d2 < best_d2:
+			best_d2 = d2
+			best_v = vd
+	if best_v.is_empty():
+		return {}
+	_tutorial_bandit_vid = int(best_v.get("id", -1))
+	_center_on_coord(float(best_v.get("x", hx)), float(best_v.get("y", hy)), false)
+	return best_v
+
+
+func get_tutorial_bandit_screen_rect() -> Rect2:
+	if _tutorial_bandit_vid < 0:
+		focus_nearest_bandit_village_for_tutorial()
+	var gs = Engine.get_main_loop().root.get_node_or_null("GameState") if Engine.get_main_loop() is SceneTree else null
+	var target_v: Dictionary = {}
+	if gs != null and _tutorial_bandit_vid > 0:
+		for v_raw in gs.villages:
+			if typeof(v_raw) == TYPE_DICTIONARY and int((v_raw as Dictionary).get("id", -1)) == _tutorial_bandit_vid:
+				target_v = v_raw as Dictionary
+				break
+	var center_screen := Vector2(540.0, 820.0)
+	if not target_v.is_empty() and map_container != null:
+		var wpos := coord_to_world_pos(float(target_v.get("x", 100)), float(target_v.get("y", 100)))
+		var root_pos: Vector2 = world_root.position if world_root != null else Vector2.ZERO
+		center_screen = map_container.global_position + root_pos + wpos * _zoom
+	return Rect2(center_screen - Vector2(66.0, 66.0), Vector2(132.0, 132.0))
+
+
 func _center_on_home(animated: bool = true) -> void:
 	var gs = Engine.get_main_loop().root.get_node_or_null("GameState") if Engine.get_main_loop() is SceneTree else null
 	var vx: float = 100.0

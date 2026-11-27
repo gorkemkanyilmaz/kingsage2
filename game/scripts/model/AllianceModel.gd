@@ -150,6 +150,8 @@ static func create_alliance(
 			}
 		],
 		"invitations": [],
+		"join_requests": [],
+		"join_requests_updated_unix": now,
 		"chat_messages": [
 			{
 				"sender": "Sistem",
@@ -278,6 +280,8 @@ static func accept_invitation(state: Dictionary, player_name: String, alliance_i
 
 	if found_idx >= 0:
 		invs.remove_at(found_idx)
+
+	_remove_player_join_requests_everywhere(state, player_name)
 
 	var now := int(Time.get_unix_time_from_system())
 	var pts := _calculate_player_points(state, player_name)
@@ -759,3 +763,179 @@ static func _calculate_player_points(state: Dictionary, p_name: String) -> int:
 		if typeof(v) == TYPE_DICTIONARY and str((v as Dictionary).get("owner", "")) == p_name:
 			total += int((v as Dictionary).get("points", 0))
 	return maxi(total, 110)
+
+
+static func _remove_player_join_requests_everywhere(state: Dictionary, player_name: String) -> void:
+	var target_l := player_name.strip_edges().to_lower()
+	if target_l.is_empty():
+		return
+	var now := int(Time.get_unix_time_from_system())
+	for a in state.get("alliances", []):
+		if typeof(a) != TYPE_DICTIONARY:
+			continue
+		var ad := a as Dictionary
+		var jrs = ad.get("join_requests", [])
+		if typeof(jrs) != TYPE_ARRAY:
+			continue
+		var arr := jrs as Array
+		var removed := false
+		for i in range(arr.size() - 1, -1, -1):
+			if typeof(arr[i]) == TYPE_DICTIONARY and str((arr[i] as Dictionary).get("player_name", "")).strip_edges().to_lower() == target_l:
+				arr.remove_at(i)
+				removed = true
+		if removed:
+			ad["join_requests_updated_unix"] = now
+
+
+static func has_pending_join_request(alliance: Dictionary, player_name: String) -> bool:
+	var target_l := player_name.strip_edges().to_lower()
+	if target_l.is_empty() or alliance.is_empty():
+		return false
+	var jrs = alliance.get("join_requests", [])
+	if typeof(jrs) != TYPE_ARRAY:
+		return false
+	for r in (jrs as Array):
+		if typeof(r) == TYPE_DICTIONARY and str((r as Dictionary).get("player_name", "")).strip_edges().to_lower() == target_l:
+			return true
+	return false
+
+
+static func get_pending_join_request_count(state: Dictionary, player_name: String) -> int:
+	var alliance := get_player_alliance(state, player_name)
+	if alliance.is_empty() or not is_leader(alliance, player_name):
+		return 0
+	var jrs = alliance.get("join_requests", [])
+	return (jrs as Array).size() if typeof(jrs) == TYPE_ARRAY else 0
+
+
+static func request_join_alliance(state: Dictionary, player_name: String, alliance_id: int) -> Dictionary:
+	var clean_p := player_name.strip_edges()
+	if clean_p.is_empty():
+		return {"ok": false, "message": "Oyuncu adı bulunamadı."}
+	if not get_player_alliance(state, clean_p).is_empty():
+		return {"ok": false, "message": "Zaten bir ittifak üyesisiniz."}
+	var alliance := _find_alliance_by_id(state, alliance_id)
+	if alliance.is_empty():
+		return {"ok": false, "message": "İttifak bulunamadı."}
+	if typeof(alliance.get("join_requests")) != TYPE_ARRAY:
+		alliance["join_requests"] = []
+	if has_pending_join_request(alliance, clean_p):
+		return {"ok": false, "message": "Bu ittifaka zaten bekleyen bir isteğiniz var."}
+
+	var now := int(Time.get_unix_time_from_system())
+	var pts := _calculate_player_points(state, clean_p)
+	(alliance["join_requests"] as Array).append({
+		"player_name": clean_p,
+		"points": pts,
+		"created_unix": now,
+	})
+	alliance["join_requests_updated_unix"] = now
+
+	var leader_n := str(alliance.get("leader", "")).strip_edges()
+	if not leader_n.is_empty():
+		if typeof(state.get("messages")) != TYPE_ARRAY:
+			state["messages"] = []
+		(state["messages"] as Array).append({
+			"id": now * 1000 + 37,
+			"from": clean_p,
+			"to": leader_n,
+			"subject": "📩 Katılma İsteği: [%s] %s" % [str(alliance.get("tag", "")), clean_p],
+			"body": "Sayın %s,\n\n%s (%d Puan) [%s] %s ittifakınıza katılmak istiyor. İttifak > Davet & İstekler sekmesinden profilini inceleyip onaylayabilir veya reddedebilirsiniz." % [
+				leader_n, clean_p, pts, str(alliance.get("tag", "")), str(alliance.get("name", ""))
+			],
+			"created_unix": now,
+			"read": false,
+		})
+
+	return {"ok": true, "message": "[%s] %s ittifakına katılma isteği gönderildi." % [str(alliance.get("tag", "")), str(alliance.get("name", ""))]}
+
+
+static func cancel_join_request(state: Dictionary, player_name: String, alliance_id: int) -> Dictionary:
+	var alliance := _find_alliance_by_id(state, alliance_id)
+	if alliance.is_empty():
+		return {"ok": false, "message": "İttifak bulunamadı."}
+	var target_l := player_name.strip_edges().to_lower()
+	var jrs = alliance.get("join_requests", [])
+	if typeof(jrs) != TYPE_ARRAY:
+		return {"ok": false, "message": "Bekleyen istek bulunamadı."}
+	var arr := jrs as Array
+	for i in range(arr.size() - 1, -1, -1):
+		if typeof(arr[i]) == TYPE_DICTIONARY and str((arr[i] as Dictionary).get("player_name", "")).strip_edges().to_lower() == target_l:
+			arr.remove_at(i)
+			alliance["join_requests_updated_unix"] = int(Time.get_unix_time_from_system())
+			return {"ok": true, "message": "Katılma isteği iptal edildi."}
+	return {"ok": false, "message": "Bekleyen istek bulunamadı."}
+
+
+static func respond_join_request(
+	state: Dictionary,
+	alliance_id: int,
+	leader_name: String,
+	applicant_name: String,
+	accept: bool
+) -> Dictionary:
+	var alliance := _find_alliance_by_id(state, alliance_id)
+	if alliance.is_empty():
+		return {"ok": false, "message": "İttifak bulunamadı."}
+	if not is_leader(alliance, leader_name):
+		return {"ok": false, "message": "Katılma isteklerini yalnızca ittifak lideri yanıtlayabilir."}
+	var jrs = alliance.get("join_requests", [])
+	if typeof(jrs) != TYPE_ARRAY:
+		return {"ok": false, "message": "Bekleyen katılma isteği bulunamadı."}
+	var app_clean := applicant_name.strip_edges()
+	var app_l := app_clean.to_lower()
+	var arr := jrs as Array
+	var found_idx := -1
+	var req_dict: Dictionary = {}
+	for i in range(arr.size()):
+		if typeof(arr[i]) == TYPE_DICTIONARY and str((arr[i] as Dictionary).get("player_name", "")).strip_edges().to_lower() == app_l:
+			found_idx = i
+			req_dict = arr[i] as Dictionary
+			app_clean = str(req_dict.get("player_name", app_clean))
+			break
+	if found_idx < 0:
+		return {"ok": false, "message": "Başvuru bulunamadı."}
+
+	arr.remove_at(found_idx)
+	var now := int(Time.get_unix_time_from_system())
+	alliance["join_requests_updated_unix"] = now
+
+	if not accept:
+		if typeof(state.get("messages")) != TYPE_ARRAY:
+			state["messages"] = []
+		(state["messages"] as Array).append({
+			"id": now * 1000 + 39,
+			"from": "%s ([%s])" % [leader_name, str(alliance.get("tag", ""))],
+			"to": app_clean,
+			"subject": "❌ İttifak Başvurusu Reddedildi",
+			"body": "Sayın %s,\n\n[%s] %s ittifakına yaptığınız katılma isteği ittifak lideri tarafından reddedildi." % [
+				app_clean, str(alliance.get("tag", "")), str(alliance.get("name", ""))
+			],
+			"created_unix": now,
+			"read": false,
+		})
+		return {"ok": true, "accepted": false, "message": "%s başvurusu reddedildi." % app_clean}
+
+	if not get_player_alliance(state, app_clean).is_empty():
+		return {"ok": false, "message": "%s zaten başka bir ittifaka katılmış." % app_clean}
+
+	_remove_player_join_requests_everywhere(state, app_clean)
+	var invs = alliance.get("invitations", [])
+	if typeof(invs) == TYPE_ARRAY:
+		var inv_arr := invs as Array
+		for ii in range(inv_arr.size() - 1, -1, -1):
+			if typeof(inv_arr[ii]) == TYPE_DICTIONARY and str((inv_arr[ii] as Dictionary).get("player_name", "")).strip_edges().to_lower() == app_l:
+				inv_arr.remove_at(ii)
+
+	var pts := _calculate_player_points(state, app_clean)
+	(alliance["members"] as Array).append({
+		"name": app_clean,
+		"rank": "member",
+		"rank_title": "Savaşçı",
+		"points": pts,
+		"is_leader": false,
+		"joined_unix": now,
+		"rights": {"invitations": false, "diplomacy": false, "alliance_leader": false, "circular_mail": false}
+	})
+	_push_sys_chat(alliance, "🎉 %s katılma isteğiyle ittifaka katıldı!" % app_clean, now)
+	return {"ok": true, "accepted": true, "message": "%s ittifaka kabul edildi!" % app_clean}

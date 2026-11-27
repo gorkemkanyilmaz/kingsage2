@@ -95,6 +95,9 @@ func _compute_adaptive_target_fps() -> int:
 	var loop := Engine.get_main_loop()
 	if loop is SceneTree:
 		var st := loop as SceneTree
+		var tm: Node = st.root.get_node_or_null("TutorialManager") if st.root != null else null
+		if tm != null and tm.has_method("is_tutorial_active") and bool(tm.call("is_tutorial_active")):
+			return ADAPTIVE_MOBILE_TAP_FPS
 		var cur := st.current_scene
 		if cur != null:
 			var sname := str(cur.name)

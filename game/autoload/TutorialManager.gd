@@ -43,11 +43,14 @@ enum Step {
 	TRAIN_10_SPEAR = 16,
 	LORD_EQUIP_TOUR = 17,
 	LORD_UPGRADE_SWORD = 18,
-	LORD_BANDIT_BRIEFING = 19,
-	GRADUATION_MODAL = 20,
+	LORD_CLOSE_AND_OPEN_MAP = 19,
+	LORD_BANDIT_MAP_TOUR = 20,
+	RETURN_FROM_BANDIT_MAP = 21,
+	QUEST_BAR_TOUR = 22,
+	GRADUATION_MODAL = 23,
 }
 
-const TOTAL_VISIBLE_STEPS := 20
+const TOTAL_VISIBLE_STEPS := 23
 const TRACKED_SCENES := ["Village.tscn", "WorldMap.tscn", "Alliance.tscn"]
 
 ## Testler tarafından headless modda öğreticiyi açmak için kullanılır.
@@ -105,6 +108,12 @@ var _scrolled_target_tag: String = ""
 var _store_signal_connected: bool = false
 var _tut_preview_seen: bool = false
 var _tut_gift_fx_played: bool = false
+var _bandit_tour_focused: bool = false
+var _quest_tour_collapsed_once: bool = false
+
+
+func is_quest_bar_tour_step() -> bool:
+	return _active and _current_step == Step.QUEST_BAR_TOUR
 
 
 class TargetFXDrawer extends Control:
@@ -121,49 +130,14 @@ class TargetFXDrawer extends Control:
 		if snapped.size.x <= 2.0 or snapped.size.y <= 2.0:
 			return
 
-		var alpha_wave: float = 0.78 + 0.22 * sin(anim_time * 2.5)
-		var soft_wave: float = 0.5 + 0.5 * sin(anim_time * 2.5)
-		var box := snapped.grow(6.0)
-		var halo := box.grow(5.0)
+		var alpha_wave: float = 0.78 + 0.22 * sin(anim_time * 3.0)
+		var box := snapped.grow(5.0)
+		var halo := box.grow(4.0)
 
-		# Dış yumuşak altın hale (sabit tam piksel boyut, yalnızca yumuşak alfa nefesi)
-		draw_rect(halo, Color(1.0, 0.82, 0.25, (0.10 + 0.14 * soft_wave) * alpha_wave), false, 5.0)
-
-		# Ana parlak çerçeve
-		var border_col := Color(1.0, 0.88, 0.38, 0.88 * alpha_wave)
+		# Yumuşak tıklama vurgusu (fareyle alan seçme görünümü olmadan yalnızca temiz altın çerçeve)
+		draw_rect(halo, Color(1.0, 0.84, 0.28, 0.16 * alpha_wave), false, 4.0)
+		var border_col := Color(1.0, 0.90, 0.42, 0.92 * alpha_wave)
 		draw_rect(box, border_col, false, 3.0)
-
-		# 4 Köşe süslü nişangah dirsekleri (tam piksel)
-		var clen := roundf(clampf(minf(box.size.x, box.size.y) * 0.26, 16.0, 38.0))
-		var ccol := Color(1.0, 0.96, 0.65, alpha_wave)
-		var w := 5.0
-		var x0 := box.position.x
-		var y0 := box.position.y
-		var x1 := box.end.x
-		var y1 := box.end.y
-		# Sol üst
-		draw_line(Vector2(x0, y0), Vector2(x0 + clen, y0), ccol, w)
-		draw_line(Vector2(x0, y0), Vector2(x0, y0 + clen), ccol, w)
-		# Sağ üst
-		draw_line(Vector2(x1, y0), Vector2(x1 - clen, y0), ccol, w)
-		draw_line(Vector2(x1, y0), Vector2(x1, y0 + clen), ccol, w)
-		# Sol alt
-		draw_line(Vector2(x0, y1), Vector2(x0 + clen, y1), ccol, w)
-		draw_line(Vector2(x0, y1), Vector2(x0, y1 - clen), ccol, w)
-		# Sağ alt
-		draw_line(Vector2(x1, y1), Vector2(x1 - clen, y1), ccol, w)
-		draw_line(Vector2(x1, y1), Vector2(x1, y1 - clen), ccol, w)
-
-		# Hedef merkezinde genişleyen sonar dalgası
-		var center := snapped.get_center().round()
-		# Geniş butonlarda metni kapatmamak için merkez nişangahını gizle; yalnız altın çerçeve + parmak yeter
-		if not (snapped.size.x >= 360.0 and snapped.size.y <= 76.0):
-			var ripple_t := fposmod(anim_time * 1.15, 1.0)
-			var max_r := clampf(minf(snapped.size.x, snapped.size.y) * 0.45, 22.0, 56.0)
-			var rad := lerpf(8.0, max_r, ripple_t)
-			var r_col := Color(1.0, 0.90, 0.40, (1.0 - ripple_t) * 0.78 * alpha_wave)
-			draw_arc(center, rad, 0.0, TAU, 36, r_col, 3.0)
-			draw_circle(center, 8.0, Color(1.0, 0.94, 0.55, (0.45 + 0.30 * soft_wave) * alpha_wave))
 
 
 func _ready() -> void:
@@ -1050,13 +1024,21 @@ func _advance_to(next_step: int, gs: Node, scene_node: Node = null) -> void:
 			var sc_chk := int(lm_chk.call("get_scroll_count")) if lm_chk != null else 0
 			if sc_chk <= 0:
 				gs.player["diamonds"] = 5
-	elif _current_step == Step.LORD_BANDIT_BRIEFING:
-		var upg_b := _get_lord_upgrade_modal(scene_node)
-		if upg_b != null and upg_b.has_method("close_modal"):
-			upg_b.call("close_modal")
-		var lm_b := _get_lord_modal(scene_node)
-		if lm_b != null and lm_b.has_method("close_modal"):
-			lm_b.call("close_modal")
+	elif _current_step == Step.LORD_CLOSE_AND_OPEN_MAP:
+		_bandit_tour_focused = false
+	elif _current_step == Step.LORD_BANDIT_MAP_TOUR:
+		_bandit_tour_focused = false
+		if scene_node != null and scene_node.has_method("focus_nearest_bandit_village_for_tutorial"):
+			scene_node.call("focus_nearest_bandit_village_for_tutorial")
+			_bandit_tour_focused = true
+	elif _current_step == Step.QUEST_BAR_TOUR:
+		_quest_tour_collapsed_once = false
+		var qm_adv := _qm()
+		if qm_adv != null and qm_adv.has_method("set_expanded"):
+			qm_adv.call("set_expanded", false)
+			_quest_tour_collapsed_once = true
+			if qm_adv.has_method("refresh_quests"):
+				qm_adv.call("refresh_quests", true)
 
 
 func _ensure_min_resources(v: Dictionary, need_w: int, need_s: int, need_i: int) -> void:
@@ -1123,6 +1105,12 @@ func _evaluate_progression(scene_node: Node, scene_name: String, gs: Node) -> vo
 			return
 		elif _current_step == Step.RETURN_FROM_ALLIANCE:
 			_advance_to(Step.BUILD_BARRACKS_LV1, gs, scene_node)
+			return
+		elif _current_step == Step.LORD_BANDIT_MAP_TOUR:
+			_advance_to(Step.LORD_CLOSE_AND_OPEN_MAP, gs, scene_node)
+			return
+		elif _current_step == Step.RETURN_FROM_BANDIT_MAP:
+			_advance_to(Step.QUEST_BAR_TOUR, gs, scene_node)
 			return
 
 	match _current_step:
@@ -1233,7 +1221,29 @@ func _evaluate_progression(scene_node: Node, scene_name: String, gs: Node) -> vo
 				var ld2: Dictionary = lm2.call("get_lord_state")
 				var sw := _get_sword_item(ld2)
 				if not sw.is_empty() and int(sw.get("plus", 0)) >= 1 and _is_starter_equipped(ld2, "sword"):
-					_advance_to(Step.LORD_BANDIT_BRIEFING, gs, scene_node)
+					_advance_to(Step.LORD_CLOSE_AND_OPEN_MAP, gs, scene_node)
+
+		Step.LORD_CLOSE_AND_OPEN_MAP:
+			if scene_name == "WorldMap.tscn":
+				_advance_to(Step.LORD_BANDIT_MAP_TOUR, gs, scene_node)
+
+		Step.LORD_BANDIT_MAP_TOUR:
+			if scene_name == "WorldMap.tscn" and not _bandit_tour_focused and scene_node != null and scene_node.has_method("focus_nearest_bandit_village_for_tutorial"):
+				scene_node.call("focus_nearest_bandit_village_for_tutorial")
+				_bandit_tour_focused = true
+
+		Step.RETURN_FROM_BANDIT_MAP:
+			if scene_name == "Village.tscn":
+				_advance_to(Step.QUEST_BAR_TOUR, gs, scene_node)
+
+		Step.QUEST_BAR_TOUR:
+			if scene_name == "Village.tscn" and not _quest_tour_collapsed_once:
+				var qm_e := _qm()
+				if qm_e != null and qm_e.has_method("set_expanded"):
+					qm_e.call("set_expanded", false)
+					_quest_tour_collapsed_once = true
+					if qm_e.has_method("refresh_quests"):
+						qm_e.call("refresh_quests", true)
 
 
 # =============================================================================
@@ -1265,7 +1275,7 @@ func _compute_substate(scene_node: Node, scene_name: String, gs: Node) -> String
 	var scroll_taught := 1 if bool(gs.player.get("tutorial_scroll_taught", false)) else 0
 	var spd_btn_vis := 1 if _find_speedup_btn(scene_node, bp) != null else 0
 	var lord_sub := ""
-	if _current_step == Step.LORD_EQUIP_TOUR or _current_step == Step.LORD_UPGRADE_SWORD:
+	if _current_step == Step.LORD_EQUIP_TOUR or _current_step == Step.LORD_UPGRADE_SWORD or _current_step == Step.LORD_CLOSE_AND_OPEN_MAP:
 		var lm_s := _lord_mgr()
 		var lmod_s := _get_lord_modal(scene_node)
 		var upg_s := _get_lord_upgrade_modal(scene_node)
@@ -1273,6 +1283,7 @@ func _compute_substate(scene_node: Node, scene_name: String, gs: Node) -> String
 		var sw_s := _get_sword_item(ld_s)
 		var l_open := 1 if lmod_s != null else 0
 		var u_open := 1 if upg_s != null else 0
+		var gift_open := 1 if (lmod_s != null and _is_lord_gift_open(lmod_s)) else 0
 		var det_open := 1 if (lmod_s != null and _is_lord_detail_open(lmod_s)) else 0
 		var det_id := str(lmod_s.get("_detail_item_id")) if det_open == 1 else ""
 		var pk_open := 1 if (lmod_s != null and _is_lord_picker_open(lmod_s)) else 0
@@ -1287,9 +1298,13 @@ func _compute_substate(scene_node: Node, scene_name: String, gs: Node) -> String
 		var eq_bt := 1 if _is_starter_equipped(ld_s, "boots") else 0
 		var eq_er := 1 if _is_starter_equipped(ld_s, "earring") else 0
 		var sw_p := int(sw_s.get("plus", 0)) if not sw_s.is_empty() else 0
-		lord_sub = "|L:%d,%d,%d,%d:%s,%d,%d,%s,%d,%d,%d,%d,%d,%d,%d,%d,%d" % [
-			l_open, u_open, det_open, pk_open, det_id, cf_open, kit_g, sel_id, p_slot, pv_act, pv_seen, sc_l, eq_sw, eq_bt, eq_er, sw_p, 1 if bool(gs.player.get("tutorial_scroll_taught", false)) else 0
+		lord_sub = "|L:%d,%d,%d,%d,%d:%s,%d,%d,%s,%d,%d,%d,%d,%d,%d,%d,%d,%d" % [
+			l_open, u_open, gift_open, det_open, pk_open, det_id, cf_open, kit_g, sel_id, p_slot, pv_act, pv_seen, sc_l, eq_sw, eq_bt, eq_er, sw_p, 1 if bool(gs.player.get("tutorial_scroll_taught", false)) else 0
 		]
+	elif _current_step == Step.QUEST_BAR_TOUR:
+		var qm_sub := _qm()
+		var q_exp := 1 if (qm_sub != null and qm_sub.has_method("is_expanded") and bool(qm_sub.call("is_expanded"))) else 0
+		lord_sub = "|Q:%d" % q_exp
 	return "%s|%s|%d|%d|%d|%d|%d|%d|%d|%d|%d|%d|%d|%d|%d|%d|%d%s" % [
 		scene_name, bp_key, bp_tab,
 		int(bld.get("storage", 0)), int(bld.get("farm", 0)),
@@ -1838,6 +1853,15 @@ func _get_step_copy(scene_node: Node, _scene_name: String, gs: Node) -> Dictiona
 					"next_text": "",
 					"hint": "Lord Ekranı"
 				}
+			if _is_lord_gift_open(lmod):
+				return {
+					"chapter": "BÖLÜM 6/8 • KRALİYET HEDİYESİ",
+					"title": "Başlangıç Ekipmanlarınız Hazır!",
+					"dialogue": "[b][color=#FFD86B]Lordum,[/color][/b] tebrikler! Lordunuz için envanterinize 3 başlangıç ekipmanı (+0) eklendi: [b]Acemi Lord Kılıcı[/b], [b]Acemi Lord Çizmesi[/b] ve [b]Acemi Lord Küpesi[/b]. Önce [b][color=#78F096]Tamam[/color][/b] butonuna dokunun.",
+					"objective": "'Tamam' butonuna dokunun.",
+					"next_text": "",
+					"hint": "Tamam"
+				}
 			if _is_lord_detail_open(lmod):
 				return {
 					"chapter": "BÖLÜM 6/7 • LORD VE EKİPMAN",
@@ -2041,14 +2065,65 @@ func _get_step_copy(scene_node: Node, _scene_name: String, gs: Node) -> Dictiona
 				"hint": "GELİŞTİR"
 			}
 
-		Step.LORD_BANDIT_BRIEFING:
+		Step.LORD_CLOSE_AND_OPEN_MAP:
+			var lm_close := _get_lord_modal(scene_node)
+			if lm_close != null:
+				return {
+					"chapter": "BÖLÜM 7/8 • HAYDUT KÖYLERİ & EKİPMAN",
+					"title": "+1 Kılıcı Kuşandınız!",
+					"dialogue": "[b][color=#FFD86B]Lordum,[/color][/b] güçlenen [b]+1 Kılıcı[/b] Lord'un eline verdiniz! Şimdi sağ üstteki [b]✕[/b] butonuna basıp Lord ekranını kapatalım.",
+					"objective": "Sağ üstteki Kapat (✕) butonuna dokunun.",
+					"next_text": "",
+					"hint": "Lord Ekranını Kapat"
+				}
 			return {
-				"chapter": "BÖLÜM 7/7 • HAYDUT KÖYLERİ & EKİPMAN",
-				"title": "Yeni Ekipman Nasıl Kazanılır?",
-				"dialogue": "[b][color=#FFD86B]Lordum,[/color][/b] Lordunuza yeni zırh, kılıç ve aksesuarlar kazandırmanın yolu Dünya Haritası'ndaki [b][color=#FFD86B]Haydut Köylerine[/color][/b] saldırmaktır!\n\nUnutmayın: [b][color=#78F096]Ne kadar yüksek seviyeli bir Haydut Köyüne saldırıp savaşı kazanırsanız, o kadar yüksek ve nadir eşya bulma şansınız artar![/color][/b]",
-				"objective": "Eğitimi tamamlamak için 'Devam Et' butonuna dokunun.",
+				"chapter": "BÖLÜM 7/8 • HAYDUT KÖYLERİ & EKİPMAN",
+				"title": "Haydut Köylerinden Ekipman Kazanın",
+				"dialogue": "[b][color=#FFD86B]Lordum,[/color][/b] Lordunuza yeni zırh, kılıç ve aksesuarlar kazandırmanın yolu Dünya Haritası'ndaki [b][color=#FFD86B]Haydut Köylerine[/color][/b] saldırmaktır! Alt çubuktan [b][color=#78D8FF]Harita[/color][/b] butonuna dokunun.",
+				"objective": "Alt menüden 'Harita' butonuna dokunun.",
+				"next_text": "",
+				"hint": "Haritaya Geç"
+			}
+
+		Step.LORD_BANDIT_MAP_TOUR:
+			return {
+				"chapter": "BÖLÜM 7/8 • HAYDUT KÖYLERİ & EKİPMAN",
+				"title": "Haydut Köyleri ve Ekipman Düşüşü",
+				"dialogue": "[b][color=#FFD86B]Lordum,[/color][/b] haritada [b]Sv.1'den Sv.10'a[/b] kadar farklı seviyelerde [b][color=#FFD86B]Haydut Köyleri[/color][/b] bulunur. [b][color=#78F096]Saldırdığınız haydut köyünün seviyesi ne kadar yüksek olursa, savaşı kazandığınızda daha iyi ve nadir ekipman düşürme şansınız o kadar artar![/color][/b]",
+				"objective": "Köy'e dönmek için 'Devam Et' butonuna dokunun.",
 				"next_text": "Devam Et ➔",
 				"hint": "Devam Et"
+			}
+
+		Step.RETURN_FROM_BANDIT_MAP:
+			return {
+				"chapter": "BÖLÜM 8/8 • GÖREV SİSTEMİ",
+				"title": "Köyünüze Dönün",
+				"dialogue": "[b][color=#FFD86B]Lordum,[/color][/b] haydut köylerini ve ganimet kurallarını öğrendiniz! Şimdi alt menüden [b]Köy[/b] sekmesine dönüp size vereceğim Kraliyet Görevleri çubuğunu inceleyelim.",
+				"objective": "Alt menüdeki 'Köy' butonuna dokunun.",
+				"next_text": "",
+				"hint": "Köye Dön"
+			}
+
+		Step.QUEST_BAR_TOUR:
+			var qm_copy := _qm()
+			var q_exp_c := qm_copy != null and qm_copy.has_method("is_expanded") and bool(qm_copy.call("is_expanded"))
+			if not q_exp_c:
+				return {
+					"chapter": "BÖLÜM 8/8 • GÖREV SİSTEMİ",
+					"title": "Sol Üst Görevler Çubuğunu Açın",
+					"dialogue": "[b][color=#FFD86B]Lordum,[/color][/b] temel eğitimi tamamlamak üzeresiniz! Bundan sonra sol üstteki [b][color=#FFD86B]GÖREVLER[/color][/b] barına dokunarak aktif görevlerinizi açabilirsiniz.",
+					"objective": "Sol üstteki 'GÖREVLER' butonuna dokunun.",
+					"next_text": "",
+					"hint": "Görevleri Aç"
+				}
+			return {
+				"chapter": "BÖLÜM 8/8 • GÖREV SİSTEMİ",
+				"title": "Görevleri Takip Edin",
+				"dialogue": "[b][color=#FFD86B]Lordum,[/color][/b] harika! Bundan böyle bu [b][color=#78F096]Görevler[/color][/b] çubuğunu takip ederek yeni binalar açacak, asker üretecek, haydut köylerini yağmalayacak ve büyük hammadde ödülleri kazanacaksınız!",
+				"objective": "Rehberi tamamlamak için 'Eğitimi Tamamla' butonuna dokunun.",
+				"next_text": "Eğitimi Tamamla ➔",
+				"hint": "Tamamla"
 			}
 
 	return {
@@ -2285,6 +2360,10 @@ func _resolve_target_control(scene_node: Node, scene_name: String, gs: Node) -> 
 			var lm_cur := _get_lord_modal(scene_node)
 			if lm_cur == null:
 				return scene_node.find_child("BtnLord", true, false) as Control if scene_node != null else _btn_next
+			if _is_lord_gift_open(lm_cur):
+				var b_gift := lm_cur.find_child("BtnGiftConfirm", true, false) as Control
+				if b_gift != null and b_gift.is_visible_in_tree():
+					return b_gift
 			if _is_lord_detail_open(lm_cur):
 				var b_eq := lm_cur.find_child("BtnDetailEquip", true, false) as Control
 				if b_eq != null and b_eq.is_visible_in_tree():
@@ -2390,7 +2469,30 @@ func _resolve_target_control(scene_node: Node, scene_name: String, gs: Node) -> 
 				return btn_do
 			return null
 
-		Step.LORD_BANDIT_BRIEFING:
+		Step.LORD_CLOSE_AND_OPEN_MAP:
+			var lm_cls := _get_lord_modal(scene_node)
+			if lm_cls != null:
+				return lm_cls.find_child("BtnCloseLordModal", true, false) as Control
+			return _bottom_nav_btn(scene_node, "BtnMap")
+
+		Step.LORD_BANDIT_MAP_TOUR:
+			return _btn_next
+
+		Step.RETURN_FROM_BANDIT_MAP:
+			return _bottom_nav_btn(scene_node, "BtnVillage")
+
+		Step.QUEST_BAR_TOUR:
+			var qm_t := _qm()
+			if qm_t != null:
+				var q_exp_t := qm_t.has_method("is_expanded") and bool(qm_t.call("is_expanded"))
+				if not q_exp_t and qm_t.has_method("get_header_button"):
+					var qh = qm_t.call("get_header_button")
+					if qh != null and is_instance_valid(qh) and qh is Control:
+						return qh as Control
+				if q_exp_t and qm_t.has_method("get_tracker_panel"):
+					var qp = qm_t.call("get_tracker_panel")
+					if qp != null and is_instance_valid(qp) and qp is Control:
+						return qp as Control
 			return _btn_next
 
 	return _btn_next
@@ -2410,6 +2512,20 @@ func _scroll_modal_to(modal: Node, ctrl: Control, tag: String) -> void:
 	_scrolled_target_tag = full_tag
 	if modal.has_method("scroll_to_control"):
 		modal.call("scroll_to_control", ctrl)
+
+
+func _qm() -> Node:
+	var loop := Engine.get_main_loop()
+	return (loop as SceneTree).root.get_node_or_null("QuestManager") if loop is SceneTree else null
+
+
+func _is_lord_gift_open(lmod: Node) -> bool:
+	if lmod == null or not is_instance_valid(lmod):
+		return false
+	if lmod.has_method("is_starter_gift_open"):
+		return bool(lmod.call("is_starter_gift_open"))
+	var gf = lmod.get("_gift_fx_root")
+	return gf != null and is_instance_valid(gf) and gf is Control and (gf as Control).visible
 
 
 func _is_lord_detail_open(lmod: Node) -> bool:
@@ -2434,16 +2550,26 @@ func _is_upg_confirm_open(umod: Node) -> bool:
 
 
 func _get_sword_item(ld: Dictionary) -> Dictionary:
+	var inv := ld.get("inventory", []) as Array
+	var tut_sw_id := str(ld.get("tutorial_sword_id", ""))
+	if not tut_sw_id.is_empty():
+		for it in inv:
+			if typeof(it) == TYPE_DICTIONARY and str((it as Dictionary).get("id", "")) == tut_sw_id:
+				return it as Dictionary
 	var eq_map: Dictionary = ld.get("equipped", {}) if typeof(ld.get("equipped")) == TYPE_DICTIONARY else {}
 	var eq_sw_id := str(eq_map.get("sword", ""))
-	for it in (ld.get("inventory", []) as Array):
-		if typeof(it) != TYPE_DICTIONARY:
-			continue
-		var d := it as Dictionary
-		if not eq_sw_id.is_empty() and str(d.get("id", "")) == eq_sw_id:
-			return d
-		if str(d.get("slot_type", "")) == "sword":
-			return d
+	if not eq_sw_id.is_empty():
+		for it in inv:
+			if typeof(it) == TYPE_DICTIONARY and str((it as Dictionary).get("id", "")) == eq_sw_id:
+				return it as Dictionary
+	for it in inv:
+		if typeof(it) == TYPE_DICTIONARY:
+			var d := it as Dictionary
+			if str(d.get("slot_type", "")) == "sword" and str(d.get("source", "")) == "Eğitim Başlangıcı":
+				return d
+	for it in inv:
+		if typeof(it) == TYPE_DICTIONARY and str((it as Dictionary).get("slot_type", "")) == "sword":
+			return it as Dictionary
 	return {}
 
 
@@ -2582,7 +2708,9 @@ func _update_visual_animations(delta: float, scene_node: Node, scene_name: Strin
 			dock_bottom = true
 	elif bp_vis:
 		dock_bottom = false
-	elif _current_step in [Step.WELCOME_INTRO, Step.WORLD_MAP_TOUR, Step.ALLIANCE_TOUR, Step.RESOURCE_BAR_TOUR, Step.SELECT_MAIN_CASTLE, Step.OPEN_ALLIANCE]:
+	elif _current_step in [Step.WELCOME_INTRO, Step.WORLD_MAP_TOUR, Step.ALLIANCE_TOUR, Step.RESOURCE_BAR_TOUR, Step.SELECT_MAIN_CASTLE, Step.OPEN_ALLIANCE, Step.LORD_BANDIT_MAP_TOUR]:
+		dock_bottom = true
+	elif _current_step == Step.QUEST_BAR_TOUR:
 		dock_bottom = true
 	elif has_target and target_ctrl != _btn_next and target_ctrl != _btn_speedup:
 		dock_bottom = (t_rect.get_center().y < vp_size.y * 0.44)
@@ -2605,11 +2733,19 @@ func _update_visual_animations(delta: float, scene_node: Node, scene_name: Strin
 	else:
 		_vizier_card.position = _vizier_card.position.lerp(target_card_pos, clampf(delta * 14.0, 0.0, 1.0))
 
-	# Tour adımlarında (Karşılama / Harita / İttifak / ResourceBar): spotlight büyük alanı aydınlatırken parmağı 'Devam Et' butonuna tut
+	# Tour adımlarında (Karşılama / Harita / İttifak / ResourceBar / Haydut Köyü / Görev Barı): spotlight büyük alanı aydınlatırken parmağı 'Devam Et' butonuna tut
 	var passive_welcome := (_current_step == Step.WELCOME_INTRO)
 	var spotlight_rect := t_rect
 	var finger_ctrl := target_ctrl
-	if _current_step in [Step.WELCOME_INTRO, Step.RESOURCE_BAR_TOUR, Step.WORLD_MAP_TOUR, Step.ALLIANCE_TOUR, Step.LORD_BANDIT_BRIEFING] and _btn_next != null and _btn_next.visible:
+	if _current_step == Step.LORD_BANDIT_MAP_TOUR and scene_name == "WorldMap.tscn" and scene_node != null and scene_node.has_method("get_tutorial_bandit_screen_rect"):
+		var b_rect: Rect2 = scene_node.call("get_tutorial_bandit_screen_rect")
+		if b_rect.size.x > 10.0 and b_rect.size.y > 10.0:
+			has_target = true
+			spotlight_rect = _snap_rect(b_rect)
+	if _current_step in [Step.WELCOME_INTRO, Step.RESOURCE_BAR_TOUR, Step.WORLD_MAP_TOUR, Step.ALLIANCE_TOUR, Step.LORD_BANDIT_MAP_TOUR] and _btn_next != null and _btn_next.visible:
+		finger_ctrl = _btn_next
+		t_rect = _snap_rect(_btn_next.get_global_rect())
+	elif _current_step == Step.QUEST_BAR_TOUR and _btn_next != null and _btn_next.visible:
 		finger_ctrl = _btn_next
 		t_rect = _snap_rect(_btn_next.get_global_rect())
 
@@ -2617,6 +2753,8 @@ func _update_visual_animations(delta: float, scene_node: Node, scene_name: Strin
 	var target_in_rbar := (target_ctrl != null and rbar != null and (target_ctrl == rbar or rbar.is_ancestor_of(target_ctrl)))
 	var target_in_modal := (target_ctrl != null) and ((mkt_modal != null and mkt_modal.is_ancestor_of(target_ctrl)) or (spd_modal != null and spd_modal.is_ancestor_of(target_ctrl)) or (lord_modal != null and lord_modal.is_ancestor_of(target_ctrl)) or (upg_modal != null and upg_modal.is_ancestor_of(target_ctrl)))
 	var target_in_self := (target_ctrl != null and _root_ctrl != null and _root_ctrl.is_ancestor_of(target_ctrl))
+	var qm_chk := _qm()
+	var target_in_quest := (target_ctrl != null and qm_chk != null and (target_ctrl == qm_chk or qm_chk.is_ancestor_of(target_ctrl)))
 
 	# Vezir portre çerçevesinde hafif canlı altın parıltı
 	if _vizier_portrait_box != null:
@@ -2633,7 +2771,7 @@ func _update_visual_animations(delta: float, scene_node: Node, scene_name: Strin
 		_dim_right.hide()
 	elif has_target:
 		var hole := _snap_rect(spotlight_rect.grow(10.0)).intersection(Rect2(Vector2.ZERO, vp_size))
-		if not target_in_rbar and not target_in_modal and not target_in_self and hole.end.y > top_bar_bottom and hole.position.y < top_bar_bottom:
+		if not target_in_rbar and not target_in_modal and not target_in_self and not target_in_quest and hole.end.y > top_bar_bottom and hole.position.y < top_bar_bottom:
 			var clip_dy := top_bar_bottom - hole.position.y
 			hole.position.y = top_bar_bottom
 			hole.size.y = maxf(0.0, hole.size.y - clip_dy)
@@ -2704,19 +2842,19 @@ func _update_visual_animations(delta: float, scene_node: Node, scene_name: Strin
 		_target_fx.target_rect = finger_rect
 		_target_fx.anim_time = _anim_time
 		_fx_redraw_accum += maxf(delta, 0.0)
-		if rect_changed or _fx_redraw_accum >= 0.066:
+		if rect_changed or _fx_redraw_accum >= 0.033:
 			_fx_redraw_accum = 0.0
 			_target_fx.queue_redraw()
 
-		var blink_wave := 0.5 + 0.5 * sin(_anim_time * 7.2)
-		var poke := pow(0.5 + 0.5 * sin(_anim_time * 5.8), 1.4) * 18.0
+		var blink_wave := 0.5 + 0.5 * sin(_anim_time * 5.2)
+		var poke := (0.5 + 0.5 * sin(_anim_time * 4.6)) * 16.0
 		var center := finger_rect.get_center()
 		var is_card_btn := (finger_ctrl == _btn_next or finger_ctrl == _btn_speedup)
 		var aim_pt := Vector2(finger_rect.position.x + finger_rect.size.x * 0.74, center.y + 8.0) if is_card_btn else center
 
 		# Yanıp sönen altın parıltı ve saydamlık salınımı
-		var flash := 0.90 + 0.35 * blink_wave
-		_hand_sprite.modulate = Color(flash, flash, 0.72 + 0.28 * blink_wave, 0.58 + 0.42 * blink_wave)
+		var flash := 0.92 + 0.28 * blink_wave
+		_hand_sprite.modulate = Color(flash, flash, 0.78 + 0.22 * blink_wave, 0.72 + 0.28 * blink_wave)
 		_hand_sprite.show()
 
 		# Sağ kenardaki butonlarda (Elmas Pazarı, İttifak vb.) eldivenin sola kayıp komşu butonun üzerine
@@ -2727,8 +2865,8 @@ func _update_visual_animations(delta: float, scene_node: Node, scene_name: Strin
 		var tip_offset := Vector2(10.0, 11.0)
 		var poke_dir := Vector2(0.707, 0.707)
 		var hand_pos := (effective_aim - tip_offset) + poke_dir * poke
-		hand_pos.x = roundf(clampf(hand_pos.x, 4.0, vp_size.x - 100.0))
-		hand_pos.y = roundf(clampf(hand_pos.y, 4.0, vp_size.y - 100.0))
+		hand_pos.x = clampf(hand_pos.x, 4.0, vp_size.x - 100.0)
+		hand_pos.y = clampf(hand_pos.y, 4.0, vp_size.y - 100.0)
 		_hand_sprite.position = hand_pos
 
 		# Yüzen İpucu Baloncuğu (kart içi butonlarda metni kapatmamak için gizle)
@@ -2808,7 +2946,9 @@ func _on_next_pressed() -> void:
 			_advance_to(Step.RETURN_FROM_MAP, gs, scene_node)
 		Step.ALLIANCE_TOUR:
 			_advance_to(Step.RETURN_FROM_ALLIANCE, gs, scene_node)
-		Step.LORD_BANDIT_BRIEFING:
+		Step.LORD_BANDIT_MAP_TOUR:
+			_advance_to(Step.RETURN_FROM_BANDIT_MAP, gs, scene_node)
+		Step.QUEST_BAR_TOUR:
 			_advance_to(Step.GRADUATION_MODAL, gs, scene_node)
 		_:
 			_advance_to(_current_step + 1, gs, scene_node)

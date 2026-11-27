@@ -22,7 +22,7 @@ corner_radius_top_right = 16
 corner_radius_bottom_right = 16
 corner_radius_bottom_left = 16
 shadow_color = Color(0, 0, 0, 0.42)
-shadow_size = 10
+shadow_size = 0
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_card"]
 content_margin_left = 22.0
@@ -40,7 +40,7 @@ corner_radius_top_right = 16
 corner_radius_bottom_right = 16
 corner_radius_bottom_left = 16
 shadow_color = Color(0, 0, 0, 0.38)
-shadow_size = 8
+shadow_size = 0
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_danger_card"]
 content_margin_left = 22.0
@@ -58,7 +58,7 @@ corner_radius_top_right = 16
 corner_radius_bottom_right = 16
 corner_radius_bottom_left = 16
 shadow_color = Color(0, 0, 0, 0.42)
-shadow_size = 8
+shadow_size = 0
 
 [node name="Settings" type="Control"]
 layout_mode = 3

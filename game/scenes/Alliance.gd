@@ -443,9 +443,42 @@ func _build_browse_alliances_view(parent: Control, gs: Node, player_name: String
 		var desc: String = str(a_dict.get("description", ""))
 		var sub_lbl := Label.new()
 		sub_lbl.text = " Lider: %s |  %d Üye | %s" % [leader_name, members_count, desc]
+		sub_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		sub_lbl.add_theme_font_size_override("font_size", 20)
 		sub_lbl.add_theme_color_override("font_color", Color(0.75, 0.72, 0.65))
 		info_box.add_child(sub_lbl)
+
+		var a_id_b := int(a_dict.get("id", -1))
+		var already_req := AllianceModelScript.has_pending_join_request(a_dict, player_name)
+		var req_btn := Button.new()
+		req_btn.name = ("BtnCancelJoinReq_%d" if already_req else "BtnJoinReq_%d") % a_id_b
+		req_btn.text = "⏳ İsteği İptal Et" if already_req else "📩 Katılma İsteği"
+		req_btn.custom_minimum_size = Vector2(200, 48)
+		req_btn.size_flags_vertical = SIZE_SHRINK_CENTER
+		req_btn.add_theme_font_override("font", FontNunitoBold)
+		req_btn.add_theme_font_size_override("font_size", 20)
+		if already_req:
+			_style_danger_btn(req_btn)
+		else:
+			_style_gold_btn(req_btn)
+		req_btn.pressed.connect(func():
+			if req_btn.disabled:
+				return
+			req_btn.disabled = true
+			var st_req: Dictionary = gs.to_dict()
+			var r_req := (
+				AllianceModelScript.cancel_join_request(st_req, player_name, a_id_b)
+				if already_req
+				else AllianceModelScript.request_join_alliance(st_req, player_name, a_id_b)
+			)
+			if bool(r_req.get("ok", false)):
+				_suppress_state_refresh = true
+				gs.from_dict(st_req)
+				_save_game(true)
+				_suppress_state_refresh = false
+				refresh_view()
+		)
+		r_hbox.add_child(req_btn)
 
 
 # =============================================================================
@@ -610,6 +643,28 @@ func _build_member_view(gs: Node, alliance: Dictionary, player_name: String) -> 
 			)
 			ann_btns.add_child(cancel_ann_btn)
 
+	var is_leader_member := AllianceModelScript.is_leader(alliance, player_name)
+	var join_reqs: Array = alliance.get("join_requests", []) if typeof(alliance.get("join_requests")) == TYPE_ARRAY else []
+	var pending_req_cnt: int = join_reqs.size() if is_leader_member else 0
+
+	if pending_req_cnt > 0 and _active_tab != "invite":
+		var req_alert := Button.new()
+		req_alert.name = "JoinRequestsAlertBanner"
+		req_alert.text = "🔔 %d yeni ittifaka katılma isteği var! İncelemek ve onaylamak için dokunun." % pending_req_cnt
+		req_alert.custom_minimum_size = Vector2(0, 48)
+		req_alert.add_theme_font_override("font", FontNunitoBold)
+		req_alert.add_theme_font_size_override("font_size", 20)
+		var ab_sb := StyleBoxFlat.new()
+		ab_sb.bg_color = Color(0.54, 0.14, 0.14, 0.96)
+		ab_sb.border_color = Color(1.0, 0.56, 0.44, 1.0)
+		ab_sb.set_border_width_all(2)
+		ab_sb.set_corner_radius_all(10)
+		req_alert.add_theme_stylebox_override("normal", ab_sb)
+		req_alert.add_theme_stylebox_override("hover", ab_sb)
+		req_alert.add_theme_color_override("font_color", Color(1, 0.96, 0.94))
+		req_alert.pressed.connect(func(): _active_tab = "invite"; refresh_view())
+		vbox.add_child(req_alert)
+
 	# Sekmeler
 	var tab_bar := HBoxContainer.new()
 	tab_bar.custom_minimum_size = Vector2(0, 52)
@@ -624,7 +679,11 @@ func _build_member_view(gs: Node, alliance: Dictionary, player_name: String) -> 
 	t_members.pressed.connect(func(): _active_tab = "members"; refresh_view())
 	tab_bar.add_child(t_members)
 
-	var t_invite := _make_tab_button(" Davet Gönder", _active_tab == "invite")
+	var invite_lbl := (" Davet (%d)" % pending_req_cnt) if pending_req_cnt > 0 else " Davet Gönder"
+	var t_invite := _make_tab_button(invite_lbl, _active_tab == "invite")
+	t_invite.name = "TabInviteBtn"
+	if pending_req_cnt > 0 and _active_tab != "invite":
+		t_invite.add_theme_color_override("font_color", Color(1.0, 0.56, 0.50))
 	t_invite.pressed.connect(func(): _active_tab = "invite"; refresh_view())
 	tab_bar.add_child(t_invite)
 
@@ -819,12 +878,17 @@ func _build_members_tab(parent: Control, gs: Node, alliance: Dictionary, player_
 		info_vbox.size_flags_horizontal = SIZE_EXPAND_FILL
 		hbox.add_child(info_vbox)
 
-		var name_lbl := Label.new()
-		name_lbl.text = "%s (%s)" % [m_name, m_rank]
-		name_lbl.add_theme_font_override("font", FontNunitoBold)
-		name_lbl.add_theme_font_size_override("font_size", 24)
-		name_lbl.add_theme_color_override("font_color", Color(1.0, 0.95, 0.85))
-		info_vbox.add_child(name_lbl)
+		var name_btn := Button.new()
+		name_btn.text = "👤 %s (%s)" % [m_name, m_rank]
+		name_btn.flat = true
+		name_btn.alignment = HORIZONTAL_ALIGNMENT_LEFT
+		name_btn.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+		name_btn.add_theme_font_override("font", FontNunitoBold)
+		name_btn.add_theme_font_size_override("font_size", 24)
+		name_btn.add_theme_color_override("font_color", Color(1.0, 0.95, 0.85))
+		name_btn.add_theme_color_override("font_hover_color", Color(0.55, 0.90, 1.0))
+		name_btn.pressed.connect(func(): _open_player_profile_modal(gs, m_name, -1, false))
+		info_vbox.add_child(name_btn)
 
 		var pts_lbl := Label.new()
 		pts_lbl.text = " Puan: %d" % m_pts
@@ -850,12 +914,122 @@ func _build_members_tab(parent: Control, gs: Node, alliance: Dictionary, player_
 			hbox.add_child(kick_btn)
 
 
-# --- Sekme 3: Davet Gönder ---------------------------------------------------
+# --- Sekme 3: Davet Gönder & Katılma İstekleri -------------------------------
 
 func _build_invite_tab(parent: Control, gs: Node, alliance: Dictionary, player_name: String) -> void:
+	var scroll := ScrollContainer.new()
+	scroll.size_flags_vertical = SIZE_EXPAND_FILL
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	parent.add_child(scroll)
+
 	var vbox := VBoxContainer.new()
+	vbox.size_flags_horizontal = SIZE_EXPAND_FILL
 	vbox.add_theme_constant_override("separation", 14)
-	parent.add_child(vbox)
+	scroll.add_child(vbox)
+
+	var a_id_cur := int(alliance.get("id", -1))
+	var is_leader := AllianceModelScript.is_leader(alliance, player_name)
+	var join_reqs: Array = alliance.get("join_requests", []) if typeof(alliance.get("join_requests")) == TYPE_ARRAY else []
+
+	if is_leader:
+		var req_card := _make_card()
+		req_card.name = "JoinRequestsCard"
+		vbox.add_child(req_card)
+		var r_vb := VBoxContainer.new()
+		r_vb.add_theme_constant_override("separation", 10)
+		req_card.add_child(r_vb)
+
+		var r_title := Label.new()
+		r_title.text = "📥 Gelen Katılma İstekleri (%d)" % join_reqs.size()
+		r_title.add_theme_font_override("font", FontNunitoBold)
+		r_title.add_theme_font_size_override("font_size", 24)
+		r_title.add_theme_color_override("font_color", Color(1.0, 0.58, 0.52) if not join_reqs.is_empty() else Color(0.85, 0.82, 0.72))
+		r_vb.add_child(r_title)
+
+		if join_reqs.is_empty():
+			var no_req := Label.new()
+			no_req.text = "Şu anda bekleyen katılma isteği yok."
+			no_req.add_theme_font_size_override("font_size", 20)
+			no_req.add_theme_color_override("font_color", Color(0.70, 0.68, 0.62))
+			r_vb.add_child(no_req)
+		else:
+			var full_state: Dictionary = gs.to_dict()
+			for jr_raw in join_reqs:
+				if typeof(jr_raw) != TYPE_DICTIONARY:
+					continue
+				var jr := jr_raw as Dictionary
+				var app_name := str(jr.get("player_name", "")).strip_edges()
+				if app_name.is_empty():
+					continue
+				var app_pts := AllianceModelScript._calculate_player_points(full_state, app_name)
+
+				var jr_row := HBoxContainer.new()
+				jr_row.name = "JoinRequestRow_" + app_name
+				jr_row.add_theme_constant_override("separation", 8)
+				r_vb.add_child(jr_row)
+
+				var prof_btn := Button.new()
+				prof_btn.name = "BtnApplicantProfile_" + app_name
+				prof_btn.text = "👤 %s  (%d Puan)" % [app_name, app_pts]
+				prof_btn.size_flags_horizontal = SIZE_EXPAND_FILL
+				prof_btn.alignment = HORIZONTAL_ALIGNMENT_LEFT
+				prof_btn.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+				prof_btn.add_theme_font_override("font", FontNunitoBold)
+				prof_btn.add_theme_font_size_override("font_size", 21)
+				var p_sb := StyleBoxFlat.new()
+				p_sb.bg_color = Color(0.14, 0.16, 0.24, 0.92)
+				p_sb.border_color = Color(0.45, 0.74, 0.98, 0.78)
+				p_sb.set_border_width_all(1)
+				p_sb.set_corner_radius_all(10)
+				p_sb.content_margin_left = 12
+				p_sb.content_margin_right = 10
+				p_sb.content_margin_top = 8
+				p_sb.content_margin_bottom = 8
+				prof_btn.add_theme_stylebox_override("normal", p_sb)
+				prof_btn.add_theme_stylebox_override("hover", p_sb)
+				prof_btn.add_theme_color_override("font_color", Color(0.82, 0.94, 1.0))
+				prof_btn.pressed.connect(func():
+					_open_player_profile_modal(gs, app_name, a_id_cur, true)
+				)
+				jr_row.add_child(prof_btn)
+
+				var ok_btn := Button.new()
+				ok_btn.name = "BtnApproveJoin_" + app_name
+				ok_btn.text = "✅ Onayla"
+				ok_btn.custom_minimum_size = Vector2(126, 46)
+				ok_btn.add_theme_font_override("font", FontNunitoBold)
+				ok_btn.add_theme_font_size_override("font_size", 19)
+				_style_gold_btn(ok_btn)
+				ok_btn.pressed.connect(func():
+					var st_j: Dictionary = gs.to_dict()
+					var r_ok := AllianceModelScript.respond_join_request(st_j, a_id_cur, player_name, app_name, true)
+					if bool(r_ok.get("ok", false)):
+						_suppress_state_refresh = true
+						gs.from_dict(st_j)
+						_save_game(true)
+						_suppress_state_refresh = false
+						refresh_view()
+				)
+				jr_row.add_child(ok_btn)
+
+				var rej_btn := Button.new()
+				rej_btn.name = "BtnRejectJoin_" + app_name
+				rej_btn.text = "❌ Reddet"
+				rej_btn.custom_minimum_size = Vector2(118, 46)
+				rej_btn.add_theme_font_override("font", FontNunitoBold)
+				rej_btn.add_theme_font_size_override("font_size", 19)
+				_style_danger_btn(rej_btn)
+				rej_btn.pressed.connect(func():
+					var st_j: Dictionary = gs.to_dict()
+					var r_no := AllianceModelScript.respond_join_request(st_j, a_id_cur, player_name, app_name, false)
+					if bool(r_no.get("ok", false)):
+						_suppress_state_refresh = true
+						gs.from_dict(st_j)
+						_save_game(true)
+						_suppress_state_refresh = false
+						refresh_view()
+				)
+				jr_row.add_child(rej_btn)
 
 	var card := _make_card()
 	vbox.add_child(card)
@@ -1417,6 +1591,177 @@ func _style_danger_btn(btn: Button) -> void:
 	sb.set_corner_radius_all(10)
 	btn.add_theme_stylebox_override("normal", sb)
 	btn.add_theme_color_override("font_color", Color(1, 1, 1))
+
+
+func _open_player_profile_modal(gs: Node, target_name: String, pending_alliance_id: int = -1, show_req_actions: bool = false) -> void:
+	if gs == null:
+		return
+	var state: Dictionary = gs.to_dict()
+	var target_l := target_name.strip_edges().to_lower()
+	var total_pts := 0
+	var target_villages: Array[Dictionary] = []
+	for v_raw in state.get("villages", []):
+		if typeof(v_raw) != TYPE_DICTIONARY:
+			continue
+		var vd := v_raw as Dictionary
+		if str(vd.get("owner", "")).strip_edges().to_lower() == target_l:
+			target_villages.append(vd)
+			total_pts += int(vd.get("points", 0))
+	if total_pts == 0:
+		total_pts = AllianceModelScript._calculate_player_points(state, target_name)
+
+	var player_ally := AllianceModelScript.get_player_alliance(state, target_name)
+	var ally_label := ("[%s] %s" % [str(player_ally.get("tag", "")), str(player_ally.get("name", ""))]) if not player_ally.is_empty() else "İttifaksız"
+
+	var existing := get_node_or_null("AlliancePlayerProfileModal")
+	if existing != null:
+		remove_child(existing)
+		existing.queue_free()
+
+	var layer := CanvasLayer.new()
+	layer.name = "AlliancePlayerProfileModal"
+	layer.layer = 160
+	add_child(layer)
+
+	var root_ctrl := Control.new()
+	root_ctrl.set_anchors_preset(PRESET_FULL_RECT)
+	root_ctrl.mouse_filter = Control.MOUSE_FILTER_STOP
+	layer.add_child(root_ctrl)
+
+	var dim := ColorRect.new()
+	dim.set_anchors_preset(PRESET_FULL_RECT)
+	dim.color = Color(0.02, 0.02, 0.04, 0.80)
+	dim.mouse_filter = Control.MOUSE_FILTER_STOP
+	root_ctrl.add_child(dim)
+
+	var cc := CenterContainer.new()
+	cc.set_anchors_preset(PRESET_FULL_RECT)
+	root_ctrl.add_child(cc)
+
+	var card := PanelContainer.new()
+	card.name = "PlayerProfileCard"
+	card.custom_minimum_size = Vector2(760, 0)
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color(0.10, 0.09, 0.14, 0.99)
+	sb.border_color = Color(0.92, 0.76, 0.36, 1.0)
+	sb.set_border_width_all(3)
+	sb.border_width_top = 5
+	sb.set_corner_radius_all(18)
+	sb.set_content_margin_all(22)
+	card.add_theme_stylebox_override("panel", sb)
+	cc.add_child(card)
+
+	var vb := VBoxContainer.new()
+	vb.add_theme_constant_override("separation", 12)
+	card.add_child(vb)
+
+	var hdr := HBoxContainer.new()
+	vb.add_child(hdr)
+	var title := Label.new()
+	title.text = "👤 OYUNCU PROFİLİ: %s" % target_name
+	title.size_flags_horizontal = SIZE_EXPAND_FILL
+	title.add_theme_font_override("font", FontNunitoBold)
+	title.add_theme_font_size_override("font_size", 26)
+	title.add_theme_color_override("font_color", Color(1.0, 0.90, 0.45))
+	hdr.add_child(title)
+
+	var cls := Button.new()
+	cls.name = "BtnCloseProfileModal"
+	cls.text = "×"
+	cls.custom_minimum_size = Vector2(46, 42)
+	cls.add_theme_font_override("font", FontNunitoBold)
+	cls.add_theme_font_size_override("font_size", 26)
+	_style_danger_btn(cls)
+	cls.pressed.connect(func(): layer.queue_free())
+	hdr.add_child(cls)
+
+	var summary := Label.new()
+	summary.text = "🛡️ İttifak: %s   |   🏆 Toplam Puan: %d   |   🏰 Köy Sayısı: %d" % [ally_label, total_pts, target_villages.size()]
+	summary.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	summary.add_theme_font_override("font", FontNunitoBold)
+	summary.add_theme_font_size_override("font_size", 22)
+	summary.add_theme_color_override("font_color", Color(0.94, 0.92, 0.84))
+	vb.add_child(summary)
+
+	var sc := ScrollContainer.new()
+	sc.custom_minimum_size = Vector2(0, 220)
+	sc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	vb.add_child(sc)
+
+	var v_list := VBoxContainer.new()
+	v_list.size_flags_horizontal = SIZE_EXPAND_FILL
+	v_list.add_theme_constant_override("separation", 8)
+	sc.add_child(v_list)
+
+	if target_villages.is_empty():
+		var none_lbl := Label.new()
+		none_lbl.text = "Bu oyuncuya ait aktif köy bilgisi bulunamadı."
+		none_lbl.add_theme_font_size_override("font_size", 20)
+		none_lbl.add_theme_color_override("font_color", Color(0.72, 0.70, 0.64))
+		v_list.add_child(none_lbl)
+	else:
+		for tv in target_villages:
+			var row_c := _make_card()
+			v_list.add_child(row_c)
+			var rl := Label.new()
+			rl.text = "🏰 %s   (%d|%d)   •   %d Puan" % [
+				str(tv.get("name", "Köy")),
+				int(tv.get("x", 0)),
+				int(tv.get("y", 0)),
+				int(tv.get("points", 0))
+			]
+			rl.add_theme_font_override("font", FontNunitoBold)
+			rl.add_theme_font_size_override("font_size", 21)
+			rl.add_theme_color_override("font_color", Color(0.95, 0.94, 0.88))
+			row_c.add_child(rl)
+
+	if show_req_actions and pending_alliance_id > 0:
+		var actor := str(gs.player.get("name", ""))
+		var act_hb := HBoxContainer.new()
+		act_hb.add_theme_constant_override("separation", 12)
+		vb.add_child(act_hb)
+
+		var acc_p := Button.new()
+		acc_p.name = "BtnProfileApproveJoin"
+		acc_p.text = "✅ İttifaka Onayla"
+		acc_p.size_flags_horizontal = SIZE_EXPAND_FILL
+		acc_p.custom_minimum_size = Vector2(0, 50)
+		acc_p.add_theme_font_override("font", FontNunitoBold)
+		acc_p.add_theme_font_size_override("font_size", 22)
+		_style_gold_btn(acc_p)
+		acc_p.pressed.connect(func():
+			var st_p: Dictionary = gs.to_dict()
+			var res_p := AllianceModelScript.respond_join_request(st_p, pending_alliance_id, actor, target_name, true)
+			layer.queue_free()
+			if bool(res_p.get("ok", false)):
+				_suppress_state_refresh = true
+				gs.from_dict(st_p)
+				_save_game(true)
+				_suppress_state_refresh = false
+				refresh_view()
+		)
+		act_hb.add_child(acc_p)
+
+		var rej_p := Button.new()
+		rej_p.name = "BtnProfileRejectJoin"
+		rej_p.text = "❌ Reddet"
+		rej_p.size_flags_horizontal = SIZE_EXPAND_FILL
+		rej_p.custom_minimum_size = Vector2(0, 50)
+		rej_p.add_theme_font_override("font", FontNunitoBold)
+		rej_p.add_theme_font_size_override("font_size", 22)
+		_style_danger_btn(rej_p)
+		rej_p.pressed.connect(func():
+			var st_p: Dictionary = gs.to_dict()
+			var res_r := AllianceModelScript.respond_join_request(st_p, pending_alliance_id, actor, target_name, false)
+			layer.queue_free()
+			if bool(res_r.get("ok", false)):
+				_suppress_state_refresh = true
+				gs.from_dict(st_p)
+				_save_game(true)
+				_suppress_state_refresh = false
+				refresh_view()
+		)
+		act_hb.add_child(rej_p)
 
 
 func _save_game(is_alliance_mutation: bool = true) -> void:

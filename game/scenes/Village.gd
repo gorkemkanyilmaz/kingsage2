@@ -11,6 +11,8 @@ const ArmyAPIScript := preload("res://scripts/sim/army/ArmyAPI.gd")
 const MovementScript := preload("res://scripts/sim/actions/Movement.gd")
 const GameDataScript := preload("res://autoload/GameData.gd")
 const FontCinzelBold := preload("res://assets/fonts/Cinzel-Bold.ttf")
+const FontNunitoBold := preload("res://assets/fonts/Nunito-Bold.ttf")
+const AllianceModelScript := preload("res://scripts/model/AllianceModel.gd")
 const IconAllianceShield := preload("res://assets/sprites/ui/nano_banana/sharp_icon_alliance_shield.png")
 const TexRoyalBtnBg := preload("res://assets/sprites/ui/nano_banana/sharp_ui_royal_btn_bg.png")
 const IconScrollBuild := preload("res://assets/sprites/ui/nano_banana/sharp_scroll_build.png")
@@ -204,6 +206,9 @@ var _lord_hud_accum: float = 0.0
 var _obscured_cache: bool = false
 var _obscured_check_accum: float = 0.25
 var _bg_warming_paused: bool = false
+var _alliance_notif_badge: PanelContainer = null
+var _alliance_notif_lbl: Label = null
+var _last_alliance_badge_cnt: int = -1
 
 
 func _ensure_nodes() -> void:
@@ -276,6 +281,8 @@ func _ready() -> void:
 		btn_alliance.z_as_relative = false
 		btn_alliance.mouse_filter = Control.MOUSE_FILTER_STOP
 		_style_alliance_btn()
+		_ensure_alliance_notif_badge()
+		_update_alliance_badge()
 		if not btn_alliance.pressed.is_connected(_on_alliance_btn_pressed):
 			btn_alliance.pressed.connect(_on_alliance_btn_pressed)
 
@@ -455,6 +462,7 @@ func _process(delta: float) -> void:
 		_queue_ui_accum = 0.0
 		_update_queue_ui()
 		_update_building_views_progress()
+		_update_alliance_badge()
 	_lord_hud_accum += dt
 	if _lord_hud_accum >= 5.0:
 		_lord_hud_accum = 0.0
@@ -517,7 +525,7 @@ func _update_building_views_progress() -> void:
 					var is_active := (now >= s_u)
 					var rem := maxi(0, f_u - now) if is_active else dur
 					var pct := clampf(float(dur - rem) / float(dur) * 100.0, 0.0, 100.0) if is_active else 0.0
-					b_view.set_state(b_view.current_level, false, is_active, pct, rem)
+					b_view.set_state(b_view.current_level, b_view.is_locked, is_active, pct, rem)
 
 
 func _ensure_game_loop() -> void:
@@ -697,6 +705,7 @@ func refresh_all() -> void:
 
 	if resource_bar != null:
 		resource_bar.refresh()
+	_update_alliance_badge()
 
 
 func _get_building_icon(key: String) -> String:
@@ -728,14 +737,15 @@ func _on_building_started(_village_id: int, _key: String, _level: int) -> void:
 
 
 func _current_now() -> int:
+	var best := int(Time.get_unix_time_from_system())
 	if GameLoopScript.instance != null and GameLoopScript.instance.now_unix() > 0:
-		return GameLoopScript.instance.now_unix()
+		best = maxi(best, GameLoopScript.instance.now_unix())
 	var gs = Engine.get_main_loop().root.get_node_or_null("GameState") if Engine.get_main_loop() is SceneTree else null
 	if gs != null:
 		var w = gs.world
 		if typeof(w) == TYPE_DICTIONARY and (w as Dictionary).has("sim_now_unix"):
-			return int((w as Dictionary)["sim_now_unix"])
-	return int(Time.get_unix_time_from_system())
+			best = maxi(best, int((w as Dictionary)["sim_now_unix"]))
+	return best
 
 
 func _update_queue_ui() -> void:
@@ -1172,16 +1182,17 @@ func _bind_queue_row(row: HBoxContainer, activity: Dictionary, now: int) -> void
 			var rem := maxi(0, finish - now) if is_active else total_dur
 			var pct := clampf(float(total_dur - rem) / float(total_dur) * 100.0, 0.0, 100.0) if is_active else 0.0
 
-			icon_name_lbl.text = "%s (Sv. %d)" % [b_name, tgt]
-			icon_name_lbl.add_theme_color_override("font_color", Color(1.0, 0.95, 0.88))
-			if is_active:
-				time_lbl.text = _fmt_duration(rem)
-				time_lbl.add_theme_color_override("font_color", Color(0.42, 0.90, 1.0))
-			else:
-				time_lbl.text = "Sıra (%s)" % _fmt_duration(rem)
-				time_lbl.add_theme_color_override("font_color", Color(1.0, 0.85, 0.40))
+			var next_txt := "%s (Sv. %d)" % [b_name, tgt]
+			if icon_name_lbl.text != next_txt:
+				icon_name_lbl.text = next_txt
+				icon_name_lbl.add_theme_color_override("font_color", Color(1.0, 0.95, 0.88))
+			var t_str := _fmt_duration(rem) if is_active else ("Sıra (%s)" % _fmt_duration(rem))
+			if time_lbl.text != t_str:
+				time_lbl.text = t_str
+				time_lbl.add_theme_color_override("font_color", Color(0.42, 0.90, 1.0) if is_active else Color(1.0, 0.85, 0.40))
 
-			progress.value = pct
+			if absf(progress.value - pct) > 0.25:
+				progress.value = pct
 			cancel_btn.text = "İptal"
 			cancel_btn.disabled = false
 
@@ -1969,16 +1980,26 @@ func _ensure_lord_speech_bubble() -> void:
 
 	var btn_x := Button.new()
 	btn_x.name = "BtnCloseSpeechBubble"
-	btn_x.text = "✕"
-	btn_x.custom_minimum_size = Vector2(36, 32)
+	btn_x.text = "×"
+	btn_x.custom_minimum_size = Vector2(44, 40)
+	btn_x.clip_text = false
+	btn_x.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	btn_x.add_theme_font_override("font", FontNunitoBold)
+	btn_x.add_theme_font_size_override("font_size", 26)
 	var xsb := StyleBoxFlat.new()
-	xsb.bg_color = Color(0.32, 0.14, 0.16, 0.95)
-	xsb.border_color = Color(0.90, 0.48, 0.48, 0.9)
+	xsb.bg_color = Color(0.62, 0.14, 0.16, 0.98)
+	xsb.border_color = Color(0.95, 0.56, 0.54, 0.95)
 	xsb.set_border_width_all(1)
 	xsb.set_corner_radius_all(8)
+	xsb.set_content_margin_all(2)
+	var xsb_h := xsb.duplicate() as StyleBoxFlat
+	xsb_h.bg_color = Color(0.78, 0.20, 0.22, 1.0)
 	btn_x.add_theme_stylebox_override("normal", xsb)
-	btn_x.add_theme_stylebox_override("hover", xsb)
-	btn_x.add_theme_color_override("font_color", Color(1, 0.92, 0.92))
+	btn_x.add_theme_stylebox_override("hover", xsb_h)
+	btn_x.add_theme_stylebox_override("pressed", xsb_h)
+	btn_x.add_theme_color_override("font_color", Color(1.0, 1.0, 1.0, 1.0))
+	btn_x.add_theme_color_override("font_hover_color", Color(1.0, 1.0, 1.0, 1.0))
+	btn_x.add_theme_color_override("font_pressed_color", Color(1.0, 0.95, 0.80, 1.0))
 	btn_x.pressed.connect(_on_speech_bubble_dismiss)
 	hdr.add_child(btn_x)
 
@@ -2034,6 +2055,68 @@ func _refresh_lord_hud() -> void:
 			_lord_speech_bubble.show()
 		else:
 			_lord_speech_bubble.hide()
+
+
+func _ensure_alliance_notif_badge() -> void:
+	if btn_alliance == null or (_alliance_notif_badge != null and is_instance_valid(_alliance_notif_badge)):
+		return
+	var b := PanelContainer.new()
+	b.name = "AllianceNotifBadge"
+	b.visible = false
+	b.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	b.anchor_left = 1.0
+	b.anchor_right = 1.0
+	b.anchor_top = 0.0
+	b.anchor_bottom = 0.0
+	b.offset_left = -24.0
+	b.offset_right = 6.0
+	b.offset_top = -10.0
+	b.offset_bottom = 20.0
+	b.custom_minimum_size = Vector2(30, 30)
+	var b_sb := StyleBoxFlat.new()
+	b_sb.bg_color = Color(0.90, 0.14, 0.14, 1.0)
+	b_sb.border_color = Color(1.0, 0.92, 0.88, 1.0)
+	b_sb.set_border_width_all(2)
+	b_sb.set_corner_radius_all(15)
+	b_sb.set_content_margin_all(2)
+	b_sb.shadow_size = 0
+	b.add_theme_stylebox_override("panel", b_sb)
+
+	var lbl := Label.new()
+	lbl.name = "CountLabel"
+	lbl.text = "0"
+	lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	lbl.add_theme_font_override("font", FontNunitoBold)
+	lbl.add_theme_font_size_override("font_size", 17)
+	lbl.add_theme_color_override("font_color", Color(1.0, 1.0, 1.0))
+	b.add_child(lbl)
+
+	btn_alliance.add_child(b)
+	_alliance_notif_badge = b
+	_alliance_notif_lbl = lbl
+
+
+func _update_alliance_badge() -> void:
+	if btn_alliance == null:
+		return
+	_ensure_alliance_notif_badge()
+	if _alliance_notif_badge == null or _alliance_notif_lbl == null:
+		return
+	var gs := _resolve_game_state()
+	var cnt := 0
+	if gs != null and typeof(gs.player) == TYPE_DICTIONARY:
+		var p_name := str(gs.player.get("name", "")).strip_edges()
+		if not p_name.is_empty():
+			var st: Dictionary = {"alliances": gs.alliances}
+			cnt = AllianceModelScript.get_pending_join_request_count(st, p_name)
+	if cnt == _last_alliance_badge_cnt:
+		return
+	_last_alliance_badge_cnt = cnt
+	_alliance_notif_badge.visible = cnt > 0
+	if cnt > 0:
+		_alliance_notif_lbl.text = "99+" if cnt > 99 else str(cnt)
 
 
 func _on_speech_bubble_dismiss() -> void:

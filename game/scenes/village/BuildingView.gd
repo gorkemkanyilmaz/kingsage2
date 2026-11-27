@@ -459,6 +459,9 @@ func setup(key: String, b_name: String, _texture_path: String = "", custom_size:
 
 
 func set_state(level: int, locked: bool, upgrading: bool, progress_pct: float = 0.0, rem_seconds: int = 0) -> void:
+	var prog_q := int(round(progress_pct))
+	if level == current_level and locked == is_locked and upgrading == is_upgrading and _last_visual_mode >= 0 and (not upgrading or (prog_q == _last_progress_int and rem_seconds == _last_rem_seconds)):
+		return
 	current_level = level
 	is_locked = locked
 	is_upgrading = upgrading
@@ -487,18 +490,20 @@ func _update_visuals(progress_pct: float = 0.0, rem_seconds: int = 0) -> void:
 			_badge_label.add_theme_color_override("font_color", Color(0.10, 0.07, 0.03))
 			if _name_label != null:
 				_name_label.add_theme_color_override("font_color", Color(0.16, 0.12, 0.08))
-			_hammer_icon.show()
+			if _hammer_icon != null:
+				_hammer_icon.hide()
+			_stop_hammer_anim()
 			_progress_bar.show()
 			if _countdown_pill != null:
 				_countdown_pill.show()
-			_start_hammer_anim()
 		elif mode == 1:
 			_badge_label.text = "Sv. %d" % current_level
 			_badge_label.add_theme_color_override("font_color", Color(0.16, 0.12, 0.08))
 			if _name_label != null:
 				_name_label.add_theme_color_override("font_color", Color(0.16, 0.12, 0.08))
 			_stop_hammer_anim()
-			_hammer_icon.hide()
+			if _hammer_icon != null:
+				_hammer_icon.hide()
 			_progress_bar.hide()
 			if _countdown_pill != null:
 				_countdown_pill.hide()
@@ -508,7 +513,8 @@ func _update_visuals(progress_pct: float = 0.0, rem_seconds: int = 0) -> void:
 			if _name_label != null:
 				_name_label.add_theme_color_override("font_color", Color(0.92, 0.88, 0.82))
 			_stop_hammer_anim()
-			_hammer_icon.hide()
+			if _hammer_icon != null:
+				_hammer_icon.hide()
 			_progress_bar.hide()
 			if _countdown_pill != null:
 				_countdown_pill.hide()
@@ -518,7 +524,8 @@ func _update_visuals(progress_pct: float = 0.0, rem_seconds: int = 0) -> void:
 			if _name_label != null:
 				_name_label.add_theme_color_override("font_color", Color(1, 1, 1))
 			_stop_hammer_anim()
-			_hammer_icon.hide()
+			if _hammer_icon != null:
+				_hammer_icon.hide()
 			_progress_bar.hide()
 			if _countdown_pill != null:
 				_countdown_pill.hide()
@@ -543,12 +550,7 @@ func _update_visuals(progress_pct: float = 0.0, rem_seconds: int = 0) -> void:
 
 
 func _start_hammer_anim() -> void:
-	if _hammer_tween != null and _hammer_tween.is_valid():
-		return
-	_hammer_tween = create_tween().set_loops()
-	_hammer_tween.tween_property(_hammer_icon, "rotation_degrees", 25.0, 0.35).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
-	_hammer_tween.tween_property(_hammer_icon, "rotation_degrees", -20.0, 0.20).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
-	_hammer_tween.tween_interval(0.25)
+	_stop_hammer_anim()
 
 
 func _stop_hammer_anim() -> void:

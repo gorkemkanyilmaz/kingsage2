@@ -11,6 +11,7 @@ const GameLoopScript := preload("res://scripts/core/GameLoop.gd")
 const ArmyAPI := preload("res://scripts/sim/army/ArmyAPI.gd")
 const GameDataScript := preload("res://autoload/GameData.gd")
 const VillageModel := preload("res://scripts/model/VillageModel.gd")
+const PopulationScript := preload("res://scripts/sim/economy/Population.gd")
 
 const IconWood := preload("res://assets/sprites/ui/nano_banana/sharp_icon_wood.png")
 const IconStone := preload("res://assets/sprites/ui/nano_banana/sharp_icon_stone.png")
@@ -607,7 +608,7 @@ func _update_production_table(cur_lvl: int) -> void:
 	if _prod_box == null or _prod_vbox == null:
 		return
 
-	if not (_current_key in ["wood", "stone", "iron", "storage", "main", "farm"]):
+	if not (_current_key in ["wood", "stone", "iron", "storage", "main", "farm", "hide"]):
 		_prod_box.hide()
 		return
 
@@ -629,6 +630,8 @@ func _update_production_table(cur_lvl: int) -> void:
 
 	if _current_key == "storage":
 		_build_storage_table(cur_lvl)
+	elif _current_key == "hide":
+		_build_hide_table(cur_lvl)
 	elif _current_key == "main":
 		_build_castle_speedup_table(cur_lvl)
 	elif _current_key == "farm":
@@ -939,6 +942,65 @@ func _build_storage_table(cur_lvl: int) -> void:
 		var cap := RulesEngineScript.storage_capacity(lvl)
 		var lvl_panel := _make_storage_row("Seviye %d" % lvl, IconStorage, cap, false)
 		_prod_vbox.add_child(lvl_panel)
+
+
+func _build_hide_table(cur_lvl: int) -> void:
+	# 1. Başlık Satırı (Gizli Deponun her hammaddeden saklayabileceği miktar)
+	var header_panel := PanelContainer.new()
+	var h_sb := StyleBoxFlat.new()
+	h_sb.bg_color = Color(0.85, 0.74, 0.56, 0.95)
+	h_sb.set_corner_radius_all(8)
+	h_sb.content_margin_left = 14
+	h_sb.content_margin_right = 14
+	h_sb.content_margin_top = 8
+	h_sb.content_margin_bottom = 8
+	header_panel.add_theme_stylebox_override("panel", h_sb)
+
+	var h_row := HBoxContainer.new()
+	var col1_lbl := Label.new()
+	col1_lbl.text = "Gizli Depo Seviyesi"
+	col1_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	col1_lbl.add_theme_font_override("font", FontNunitoBold)
+	col1_lbl.add_theme_font_size_override("font_size", 24)
+	col1_lbl.add_theme_color_override("font_color", Color(0.12, 0.08, 0.04))
+	h_row.add_child(col1_lbl)
+
+	var col2_lbl := Label.new()
+	col2_lbl.text = "Her Hammaddeden Gizler"
+	col2_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	col2_lbl.add_theme_font_override("font", FontNunitoBold)
+	col2_lbl.add_theme_font_size_override("font_size", 24)
+	col2_lbl.add_theme_color_override("font_color", Color(0.12, 0.08, 0.04))
+	h_row.add_child(col2_lbl)
+
+	header_panel.add_child(h_row)
+	_prod_vbox.add_child(header_panel)
+
+	# 2. Güncel Satırı
+	var max_hide_lvl: int = maxi(10, RulesEngineScript._max_level("hide"))
+	var active_lvl: int = clampi(cur_lvl, 0, max_hide_lvl)
+	var cur_cap: int = RulesEngineScript.hideout_capacity(active_lvl) if active_lvl > 0 else 0
+	var cur_panel := _make_storage_row("Güncel (Sv. %d)" % active_lvl, IconStorage, cur_cap, true)
+	cur_panel.name = "HideCurrentRow"
+	_prod_vbox.add_child(cur_panel)
+
+	# 3. Sıradaki 4 Seviye
+	for i in range(1, 5):
+		var lvl := active_lvl + i
+		if lvl > max_hide_lvl:
+			break
+		var cap := RulesEngineScript.hideout_capacity(lvl)
+		var lvl_panel := _make_storage_row("Seviye %d" % lvl, IconStorage, cap, false)
+		lvl_panel.name = "HideNextRow_%d" % lvl
+		_prod_vbox.add_child(lvl_panel)
+
+	var info_lbl := Label.new()
+	info_lbl.text = "Bu miktar Odun, Taş ve Demir için ayrı ayrı korunur; yağmalanamaz ve casuslarca görülemez."
+	info_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	info_lbl.add_theme_font_override("font", FontNunitoSemiBold)
+	info_lbl.add_theme_font_size_override("font_size", 20)
+	info_lbl.add_theme_color_override("font_color", Color(0.28, 0.20, 0.10))
+	_prod_vbox.add_child(info_lbl)
 
 
 func _make_storage_row(label_text: String, icon_tex: Texture2D, capacity: int, is_highlighted: bool) -> PanelContainer:
@@ -1343,6 +1405,8 @@ func _process(delta: float) -> void:
 	_active_info_accum = 0.0
 	if _current_tab == Tab.UPGRADE:
 		_update_active_build_info()
+		if _current_key == "snob":
+			_update_snob_live_button()
 	elif _current_tab == Tab.RESEARCH:
 		_update_active_research_info()
 	elif _current_tab == Tab.TRAIN:
@@ -1412,17 +1476,19 @@ func show_building(village: Dictionary, key: String) -> void:
 	_last_special_box_sig = ""
 	refresh()
 	show()
+	call_deferred("_clamp_panel_to_viewport")
 
 
 func _current_now() -> int:
+	var best := int(Time.get_unix_time_from_system())
 	if GameLoopScript.instance != null and GameLoopScript.instance.now_unix() > 0:
-		return GameLoopScript.instance.now_unix()
+		best = maxi(best, GameLoopScript.instance.now_unix())
 	var gs = Engine.get_main_loop().root.get_node_or_null("GameState") if Engine.get_main_loop() is SceneTree else null
 	if gs != null:
 		var w = gs.world
 		if typeof(w) == TYPE_DICTIONARY and (w as Dictionary).has("sim_now_unix"):
-			return int((w as Dictionary)["sim_now_unix"])
-	return int(Time.get_unix_time_from_system())
+			best = maxi(best, int((w as Dictionary)["sim_now_unix"]))
+	return best
 
 
 func _update_tab_buttons_styling(barracks_level: int) -> void:
@@ -1504,8 +1570,8 @@ func refresh() -> void:
 			_desc_label.text = desc
 			_desc_box.show()
 
-	# Taş Ocağı, Oduncu Kampı, Maden Ocağı, Depo, Kale ve Değirmen için tablo
-	if _current_tab == Tab.UPGRADE and _current_key in ["wood", "stone", "iron", "storage", "main", "farm"]:
+	# Taş Ocağı, Oduncu Kampı, Maden Ocağı, Depo, Gizli Depo, Kale ve Değirmen için tablo
+	if _current_tab == Tab.UPGRADE and _current_key in ["wood", "stone", "iron", "storage", "main", "farm", "hide"]:
 		_update_production_table(cur_lvl)
 	else:
 		if _prod_box != null:
@@ -1556,6 +1622,7 @@ func refresh() -> void:
 		offset_top = -1100.0
 		_populate_research_list()
 		_update_active_research_info()
+		_clamp_panel_to_viewport()
 	elif _current_tab == Tab.TRAIN:
 		locked_banner.hide()
 		_set_upgrade_nodes_visible(false)
@@ -1572,6 +1639,7 @@ func refresh() -> void:
 		_populate_train_list()
 		_update_active_train_info()
 		_update_keyboard_lift()
+		_clamp_panel_to_viewport()
 
 
 func _set_upgrade_nodes_visible(p_visible: bool) -> void:
@@ -1631,9 +1699,10 @@ func _refresh_upgrade_view(state: Dictionary, cur_lvl: int, max_lvl: int) -> voi
 	if cur_lvl >= max_lvl and max_lvl > 0:
 		level_label.text = "Seviye: %d / %d (Maksimum)" % [cur_lvl, max_lvl]
 	elif active_in_queue:
-		level_label.text = "Seviye: %d (İnşaat: Sv. %d ➔ Sıradaki: Sv. %d)" % [cur_lvl, active_tgt, tgt_lvl]
+		level_label.text = "Sv.%d  •  İnşaat: Sv.%d ➔ Sıra: Sv.%d" % [cur_lvl, active_tgt, tgt_lvl]
 	else:
 		level_label.text = "Seviye: %d  (Hedef: %d / %d)" % [cur_lvl, tgt_lvl, max_lvl]
+	level_label.clip_text = true
 
 	_update_active_build_info()
 
@@ -1674,7 +1743,7 @@ func _refresh_upgrade_view(state: Dictionary, cur_lvl: int, max_lvl: int) -> voi
 
 	var chain: Array = RulesEngineScript.requirement_chain(_village.get("buildings", {}), _current_key, tgt_lvl)
 	var is_upgradable: bool = bool(details.get("ok", false))
-	var has_tall_box: bool = is_res_bldg or (_current_key in ["main", "farm"]) or (_special_box != null and _special_box.visible)
+	var has_tall_box: bool = is_res_bldg or (_current_key in ["main", "farm", "hide"]) or (_special_box != null and _special_box.visible)
 
 	if is_upgradable:
 		_clear_req_container()
@@ -1773,10 +1842,14 @@ func _refresh_upgrade_view(state: Dictionary, cur_lvl: int, max_lvl: int) -> voi
 			var sto_cap: int = RulesEngineScript.storage_capacity(sto_lvl)
 			var max_req_res: int = maxi(req_w, maxi(req_s, req_i))
 			if sto_cap > 0 and max_req_res > sto_cap and _current_key != "storage":
-				upgrade_btn.text = "Depo Kapasitesi Yetersiz (Depo Yükselt)"
+				var max_sto: int = maxi(sto_lvl + 1, RulesEngineScript._max_level("storage"))
+				var req_sto_lvl: int = sto_lvl + 1
+				while req_sto_lvl < max_sto and RulesEngineScript.storage_capacity(req_sto_lvl) < max_req_res:
+					req_sto_lvl += 1
+				upgrade_btn.text = "Depo Kapasitesi Yetersiz (Depo Sv.%d Gerek)" % req_sto_lvl
 				req_section.show()
 				offset_top = -1280.0 if has_tall_box else -1020.0
-				_populate_chain_list([{"key": "storage", "level": sto_lvl + 1, "current": sto_lvl}])
+				_populate_chain_list([{"key": "storage", "level": req_sto_lvl, "current": sto_lvl}])
 			else:
 				upgrade_btn.text = "Yetersiz Hammadde"
 				if details.get("missing", []).size() > 0:
@@ -1788,16 +1861,55 @@ func _refresh_upgrade_view(state: Dictionary, cur_lvl: int, max_lvl: int) -> voi
 					req_section.hide()
 					offset_top = -980.0 if has_tall_box else -680.0
 		elif reason == "citizens":
-			upgrade_btn.text = "Yetersiz Vatandaş (Değirmen Gerek)"
 			var frm_lvl: int = int(_village.get("buildings", {}).get("farm", 1))
+			var pop_info: Dictionary = EconomyAPI.population_summary(_village)
+			var used_pop: int = int(pop_info.get("used", 0))
+			var need_cit: int = PopulationScript.workers_needed(_current_key, tgt_lvl) + PopulationScript.pending_workers(state, _village)
+			var need_total_pop: int = used_pop + need_cit
+			var max_frm: int = maxi(frm_lvl + 1, RulesEngineScript._max_level("farm"))
+			var req_frm_lvl: int = frm_lvl + 1
+			while req_frm_lvl < max_frm and _mill_max_pop_for_level(req_frm_lvl) < need_total_pop:
+				req_frm_lvl += 1
+			upgrade_btn.text = "Yetersiz Vatandaş (Değirmen Sv.%d Gerek)" % req_frm_lvl
 			req_section.show()
 			offset_top = -1280.0 if has_tall_box else -1020.0
-			_populate_chain_list([{"key": "farm", "level": frm_lvl + 1, "current": frm_lvl}])
+			_populate_chain_list([{"key": "farm", "level": req_frm_lvl, "current": frm_lvl}])
 		else:
 			upgrade_btn.text = "Yükseltilemez"
 			_clear_req_container()
 			req_section.hide()
 			offset_top = -980.0 if has_tall_box else -680.0
+
+	_clamp_panel_to_viewport()
+	call_deferred("_clamp_panel_to_viewport")
+
+
+func _clamp_panel_to_viewport() -> void:
+	if not is_inside_tree() or get_viewport() == null:
+		return
+	var vp_size := get_viewport().get_visible_rect().size
+	if vp_size.x < 100.0 or vp_size.y < 100.0:
+		return
+	var margin_x: float = 16.0
+	var max_w: float = maxf(320.0, vp_size.x - margin_x * 2.0)
+	if anchor_right > anchor_left:
+		offset_left = margin_x
+		offset_right = -margin_x
+	else:
+		offset_left = margin_x
+		offset_right = margin_x + max_w
+
+	var safe_top_limit: float = 148.0
+	var gc = Engine.get_main_loop().root.get_node_or_null("GameConfig") if Engine.get_main_loop() is SceneTree else null
+	if gc != null and gc.has_method("get_ios_safe_top"):
+		safe_top_limit = maxf(safe_top_limit, float(gc.call("get_ios_safe_top")) + 128.0)
+
+	var vbox_ctrl := get_node_or_null("VBox") as Control
+	var content_min_h: float = (vbox_ctrl.get_combined_minimum_size().y + 54.0) if vbox_ctrl != null else get_combined_minimum_size().y
+	var max_allowed_h: float = maxf(300.0, vp_size.y + offset_bottom - safe_top_limit)
+	var desired_h: float = clampf(content_min_h, 340.0, max_allowed_h)
+	offset_top = offset_bottom - desired_h
+	size = Vector2(max_w, desired_h)
 
 
 func _clear_req_container() -> void:
@@ -1989,6 +2101,17 @@ func _update_active_build_info() -> void:
 		active_build_cancel_btn.pressed.connect(_on_active_cancel_pressed.bind(item_id))
 
 
+func _notify_world_mutation() -> void:
+	var loop = Engine.get_main_loop()
+	if not (loop is SceneTree) or (loop as SceneTree).root == null:
+		return
+	var wm: Node = (loop as SceneTree).root.get_node_or_null("WorldManager")
+	if wm != null and wm.has_method("notify_local_mutation"):
+		wm.call("notify_local_mutation")
+	if wm != null and wm.has_method("request_save_active_world"):
+		wm.call("request_save_active_world", true)
+
+
 func _on_active_cancel_pressed(item_id: int) -> void:
 	var gs = Engine.get_main_loop().root.get_node_or_null("GameState") if Engine.get_main_loop() is SceneTree else null
 	if gs == null or not gs.has_active_village():
@@ -1999,6 +2122,7 @@ func _on_active_cancel_pressed(item_id: int) -> void:
 	if bool(res.get("ok", false)):
 		gs.from_dict(state)
 		_village = gs.get_active_village()
+		_notify_world_mutation()
 		var sm = Engine.get_main_loop().root.get_node_or_null("SaveManager") if Engine.get_main_loop() is SceneTree else null
 		if sm != null:
 			if sm.has_method("request_save_game"):
@@ -2036,6 +2160,7 @@ func _on_upgrade_pressed() -> void:
 	if bool(res.get("ok", false)):
 		gs.from_dict(state)
 		_village = gs.get_active_village()
+		_notify_world_mutation()
 
 		var sm = Engine.get_main_loop().root.get_node_or_null("SaveManager") if Engine.get_main_loop() is SceneTree else null
 		if sm != null:
@@ -2471,6 +2596,7 @@ func _on_start_research_pressed(unit_key: String) -> void:
 		else:
 			gs.from_dict(state)
 		_village = gs.get_active_village()
+		_notify_world_mutation()
 
 		var sm = Engine.get_main_loop().root.get_node_or_null("SaveManager") if Engine.get_main_loop() is SceneTree else null
 		if sm != null:
@@ -2517,6 +2643,7 @@ func _on_cancel_research_pressed(queue_id: int) -> void:
 		else:
 			gs.from_dict(state)
 		_village = gs.get_active_village()
+		_notify_world_mutation()
 
 		var sm = Engine.get_main_loop().root.get_node_or_null("SaveManager") if Engine.get_main_loop() is SceneTree else null
 		if sm != null:
@@ -3278,10 +3405,12 @@ func _on_start_train_pressed(unit_key: String, count: int) -> void:
 	if bool(res.get("ok", false)):
 		gs.from_dict(state)
 		_village = gs.get_active_village()
+		_notify_world_mutation()
 
 		# Reset input count
 		_train_counts[unit_key] = 0
 		_last_train_sig = ""
+		_last_special_box_sig = ""
 
 		var sm = Engine.get_main_loop().root.get_node_or_null("SaveManager") if Engine.get_main_loop() is SceneTree else null
 		if sm != null:
@@ -3323,8 +3452,10 @@ func _on_cancel_train_pressed(queue_id: int) -> void:
 	var ok := ArmyAPI.cancel_training(st_village, queue_id, state)
 	if ok:
 		_last_train_sig = ""
+		_last_special_box_sig = ""
 		gs.from_dict(state)
 		_village = gs.get_active_village()
+		_notify_world_mutation()
 
 		var sm = Engine.get_main_loop().root.get_node_or_null("SaveManager") if Engine.get_main_loop() is SceneTree else null
 		if sm != null:
@@ -3361,7 +3492,19 @@ func _compute_special_box_sig(state: Dictionary, cur_w: int, cur_s: int, cur_i: 
 		var avail_armour := ArmyAPI.gold_armour(_village)
 		var can_snob := ArmyAPI.can_train(_village, "snob", 1, state)
 		var reason := ArmyAPI.training_block_reason(_village, "snob", 1, state)
-		return "snob:%d:%d:%d:%d:%s" % [vid, snob_count, avail_armour, 1 if can_snob else 0, reason]
+		var snob_q := _find_active_snob_training(state)
+		var snob_qid := int(snob_q.get("id", 0))
+		var s_cost := RulesEngineScript.unit_cost("snob", 1)
+		var pop_sum := EconomyAPI.population_summary(_village)
+		var free_pop := int(pop_sum.get("free", 0))
+		var def_mask := (
+			(1 if cur_w >= int(s_cost.get("wood", 28000)) else 0)
+			+ (2 if cur_s >= int(s_cost.get("stone", 30000)) else 0)
+			+ (4 if cur_i >= int(s_cost.get("iron", 25000)) else 0)
+			+ (8 if free_pop >= 100 else 0)
+			+ (16 if avail_armour >= 1 else 0)
+		)
+		return "snob:%d:%d:%d:%d:%s:%d:%d" % [vid, snob_count, avail_armour, 1 if can_snob else 0, reason, snob_qid, def_mask]
 	elif _current_key == "barracks":
 		var u_str := JSON.stringify(_village.get("units", {}))
 		var sup_str := JSON.stringify(_village.get("support", []))
@@ -3446,25 +3589,47 @@ func _update_special_building_actions(_cur_lvl: int) -> void:
 		var snob_count := int(_village.get("units", {}).get("snob", 0))
 		var avail_armour := ArmyAPI.gold_armour(_village)
 		var s_cost := RulesEngineScript.unit_cost("snob", 1)
-		var req_w := int(s_cost.get("wood", 40000))
-		var req_s := int(s_cost.get("stone", 50000))
-		var req_i := int(s_cost.get("iron", 50000))
+		var req_w := int(s_cost.get("wood", 28000))
+		var req_s := int(s_cost.get("stone", 30000))
+		var req_i := int(s_cost.get("iron", 25000))
+		var pop_info := EconomyAPI.population_summary(_village)
+		var free_pop := int(pop_info.get("free", 0))
+		var snob_q := _find_active_snob_training(state)
+		var is_training_snob := not snob_q.is_empty()
 
 		var hdr := Label.new()
 		hdr.text = "👑 Köşk — Kont Eğitimi   •   Mevcut Kont: %d  |  Altın Zırh: %d" % [snob_count, avail_armour]
 		hdr.add_theme_font_override("font", FontNunitoBold)
-		hdr.add_theme_font_size_override("font_size", 28)
+		hdr.add_theme_font_size_override("font_size", 26)
 		hdr.add_theme_color_override("font_color", Color(1.0, 0.88, 0.45))
 		_special_vbox.add_child(hdr)
 
-		var cost_lbl := Label.new()
-		cost_lbl.text = "Maliyet: %s Odun, %s Taş, %s Demir  •  100 Vatandaş  •  1 Altın Zırh" % [
-			_format_number(req_w), _format_number(req_s), _format_number(req_i)
-		]
+		var col_ok := "#E8E0D0"
+		var col_bad := "#FF5C5C"
+		var w_col := col_ok if cur_w >= req_w else col_bad
+		var s_col := col_ok if cur_s >= req_s else col_bad
+		var i_col := col_ok if cur_i >= req_i else col_bad
+		var c_col := col_ok if free_pop >= 100 else col_bad
+		var a_col := col_ok if (avail_armour >= 1 or is_training_snob) else col_bad
+		var armour_txt := ("1 Altın Zırh (Eğitimde)" if is_training_snob and avail_armour < 1 else "1 Altın Zırh")
+
+		var cost_lbl := RichTextLabel.new()
+		cost_lbl.name = "SnobCostRichLabel"
+		cost_lbl.bbcode_enabled = true
+		cost_lbl.fit_content = true
+		cost_lbl.scroll_active = false
 		cost_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		cost_lbl.add_theme_font_override("font", FontNunitoSemiBold)
-		cost_lbl.add_theme_font_size_override("font_size", 24)
-		cost_lbl.add_theme_color_override("font_color", Color(0.92, 0.88, 0.80))
+		cost_lbl.add_theme_font_override("normal_font", FontNunitoSemiBold)
+		cost_lbl.add_theme_font_override("bold_font", FontNunitoBold)
+		cost_lbl.add_theme_font_size_override("normal_font_size", 23)
+		cost_lbl.add_theme_font_size_override("bold_font_size", 23)
+		cost_lbl.text = "Maliyet: [color=%s][b]%s Odun[/b][/color], [color=%s][b]%s Taş[/b][/color], [color=%s][b]%s Demir[/b][/color]  •  [color=%s][b]100 Vatandaş[/b][/color]  •  [color=%s][b]%s[/b][/color]" % [
+			w_col, _format_number(req_w),
+			s_col, _format_number(req_s),
+			i_col, _format_number(req_i),
+			c_col,
+			a_col, armour_txt,
+		]
 		_special_vbox.add_child(cost_lbl)
 
 		var can_snob := ArmyAPI.can_train(_village, "snob", 1, state)
@@ -3473,26 +3638,35 @@ func _update_special_building_actions(_cur_lvl: int) -> void:
 		snob_btn.name = "TrainSnobBtn"
 		snob_btn.custom_minimum_size = Vector2(0, 62)
 		snob_btn.add_theme_font_override("font", FontNunitoBold)
-		snob_btn.add_theme_font_size_override("font_size", 28)
-		snob_btn.disabled = not can_snob
-		if can_snob:
-			snob_btn.text = "👑 Kont Eğit (1 Adet)"
-		elif reason == "no_gold_armour":
-			snob_btn.text = "🛡️ Altın Zırh Gerekli (Kuyumcu'dan Üret)"
-		elif reason == "not_enough_citizens":
-			snob_btn.text = "👥 100 Boş Vatandaş Gerekli"
-		else:
-			snob_btn.text = "Yetersiz Hammadde / Önkoşul"
-
+		snob_btn.add_theme_font_size_override("font_size", 26)
+		snob_btn.disabled = (not can_snob) or is_training_snob
 		var ssb := StyleBoxFlat.new()
-		ssb.bg_color = Color(0.20, 0.54, 0.30, 1.0) if can_snob else Color(0.22, 0.20, 0.24, 0.9)
-		ssb.border_color = Color(0.65, 0.95, 0.72, 1.0) if can_snob else Color(0.45, 0.42, 0.48, 0.7)
 		ssb.set_border_width_all(2)
 		ssb.set_corner_radius_all(12)
+		if is_training_snob:
+			var rem_s := _snob_training_remaining_secs(snob_q)
+			snob_btn.text = "👑 Kont Eğitiliyor (%s)" % _fmt_duration(rem_s)
+			ssb.bg_color = Color(0.14, 0.24, 0.38, 0.96)
+			ssb.border_color = Color(0.95, 0.80, 0.36, 0.95)
+		elif can_snob:
+			snob_btn.text = "👑 Kont Eğit (1 Adet)"
+			ssb.bg_color = Color(0.20, 0.54, 0.30, 1.0)
+			ssb.border_color = Color(0.65, 0.95, 0.72, 1.0)
+		else:
+			if reason == "no_gold_armour":
+				snob_btn.text = "🛡️ Altın Zırh Gerekli (Kuyumcu'dan Üret)"
+			elif reason == "not_enough_citizens":
+				snob_btn.text = "👥 100 Boş Vatandaş Gerekli"
+			else:
+				snob_btn.text = "Yetersiz Hammadde / Önkoşul"
+			ssb.bg_color = Color(0.22, 0.20, 0.24, 0.9)
+			ssb.border_color = Color(0.45, 0.42, 0.48, 0.7)
+
 		snob_btn.add_theme_stylebox_override("normal", ssb)
 		snob_btn.add_theme_stylebox_override("hover", ssb)
 		snob_btn.add_theme_stylebox_override("disabled", ssb)
-		snob_btn.add_theme_color_override("font_color", Color(1, 1, 1) if can_snob else Color(0.75, 0.72, 0.68))
+		snob_btn.add_theme_color_override("font_color", Color(1, 0.95, 0.78) if is_training_snob else (Color(1, 1, 1) if can_snob else Color(0.75, 0.72, 0.68)))
+		snob_btn.add_theme_color_override("font_disabled_color", Color(1, 0.95, 0.78) if is_training_snob else Color(0.75, 0.72, 0.68))
 		snob_btn.pressed.connect(_on_train_snob_pressed)
 		_special_vbox.add_child(snob_btn)
 
@@ -3687,7 +3861,9 @@ func _build_barracks_garrison_and_support_view(state: Dictionary) -> void:
 	var scroll := ScrollContainer.new()
 	scroll.name = "BarracksGarrisonScroll"
 	var has_any_troops := (not own_units.is_empty()) or (not support_list.is_empty()) or (not outgoing_supports.is_empty())
-	scroll.custom_minimum_size = Vector2(0, 240 if has_any_troops else 124)
+	var compact_garrison: bool = (active_build_box != null and active_build_box.visible) or (req_section != null and req_section.visible)
+	var gar_h: int = 136 if (compact_garrison and has_any_troops) else (196 if has_any_troops else 108)
+	scroll.custom_minimum_size = Vector2(0, gar_h)
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_special_vbox.add_child(scroll)
@@ -3914,6 +4090,7 @@ func _on_mint_gold_armour_pressed() -> void:
 		_last_special_box_sig = ""
 		gs.from_dict(state)
 		_village = gs.get_active_village()
+		_notify_world_mutation()
 		var sm = Engine.get_main_loop().root.get_node_or_null("SaveManager") if Engine.get_main_loop() is SceneTree else null
 		if sm != null:
 			if sm.has_method("request_save_game"):
@@ -3929,6 +4106,45 @@ func _on_mint_gold_armour_pressed() -> void:
 				bus.state_changed.emit()
 			_in_action_emit = false
 	refresh()
+
+
+func _find_active_snob_training(state: Dictionary) -> Dictionary:
+	var vid := int(_village.get("id", -1))
+	var qs: Array = state.get("queues", []) if typeof(state.get("queues")) == TYPE_ARRAY else []
+	for item in qs:
+		if typeof(item) == TYPE_DICTIONARY:
+			var qd := item as Dictionary
+			if int(qd.get("village_id", -1)) == vid and str(qd.get("type", "")) == "train" and str(qd.get("key", "")) == "snob":
+				return qd
+	return {}
+
+
+func _snob_training_remaining_secs(snob_q: Dictionary) -> int:
+	if snob_q.is_empty():
+		return 0
+	var now := _current_now()
+	var s_u := int(snob_q.get("start_unix", now))
+	var f_u := int(snob_q.get("finish_unix", now))
+	return maxi(0, f_u - now) if now >= s_u else maxi(0, f_u - s_u)
+
+
+func _update_snob_live_button() -> void:
+	if _special_vbox == null or _current_key != "snob":
+		return
+	var snob_btn := _special_vbox.get_node_or_null("TrainSnobBtn") as Button
+	if snob_btn == null:
+		return
+	var gs = Engine.get_main_loop().root.get_node_or_null("GameState") if Engine.get_main_loop() is SceneTree else null
+	if gs == null or not gs.has_active_village():
+		return
+	var state: Dictionary = {"queues": gs.queues}
+	var snob_q := _find_active_snob_training(state)
+	if not snob_q.is_empty():
+		var rem_s := _snob_training_remaining_secs(snob_q)
+		var nxt := "👑 Kont Eğitiliyor (%s)" % _fmt_duration(rem_s)
+		if snob_btn.text != nxt:
+			snob_btn.text = nxt
+			snob_btn.disabled = true
 
 
 func _on_train_snob_pressed() -> void:
