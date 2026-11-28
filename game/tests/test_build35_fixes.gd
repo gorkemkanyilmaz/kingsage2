@@ -88,13 +88,13 @@ func _test_png_icons_and_bg_cache(bgc: Node, gclk: Node) -> void:
 			break
 	_assert(all_ok, "Tüm 11 nano_banana .png ikonu hatasız yükleniyor")
 
-	_assert(int(bgc.get("FRAMES_PER_TICK")) == 1 and int(bgc.get("THREAD_PREFETCH_WINDOW")) == 2, "VillageBackgroundCache düşük bellek ve ısınma dostu nazik hız sınırlarına sahip (1 kare/tick, 2 pencere)")
+	_assert(int(bgc.get("FRAME_COUNT")) == 1 and bool(bgc.get("is_fully_loaded")), "VillageBackgroundCache tek 1080p doku & anında hazır (sıfır thread decode yükü)")
 	bgc.call("trim_memory")
-	_assert(bool(bgc.get("_low_memory_mode")), "trim_memory() sonrası _low_memory_mode = true")
+	_assert(bool(bgc.get("_low_memory_mode")) and bgc.call("get_base_texture") != null, "trim_memory() sonrası taban köy dokusu korunuyor")
 	bgc.call("ensure_warming")
-	_assert(bgc.is_processing(), "ensure_warming() düşük bellek modunda kayan pencere ısıtmayı açıyor")
+	_assert(not bgc.is_processing(), "ensure_warming() ekstra kare ısıtma süreci başlatmıyor")
 	bgc.call("pause_warming")
-	_assert(not bgc.is_processing(), "pause_warming() bellek temizlemeden arka plan döngüsünü durduruyor")
+	_assert(not bgc.is_processing(), "pause_warming() arka plan döngüsünü kapalı tutuyor")
 
 	gclk.set("_accumulator", 2.5)
 	gclk.call("reset_accumulator")

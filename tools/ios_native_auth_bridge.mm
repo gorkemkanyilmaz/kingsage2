@@ -11,6 +11,7 @@
 #import <CommonCrypto/CommonDigest.h>
 #import <Security/Security.h>
 #import <objc/runtime.h>
+#import <unistd.h>
 #if __has_include(<AuthenticationServices/AuthenticationServices.h>)
 #import <AuthenticationServices/AuthenticationServices.h>
 #define TVK_HAS_AUTH_SERVICES 1
@@ -43,66 +44,95 @@ static NSArray<NSString *> *gTVKCachedBaseDirs = nil;
 static BOOL gTVKDidDeepScanOnce = NO;
 
 static NSArray<NSString *> *TVKCandidateUserDirs(BOOL deepScan, NSArray<NSString *> *reqFileNames) {
-    if (!deepScan && gTVKCachedBaseDirs != nil) {
-        return gTVKCachedBaseDirs;
-    }
-    NSMutableArray<NSString *> *dirs = [NSMutableArray array];
-    NSMutableSet<NSString *> *seen = [NSMutableSet set];
-    void (^addDir)(NSString *) = ^(NSString *path) {
-        if (path.length > 0 && ![seen containsObject:path]) {
-            [seen addObject:path];
-            [dirs addObject:path];
+    static NSString *const kLockToken = @"TVKCandidateUserDirsLock";
+    @synchronized (kLockToken) {
+        if (!deepScan && gTVKCachedBaseDirs != nil) {
+            return gTVKCachedBaseDirs;
         }
-    };
-
-    NSString *docs = NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES).firstObject;
-    addDir(docs);
-    if (docs.length > 0) {
-        addDir([docs stringByAppendingPathComponent:@"Taht ve K\u0131l\u0131\u00e7"]);
-        addDir([docs stringByAppendingPathComponent:@"Taht ve Kilic"]);
-        addDir([docs stringByAppendingPathComponent:@"TahtVeKilic"]);
-    }
-
-    NSString *appSup = NSSearchPathForDirectoriesInDomains(NSApplicationSupportDirectory, NSUserDomainMask, YES).firstObject;
-    addDir(appSup);
-    if (appSup.length > 0) {
-        addDir([appSup stringByAppendingPathComponent:@"Godot/app_userdata/Taht ve K\u0131l\u0131\u00e7"]);
-        addDir([appSup stringByAppendingPathComponent:@"Godot/app_userdata/Taht ve Kilic"]);
-        addDir([appSup stringByAppendingPathComponent:@"Godot/app_userdata/TahtVeKilic"]);
-    }
-
-    NSString *tmpDir = NSTemporaryDirectory();
-    addDir(tmpDir);
-
-    if (gTVKCachedExtraDirs != nil) {
-        for (NSString *extra in gTVKCachedExtraDirs) {
-            addDir(extra);
-        }
-    }
-
-    if (deepScan && !gTVKDidDeepScanOnce && reqFileNames.count > 0) {
-        gTVKDidDeepScanOnce = YES;
-        gTVKCachedExtraDirs = [NSMutableArray array];
+        NSMutableArray<NSString *> *dirs = [NSMutableArray array];
+        NSMutableSet<NSString *> *seen = [NSMutableSet set];
         NSFileManager *fm = [NSFileManager defaultManager];
-        NSSet<NSString *> *targets = [NSSet setWithArray:reqFileNames];
-        for (NSString *baseRoot in @[docs ?: @"", appSup ?: @""]) {
-            if (baseRoot.length == 0) {
-                continue;
+        void (^addRequiredDir)(NSString *) = ^(NSString *path) {
+            if (path.length > 0 && ![seen containsObject:path]) {
+                [seen addObject:path];
+                [dirs addObject:path];
             }
-            NSDirectoryEnumerator *en = [fm enumeratorAtPath:baseRoot];
-            NSString *rel = nil;
-            while ((rel = [en nextObject]) != nil) {
-                if ([targets containsObject:[rel lastPathComponent]]) {
-                    NSString *foundDir = [baseRoot stringByAppendingPathComponent:[rel stringByDeletingLastPathComponent]];
-                    [gTVKCachedExtraDirs addObject:foundDir];
-                    addDir(foundDir);
+        };
+        void (^addExistingDir)(NSString *) = ^(NSString *path) {
+            if (path.length > 0 && ![seen containsObject:path]) {
+                [seen addObject:path];
+                BOOL isDir = NO;
+                if ([fm fileExistsAtPath:path isDirectory:&isDir] && isDir) {
+                    [dirs addObject:path];
+                }
+            }
+        };
+
+        NSString *docs = NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES).firstObject;
+        addRequiredDir(docs);
+        if (docs.length > 0) {
+            addExistingDir([docs stringByAppendingPathComponent:@"Taht ve K\u0131l\u0131\u00e7"]);
+            addExistingDir([docs stringByAppendingPathComponent:@"Taht ve Kilic"]);
+            addExistingDir([docs stringByAppendingPathComponent:@"TahtVeKilic"]);
+        }
+
+        NSString *appSup = NSSearchPathForDirectoriesInDomains(NSApplicationSupportDirectory, NSUserDomainMask, YES).firstObject;
+        addExistingDir(appSup);
+        if (appSup.length > 0) {
+            addRequiredDir([appSup stringByAppendingPathComponent:@"Godot/app_userdata/Taht ve K\u0131l\u0131\u00e7"]);
+            addRequiredDir([appSup stringByAppendingPathComponent:@"Godot/app_userdata/Taht ve Kilic"]);
+            addExistingDir([appSup stringByAppendingPathComponent:@"Godot/app_userdata/TahtVeKilic"]);
+        }
+
+        NSString *tmpDir = NSTemporaryDirectory();
+        addRequiredDir(tmpDir);
+
+        if (gTVKCachedExtraDirs != nil) {
+            for (NSString *extra in gTVKCachedExtraDirs) {
+                addExistingDir(extra);
+            }
+        }
+
+        if (deepScan && !gTVKDidDeepScanOnce && reqFileNames.count > 0) {
+            gTVKDidDeepScanOnce = YES;
+            gTVKCachedExtraDirs = [NSMutableArray array];
+            NSSet<NSString *> *targets = [NSSet setWithArray:reqFileNames];
+            for (NSString *baseRoot in @[docs ?: @"", appSup ?: @""]) {
+                if (baseRoot.length == 0) {
+                    continue;
+                }
+                NSDirectoryEnumerator *en = [fm enumeratorAtPath:baseRoot];
+                NSString *rel = nil;
+                while ((rel = [en nextObject]) != nil) {
+                    if ([targets containsObject:[rel lastPathComponent]]) {
+                        NSString *foundDir = [baseRoot stringByAppendingPathComponent:[rel stringByDeletingLastPathComponent]];
+                        [gTVKCachedExtraDirs addObject:foundDir];
+                        addRequiredDir(foundDir);
+                    }
                 }
             }
         }
-    }
 
-    gTVKCachedBaseDirs = [dirs copy];
-    return gTVKCachedBaseDirs;
+        if (dirs.count == 0 && docs.length > 0) {
+            [dirs addObject:docs];
+        }
+        gTVKCachedBaseDirs = [dirs copy];
+        return gTVKCachedBaseDirs;
+    }
+}
+
+static BOOL TVKAnyReqFileExistsOnDisk(NSArray<NSString *> *dirs, NSString *fileName) {
+    if (fileName.length == 0 || dirs.count == 0) {
+        return NO;
+    }
+    for (NSString *dir in dirs) {
+        NSString *reqPath = [dir stringByAppendingPathComponent:fileName];
+        const char *fsPath = reqPath.fileSystemRepresentation;
+        if (fsPath != NULL && access(fsPath, F_OK) == 0) {
+            return YES;
+        }
+    }
+    return NO;
 }
 
 static void TVKWriteJsonDictToDirs(NSDictionary *payload, NSString *activeDir, NSString *fileName) {
@@ -148,7 +178,7 @@ static NSString *TVKBase64AppStoreReceipt(void) {
 }
 
 @interface TVKStoreKitBridge : NSObject <SKProductsRequestDelegate, SKPaymentTransactionObserver>
-@property (nonatomic, strong) NSTimer *pollTimer;
+@property (nonatomic, strong) dispatch_source_t bgPollSource;
 @property (nonatomic, assign) NSUInteger scanTickCount;
 @property (nonatomic, assign) BOOL observingTransactions;
 @property (nonatomic, assign) BOOL isPurchaseBusy;
@@ -177,12 +207,12 @@ static NSString *TVKBase64AppStoreReceipt(void) {
     , ASWebAuthenticationPresentationContextProviding
 #endif
 >
-@property (nonatomic, strong) NSTimer *pollTimer;
+@property (nonatomic, strong) dispatch_source_t bgPollSource;
 @property (nonatomic, copy) NSString *activeReqId;
 @property (nonatomic, copy) NSString *activeProvider;
 @property (nonatomic, copy) NSString *activeOAuthUrl;
 @property (nonatomic, copy) NSString *activeDir;
-@property (nonatomic, assign) BOOL isBusy;
+@property (atomic, assign) BOOL isBusy;
 @property (nonatomic, assign) NSTimeInterval busyStartedAt;
 @property (nonatomic, assign) NSUInteger scanTickCount;
 @property (nonatomic, strong) UIViewController *presentedNav;
@@ -394,7 +424,7 @@ static NSString *TVKExtractEmailFromJWT(NSString *jwt) {
 extern "C" void tvk_ios_auth_bridge_init(void);
 
 @interface TVKNotificationBridge : NSObject <UNUserNotificationCenterDelegate>
-@property (nonatomic, strong) NSTimer *pollTimer;
+@property (nonatomic, strong) dispatch_source_t bgPollSource;
 @property (nonatomic, assign) NSUInteger scanTickCount;
 @property (nonatomic, copy) NSString *activeNotifDir;
 @property (nonatomic, copy) NSString *lastDeviceToken;
@@ -523,24 +553,38 @@ extern "C" void tvk_ios_auth_bridge_init(void) {
 
 - (void)startWatcher {
     dispatch_async(dispatch_get_main_queue(), ^{
-        if (self.pollTimer != nil && [self.pollTimer isValid]) {
+        if (self.bgPollSource != nil) {
             return;
         }
-        self.pollTimer = [NSTimer scheduledTimerWithTimeInterval:1.00
-                                                          target:self
-                                                        selector:@selector(pollForRequest)
-                                                        userInfo:nil
-                                                         repeats:YES];
-        self.pollTimer.tolerance = 0.40;
-        [[NSRunLoop mainRunLoop] addTimer:self.pollTimer forMode:NSRunLoopCommonModes];
+        dispatch_queue_t q = dispatch_get_global_queue(QOS_CLASS_UTILITY, 0);
+        dispatch_source_t src = dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER, 0, 0, q);
+        dispatch_source_set_timer(src,
+                                  dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.0 * NSEC_PER_SEC)),
+                                  (uint64_t)(1.0 * NSEC_PER_SEC),
+                                  (uint64_t)(0.4 * NSEC_PER_SEC));
+        __weak typeof(self) weakSelf = self;
+        dispatch_source_set_event_handler(src, ^{
+            __strong typeof(self) strongSelf = weakSelf;
+            if (strongSelf == nil) {
+                return;
+            }
+            NSArray<NSString *> *dirs = TVKCandidateUserDirs(NO, nil);
+            if (strongSelf.isBusy || TVKAnyReqFileExistsOnDisk(dirs, kTVKReqFileName)) {
+                dispatch_async(dispatch_get_main_queue(), ^{
+                    [strongSelf pollForRequest];
+                });
+            }
+        });
+        self.bgPollSource = src;
+        dispatch_resume(src);
     });
 }
 
 - (void)stopWatcher {
     dispatch_async(dispatch_get_main_queue(), ^{
-        if (self.pollTimer != nil) {
-            [self.pollTimer invalidate];
-            self.pollTimer = nil;
+        if (self.bgPollSource != nil) {
+            dispatch_source_cancel(self.bgPollSource);
+            self.bgPollSource = nil;
         }
     });
 }
@@ -1320,24 +1364,38 @@ decisionHandler:(void (^)(WKNavigationActionPolicy))decisionHandler {
             self.observingTransactions = YES;
             [[SKPaymentQueue defaultQueue] addTransactionObserver:self];
         }
-        if (self.pollTimer != nil && [self.pollTimer isValid]) {
+        if (self.bgPollSource != nil) {
             return;
         }
-        self.pollTimer = [NSTimer scheduledTimerWithTimeInterval:1.50
-                                                          target:self
-                                                        selector:@selector(pollForIapRequest)
-                                                        userInfo:nil
-                                                         repeats:YES];
-        self.pollTimer.tolerance = 0.50;
-        [[NSRunLoop mainRunLoop] addTimer:self.pollTimer forMode:NSRunLoopCommonModes];
+        dispatch_queue_t q = dispatch_get_global_queue(QOS_CLASS_UTILITY, 0);
+        dispatch_source_t src = dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER, 0, 0, q);
+        dispatch_source_set_timer(src,
+                                  dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.5 * NSEC_PER_SEC)),
+                                  (uint64_t)(1.5 * NSEC_PER_SEC),
+                                  (uint64_t)(0.5 * NSEC_PER_SEC));
+        __weak typeof(self) weakSelf = self;
+        dispatch_source_set_event_handler(src, ^{
+            __strong typeof(self) strongSelf = weakSelf;
+            if (strongSelf == nil) {
+                return;
+            }
+            NSArray<NSString *> *dirs = TVKCandidateUserDirs(NO, nil);
+            if (TVKAnyReqFileExistsOnDisk(dirs, kTVKIapReqFileName)) {
+                dispatch_async(dispatch_get_main_queue(), ^{
+                    [strongSelf pollForIapRequest];
+                });
+            }
+        });
+        self.bgPollSource = src;
+        dispatch_resume(src);
     });
 }
 
 - (void)stop {
     dispatch_async(dispatch_get_main_queue(), ^{
-        if (self.pollTimer != nil) {
-            [self.pollTimer invalidate];
-            self.pollTimer = nil;
+        if (self.bgPollSource != nil) {
+            dispatch_source_cancel(self.bgPollSource);
+            self.bgPollSource = nil;
         }
     });
 }
@@ -1787,30 +1845,44 @@ static void tvk_swizzledDidFailRegister(id selfObj, SEL _cmd, UIApplication *app
         if (self.isTerminating) {
             return;
         }
-        if (self.pollTimer != nil && [self.pollTimer isValid]) {
+        if (self.bgPollSource != nil) {
             return;
         }
-        self.pollTimer = [NSTimer scheduledTimerWithTimeInterval:2.00
-                                                          target:self
-                                                        selector:@selector(pollForNotifRequest)
-                                                        userInfo:nil
-                                                         repeats:YES];
-        self.pollTimer.tolerance = 0.60;
-        [[NSRunLoop mainRunLoop] addTimer:self.pollTimer forMode:NSRunLoopCommonModes];
+        dispatch_queue_t q = dispatch_get_global_queue(QOS_CLASS_UTILITY, 0);
+        dispatch_source_t src = dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER, 0, 0, q);
+        dispatch_source_set_timer(src,
+                                  dispatch_time(DISPATCH_TIME_NOW, (int64_t)(2.5 * NSEC_PER_SEC)),
+                                  (uint64_t)(2.5 * NSEC_PER_SEC),
+                                  (uint64_t)(0.75 * NSEC_PER_SEC));
+        __weak typeof(self) weakSelf = self;
+        dispatch_source_set_event_handler(src, ^{
+            __strong typeof(self) strongSelf = weakSelf;
+            if (strongSelf == nil || strongSelf.isTerminating) {
+                return;
+            }
+            NSArray<NSString *> *dirs = TVKCandidateUserDirs(NO, nil);
+            if (TVKAnyReqFileExistsOnDisk(dirs, kTVKNotifReqFileName)) {
+                dispatch_async(dispatch_get_main_queue(), ^{
+                    [strongSelf pollForNotifRequest];
+                });
+            }
+        });
+        self.bgPollSource = src;
+        dispatch_resume(src);
     });
 }
 
 - (void)stop {
     if ([NSThread isMainThread]) {
-        if (self.pollTimer != nil) {
-            [self.pollTimer invalidate];
-            self.pollTimer = nil;
+        if (self.bgPollSource != nil) {
+            dispatch_source_cancel(self.bgPollSource);
+            self.bgPollSource = nil;
         }
     } else {
         dispatch_async(dispatch_get_main_queue(), ^{
-            if (self.pollTimer != nil) {
-                [self.pollTimer invalidate];
-                self.pollTimer = nil;
+            if (self.bgPollSource != nil) {
+                dispatch_source_cancel(self.bgPollSource);
+                self.bgPollSource = nil;
             }
         });
     }

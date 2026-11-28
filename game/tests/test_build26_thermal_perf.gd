@@ -161,7 +161,7 @@ func _test_gameloop_inplace_no_state_spam(gs: Node, eb: Node) -> void:
 
 func _test_village_quest_bottomnav_worldmap(gs: Node, qm: Node, bgc: Node, _wm: Node) -> void:
 	print("\n--- 3) Sahne & Arayüz Performans / Canlı Arka Plan Testleri ---")
-	_assert(int(bgc.get("FRAME_COUNT")) == 96 and float(bgc.get("FPS")) == 12.0, "VillageBackgroundCache 96 kare @ 12 FPS (8 sn döngü) ayarını koruyor")
+	_assert(int(bgc.get("FRAME_COUNT")) == 1 and float(bgc.get("FPS")) == 20.0, "VillageBackgroundCache tek dokulu 1080p + 20 FPS ortam katmanı ayarını koruyor")
 
 	# Village sahnesini aç ve current_scene yap (GameClock + QuestManager entegrasyonu için)
 	var v_scene: PackedScene = load("res://scenes/Village.tscn")
@@ -175,13 +175,16 @@ func _test_village_quest_bottomnav_worldmap(gs: Node, qm: Node, bgc: Node, _wm: 
 	var gclk := root.get_node_or_null("GameClock")
 	gclk.set("_fps_boost_remaining", 0.0)
 	gclk.call("_apply_adaptive_fps", true)
-	_assert(int(gclk.call("get_current_target_fps")) == 12, "Köy sahnesinde boştayken hedef = 12 FPS (12 FPS arka planla 1:1 kilitli)")
+	_assert(int(gclk.call("get_current_target_fps")) == 20, "Köy sahnesinde boştayken hedef = 20 FPS (60/120 Hz tam bölen, sıfır judder)")
 
-	# Hareketli arka plan karelerinin Village._process içinde gerçekten ilerlediğini doğrula
-	var bg_before: int = int(v_node.get("_bg_frame_idx"))
-	v_node.call("_process", 0.12)
-	var bg_after: int = int(v_node.get("_bg_frame_idx"))
-	_assert(bg_after != bg_before, "Hareketli köy arka planı karesi ilerlemeye devam etti (%d -> %d)" % [bg_before, bg_after])
+	# Hareketli yel değirmeninin VillageAmbientLayer._process içinde akıcı döndüğünü doğrula
+	var amb: Node = v_node.get("ambient_layer")
+	_assert(amb != null, "VillageAmbientLayer düğümü mevcut")
+	var ang_before: float = float(amb.call("get_windmill_angle")) if amb != null else 0.0
+	if amb != null:
+		amb.call("_process", 0.12)
+	var ang_after: float = float(amb.call("get_windmill_angle")) if amb != null else 0.0
+	_assert(not is_equal_approx(ang_after, ang_before), "Yel değirmeni 2D ortam katmanında akıcı dönmeye devam etti (%.3f -> %.3f)" % [ang_before, ang_after])
 
 	# QuestManager önbellekli parıltı bayrağını doğrula (hazır görev yoksa parıltı yok, varsa pulse aktif)
 	qm.call("refresh_quests", true)
@@ -246,7 +249,7 @@ func _test_village_quest_bottomnav_worldmap(gs: Node, qm: Node, bgc: Node, _wm: 
 
 func _test_cloud_sync_skip_unchanged(gs: Node, wm: Node, eb: Node) -> void:
 	print("\n--- 4) Akıllı Bulut Yoklaması (Değişmeyen Veriyi Atlama) Testi ---")
-	_assert(is_equal_approx(float(wm.get("CLOUD_POLL_INTERVAL_SEC")), 45.0), "WorldManager CLOUD_POLL_INTERVAL_SEC = 45.0 sn")
+	_assert(is_equal_approx(float(wm.get("CLOUD_POLL_INTERVAL_SEC")), 90.0), "WorldManager CLOUD_POLL_INTERVAL_SEC = 90.0 sn")
 	var now: int = int(Time.get_unix_time_from_system()) + 50
 	var snap: Dictionary = gs.to_dict()
 	var cloud_resp := {

@@ -75,19 +75,16 @@ func _run_all() -> void:
 
 func _test_background_cache(bgc: Node) -> void:
 	print("\n-- 1) VillageBackgroundCache --")
-	_assert(int(bgc.get("FRAME_COUNT")) == 96, "FRAME_COUNT == 96")
-	_assert(int(bgc.get("FRAME_STRIDE")) == 2, "FRAME_STRIDE == 2")
-	_assert(is_equal_approx(float(bgc.get("FPS")), 12.0), "FPS == 12.0")
-	_assert(is_equal_approx(float(bgc.get("LOOP_DURATION")), 8.0), "LOOP_DURATION == 8.0 sn")
-	_assert(str(bgc.call("_frame_path", 0)).ends_with("f_000.webp"), "Frame 0 -> f_000.webp")
-	_assert(str(bgc.call("_frame_path", 1)).ends_with("f_002.webp"), "Frame 1 -> f_002.webp")
-	_assert(bgc.call("get_frame", 5) != null, "Frame 5 yüklenebiliyor")
+	_assert(int(bgc.get("FRAME_COUNT")) == 1, "FRAME_COUNT == 1 (tek temiz 1080p doku)")
+	_assert(is_equal_approx(float(bgc.get("FPS")), 20.0), "FPS == 20.0")
+	_assert(str(bgc.call("_frame_path", 0)).ends_with("village_landscape_clean.jpg"), "Base path -> village_landscape_clean.jpg")
+	_assert(bgc.call("get_frame", 0) != null and bgc.call("get_frame", 5) == bgc.call("get_frame", 0), "Tüm indeksler tek net 1080p dokuyu döndürüyor")
 	bgc.call("trim_memory")
 	var arr: Array = bgc.get("frames")
-	_assert(arr.size() == 96 and arr[0] != null and arr[5] == null, "trim_memory() frames[0]'ı koruyup frames[1..]'ı serbest bırakıyor")
-	_assert(not bool(bgc.get("is_fully_loaded")), "trim_memory() is_fully_loaded = false yapıyor")
+	_assert(arr.size() == 1 and arr[0] != null, "trim_memory() tek taban dokuyu sıfır kopya ile koruyor")
+	_assert(bool(bgc.get("is_fully_loaded")), "is_fully_loaded her zaman true (video decode beklemesi yok)")
 	bgc.call("ensure_warming")
-	_assert(bgc.is_processing(), "ensure_warming() yeniden önbelleklemeyi başlatıyor")
+	_assert(not bgc.is_processing(), "ensure_warming() arka plan yükleme thread'i çalıştırmıyor")
 	await _tick(1)
 
 
@@ -137,7 +134,7 @@ func _test_village_pause_and_clock(gs: Node, gclk: Node, qm: Node) -> void:
 	_assert(not bool(v_node.call("is_background_obscured")), "Köy görünürken arka plan duraklatılmıyor")
 	gclk.set("_fps_boost_remaining", 0.0)
 	gclk.call("_apply_adaptive_fps", true)
-	_assert(int(gclk.call("get_current_target_fps")) == 12, "Köyde boştayken GameClock = 12 FPS")
+	_assert(int(gclk.call("get_current_target_fps")) == 20, "Köyde boştayken GameClock = 20 FPS")
 
 	# BuildingPanel açıkken üst %40 görünür olduğu için arka plan DURMAMALI
 	var bp: Control = v_node.get("building_panel")
@@ -147,13 +144,18 @@ func _test_village_pause_and_clock(gs: Node, gclk: Node, qm: Node) -> void:
 		_assert(not bool(v_node.call("is_background_obscured")), "BuildingPanel açıkken arka plan akmaya devam ediyor")
 		bp.call("hide")
 
-	# Uygulama arkaplanına alınınca arka plan adımı durmalı ve target FPS = 1
+	# Uygulama arkaplanına alınınca ambient katman durmalı ve target FPS = 1
 	gclk.notification(Node.NOTIFICATION_APPLICATION_PAUSED)
 	_assert(bool(v_node.call("is_background_obscured")), "Uygulama arkaplanındayken is_background_obscured() == true")
 	_assert(int(gclk.call("get_current_target_fps")) == 1, "Uygulama arkaplanındayken GameClock = 1 FPS")
-	var idx_paused_before: int = int(v_node.get("_bg_frame_idx"))
+	v_node.set("_obscured_check_accum", 1.0)
+	var amb: Node = v_node.get("ambient_layer")
+	var ang_paused_before: float = float(amb.call("get_windmill_angle")) if amb != null else 0.0
 	v_node.call("_process", 0.25)
-	_assert(int(v_node.get("_bg_frame_idx")) == idx_paused_before, "Arkaplandayken köy video karesi ilerletilmiyor")
+	if amb != null:
+		amb.call("_process", 0.25)
+	var ang_paused_after: float = float(amb.call("get_windmill_angle")) if amb != null else 0.0
+	_assert(amb != null and bool(amb.call("is_ambient_paused")) and is_equal_approx(ang_paused_after, ang_paused_before), "Arkaplandayken VillageAmbientLayer tamamen duraklatılıyor")
 	gclk.notification(Node.NOTIFICATION_APPLICATION_RESUMED)
 	_assert(int(gclk.call("get_current_target_fps")) == 60, "Ön plana dönünce GameClock anında = 60 FPS")
 

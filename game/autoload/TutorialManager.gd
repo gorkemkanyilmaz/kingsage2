@@ -146,6 +146,24 @@ func _ready() -> void:
 	_build_ui()
 	_set_overlay_visible(false)
 	_ensure_store_signal_connected()
+	_connect_state_hook()
+
+
+func _connect_state_hook() -> void:
+	var loop := Engine.get_main_loop()
+	if loop is SceneTree and (loop as SceneTree).root != null:
+		var eb := (loop as SceneTree).root.get_node_or_null("EventBus")
+		if eb != null and eb.has_signal("state_changed") and not eb.state_changed.is_connected(_on_tut_state_changed):
+			eb.state_changed.connect(_on_tut_state_changed)
+
+
+func _on_tut_state_changed() -> void:
+	var gs := _gs()
+	if gs == null or typeof(gs.get("player")) != TYPE_DICTIONARY:
+		return
+	if not bool((gs.get("player") as Dictionary).get("tutorial_completed", false)):
+		_idle_check_accum = 0.0
+		set_process(true)
 
 
 # =============================================================================
@@ -686,6 +704,8 @@ func start_tutorial() -> void:
 	_tut_preview_seen = false
 	_tut_gift_fx_played = false
 	_active = true
+	_idle_check_accum = 0.0
+	set_process(true)
 	_save_game()
 	_refresh_tutorial(true)
 
@@ -703,6 +723,8 @@ func skip_tutorial() -> void:
 		gs._emit_state_changed()
 	_active = false
 	_set_overlay_visible(false)
+	if DisplayServer.get_name() != "headless" and not tutorial_enabled_in_headless:
+		set_process(false)
 	_save_game()
 	var loop := Engine.get_main_loop()
 	if loop is SceneTree and (loop as SceneTree).root != null:
@@ -928,6 +950,8 @@ func _process(delta: float) -> void:
 	if bool(gs.player.get("tutorial_completed", false)):
 		_active = false
 		_set_overlay_visible(false)
+		if DisplayServer.get_name() != "headless" and not tutorial_enabled_in_headless:
+			set_process(false)
 		return
 
 	# Güvenlik: Oyuncu eğitimi daha önce bitirmiş/atlamış veya ileri köye sahipse tekrar başlatma
@@ -954,6 +978,8 @@ func _process(delta: float) -> void:
 		gs.player["tutorial_completed"] = true
 		_active = false
 		_set_overlay_visible(false)
+		if DisplayServer.get_name() != "headless" and not tutorial_enabled_in_headless:
+			set_process(false)
 		_save_game()
 		return
 
@@ -2988,6 +3014,8 @@ func _on_graduation_finish_pressed() -> void:
 	_victory_backdrop.hide()
 	_victory_modal.hide()
 	_set_overlay_visible(false)
+	if DisplayServer.get_name() != "headless" and not tutorial_enabled_in_headless:
+		set_process(false)
 	_save_game()
 
 

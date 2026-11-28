@@ -51,6 +51,11 @@ static func process_tick(state: Dictionary, _now_unix: int, _delta_seconds: floa
 	if typeof(villages) != TYPE_ARRAY:
 		return []
 	for v in (villages as Array):
-		if typeof(v) == TYPE_DICTIONARY and (bool((v as Dictionary).get("is_bot", false)) or bool((v as Dictionary).get("is_bandit", false))):
-			ensure_bandit_village(v as Dictionary)
+		if typeof(v) != TYPE_DICTIONARY:
+			continue
+		var vd := v as Dictionary
+		if bool(vd.get("is_bandit", false)) and bool(vd.get("bandit_initialized", false)):
+			continue
+		if bool(vd.get("is_bot", false)) or bool(vd.get("is_bandit", false)):
+			ensure_bandit_village(vd)
 	return []

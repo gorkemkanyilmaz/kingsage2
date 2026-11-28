@@ -5,7 +5,8 @@
 [ext_resource type="PackedScene" path="res://ui/BottomNav.tscn" id="3_bnav"]
 [ext_resource type="PackedScene" path="res://ui/BuildingPanel.tscn" id="4_bpanel"]
 [ext_resource type="Theme" path="res://themes/TahtVeKilic.tres" id="5_theme"]
-[ext_resource type="Texture2D" path="res://assets/sprites/village/village_landscape.jpg" id="6_landscape"]
+[ext_resource type="Texture2D" path="res://assets/sprites/village/village_landscape_clean.jpg" id="6_landscape"]
+[ext_resource type="Script" path="res://scenes/village/VillageAmbientLayer.gd" id="7_ambient"]
 
 [node name="Village" type="Control"]
 layout_mode = 3
@@ -34,6 +35,9 @@ offset_bottom = 1920.0
 texture = ExtResource("6_landscape")
 expand_mode = 1
 stretch_mode = 6
+
+[node name="AmbientLayer" type="Node2D" parent="VillageArea"]
+script = ExtResource("7_ambient")
 
 [node name="BuildingsContainer" type="Control" parent="VillageArea"]
 custom_minimum_size = Vector2(1080, 1920)

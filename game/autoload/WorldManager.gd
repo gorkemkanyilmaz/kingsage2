@@ -35,7 +35,7 @@ var worlds_meta: Array = []
 var _last_autosave_unix: int = 0
 var _last_cloud_save_unix: int = 0
 
-const CLOUD_POLL_INTERVAL_SEC := 45.0
+const CLOUD_POLL_INTERVAL_SEC := 90.0
 var _cloud_poll_accum: float = 0.0
 var _cloud_poll_in_flight: bool = false
 var _last_cloud_poll_sig_by_world: Dictionary = {}
@@ -1694,7 +1694,12 @@ func save_active_world(force_cloud: bool = false, allow_cloud: bool = true) -> b
 	gs.world["last_saved_unix"] = now
 	gs.world["sim_now_unix"] = maxi(int(gs.world.get("sim_now_unix", 0)), now)
 
-	var next_state: Dictionary = gs.to_dict()
+	var next_state: Dictionary
+	if allow_cloud:
+		next_state = gs.to_dict()
+	else:
+		next_state = gs.as_live_dict()
+		next_state["world"] = (gs.world as Dictionary).duplicate() if typeof(gs.world) == TYPE_DICTIONARY else {}
 	for nv in next_state.get("villages", []):
 		if typeof(nv) == TYPE_DICTIONARY:
 			var nvd := nv as Dictionary

@@ -129,7 +129,7 @@ func _ready() -> void:
 	instance = self
 	if DisplayServer.get_name() != "headless":
 		OS.low_processor_usage_mode = true
-		OS.low_processor_usage_mode_sleep_usec = 8000
+		OS.low_processor_usage_mode_sleep_usec = 16000
 	load_profiles()
 	call_deferred("_setup_mobile_safe_area")
 	# Kayıtlı ayar varsa onu yükle; yoksa varsayılan dünya profilini (TR) uygula.

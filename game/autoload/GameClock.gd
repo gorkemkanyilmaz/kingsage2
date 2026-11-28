@@ -15,12 +15,12 @@ const TICK_INTERVAL := 1.0
 ## boyutu büyür (doğrusal sistemler integral alır), böylece açılış donmaz.
 const MAX_CATCHUP_STEPS := 10000
 
-## Hedef adaptif FPS seviyeleri (pil ve ısınma optimizasyonu).
+## Hedef adaptif FPS seviyeleri (tümü 60 Hz ve 120 Hz ProMotion'ın tam bölenleri).
 const ADAPTIVE_ACTIVE_FPS := 60
-const ADAPTIVE_MOBILE_DRAG_FPS := 45
+const ADAPTIVE_MOBILE_DRAG_FPS := 60
 const ADAPTIVE_MOBILE_TAP_FPS := 30
 const ADAPTIVE_MAP_MOV_IDLE_FPS := 10
-const ADAPTIVE_IDLE_FPS := 12
+const ADAPTIVE_IDLE_FPS := 20
 const ADAPTIVE_STATIC_IDLE_FPS := 4
 const ADAPTIVE_BACKGROUND_FPS := 1
 const ADAPTIVE_BOOST_SECONDS := 1.5
@@ -119,11 +119,17 @@ func _compute_adaptive_target_fps() -> int:
 
 func _apply_adaptive_fps(force: bool = false) -> void:
 	var target := _compute_adaptive_target_fps()
-	if not force and _current_target_fps == target:
+	var changed := (_current_target_fps != target)
+	if not force and not changed:
 		return
 	_current_target_fps = target
 	if DisplayServer.get_name() != "headless":
 		Engine.max_fps = target
+		if target <= ADAPTIVE_STATIC_IDLE_FPS:
+			OS.low_processor_usage_mode = true
+			OS.low_processor_usage_mode_sleep_usec = 16000
+		else:
+			OS.low_processor_usage_mode = false
 
 
 func _process(delta: float) -> void:

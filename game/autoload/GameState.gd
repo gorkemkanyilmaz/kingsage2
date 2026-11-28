@@ -321,7 +321,9 @@ func sync_from_live_dict(data: Dictionary, emit_state: bool = false) -> void:
 		player["diamonds"] = maxi(0, int(player.get("diamonds", 35)))
 	if not player.has("scrolls") or typeof(player.get("scrolls")) != TYPE_DICTIONARY:
 		player["scrolls"] = {}
-	player["lord"] = LordModelScript.ensure_state_dict(player.get("lord", null))
+	var raw_lord = player.get("lord", null)
+	if typeof(raw_lord) != TYPE_DICTIONARY or not (raw_lord as Dictionary).has("equipped") or not (raw_lord as Dictionary).has("inventory"):
+		player["lord"] = LordModelScript.ensure_state_dict(raw_lord)
 	if typeof(data.get("villages")) == TYPE_ARRAY and not is_same(villages, data["villages"]):
 		villages = data["villages"] as Array
 	if data.has("active_village_id"):

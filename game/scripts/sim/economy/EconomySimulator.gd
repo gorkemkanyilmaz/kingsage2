@@ -34,11 +34,13 @@ static func process_tick(state: Dictionary, now_unix: int, delta_seconds: float)
 	if typeof(villages) != TYPE_ARRAY:
 		return events
 
-	# 1) Üretim (her köy).
+	# 1) Üretim (statik haydut/bot köyleri hariç her köy).
 	for v in (villages as Array):
 		if typeof(v) != TYPE_DICTIONARY:
 			continue
 		var vd := v as Dictionary
+		if bool(vd.get("is_bandit", false)):
+			continue
 		PROD.produce(vd, delta_seconds)
 		if now_unix > 0:
 			vd["last_resource_unix"] = now_unix
@@ -46,11 +48,13 @@ static func process_tick(state: Dictionary, now_unix: int, delta_seconds: float)
 	# 2) İnşaat kuyruğu (tamamlananlar uygulanır).
 	events.append_array(BQ.advance(state, now_unix))
 
-	# 3) Güç Alanı yenilenmesi.
+	# 3) Güç Alanı yenilenmesi (haydut köyleri sabit garnizon olduğu için atlanır).
 	for v in (villages as Array):
 		if typeof(v) != TYPE_DICTIONARY:
 			continue
 		var village := v as Dictionary
+		if bool(village.get("is_bandit", false)):
+			continue
 		var before := int(village.get("realm_of_power", 0))
 		var after := ROP.regenerate(village, delta_seconds)
 		if after != before:

@@ -183,12 +183,19 @@ func save_game(skip_world_save: bool = false, allow_cloud: bool = true) -> bool:
 		if gc != null:
 			gs.world["sim_time_seconds"] = gc.elapsed_seconds
 
+	var world_saved_ok := false
 	if not skip_world_save:
 		var loop = Engine.get_main_loop()
 		if loop is SceneTree:
 			var wm = loop.root.get_node_or_null("WorldManager")
 			if wm != null and not bool(wm.get("_saving_active_world")) and wm.has_method("save_active_world"):
-				wm.save_active_world(false, allow_cloud)
+				world_saved_ok = wm.save_active_world(false, allow_cloud)
+
+	if not skip_world_save and not allow_cloud and world_saved_ok and DisplayServer.get_name() != "headless":
+		_saving_now = false
+		if bus != null and bus.has_signal("game_saved"):
+			bus.game_saved.emit()
+		return true
 
 	var state_payload: Dictionary = {}
 	if gs != null:

@@ -32,6 +32,7 @@ const MarketModalScript := preload("res://ui/MarketModal.gd")
 @onready var queue_title: Label = $QueueHUD/VBox/TitleLabel
 @onready var queue_list: VBoxContainer = $QueueHUD/VBox/Scroll/QueueList if has_node("QueueHUD/VBox/Scroll/QueueList") else ($QueueHUD/VBox/QueueList if has_node("QueueHUD/VBox/QueueList") else null)
 @onready var background: TextureRect = $VillageArea/Background
+@onready var ambient_layer: Node2D = $VillageArea/AmbientLayer if has_node("VillageArea/AmbientLayer") else null
 @onready var btn_alliance: Button = $BtnAlliance if has_node("BtnAlliance") else (find_child("BtnAlliance", true, false) as Button)
 @onready var btn_lord: Button = $BtnLord if has_node("BtnLord") else (find_child("BtnLord", true, false) as Button)
 
@@ -382,10 +383,12 @@ var _bg_frame_idx: int = 0
 var _bg_frame_timer: float = 0.0
 var _rendered_village_id: int = -1
 var _last_buildings_refresh_sig: String = ""
-const BG_TOTAL_FRAMES: int = 96 # 96 kare (her 2. kare), 12 FPS = 8.0 saniyelik akıcı döngü & yarı VRAM
-const BG_FPS: float = 12.0
+var _last_queue_title_text: String = ""
+var _last_queue_title_incoming: bool = false
+const BG_TOTAL_FRAMES: int = 1
+const BG_FPS: float = 20.0
 const BG_FRAME_TIME: float = 1.0 / BG_FPS
-const BG_LOOP_DURATION: float = float(BG_TOTAL_FRAMES) / BG_FPS
+const BG_LOOP_DURATION: float = 1.0
 const BG_CADENCE_JITTER_SEC: float = 0.008
 
 
@@ -399,26 +402,20 @@ func _resolve_game_state() -> Node:
 
 
 func _init_animated_background() -> void:
-	if background == null:
-		return
-	var loop := Engine.get_main_loop()
-	if loop is SceneTree and (loop as SceneTree).root != null:
-		_cached_bg_cache = (loop as SceneTree).root.get_node_or_null("VillageBackgroundCache")
-	if _cached_bg_cache != null:
-		var tex = _cached_bg_cache.get_frame(_bg_frame_idx)
-		if tex != null:
-			background.texture = tex
-		if DisplayServer.get_name() == "headless":
-			if _cached_bg_cache.has_method("ensure_warming"):
-				_cached_bg_cache.call("ensure_warming")
-		elif is_inside_tree() and get_tree() != null:
-			var bgc_ref := _cached_bg_cache
-			get_tree().create_timer(0.25).timeout.connect(func():
-				if is_instance_valid(self) and is_inside_tree() and bgc_ref != null and is_instance_valid(bgc_ref) and bgc_ref.has_method("ensure_warming"):
-					bgc_ref.call("ensure_warming")
-			)
-	elif ResourceLoader.exists("res://assets/sprites/village/animated_bg/f_000.webp"):
-		background.texture = load("res://assets/sprites/village/animated_bg/f_000.webp")
+	if background != null:
+		var loop := Engine.get_main_loop()
+		if loop is SceneTree and (loop as SceneTree).root != null:
+			_cached_bg_cache = (loop as SceneTree).root.get_node_or_null("VillageBackgroundCache")
+		if _cached_bg_cache != null and _cached_bg_cache.has_method("get_base_texture"):
+			var base_tex: Variant = _cached_bg_cache.call("get_base_texture")
+			if base_tex is Texture2D:
+				background.texture = base_tex as Texture2D
+		elif ResourceLoader.exists("res://assets/sprites/village/village_landscape_clean.jpg"):
+			background.texture = load("res://assets/sprites/village/village_landscape_clean.jpg")
+	if ambient_layer == null and village_area != null:
+		ambient_layer = village_area.get_node_or_null("AmbientLayer") as Node2D
+	if ambient_layer != null and ambient_layer.has_method("set_ambient_paused"):
+		ambient_layer.call("set_ambient_paused", is_background_obscured())
 
 
 func is_background_obscured() -> bool:
@@ -472,40 +469,9 @@ func _process(delta: float) -> void:
 	_update_incoming_attack_alarm(dt, false)
 
 	var obscured := _is_background_obscured_cached(dt)
-	if _cached_bg_cache != null and is_instance_valid(_cached_bg_cache):
-		if obscured and not _bg_warming_paused and _cached_bg_cache.has_method("pause_warming"):
-			_cached_bg_cache.call("pause_warming")
-			_bg_warming_paused = true
-		elif not obscured and _bg_warming_paused and _cached_bg_cache.has_method("ensure_warming"):
-			_cached_bg_cache.call("ensure_warming")
-			_bg_warming_paused = false
-
-	# Arka plan animasyonu: Tam ekran modal/arkaplanda duraklat, görünürken 12 FPS (8 sn döngü) akıcı oynat
-	if background != null and not obscured:
-		_bg_frame_timer += dt
-		if _bg_frame_timer >= BG_FRAME_TIME - BG_CADENCE_JITTER_SEC:
-			var steps: int = maxi(1, int(floor((_bg_frame_timer + BG_CADENCE_JITTER_SEC) / BG_FRAME_TIME)))
-			_bg_frame_timer = maxf(0.0, _bg_frame_timer - float(steps) * BG_FRAME_TIME)
-			if _cached_bg_cache == null or not is_instance_valid(_cached_bg_cache):
-				var loop := Engine.get_main_loop()
-				if loop is SceneTree and (loop as SceneTree).root != null:
-					_cached_bg_cache = (loop as SceneTree).root.get_node_or_null("VillageBackgroundCache")
-			if _cached_bg_cache != null:
-				var total: int = mini(BG_TOTAL_FRAMES, _cached_bg_cache.get_frame_count())
-				if total > 0:
-					if DisplayServer.get_name() == "headless" or bool(_cached_bg_cache.get("is_fully_loaded")) or bool(_cached_bg_cache.get("_low_mem_ready")):
-						var step_clamped := mini(steps, 2) if DisplayServer.get_name() != "headless" else steps
-						_bg_frame_idx = (_bg_frame_idx + step_clamped) % total
-						var tex = _cached_bg_cache.get_frame(_bg_frame_idx)
-						if tex != null and background.texture != tex:
-							background.texture = tex
-					else:
-						var next_idx := (_bg_frame_idx + 1) % total
-						if _cached_bg_cache.has_method("is_frame_ready") and bool(_cached_bg_cache.call("is_frame_ready", next_idx)):
-							_bg_frame_idx = next_idx
-							var tex_ready = _cached_bg_cache.get_frame(_bg_frame_idx)
-							if tex_ready != null and background.texture != tex_ready:
-								background.texture = tex_ready
+	if ambient_layer != null and ambient_layer.has_method("set_ambient_paused"):
+		ambient_layer.call("set_ambient_paused", obscured)
+	_bg_warming_paused = obscured
 
 
 func _update_building_views_progress() -> void:
@@ -753,11 +719,17 @@ func _update_queue_ui() -> void:
 	if queue_hud == null:
 		return
 	if building_panel != null and building_panel.visible:
-		queue_hud.hide()
+		if queue_hud.visible:
+			queue_hud.hide()
 		return
 	var gs = Engine.get_main_loop().root.get_node_or_null("GameState") if Engine.get_main_loop() is SceneTree else null
 	if gs == null or not gs.has_active_village():
-		queue_hud.hide()
+		if queue_hud.visible:
+			queue_hud.hide()
+		return
+	if gs.movements.is_empty() and gs.queues.is_empty():
+		if queue_hud.visible:
+			queue_hud.hide()
 		return
 
 	var vid: int = gs.active_village_id
@@ -847,16 +819,23 @@ func _update_queue_ui() -> void:
 				})
 
 	if activities.is_empty():
-		queue_hud.hide()
+		if queue_hud.visible:
+			queue_hud.hide()
 		return
 
-	queue_hud.show()
-	if incoming_count > 0:
-		queue_title.text = " ALARM: %d Düşman Saldırısı! | Aktiviteler (%d)" % [incoming_count, activities.size()]
-		queue_title.add_theme_color_override("font_color", Color(1.0, 0.40, 0.40))
-	else:
-		queue_title.text = " Aktiviteler ve Askeri Durum (%d)" % activities.size()
-		queue_title.add_theme_color_override("font_color", Color(1.0, 0.92, 0.45))
+	if not queue_hud.visible:
+		queue_hud.show()
+	var is_inc := incoming_count > 0
+	var next_q_title := (
+		" ALARM: %d Düşman Saldırısı! | Aktiviteler (%d)" % [incoming_count, activities.size()]
+		if is_inc
+		else " Aktiviteler ve Askeri Durum (%d)" % activities.size()
+	)
+	if next_q_title != _last_queue_title_text or is_inc != _last_queue_title_incoming:
+		_last_queue_title_text = next_q_title
+		_last_queue_title_incoming = is_inc
+		queue_title.text = next_q_title
+		queue_title.add_theme_color_override("font_color", Color(1.0, 0.40, 0.40) if is_inc else Color(1.0, 0.92, 0.45))
 
 	while queue_list.get_child_count() > activities.size():
 		var last = queue_list.get_child(queue_list.get_child_count() - 1)
@@ -1605,10 +1584,13 @@ func _update_incoming_attack_alarm(delta: float, force_scan: bool = false) -> vo
 		return
 
 	_alarm_scan_accum += maxf(delta, 0.0)
-	var scan_interval := 0.75 if not _cached_incoming_attacks.is_empty() else 1.5
+	var scan_interval := 0.75 if not _cached_incoming_attacks.is_empty() else 2.0
 	if force_scan or _alarm_scan_accum >= scan_interval:
 		_alarm_scan_accum = 0.0
-		_cached_incoming_attacks = IncomingAttackAlert.get_incoming_attacks(gs, _current_now())
+		if gs.movements.is_empty() and not _alarm_visual_active:
+			_cached_incoming_attacks.clear()
+		else:
+			_cached_incoming_attacks = IncomingAttackAlert.get_incoming_attacks(gs, _current_now())
 	var incoming := _cached_incoming_attacks
 	if incoming.is_empty():
 		_attack_flash_time = 0.0
