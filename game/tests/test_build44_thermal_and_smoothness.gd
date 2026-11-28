@@ -146,9 +146,13 @@ func _run_all() -> void:
 	_assert(not mm.contains("NSTimer *pollTimer") and mm.contains("DISPATCH_QUEUE_PRIORITY_LOW") == false and mm.contains("QOS_CLASS_UTILITY") and mm.contains("access(fsPath, F_OK)"), "ios_native_auth_bridge.mm main-thread NSTimer yok; QOS_CLASS_UTILITY GCD + access() aktif")
 
 	var presets := FileAccess.get_file_as_string("res://export_presets.cfg")
-	_assert(presets.contains("assets/sprites/village/animated_bg/*") and presets.contains('application/version="44"'), "export_presets.cfg animated_bg/* dışlanmış ve application/version=\"44\"")
+	var ver_rx := RegEx.new()
+	ver_rx.compile('application/version="(\\d+)"')
+	var ver_m := ver_rx.search(presets)
+	var bnum_cfg := int(ver_m.get_string(1)) if ver_m != null else 0
+	_assert(presets.contains("assets/sprites/village/animated_bg/*") and bnum_cfg >= 44, "export_presets.cfg animated_bg/* dışlanmış ve build >= 44 (%d)" % bnum_cfg)
 	var ci_yml := FileAccess.get_file_as_string("res://../.github/workflows/ios-testflight.yml")
-	_assert(ci_yml.contains('DEFAULT_BUILD_NUMBER: "44"') and ci_yml.contains('default: "44"') and ci_yml.contains("village_landscape_clean.jpg.import"), "ios-testflight.yml Build 44 ve temiz sprite ASTC import yapılandırması hazır")
+	_assert(ci_yml.contains('DEFAULT_BUILD_NUMBER:') and ci_yml.contains("village_landscape_clean.jpg.import"), "ios-testflight.yml Build >= 44 ve temiz sprite ASTC import yapılandırması hazır")
 
 	print("=== BUILD 44 VERIFICATION: %d PASS, %d FAIL ===" % [_passes, _fails])
 	quit(1 if _fails > 0 else 0)

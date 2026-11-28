@@ -494,14 +494,15 @@ static func roll_bandit_drop(bandit_level: int, rng: RandomNumberGenerator, seq:
 	return create_item(slot_type, rarity, plus, seq, src, now_unix)
 
 
+## Dengeli Haydut Köyü seviye havuzu (Sv.1-2-3-4 başlangıç erişimi bol, 1..10 arası tüm seviyeler dağılımlı)
+const BANDIT_LEVEL_POOL: Array[int] = [1, 2, 1, 2, 3, 1, 2, 4, 3, 5, 6, 7, 8, 9, 10, 4]
+
+
 static func bandit_level_for_village(v: Dictionary) -> int:
 	if v.has("bandit_level") and int(v.get("bandit_level", 0)) > 0:
 		return clampi(int(v.get("bandit_level", 1)), 1, 10)
 	var vid := maxi(1, int(v.get("id", 1)))
-	var pts := int(v.get("points", 0))
-	if pts > 1500:
-		return clampi(5 + (vid % 6), 1, 10)
-	return clampi(1 + ((vid * 7 + 3) % 10), 1, 10)
+	return BANDIT_LEVEL_POOL[posmod(vid - 1, BANDIT_LEVEL_POOL.size())]
 
 
 static func bandit_template(level: int) -> Dictionary:

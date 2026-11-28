@@ -13,7 +13,7 @@ on:
       build_number:
         description: "TestFlight Build Number (e.g. 1, 2, 3, 4, 5, 6)"
         required: true
-        default: "44"
+        default: "45"
       runner:
         description: "GitHub macOS Runner"
         required: true
@@ -33,7 +33,7 @@ jobs:
       GODOT_VERSION: "4.7.2-stable"
       APP_BUNDLE_ID: "com.tahtkilic.kingsage2"
       APPLE_TEAM_ID: "H2TTF8894Z"
-      DEFAULT_BUILD_NUMBER: "44"
+      DEFAULT_BUILD_NUMBER: "45"
 
     steps:
       - name: Checkout repository

@@ -321,42 +321,56 @@ func _populate_target_info() -> void:
 	var from_y: int = int(_from_village.get("y", 0))
 	var dist: float = TravelScript.distance(from_x, from_y, to_x, to_y)
 	var is_bandit := bool(_to_village.get("is_bandit", false)) or bool(_to_village.get("is_bot", false))
+	var to_owner_low := str(_to_village.get("owner", "")).strip_edges().to_lower()
+	var is_abandoned := (not is_bandit) and (
+		bool(_to_village.get("is_abandoned", false))
+		or bool(_to_village.get("is_barbarian", false))
+		or to_owner_low in ["", "barbar", "terk edilmiş", "terk edilmis", "terk edilmiş köy"]
+	)
 
-	target_header_label.text = " %s (%d|%d)" % [to_name, to_x, to_y]
-	if is_bandit:
+	if is_abandoned:
+		target_header_label.text = " Terk Edilmiş Köy (%d|%d)" % [to_x, to_y]
+		target_info_label.text = "🏚️ Terk Edilmiş Köy (%d|%d) — Fethedilebilir · Mesafe: %.1f alan" % [to_x, to_y, dist]
+		owner_label.text = " Sahip: Terk Edilmiş"
+		alliance_label.text = " İttifak: İttifak Yok"
+		alliance_label.remove_theme_color_override("font_color")
+	elif is_bandit:
 		var blvl := LordModelScript.bandit_level_for_village(_to_village)
+		target_header_label.text = " %s (%d|%d)" % [to_name, to_x, to_y]
 		target_info_label.text = "🏴 Haydut Köyü Sv.%d (%d|%d) — Fethedilemez · Ekipman Düşer · Mesafe: %.1f alan" % [blvl, to_x, to_y, dist]
 	else:
+		target_header_label.text = " %s (%d|%d)" % [to_name, to_x, to_y]
 		target_info_label.text = "Hedef: %s (%d|%d) — Mesafe: %.1f alan" % [to_name, to_x, to_y, dist]
 
 	var owner_name: String = str(_to_village.get("owner", ""))
-	if owner_name.is_empty():
-		owner_name = "Düşman"
-	owner_label.text = " Sahip: %s" % owner_name
+	if not is_abandoned:
+		if owner_name.is_empty():
+			owner_name = "Düşman"
+		owner_label.text = " Sahip: %s" % owner_name
 
-	var gs = Engine.get_main_loop().root.get_node_or_null("GameState") if Engine.get_main_loop() is SceneTree else null
-	var state: Dictionary = gs.to_dict() if gs != null else {}
-	var from_owner := str(_from_village.get("owner", gs.player.get("name", "Lord Gorkem") if gs != null else ""))
-	var is_ally: bool = MovementScript._share_alliance(state, from_owner, owner_name)
+		var gs = Engine.get_main_loop().root.get_node_or_null("GameState") if Engine.get_main_loop() is SceneTree else null
+		var state: Dictionary = gs.to_dict() if gs != null else {}
+		var from_owner := str(_from_village.get("owner", gs.player.get("name", "Lord Gorkem") if gs != null else ""))
+		var is_ally: bool = MovementScript._share_alliance(state, from_owner, owner_name)
 
-	var alliance_name: String = str(_to_village.get("alliance", ""))
-	if alliance_name.is_empty() and gs != null:
-		for a in state.get("alliances", []):
-			if typeof(a) == TYPE_DICTIONARY:
-				for m in (a as Dictionary).get("members", []):
-					var m_name: String = str(m) if typeof(m) == TYPE_STRING else str((m as Dictionary).get("name", ""))
-					if m_name == owner_name:
-						alliance_name = "[%s] %s" % [str((a as Dictionary).get("tag", "")), str((a as Dictionary).get("name", ""))]
-						break
-	if alliance_name.is_empty():
-		alliance_name = "İttifak Yok"
+		var alliance_name: String = str(_to_village.get("alliance", ""))
+		if alliance_name.is_empty() and gs != null:
+			for a in state.get("alliances", []):
+				if typeof(a) == TYPE_DICTIONARY:
+					for m in (a as Dictionary).get("members", []):
+						var m_name: String = str(m) if typeof(m) == TYPE_STRING else str((m as Dictionary).get("name", ""))
+						if m_name == owner_name:
+							alliance_name = "[%s] %s" % [str((a as Dictionary).get("tag", "")), str((a as Dictionary).get("name", ""))]
+							break
+		if alliance_name.is_empty():
+			alliance_name = "İttifak Yok"
 
-	if is_ally:
-		alliance_label.text = " İttifak: %s (Müttefik)" % alliance_name
-		alliance_label.add_theme_color_override("font_color", Color(0.40, 0.85, 1.0))
-	else:
-		alliance_label.text = " İttifak: %s" % alliance_name
-		alliance_label.remove_theme_color_override("font_color")
+		if is_ally:
+			alliance_label.text = " İttifak: %s (Müttefik)" % alliance_name
+			alliance_label.add_theme_color_override("font_color", Color(0.40, 0.85, 1.0))
+		else:
+			alliance_label.text = " İttifak: %s" % alliance_name
+			alliance_label.remove_theme_color_override("font_color")
 
 	var points: int = int(_to_village.get("points", 0))
 	points_label.text = " Puan: %d" % points

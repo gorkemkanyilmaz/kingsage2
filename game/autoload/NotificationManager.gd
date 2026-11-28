@@ -127,9 +127,11 @@ func _post_ready_setup() -> void:
 func _notification(what: int) -> void:
 	if what == NOTIFICATION_APPLICATION_PAUSED or what == NOTIFICATION_APPLICATION_FOCUS_OUT:
 		if DisplayServer.get_name() != "headless" and is_inside_tree():
+			_last_sync_hash = ""
 			sync_local_notifications_now()
 	elif what == NOTIFICATION_APPLICATION_RESUMED or what == NOTIFICATION_APPLICATION_FOCUS_IN:
 		registered_token_user = ""
+		_last_sync_hash = ""
 		if DisplayServer.get_name() != "headless" and is_inside_tree():
 			if _is_ios_device():
 				_send_ios_notif_req({"action": "clear_badge"})
@@ -488,6 +490,31 @@ static func compute_local_notifications(state: Dictionary, now_unix: int, storag
 				"cap": cap,
 			})
 
+	# 4) 24 saat boyunca köye girilmezse her 24 saatte bir tekrarlanan hatırlatma bildirimi
+	var active_vid := int(state.get("active_village_id", -1))
+	var active_v_name := ""
+	if active_vid > 0 and player_vids.has(active_vid):
+		active_v_name = str((player_vids[active_vid] as Dictionary).get("name", "Köyünüz"))
+	else:
+		for pv_k in player_vids.keys():
+			active_vid = int(pv_k)
+			active_v_name = str((player_vids[pv_k] as Dictionary).get("name", "Köyünüz"))
+			break
+	if active_vid > 0:
+		if active_v_name.is_empty():
+			active_v_name = "Başkent"
+		items.append({
+			"id": "tvk_idle_24h",
+			"type": "inactivity_reminder",
+			"trigger_unix": now_unix + 86400,
+			"delay_seconds": 86400,
+			"repeats": true,
+			"title": "👑 Baş Vezir: Köyün Seni Bekliyor!",
+			"body": "Lordum, %s köyün seni bekliyor! Hammadde depoların doluyor, ordun emirlerini bekliyor." % active_v_name,
+			"route": "village",
+			"village_id": active_vid,
+		})
+
 	items.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
 		return int(a.get("delay_seconds", 0)) < int(b.get("delay_seconds", 0))
 	)
@@ -543,8 +570,11 @@ func sync_local_notifications_now() -> void:
 	var sig_parts: Array[String] = []
 	for it in items:
 		var trig_u := int(it.get("trigger_unix", 0))
-		if str(it.get("type", "")) == "storage_full":
+		var itype := str(it.get("type", ""))
+		if itype == "storage_full":
 			trig_u = (trig_u / 60) * 60
+		elif itype == "inactivity_reminder":
+			trig_u = (trig_u / 900) * 900
 		sig_parts.append("%s@%d" % [str(it.get("id", "")), trig_u])
 	var sig := "|".join(sig_parts)
 	if sig == _last_sync_hash:

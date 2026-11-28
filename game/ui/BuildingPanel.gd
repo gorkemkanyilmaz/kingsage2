@@ -164,6 +164,7 @@ var _train_scroll_orig_min_h: float = 480.0
 var _pre_kb_scroll_y: int = -1
 var _post_kb_restore_scroll_y: int = -1
 var _post_kb_restore_unit: String = ""
+var _open_layout_seq: int = 0
 
 
 func _ensure_nodes() -> void:
@@ -439,6 +440,7 @@ func _update_keyboard_lift() -> void:
 	var desired_h: float = clampf(vp_h + bottom_off - top_limit, 360.0, 820.0)
 	offset_bottom = bottom_off
 	offset_top = bottom_off - desired_h
+	_sync_quest_visibility()
 	if _kb_scroll_done_for != _focused_train_unit and train_list != null:
 		_kb_scroll_done_for = _focused_train_unit
 		var target_u := _focused_train_unit
@@ -481,6 +483,7 @@ func _restore_keyboard_lift() -> void:
 		_kb_preview_bar.hide()
 	if absf(offset_bottom - (-256.0)) > 0.5:
 		offset_bottom = -256.0
+	_sync_quest_visibility()
 
 
 func _deferred_post_kb_scroll_restore() -> void:
@@ -1413,7 +1416,17 @@ func _process(delta: float) -> void:
 		_update_active_train_info()
 
 
+func _sync_quest_visibility() -> void:
+	var loop := Engine.get_main_loop()
+	if loop is SceneTree and (loop as SceneTree).root != null:
+		var qm := (loop as SceneTree).root.get_node_or_null("QuestManager")
+		if qm != null and qm.has_method("sync_visibility_now"):
+			qm.call("sync_visibility_now")
+
+
 func _on_close_pressed() -> void:
+	_open_layout_seq += 1
+	modulate.a = 1.0
 	_focused_train_unit = ""
 	_focused_train_line = null
 	_focused_train_spin = null
@@ -1423,6 +1436,7 @@ func _on_close_pressed() -> void:
 	_post_kb_restore_unit = ""
 	_restore_keyboard_lift()
 	hide()
+	_sync_quest_visibility()
 	closed.emit()
 
 
@@ -1432,6 +1446,7 @@ func _on_tab_upgrade_pressed() -> void:
 	_post_kb_restore_unit = ""
 	_current_tab = Tab.UPGRADE
 	refresh()
+	call_deferred("_clamp_panel_to_viewport")
 
 
 func _on_tab_research_pressed() -> void:
@@ -1440,15 +1455,21 @@ func _on_tab_research_pressed() -> void:
 	_post_kb_restore_unit = ""
 	_current_tab = Tab.RESEARCH
 	refresh()
+	call_deferred("_clamp_panel_to_viewport")
 
 
 func _on_tab_train_pressed() -> void:
 	_current_tab = Tab.TRAIN
 	refresh()
+	call_deferred("_clamp_panel_to_viewport")
 
 
 func is_train_input_focused() -> bool:
 	return _focused_train_line != null and is_instance_valid(_focused_train_line) and _focused_train_line.has_focus()
+
+
+func is_keyboard_lifted() -> bool:
+	return visible and (is_train_input_focused() or offset_bottom < -265.0)
 
 
 func switch_tab(tab_idx: int) -> void:
@@ -1464,9 +1485,16 @@ func _switch_tab(tab_idx: int) -> void:
 
 func show_building(village: Dictionary, key: String) -> void:
 	_ensure_nodes()
+	_open_layout_seq += 1
+	var seq := _open_layout_seq
+	_focused_train_unit = ""
+	_focused_train_line = null
+	_focused_train_spin = null
+	_kb_scroll_done_for = ""
 	_pre_kb_scroll_y = -1
 	_post_kb_restore_scroll_y = -1
 	_post_kb_restore_unit = ""
+	_restore_keyboard_lift()
 	_village = village
 	_current_key = key
 	_current_tab = Tab.UPGRADE
@@ -1474,9 +1502,29 @@ func show_building(village: Dictionary, key: String) -> void:
 	_last_train_sig = ""
 	_last_prod_table_sig = ""
 	_last_special_box_sig = ""
+	var vp_pre := get_viewport()
+	if vp_pre != null:
+		var vp_w := vp_pre.get_visible_rect().size.x
+		if vp_w >= 100.0:
+			var mx := 16.0
+			var mw := maxf(320.0, vp_w - mx * 2.0)
+			offset_left = mx
+			offset_right = -mx if anchor_right > anchor_left else (mx + mw)
+			size.x = mw
+	modulate.a = 0.0
 	refresh()
 	show()
-	call_deferred("_clamp_panel_to_viewport")
+	_clamp_panel_to_viewport()
+	call_deferred("_finish_show_building_layout", seq)
+	_sync_quest_visibility()
+
+
+func _finish_show_building_layout(seq: int) -> void:
+	if seq != _open_layout_seq or not visible:
+		return
+	_clamp_panel_to_viewport()
+	modulate.a = 1.0
+	_sync_quest_visibility()
 
 
 func _current_now() -> int:
@@ -1905,6 +1953,9 @@ func _clamp_panel_to_viewport() -> void:
 		safe_top_limit = maxf(safe_top_limit, float(gc.call("get_ios_safe_top")) + 128.0)
 
 	var vbox_ctrl := get_node_or_null("VBox") as Control
+	if vbox_ctrl != null:
+		vbox_ctrl.custom_minimum_size.y = 0.0
+	custom_minimum_size.y = 0.0
 	var content_min_h: float = (vbox_ctrl.get_combined_minimum_size().y + 54.0) if vbox_ctrl != null else get_combined_minimum_size().y
 	var max_allowed_h: float = maxf(300.0, vp_size.y + offset_bottom - safe_top_limit)
 	var desired_h: float = clampf(content_min_h, 340.0, max_allowed_h)

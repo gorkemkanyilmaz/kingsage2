@@ -251,10 +251,16 @@ static func _apply_conquest(
 	target["owner"] = new_owner
 	target["is_bot"] = origin_is_bot
 	target["is_barbarian"] = false
+	target["is_abandoned"] = false
+	target.erase("abandoned_unix")
 	target["is_conquered"] = true
 	target["conquered_by"] = new_owner
 	target["conquered_unix"] = now_unix
+	target["last_active_unix"] = now_unix
 	target["former_owner"] = former_owner
+	var cur_tname := str(target.get("name", "")).strip_edges()
+	if cur_tname.is_empty() or cur_tname == "Terk Edilmiş Köy":
+		target["name"] = "Fethedilen Köy"
 	target["protection_until"] = 0
 	target["protection_until_unix"] = 0
 	target["conquest_protection_until"] = cprot_until

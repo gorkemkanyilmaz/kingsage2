@@ -2082,7 +2082,7 @@ static void tvk_swizzledDidFailRegister(id selfObj, SEL _cmd, UIApplication *app
         [center getPendingNotificationRequestsWithCompletionHandler:^(NSArray<UNNotificationRequest *> * _Nonnull requests) {
             NSMutableArray<NSString *> *oldIds = [NSMutableArray array];
             for (UNNotificationRequest *r in requests) {
-                if ([r.identifier hasPrefix:@"tvk_build_"] || [r.identifier hasPrefix:@"tvk_atk_"] || [r.identifier hasPrefix:@"tvk_full_"]) {
+                if ([r.identifier hasPrefix:@"tvk_build_"] || [r.identifier hasPrefix:@"tvk_atk_"] || [r.identifier hasPrefix:@"tvk_full_"] || [r.identifier hasPrefix:@"tvk_idle_"]) {
                     [oldIds addObject:r.identifier];
                 }
             }
@@ -2115,7 +2115,8 @@ static void tvk_swizzledDidFailRegister(id selfObj, SEL _cmd, UIApplication *app
                     @"type": ntype,
                     @"village_id": vidNum
                 };
-                UNTimeIntervalNotificationTrigger *trig = [UNTimeIntervalNotificationTrigger triggerWithTimeInterval:delaySec repeats:NO];
+                BOOL shouldRepeat = ([it[@"repeats"] respondsToSelector:@selector(boolValue)] ? [it[@"repeats"] boolValue] : NO) && delaySec >= 60.0;
+                UNTimeIntervalNotificationTrigger *trig = [UNTimeIntervalNotificationTrigger triggerWithTimeInterval:delaySec repeats:shouldRepeat];
                 UNNotificationRequest *nreq = [UNNotificationRequest requestWithIdentifier:nid content:content trigger:trig];
                 [center addNotificationRequest:nreq withCompletionHandler:nil];
             }

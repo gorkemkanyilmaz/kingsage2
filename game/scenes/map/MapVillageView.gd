@@ -29,6 +29,7 @@ var is_player: bool = false
 var is_alliance_member: bool = false
 var is_barbarian: bool = false
 var is_bandit: bool = false
+var is_abandoned: bool = false
 var alliance_tag: String = ""
 
 var _btn: Button
@@ -49,15 +50,25 @@ static var _sb_card_player: StyleBoxFlat
 static var _sb_card_ally: StyleBoxFlat
 static var _sb_card_enemy: StyleBoxFlat
 static var _sb_card_bandit: StyleBoxFlat
+static var _sb_card_abandoned: StyleBoxFlat
 static var _bandit_tex_cache: Dictionary = {}
+static var _abandoned_tex_cache: Dictionary = {}
 
 
 static func _desaturate_bandit_texture(src_tex: Texture2D) -> Texture2D:
+	return _desaturate_texture_variant(src_tex, _bandit_tex_cache, 0.82, 0.92, 0.72)
+
+
+static func _desaturate_abandoned_texture(src_tex: Texture2D) -> Texture2D:
+	return _desaturate_texture_variant(src_tex, _abandoned_tex_cache, 0.92, 0.48, 0.92)
+
+
+static func _desaturate_texture_variant(src_tex: Texture2D, cache: Dictionary, luma_scale: float, desat_mix: float, alpha_scale: float) -> Texture2D:
 	if src_tex == null:
 		return null
 	var key := src_tex.resource_path
-	if not key.is_empty() and _bandit_tex_cache.has(key):
-		return _bandit_tex_cache[key] as Texture2D
+	if not key.is_empty() and cache.has(key):
+		return cache[key] as Texture2D
 	var img: Image = src_tex.get_image()
 	if img == null:
 		return src_tex
@@ -72,16 +83,16 @@ static func _desaturate_bandit_texture(src_tex: Texture2D) -> Texture2D:
 		for px in range(w):
 			var c: Color = img.get_pixel(px, py)
 			var g: float = c.r * 0.299 + c.g * 0.587 + c.b * 0.114
-			var target_g: float = g * 0.82
+			var target_g: float = g * luma_scale
 			img.set_pixel(px, py, Color(
-				lerpf(c.r, target_g, 0.92),
-				lerpf(c.g, target_g, 0.92),
-				lerpf(c.b, target_g, 0.92),
-				c.a * 0.72
+				lerpf(c.r, target_g, desat_mix),
+				lerpf(c.g, target_g, desat_mix),
+				lerpf(c.b, target_g, desat_mix),
+				c.a * alpha_scale
 			))
 	var out_tex := ImageTexture.create_from_image(img)
 	if not key.is_empty():
-		_bandit_tex_cache[key] = out_tex
+		cache[key] = out_tex
 	return out_tex
 
 
@@ -142,6 +153,10 @@ static func _ensure_shared_styles() -> void:
 		_sb_card_bandit = _sb_card_player.duplicate() as StyleBoxFlat
 		_sb_card_bandit.bg_color = Color(0.14, 0.14, 0.16, 0.88)
 		_sb_card_bandit.border_color = Color(0.56, 0.56, 0.60, 0.85)
+	if _sb_card_abandoned == null:
+		_sb_card_abandoned = _sb_card_player.duplicate() as StyleBoxFlat
+		_sb_card_abandoned.bg_color = Color(0.14, 0.13, 0.15, 0.90)
+		_sb_card_abandoned.border_color = Color(0.72, 0.70, 0.66, 0.92)
 
 
 func _init() -> void:
@@ -155,8 +170,14 @@ func setup(v_data: Dictionary, is_own: bool, is_ally: bool = false, ally_tag: St
 	is_player = is_own
 	is_alliance_member = is_ally
 	alliance_tag = ally_tag
-	is_barbarian = false
 	is_bandit = (not is_own) and (bool(v_data.get("is_bandit", false)) or bool(v_data.get("is_bot", false)))
+	var o_low := str(v_data.get("owner", "")).strip_edges().to_lower()
+	is_abandoned = (not is_own) and (not is_bandit) and (
+		bool(v_data.get("is_abandoned", false))
+		or bool(v_data.get("is_barbarian", false))
+		or o_low in ["", "barbar", "terk edilmiş", "terk edilmis", "terk edilmiş köy"]
+	)
+	is_barbarian = is_abandoned
 	_build_ui()
 
 
@@ -210,6 +231,12 @@ func _build_ui() -> void:
 		if d_tex != null:
 			_sprite.texture = d_tex
 		_sprite.modulate = Color(0.84, 0.84, 0.88, 0.90)
+	elif is_abandoned:
+		_sprite.material = null
+		var a_tex := _desaturate_abandoned_texture(_sprite.texture)
+		if a_tex != null:
+			_sprite.texture = a_tex
+		_sprite.modulate = Color(0.92, 0.92, 0.94, 0.96)
 
 	add_child(_sprite)
 
@@ -266,7 +293,7 @@ func _build_ui() -> void:
 	_info_card.position = Vector2((size.x - 280.0) * 0.5, 312.0)
 	_info_card.pivot_offset = Vector2(140, 38)
 	_info_card.mouse_filter = MOUSE_FILTER_IGNORE
-	var card_style := _sb_card_player if is_player else (_sb_card_ally if is_alliance_member else (_sb_card_bandit if is_bandit else _sb_card_enemy))
+	var card_style := _sb_card_player if is_player else (_sb_card_ally if is_alliance_member else (_sb_card_bandit if is_bandit else (_sb_card_abandoned if is_abandoned else _sb_card_enemy)))
 	_info_card.add_theme_stylebox_override("panel", card_style)
 
 	var vbox := VBoxContainer.new()
@@ -276,7 +303,7 @@ func _build_ui() -> void:
 	# Satır 1: Kullanıcı / Sahip İsmi
 	var owner_name: String = str(village_data.get("owner", ""))
 	if owner_name.is_empty():
-		owner_name = "Lord Gorkem" if is_player else "Düşman"
+		owner_name = "Lord Gorkem" if is_player else ("Terk Edilmiş" if is_abandoned else "Düşman")
 
 	var bandit_lvl := LordModelScript.bandit_level_for_village(village_data) if is_bandit else 0
 
@@ -291,6 +318,9 @@ func _build_ui() -> void:
 	elif is_bandit:
 		_owner_label.text = "🏴 Haydut Köyü • Sv.%d" % bandit_lvl
 		_owner_label.add_theme_color_override("font_color", Color(0.76, 0.78, 0.82))
+	elif is_abandoned:
+		_owner_label.text = "🏚️ Terk Edilmiş"
+		_owner_label.add_theme_color_override("font_color", Color(0.84, 0.82, 0.78))
 	else:
 		_owner_label.text = "⚔️ " + owner_name
 		_owner_label.add_theme_color_override("font_color", Color(1.0, 0.65, 0.60))
@@ -304,7 +334,7 @@ func _build_ui() -> void:
 	vbox.add_child(_owner_label)
 
 	# Satır 2: Köy İsmi ve Koordinat
-	var v_name: String = str(village_data.get("name", "Köy"))
+	var v_name: String = "Terk Edilmiş Köy" if is_abandoned else str(village_data.get("name", "Köy"))
 	var vx: int = int(village_data.get("x", 0))
 	var vy: int = int(village_data.get("y", 0))
 

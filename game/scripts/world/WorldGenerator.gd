@@ -544,7 +544,7 @@ static func _make_village(
 	var custom_name := _unique_name(rng, NAME_A, NAME_B, used_names, true)
 	if is_bot:
 		is_bandit = true
-		bandit_level = clampi(1 + ((id * 7 + 3) % 10), 1, 10)
+		bandit_level = LordModelScript.BANDIT_LEVEL_POOL[posmod(id - 1, LordModelScript.BANDIT_LEVEL_POOL.size())]
 		var btmpl := LordModelScript.bandit_template(bandit_level)
 		owner = str(btmpl.get("owner", "Haydutlar"))
 		custom_name = str(btmpl.get("name", "Haydut Köyü Sv.%d" % bandit_level))

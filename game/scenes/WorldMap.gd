@@ -1099,8 +1099,16 @@ func _compute_world_villages_sig(gs: Node) -> String:
 	for v in src:
 		if typeof(v) == TYPE_DICTIONARY:
 			var vd := v as Dictionary
-			if not bool(vd.get("is_bot", false)) and not bool(vd.get("is_barbarian", false)):
-				parts.append("%d:%s:%s:%d:%d:%d" % [int(vd.get("id", -1)), str(vd.get("owner", "")), "1" if bool(vd.get("is_conquered", false)) else "0", int(vd.get("x", 0)), int(vd.get("y", 0)), int(vd.get("points", 0))])
+			if not bool(vd.get("is_bot", false)):
+				parts.append("%d:%s:%s:%s:%d:%d:%d" % [
+					int(vd.get("id", -1)),
+					str(vd.get("owner", "")),
+					"1" if bool(vd.get("is_conquered", false)) else "0",
+					"1" if (bool(vd.get("is_abandoned", false)) or bool(vd.get("is_barbarian", false))) else "0",
+					int(vd.get("x", 0)),
+					int(vd.get("y", 0)),
+					int(vd.get("points", 0)),
+				])
 	return str(src.size()) + "|" + "|".join(parts)
 
 

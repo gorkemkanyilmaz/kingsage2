@@ -795,26 +795,33 @@ func _process(delta: float) -> void:
 	_hud_check_accum += maxf(delta, 0.0)
 	if _hud_check_accum >= 0.25:
 		_hud_check_accum = 0.0
-		var should_show := is_quest_hud_visible()
-		if visible != should_show:
-			visible = should_show
-			if should_show:
-				_sync_live_positions()
-				refresh_quests(true)
-
-		if should_show or (_toast_panel != null and _toast_panel.visible):
-			var loop := Engine.get_main_loop()
-			var cur_sid := 0
-			if loop is SceneTree and (loop as SceneTree).current_scene != null:
-				cur_sid = (loop as SceneTree).current_scene.get_instance_id()
-			var anchor_y := _get_top_anchor_y()
-			if cur_sid != _last_scene_id or absf(anchor_y - _last_top_y) > 0.5:
-				_last_scene_id = cur_sid
-				_sync_live_positions()
+		sync_visibility_now()
 
 	if visible and _tracker_panel != null:
 		# Paneli ve başlığı yalnızca hazır ödül varsa önbellekli bayrak üzerinden parlat
 		_update_claimable_pulse(delta)
+
+
+func sync_visibility_now() -> void:
+	if DisplayServer.get_name() == "headless" and not quest_enabled_in_headless:
+		if visible:
+			visible = false
+		return
+	var should_show := is_quest_hud_visible()
+	if visible != should_show:
+		visible = should_show
+		if should_show:
+			_sync_live_positions()
+			refresh_quests(true)
+	if should_show or (_toast_panel != null and _toast_panel.visible):
+		var loop := Engine.get_main_loop()
+		var cur_sid := 0
+		if loop is SceneTree and (loop as SceneTree).current_scene != null:
+			cur_sid = (loop as SceneTree).current_scene.get_instance_id()
+		var anchor_y := _get_top_anchor_y()
+		if cur_sid != _last_scene_id or absf(anchor_y - _last_top_y) > 0.5:
+			_last_scene_id = cur_sid
+			_sync_live_positions()
 
 
 func _update_claimable_pulse(delta: float = 0.0) -> void:
@@ -867,10 +874,11 @@ func is_quest_hud_visible() -> bool:
 		if tm != null and tm.has_method("is_tutorial_active") and tm.is_tutorial_active():
 			return false
 
-	# BuildingPanel açıkken bile arka planda çakışmaması için: BuildingPanel üstte zaten kapatılana kadar modal yoksaTracker gösterilir; BuildingPanel tam panel ise gizlemek daha temiz!
+	# BuildingPanel açıkken görevler gizlenmez; yalnızca Kışla birim sayısı girerken klavye paneli yukarı kaldırdığında gizlenir.
 	var bp = cur.get("building_panel")
 	if bp != null and bp.visible:
-		return false
+		if (bp.has_method("is_keyboard_lifted") and bool(bp.call("is_keyboard_lifted"))) or (bp.has_method("is_train_input_focused") and bool(bp.call("is_train_input_focused"))):
+			return false
 
 	return true
 

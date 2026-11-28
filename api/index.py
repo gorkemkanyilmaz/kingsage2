@@ -929,6 +929,10 @@ def _bandit_template_py(lvl: int) -> Dict[str, Any]:
     }
 
 
+ABANDON_INACTIVE_SECONDS = 30 * 86400
+BANDIT_LEVEL_POOL = [1, 2, 1, 2, 3, 1, 2, 4, 3, 5, 6, 7, 8, 9, 10, 4]
+
+
 def _build_world1_bot_villages(now: int) -> List[Dict[str, Any]]:
     rng = random.Random(1001)
     placed: List[tuple] = []
@@ -945,7 +949,7 @@ def _build_world1_bot_villages(now: int) -> List[Dict[str, Any]]:
                 bx, by = cx, cy
                 break
         placed.append((bx, by))
-        lvl = 1 + ((idx * 7 + 3) % 10)
+        lvl = BANDIT_LEVEL_POOL[(idx - 1) % len(BANDIT_LEVEL_POOL)]
         tmpl = _bandit_template_py(lvl)
         pts = tmpl["points"]
         out.append({
@@ -1088,7 +1092,7 @@ def _simulate_server_bots(w_data: Dict[str, Any], cursor, now: int) -> bool:
         vid = max(1, int(v.get("id", 1) or 1))
         lvl = int(v.get("bandit_level", 0) or 0)
         if lvl <= 0:
-            lvl = 1 + ((vid * 7 + 3) % 10)
+            lvl = BANDIT_LEVEL_POOL[(vid - 1) % len(BANDIT_LEVEL_POOL)]
         tmpl = _bandit_template_py(lvl)
         if not bool(v.get("is_bandit", False)) or not bool(v.get("bandit_initialized", False)) or int(v.get("bandit_level", 0) or 0) != lvl:
             v["is_bot"] = True
@@ -1107,6 +1111,90 @@ def _simulate_server_bots(w_data: Dict[str, Any], cursor, now: int) -> bool:
             changed = True
 
     w_data["last_bot_sim_unix"] = now
+    return changed
+
+
+def _is_abandoned_village(v: Any) -> bool:
+    if not isinstance(v, dict):
+        return False
+    if bool(v.get("is_bot", False)) or bool(v.get("is_bandit", False)):
+        return False
+    if bool(v.get("is_abandoned", False)) or bool(v.get("is_barbarian", False)):
+        return True
+    owner = _norm_p_name(str(v.get("owner", ""))).lower()
+    return owner in ("", "barbar", "terk edilmiş", "terk edilmis", "terk edilmiş köy")
+
+
+def _convert_village_to_abandoned(v: Dict[str, Any], now: int) -> None:
+    v["is_abandoned"] = True
+    v["is_barbarian"] = True
+    v["is_bot"] = False
+    v["is_bandit"] = False
+    v["owner"] = ""
+    v["name"] = "Terk Edilmiş Köy"
+    v["alliance"] = ""
+    v["protection_until"] = 0
+    v["protection_until_unix"] = 0
+    v["conquest_protection_until"] = 0
+    v["conquest_protection_until_unix"] = 0
+    v["abandoned_unix"] = max(1, int(now))
+    v["support"] = []
+    v.pop("next_bot_think_unix", None)
+
+
+def _ensure_starter_bandits_near(w_data: Dict[str, Any], px: int, py: int) -> bool:
+    st = w_data.get("state") if isinstance(w_data, dict) else None
+    if not isinstance(st, dict):
+        return False
+    vills = st.get("villages")
+    if not isinstance(vills, list):
+        return False
+    entries = []
+    for v in vills:
+        if isinstance(v, dict) and (bool(v.get("is_bandit", False)) or bool(v.get("is_bot", False))):
+            dx = int(v.get("x", 0) or 0) - px
+            dy = int(v.get("y", 0) or 0) - py
+            entries.append((dx * dx + dy * dy, v))
+    if not entries:
+        return False
+    entries.sort(key=lambda item: item[0])
+    changed = False
+    near_n = min(6, len(entries))
+    need = {1: 2, 2: 2, 3: 1, 4: 1}
+    cur = {1: 0, 2: 0, 3: 0, 4: 0}
+    assigned = [False] * near_n
+    for i in range(near_n):
+        vd = entries[i][1]
+        l = int(vd.get("bandit_level", 0) or 0)
+        if l in need and cur[l] < need[l]:
+            cur[l] += 1
+            assigned[i] = True
+    missing = []
+    for req_l in (1, 2, 3, 4):
+        for _ in range(max(0, need[req_l] - cur[req_l])):
+            missing.append(req_l)
+    m_i = 0
+    for i in range(near_n):
+        if m_i >= len(missing):
+            break
+        if assigned[i]:
+            continue
+        vd = entries[i][1]
+        lvl = missing[m_i]
+        m_i += 1
+        tmpl = _bandit_template_py(lvl)
+        vd["is_bot"] = True
+        vd["is_bandit"] = True
+        vd["is_barbarian"] = False
+        vd["bandit_level"] = lvl
+        vd["bandit_initialized"] = True
+        vd["owner"] = tmpl["owner"]
+        vd["name"] = tmpl["name"]
+        vd["buildings"] = copy.deepcopy(tmpl["buildings"])
+        vd["units"] = copy.deepcopy(tmpl["units"])
+        vd["points"] = tmpl["points"]
+        vd["realm_of_power"] = tmpl["points"]
+        changed = True
     return changed
 
 
@@ -1131,7 +1219,8 @@ def _is_real_player_village(v: Any) -> bool:
     return (
         not bool(v.get("is_bot", False))
         and not bool(v.get("is_barbarian", False))
-        and owner.lower() not in ("", "barbar", "terk edilmiş", "terk edilmis", "soyguncular", "usta")
+        and not bool(v.get("is_abandoned", False))
+        and owner.lower() not in ("", "barbar", "terk edilmiş", "terk edilmis", "terk edilmiş köy", "soyguncular", "usta")
     )
 
 
@@ -2061,6 +2150,7 @@ def merge_world_state(server_w: Optional[Dict[str, Any]], client_raw: Dict[str, 
                 "scrolls": c_scrolls,
                 "lord": copy.deepcopy(c_player["lord"]) if isinstance(c_player.get("lord"), dict) else copy.deepcopy(s_existing_prof.get("lord") if isinstance(s_existing_prof.get("lord"), dict) else {}),
                 "active_village_id": int(c_state.get("active_village_id", s_existing_prof.get("active_village_id", -1)) or -1),
+                "last_active_unix": now,
             }
             if isinstance(c_player.get("read_report_sigs"), list):
                 incoming_prof["read_report_sigs"] = [str(x) for x in c_player["read_report_sigs"] if str(x)]
@@ -2339,6 +2429,20 @@ def merge_world_state(server_w: Optional[Dict[str, Any]], client_raw: Dict[str, 
             s_by_id[vid] = c_v
             continue
 
+        if _is_abandoned_village(s_v):
+            aban_u = int(s_v.get("abandoned_unix", 0) or 0)
+            c_conq_u = int(c_v.get("conquered_unix", 0) or 0)
+            c_conquered = bool(c_v.get("is_conquered", False)) and c_conq_u > aban_u
+            if c_conquered and _is_real_player_village(c_v):
+                s_by_id[vid] = c_v
+            elif has_new_battle := any(
+                rep.get("type") == "battle" and int((rep.get("data") or {}).get("target_village_id", 0) or 0) == vid
+                for rep in new_client_reports
+            ):
+                if has_new_battle and _is_abandoned_village(c_v):
+                    s_by_id[vid] = c_v
+            continue
+
         if _is_real_player_village(s_v):
             _advance_village_resources(
                 s_v,
@@ -2431,6 +2535,11 @@ def merge_world_state(server_w: Optional[Dict[str, Any]], client_raw: Dict[str, 
         )
         if has_new_battle or c_last >= s_last or int(c_v.get("points", 0) or 0) > int(s_v.get("points", 0) or 0):
             s_by_id[vid] = c_v
+
+    for _av in s_by_id.values():
+        if isinstance(_av, dict) and _is_real_player_village(_av) and _matches_player(str(_av.get("owner", "")), act_name):
+            _ensure_starter_bandits_near({"state": {"villages": list(s_by_id.values())}}, int(_av.get("x", 100) or 100), int(_av.get("y", 100) or 100))
+            break
 
     s_state["villages"] = sorted(s_by_id.values(), key=lambda v: int(v.get("id", 0)))
     _rebuild_tiles(s_state)
@@ -3094,6 +3203,117 @@ def _queue_player_notification(
         ),
     )
     return True
+
+
+def _sweep_inactive_players_in_world(w_data: Dict[str, Any], cursor, now: int, acting_player: str = "") -> bool:
+    if not isinstance(w_data, dict):
+        return False
+    st = w_data.get("state")
+    if not isinstance(st, dict):
+        return False
+    vills = st.get("villages")
+    if not isinstance(vills, list):
+        return False
+    profs = (st.get("world") or {}).get("player_profiles") if isinstance(st.get("world"), dict) else {}
+    if not isinstance(profs, dict):
+        profs = {}
+
+    # users tablosundan son giriş zamanlarını oku
+    last_seen_by_low: Dict[str, int] = {}
+    try:
+        cursor.execute("SELECT display_name, last_login_unix FROM users")
+        for ur in cursor.fetchall():
+            urd = dict(ur) if isinstance(ur, dict) else {"display_name": ur[0], "last_login_unix": ur[1]}
+            d_low = _norm_p_name(str(urd.get("display_name") or "")).lower()
+            lu = int(urd.get("last_login_unix") or 0)
+            if d_low and lu > last_seen_by_low.get(d_low, 0):
+                last_seen_by_low[d_low] = lu
+    except Exception:
+        pass
+
+    for pk, pv in profs.items():
+        if isinstance(pv, dict):
+            p_low = _norm_p_name(str(pk)).lower()
+            p_u = max(int(pv.get("last_active_unix", 0) or 0), int(pv.get("last_login_unix", 0) or 0))
+            if p_u > last_seen_by_low.get(p_low, 0):
+                last_seen_by_low[p_low] = p_u
+
+    owners_to_abandon: Dict[str, str] = {}
+    for v in vills:
+        if not isinstance(v, dict) or not _is_real_player_village(v):
+            continue
+        own = _norm_p_name(str(v.get("owner", "")))
+        o_low = own.lower()
+        if acting_player and _matches_player(own, acting_player):
+            continue
+        v_seen = max(
+            int(v.get("last_active_unix", 0) or 0),
+            int(v.get("last_resource_unix", 0) or 0),
+            int(v.get("created_unix", 0) or 0),
+            last_seen_by_low.get(o_low, 0),
+        )
+        if v_seen > 0 and (now - v_seen) >= ABANDON_INACTIVE_SECONDS:
+            owners_to_abandon[o_low] = own
+
+    if not owners_to_abandon:
+        return False
+
+    for _o_low, orig_owner in owners_to_abandon.items():
+        _wipe_player_from_world_state(w_data, orig_owner, now)
+        try:
+            for nm in (_name_variants(orig_owner) or [orig_owner]):
+                cursor.execute(
+                    """
+                    UPDATE villages
+                    SET user_id = NULL, owner = '', name = 'Terk Edilmiş Köy', is_bot = 0, is_barbarian = 1,
+                        protection_until_unix = 0, conquest_protection_until_unix = 0
+                    WHERE LOWER(owner) = LOWER(?) AND is_bot = 0
+                    """,
+                    (nm,),
+                )
+        except Exception:
+            pass
+    w_data["last_saved_unix"] = now
+    return True
+
+
+def _dispatch_inactivity_push_reminders(cursor, now: int) -> int:
+    sent_cnt = 0
+    try:
+        cutoff = int(now) - 86400
+        cursor.execute(
+            """
+            SELECT DISTINCT u.id, u.display_name, u.last_login_unix
+            FROM users u
+            INNER JOIN device_push_tokens d ON (d.user_id = u.id OR LOWER(d.display_name) = LOWER(u.display_name))
+            WHERE u.last_login_unix > 0 AND u.last_login_unix <= ?
+            """,
+            (cutoff,),
+        )
+        rows = cursor.fetchall() or []
+        for r in rows:
+            rd = dict(r) if isinstance(r, dict) else {"id": r[0], "display_name": r[1], "last_login_unix": r[2]}
+            uid = str(rd.get("id") or "")
+            dname = str(rd.get("display_name") or "").strip()
+            last_l = int(rd.get("last_login_unix") or 0)
+            if not dname or last_l <= 0:
+                continue
+            day_bucket = max(1, (int(now) - last_l) // 86400)
+            dedup_k = f"idle24h:{uid}:{day_bucket}"
+            if _queue_player_notification(
+                cursor,
+                dname,
+                "inactivity_reminder",
+                "👑 Baş Vezir: Köyün Seni Bekliyor!",
+                "Lordum, köyün seni bekliyor! Hammadde depoların doluyor, ordun emirlerini bekliyor.",
+                {"route": "village", "type": "inactivity_reminder"},
+                dedup_k,
+                now,
+            ):
+                sent_cnt += 1
+    except Exception:
+        pass
+    return sent_cnt
 
 
 def _dispatch_world_save_notifications(
@@ -4371,6 +4591,9 @@ def post_cloud_save(payload: Dict[str, Any], user: Dict[str, Any] = Depends(get_
         if isinstance(state_obj, (dict, list)):
             _repair_mojibake_obj(state_obj)
         merged_w = merge_world_state(server_w, state_obj, user["display_name"], now)
+        _sweep_inactive_players_in_world(merged_w, cursor, now, acting_player=user["display_name"])
+        if (now - int(user.get("last_login_unix") or 0)) >= 300:
+            cursor.execute("UPDATE users SET last_login_unix = ? WHERE id = ?", (now, user["id"]))
         try:
             _dispatch_world_save_notifications(cursor, server_w, merged_w, user["display_name"], w_id, now)
         except Exception:
@@ -4408,6 +4631,7 @@ def post_cloud_save(payload: Dict[str, Any], user: Dict[str, Any] = Depends(get_
             if _is_real_player_village(mv) and _matches_player(str(mv.get("owner", "")), user["display_name"]) and int(mv.get("id", 0) or 0) > 0
         ]
         for act_pv in act_player_vills:
+            act_pv["last_active_unix"] = now
             pv_id = int(act_pv["id"])
             pv_name = str(act_pv.get("name") or "Başkent")[:40]
             pv_x = int(act_pv.get("x", 100) or 100)
@@ -4516,10 +4740,30 @@ def cron_tick():
         cursor.execute("UPDATE movements SET status = 'completed' WHERE id = ?", (m_id,))
         resolved_count += 1
 
+    # 30 günlük hareketsiz oyuncuları terkedilmiş köye çevir ve 24+ saatlik yokluk bildirimlerini gönder
+    try:
+        cursor.execute("SELECT world_id, state_json FROM world_states ORDER BY world_id ASC")
+        for ws in (cursor.fetchall() or []):
+            wid_s = int(ws["world_id"])
+            try:
+                w_obj = json.loads(ws["state_json"])
+            except Exception:
+                continue
+            if _sweep_inactive_players_in_world(w_obj, cursor, now):
+                cursor.execute(
+                    "UPDATE world_states SET state_json = ?, updated_unix = ? WHERE world_id = ?",
+                    (json.dumps(w_obj, ensure_ascii=False), now, wid_s),
+                )
+        _sync_worlds_table_from_states(cursor, now)
+    except Exception:
+        pass
+
+    idle_notifs = _dispatch_inactivity_push_reminders(cursor, now)
+
     conn.commit()
     conn.close()
 
-    return {"ok": True, "resolved_movements": resolved_count, "tick_unix": now}
+    return {"ok": True, "resolved_movements": resolved_count, "idle_notifications": idle_notifs, "tick_unix": now}
 
 
 # -----------------------------------------------------------------------------
@@ -5221,13 +5465,14 @@ def oauth_poll(session: str = Query(...)):
     return {"ok": True, "status": row["status"], "provider": row["provider"], "data": data}
 
 
-def _wipe_player_from_world_state(w_data: Dict[str, Any], norm_p: str) -> Dict[str, Any]:
+def _wipe_player_from_world_state(w_data: Dict[str, Any], norm_p: str, now: Optional[int] = None) -> Dict[str, Any]:
     if not isinstance(w_data, dict):
         return w_data
     state = w_data.get("state")
     if not isinstance(state, dict):
         return w_data
 
+    cur_now = int(now) if now is not None else int(time.time())
     owned_vids = set()
     kept_villages = []
     for v in (state.get("villages") or []):
@@ -5236,6 +5481,8 @@ def _wipe_player_from_world_state(w_data: Dict[str, Any], norm_p: str) -> Dict[s
                 owned_vids.add(int(v.get("id", 0) or 0))
             except Exception:
                 pass
+            _convert_village_to_abandoned(v, cur_now)
+            kept_villages.append(v)
             continue
         kept_villages.append(v)
     state["villages"] = kept_villages
@@ -5450,13 +5697,29 @@ def delete_account(user: Dict[str, Any] = Depends(get_current_user)):
         cursor.execute("DELETE FROM cloud_saves WHERE user_id = ?", (uid,))
         cursor.execute("DELETE FROM queues WHERE user_id = ?", (uid,))
         cursor.execute("DELETE FROM movements WHERE user_id = ?", (uid,))
-        cursor.execute("DELETE FROM villages WHERE user_id = ?", (uid,))
+        cursor.execute(
+            """
+            UPDATE villages
+            SET user_id = NULL, owner = '', name = 'Terk Edilmiş Köy', is_bot = 0, is_barbarian = 1,
+                protection_until_unix = 0, conquest_protection_until_unix = 0
+            WHERE user_id = ? AND is_bot = 0
+            """,
+            (uid,),
+        )
         cursor.execute("DELETE FROM iap_transactions WHERE user_id = ?", (uid,))
         cursor.execute("DELETE FROM device_push_tokens WHERE user_id = ?", (uid,))
         cursor.execute("DELETE FROM pending_notifications WHERE user_id = ?", (uid,))
 
         for nm in name_variants:
-            cursor.execute("DELETE FROM villages WHERE LOWER(owner) = LOWER(?) AND is_bot = 0", (nm,))
+            cursor.execute(
+                """
+                UPDATE villages
+                SET user_id = NULL, owner = '', name = 'Terk Edilmiş Köy', is_bot = 0, is_barbarian = 1,
+                    protection_until_unix = 0, conquest_protection_until_unix = 0
+                WHERE LOWER(owner) = LOWER(?) AND is_bot = 0
+                """,
+                (nm,),
+            )
             cursor.execute("DELETE FROM reports WHERE LOWER(user_name) = LOWER(?)", (nm,))
             cursor.execute("DELETE FROM messages WHERE LOWER(from_name) = LOWER(?) OR LOWER(to_name) = LOWER(?)", (nm, nm))
             cursor.execute("DELETE FROM alliance_invitations WHERE LOWER(user_name) = LOWER(?) OR LOWER(invited_by) = LOWER(?)", (nm, nm))
@@ -5487,7 +5750,7 @@ def delete_account(user: Dict[str, Any] = Depends(get_current_user)):
                 w_data = json.loads(ws["state_json"])
             except Exception:
                 continue
-            cleaned_w = _wipe_player_from_world_state(w_data, norm_p)
+            cleaned_w = _wipe_player_from_world_state(w_data, norm_p, now)
             cleaned_w["last_saved_unix"] = now
             cursor.execute(
                 "UPDATE world_states SET state_json = ?, updated_unix = ? WHERE world_id = ?",

@@ -21,6 +21,8 @@ const WORLDS_COUNT := 10
 const BASE_SEED := 1000
 const BOTS_PER_WORLD := 50
 const MAX_REAL_PLAYERS_PER_WORLD := 100
+const ABANDON_INACTIVE_SECONDS: int = 30 * 86400
+const STARTER_BANDIT_LEVELS: Array[int] = [1, 2, 1, 2, 3, 4]
 
 const WORLDS_DIR := "user://worlds"
 const META_FILE := "user://worlds_meta.json"
@@ -840,7 +842,9 @@ func join_world(world_id: int, player_name: String, target_x: int = 100, target_
 	var player_v: Dictionary = VillageModelScript.create(player_vid, "Başkent", free_spot.x, free_spot.y, player_name, false)
 	player_v["is_bot"] = false
 	player_v["is_barbarian"] = false
+	player_v["is_abandoned"] = false
 	player_v["created_unix"] = now
+	player_v["last_active_unix"] = now
 	player_v["starter_boost_until_unix"] = now + (7 * 86400)
 	player_v["protection_until"] = now + (15 * 86400)
 	player_v["protection_until_unix"] = now + (15 * 86400)
@@ -945,6 +949,8 @@ func join_world(world_id: int, player_name: String, target_x: int = 100, target_
 		})
 		state["messages"] = msgs
 
+	sweep_inactive_villages(w_data, now, player_name)
+	ensure_nearby_starter_bandits(w_data, placed_spot.x, placed_spot.y)
 	w_data["last_saved_unix"] = now
 	save_world_dict(world_id, w_data)
 
@@ -1009,10 +1015,24 @@ func enter_world(world_id: int, player_name: String) -> bool:
 		return false
 
 	var now := int(Time.get_unix_time_from_system())
+	var enter_dirty := false
+	var enter_px := 100
+	var enter_py := 100
+	for v_act in villages:
+		if typeof(v_act) == TYPE_DICTIONARY and _is_real_player_village_dict(v_act) and _matches_player(str((v_act as Dictionary).get("owner", "")), player_name):
+			var avd := v_act as Dictionary
+			avd["last_active_unix"] = now
+			if int(avd.get("id", -1)) == player_vid:
+				enter_px = int(avd.get("x", 100))
+				enter_py = int(avd.get("y", 100))
+	if sweep_inactive_villages(w_data, now, player_name) > 0:
+		enter_dirty = true
+	if ensure_nearby_starter_bandits(w_data, enter_px, enter_py):
+		enter_dirty = true
 	_ensure_starter_boost(state, int(w_data.get("created_unix", now)), now, player_name)
 	_sync_game_config_speed(state, now)
 
-	if _enforce_min_village_distance(w_data, player_vid):
+	if _enforce_min_village_distance(w_data, player_vid) or enter_dirty:
 		save_world_dict(world_id, w_data)
 
 	current_world_id = world_id
@@ -1705,6 +1725,7 @@ func save_active_world(force_cloud: bool = false, allow_cloud: bool = true) -> b
 			var nvd := nv as Dictionary
 			if _is_real_player_village_dict(nvd) and _matches_player(str(nvd.get("owner", "")), str(gs.player.get("name", ""))):
 				nvd["last_resource_unix"] = maxi(int(nvd.get("last_resource_unix", 0)), now)
+				nvd["last_active_unix"] = maxi(int(nvd.get("last_active_unix", 0)), now)
 	if typeof(next_state.get("world")) != TYPE_DICTIONARY:
 		next_state["world"] = {}
 	var nw: Dictionary = next_state["world"]
@@ -1759,10 +1780,12 @@ func _is_real_player_village_dict(v) -> bool:
 	return (
 		not bool(vd.get("is_bot", false))
 		and not bool(vd.get("is_barbarian", false))
+		and not bool(vd.get("is_abandoned", false))
 		and not owner_low.is_empty()
 		and owner_low != "barbar"
 		and owner_low != "terk edilmiş"
 		and owner_low != "terk edilmis"
+		and owner_low != "terk edilmiş köy"
 		and owner_low != "soyguncular"
 		and owner_low != "usta"
 	)
@@ -2298,9 +2321,17 @@ func _merge_shared_world_data(local_w: Dictionary, cloud_w: Dictionary, p_name: 
 		return out_remap
 
 	# Kendi yerel köylerimizi koru, diğer gerçek oyuncuların köylerini cloud_w'den koru
+	# Ancak bulutta terkedilmişe dönen bir köy (abandoned_unix) yerel bayat kayıtla geri dönmemeli
 	for lv in l_villages:
 		if _is_real_player_village_dict(lv) and _matches_player(str((lv as Dictionary).get("owner", "")), p_name):
-			c_by_id[int((lv as Dictionary).get("id", 0))] = (lv as Dictionary).duplicate(true)
+			var lvid_cur := int((lv as Dictionary).get("id", 0))
+			if c_by_id.has(lvid_cur) and is_abandoned_village(c_by_id[lvid_cur]):
+				var cv_ab := c_by_id[lvid_cur] as Dictionary
+				var ab_u := int(cv_ab.get("abandoned_unix", 0))
+				var lv_conq_u := int((lv as Dictionary).get("conquered_unix", 0))
+				if ab_u > 0 and lv_conq_u <= ab_u:
+					continue
+			c_by_id[lvid_cur] = (lv as Dictionary).duplicate(true)
 
 	var combined_villages: Array = []
 	for vid_k in c_by_id.keys():
@@ -2948,6 +2979,7 @@ func apply_cloud_sync(res_data: Dictionary, from_save_response: bool = false, re
 
 		_deduplicate_player_starter_villages(merged_w)
 		_enforce_min_village_distance(merged_w)
+		sweep_inactive_villages(merged_w, now_poll_chk, p_name)
 		save_world_dict(w_id, merged_w)
 		var reg_arr: Array = merged_w.get("registered_real_players", []) if typeof(merged_w.get("registered_real_players")) == TYPE_ARRAY else []
 		_sync_worlds_meta_from_server(res_data.get("worlds_meta", []), w_id, reg_arr.size())
@@ -3079,6 +3111,282 @@ func _enforce_min_village_distance(w_data: Dictionary, priority_vid: int = -1) -
 	world_dict["tiles"] = placed_tiles
 	world_dict["villages"] = villages_list
 	return changed
+
+
+static func is_abandoned_village(v) -> bool:
+	if typeof(v) != TYPE_DICTIONARY:
+		return false
+	var vd := v as Dictionary
+	if bool(vd.get("is_bot", false)) or bool(vd.get("is_bandit", false)):
+		return false
+	if bool(vd.get("is_abandoned", false)) or bool(vd.get("is_barbarian", false)):
+		return true
+	var owner_low := str(vd.get("owner", "")).strip_edges().to_lower()
+	return owner_low in ["", "barbar", "terk edilmiş", "terk edilmis", "terk edilmiş köy"]
+
+
+static func convert_village_to_abandoned(v: Dictionary, now_unix: int) -> void:
+	v["is_abandoned"] = true
+	v["is_barbarian"] = true
+	v["is_bot"] = false
+	v["is_bandit"] = false
+	v["owner"] = ""
+	v["name"] = "Terk Edilmiş Köy"
+	v["alliance"] = ""
+	v["protection_until"] = 0
+	v["protection_until_unix"] = 0
+	v["conquest_protection_until"] = 0
+	v["conquest_protection_until_unix"] = 0
+	v["abandoned_unix"] = maxi(1, now_unix)
+	v["support"] = []
+	v.erase("next_bot_think_unix")
+
+
+func abandon_player_villages_in_world_dict(w_data: Dictionary, player_name: String, now_unix: int) -> int:
+	if w_data.is_empty() or player_name.strip_edges().is_empty():
+		return 0
+	var state = w_data.get("state", null)
+	if typeof(state) != TYPE_DICTIONARY:
+		return 0
+	var st := state as Dictionary
+	var villages_raw = st.get("villages", [])
+	if typeof(villages_raw) != TYPE_ARRAY:
+		return 0
+
+	var abandoned_vids: Dictionary = {}
+	var converted := 0
+	for item in (villages_raw as Array):
+		if typeof(item) != TYPE_DICTIONARY:
+			continue
+		var vd := item as Dictionary
+		if bool(vd.get("is_bot", false)) or bool(vd.get("is_bandit", false)):
+			continue
+		if _matches_player(str(vd.get("owner", "")), player_name):
+			var vid := int(vd.get("id", -1))
+			if vid > 0:
+				abandoned_vids[vid] = true
+			convert_village_to_abandoned(vd, now_unix)
+			converted += 1
+
+	var qs = st.get("queues", null)
+	if typeof(qs) == TYPE_ARRAY and not abandoned_vids.is_empty():
+		var q_arr := qs as Array
+		for i in range(q_arr.size() - 1, -1, -1):
+			var q = q_arr[i]
+			if typeof(q) == TYPE_DICTIONARY and abandoned_vids.has(int((q as Dictionary).get("village_id", -1))):
+				q_arr.remove_at(i)
+
+	var movs = st.get("movements", null)
+	if typeof(movs) == TYPE_ARRAY:
+		var m_arr := movs as Array
+		for i in range(m_arr.size() - 1, -1, -1):
+			var m = m_arr[i]
+			if typeof(m) != TYPE_DICTIONARY:
+				continue
+			var md := m as Dictionary
+			var is_ret := (str(md.get("state", "")) == "returning" or str(md.get("type", "")) == "return")
+			var belongs := (
+				_matches_player(str(md.get("owner", "")), player_name)
+				or abandoned_vids.has(int(md.get("village_id", -1)))
+				or (not is_ret and abandoned_vids.has(int(md.get("from_village_id", -1))))
+				or (is_ret and abandoned_vids.has(int(md.get("to_village_id", -1))))
+			)
+			if belongs:
+				m_arr.remove_at(i)
+
+	var alliances_raw = st.get("alliances", null)
+	if typeof(alliances_raw) == TYPE_ARRAY:
+		var al_arr := alliances_raw as Array
+		for i in range(al_arr.size() - 1, -1, -1):
+			var al = al_arr[i]
+			if typeof(al) != TYPE_DICTIONARY:
+				continue
+			var ald := al as Dictionary
+			var mems = ald.get("members", [])
+			if typeof(mems) == TYPE_ARRAY:
+				var mem_arr := mems as Array
+				for j in range(mem_arr.size() - 1, -1, -1):
+					var mem = mem_arr[j]
+					var m_name := str(mem) if typeof(mem) == TYPE_STRING else (str((mem as Dictionary).get("name", "")) if typeof(mem) == TYPE_DICTIONARY else "")
+					if _matches_player(m_name, player_name):
+						mem_arr.remove_at(j)
+				if mem_arr.is_empty():
+					al_arr.remove_at(i)
+					continue
+				if _matches_player(str(ald.get("leader", "")), player_name):
+					var first_m = mem_arr[0]
+					ald["leader"] = str(first_m) if typeof(first_m) == TYPE_STRING else str((first_m as Dictionary).get("name", ""))
+					if typeof(first_m) == TYPE_DICTIONARY:
+						(first_m as Dictionary)["rank"] = "leader"
+
+	var w_dict = st.get("world", null)
+	if typeof(w_dict) == TYPE_DICTIONARY:
+		var profs = (w_dict as Dictionary).get("player_profiles", null)
+		if typeof(profs) == TYPE_DICTIONARY:
+			for pk in (profs as Dictionary).keys().duplicate():
+				if _matches_player(str(pk), player_name):
+					(profs as Dictionary).erase(pk)
+
+	var reg = w_data.get("registered_real_players", null)
+	if typeof(reg) == TYPE_ARRAY:
+		var reg_arr := reg as Array
+		for i in range(reg_arr.size() - 1, -1, -1):
+			if _matches_player(str(reg_arr[i]), player_name):
+				reg_arr.remove_at(i)
+	return converted
+
+
+func sweep_inactive_villages(w_data: Dictionary, now_unix: int, active_player_name: String = "") -> int:
+	if w_data.is_empty() or now_unix <= 0:
+		return 0
+	var state = w_data.get("state", null)
+	if typeof(state) != TYPE_DICTIONARY:
+		return 0
+	var st := state as Dictionary
+	var villages_raw = st.get("villages", [])
+	if typeof(villages_raw) != TYPE_ARRAY:
+		return 0
+
+	var w_dict: Dictionary = st.get("world", {}) if typeof(st.get("world")) == TYPE_DICTIONARY else {}
+	var profs: Dictionary = w_dict.get("player_profiles", {}) if typeof(w_dict.get("player_profiles")) == TYPE_DICTIONARY else {}
+	var max_seen_by_owner: Dictionary = {}
+
+	for pk in profs.keys():
+		if typeof(profs[pk]) == TYPE_DICTIONARY:
+			var pd := profs[pk] as Dictionary
+			var p_low := _norm_name(str(pk)).to_lower()
+			var p_seen := maxi(int(pd.get("last_active_unix", 0)), int(pd.get("last_login_unix", 0)))
+			if p_seen > int(max_seen_by_owner.get(p_low, 0)):
+				max_seen_by_owner[p_low] = p_seen
+
+	var owner_names_by_low: Dictionary = {}
+	for item in (villages_raw as Array):
+		if typeof(item) != TYPE_DICTIONARY:
+			continue
+		var vd := item as Dictionary
+		if bool(vd.get("is_bot", false)) or bool(vd.get("is_barbarian", false)) or bool(vd.get("is_abandoned", false)):
+			continue
+		var own := _norm_name(str(vd.get("owner", "")))
+		var o_low := own.to_lower()
+		if o_low.is_empty() or o_low in ["barbar", "terk edilmiş", "terk edilmis", "terk edilmiş köy", "soyguncular", "usta", "haydut", "haydutlar"]:
+			continue
+		if not active_player_name.is_empty() and _matches_player(own, active_player_name):
+			continue
+		owner_names_by_low[o_low] = own
+		var v_seen := maxi(int(vd.get("last_active_unix", 0)), maxi(int(vd.get("last_resource_unix", 0)), int(vd.get("created_unix", 0))))
+		if v_seen > int(max_seen_by_owner.get(o_low, 0)):
+			max_seen_by_owner[o_low] = v_seen
+
+	var total_abandoned := 0
+	for o_low in owner_names_by_low.keys():
+		var last_seen := int(max_seen_by_owner.get(o_low, 0))
+		if last_seen > 0 and (now_unix - last_seen) >= ABANDON_INACTIVE_SECONDS:
+			total_abandoned += abandon_player_villages_in_world_dict(w_data, str(owner_names_by_low[o_low]), now_unix)
+	return total_abandoned
+
+
+static func ensure_nearby_starter_bandits(w_data: Dictionary, player_x: int, player_y: int) -> bool:
+	if w_data.is_empty():
+		return false
+	var state = w_data.get("state", null)
+	if typeof(state) != TYPE_DICTIONARY:
+		return false
+	var villages_raw = (state as Dictionary).get("villages", [])
+	if typeof(villages_raw) != TYPE_ARRAY:
+		return false
+
+	var entries: Array = []
+	for item in (villages_raw as Array):
+		if typeof(item) != TYPE_DICTIONARY:
+			continue
+		var vd := item as Dictionary
+		if bool(vd.get("is_bandit", false)) or bool(vd.get("is_bot", false)):
+			var dx := int(vd.get("x", 0)) - player_x
+			var dy := int(vd.get("y", 0)) - player_y
+			entries.append({"d2": dx * dx + dy * dy, "v": vd})
+	if entries.is_empty():
+		return false
+
+	entries.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
+		return int(a["d2"]) < int(b["d2"])
+	)
+
+	var changed := false
+	var near_count := mini(STARTER_BANDIT_LEVELS.size(), entries.size())
+	var need_counts := {1: 2, 2: 2, 3: 1, 4: 1}
+	var cur_counts := {1: 0, 2: 0, 3: 0, 4: 0}
+	var near_assigned: Array[bool] = []
+	near_assigned.resize(near_count)
+
+	for i in range(near_count):
+		var vd: Dictionary = entries[i]["v"]
+		var cur_l := int(vd.get("bandit_level", LordModelScript.bandit_level_for_village(vd)))
+		if need_counts.has(cur_l) and int(cur_counts[cur_l]) < int(need_counts[cur_l]):
+			cur_counts[cur_l] = int(cur_counts[cur_l]) + 1
+			near_assigned[i] = true
+
+	var missing_lvls: Array[int] = []
+	for req_l in [1, 2, 3, 4]:
+		var deficit := int(need_counts[req_l]) - int(cur_counts[req_l])
+		for _k in range(maxi(0, deficit)):
+			missing_lvls.append(req_l)
+
+	var m_idx := 0
+	for i in range(near_count):
+		if m_idx >= missing_lvls.size():
+			break
+		if near_assigned[i]:
+			continue
+		var vd: Dictionary = entries[i]["v"]
+		var tgt_l: int = missing_lvls[m_idx]
+		m_idx += 1
+		_apply_bandit_level_to_dict(vd, tgt_l)
+		changed = true
+
+	# Dünyada 1..10 arası tüm seviyelerin temsil edilmesini sağla (en uzak fazlalıklardan tamamla)
+	if entries.size() >= 10:
+		var by_lvl: Dictionary = {}
+		for i in range(entries.size()):
+			var vd: Dictionary = entries[i]["v"]
+			var l := int(vd.get("bandit_level", LordModelScript.bandit_level_for_village(vd)))
+			if not by_lvl.has(l):
+				by_lvl[l] = []
+			(by_lvl[l] as Array).append(i)
+		for want_l in range(1, 11):
+			if by_lvl.has(want_l):
+				continue
+			# En uzakta kalan ve birden fazla kopyası olan yüksek/orta seviyeden seç
+			for pick_i in range(entries.size() - 1, near_count - 1, -1):
+				var pvd: Dictionary = entries[pick_i]["v"]
+				var pl := int(pvd.get("bandit_level", 1))
+				var pl_list: Array = by_lvl.get(pl, [])
+				if pl_list.size() > 1:
+					pl_list.erase(pick_i)
+					_apply_bandit_level_to_dict(pvd, want_l)
+					by_lvl[want_l] = [pick_i]
+					changed = true
+					break
+	return changed
+
+
+static func _apply_bandit_level_to_dict(vd: Dictionary, lvl: int) -> void:
+	var tmpl := LordModelScript.bandit_template(lvl)
+	vd["is_bot"] = true
+	vd["is_bandit"] = true
+	vd["is_barbarian"] = false
+	vd["is_abandoned"] = false
+	vd["bandit_level"] = lvl
+	vd["bandit_initialized"] = true
+	vd["owner"] = str(tmpl.get("owner", "Haydutlar"))
+	vd["name"] = str(tmpl.get("name", "Haydut Köyü Sv.%d" % lvl))
+	vd["buildings"] = (tmpl.get("buildings", {}) as Dictionary).duplicate(true)
+	vd["units"] = (tmpl.get("units", {}) as Dictionary).duplicate(true)
+	vd["points"] = int(tmpl.get("points", 300))
+	vd["realm_of_power"] = int(tmpl.get("points", 300))
+	vd["protection_until"] = 0
+	vd["protection_until_unix"] = 0
+	vd["conquest_protection_until"] = 0
+	vd["conquest_protection_until_unix"] = 0
 
 
 ## Her gerçek oyuncu için fethedilmemiş başlangıç köyü sayısını 1 ile sınırlar, id <= 0 geçersiz köyleri temizler.
